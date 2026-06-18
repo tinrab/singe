@@ -1,0 +1,25 @@
+[package]
+name = "singe-nvml"
+description = "Safe Rust wrappers for NVIDIA Management Library (NVML), monitoring, MIG, and vGPU APIs."
+version = "0.1.0-alpha.8"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["nvidia", "nvml", "gpu", "monitoring"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["nvml_13_2"]
+
+nvml_13_2 = ["singe-nvml-sys/nvml_13_2"]
+
+[dependencies]
+singe-core.workspace = true
+singe-nvml-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true

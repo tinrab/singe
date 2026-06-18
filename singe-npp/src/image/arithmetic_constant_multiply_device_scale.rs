@@ -1,0 +1,130 @@
+use super::*;
+
+impl_add_device_constant!(
+    multiply_device_constant_scale_u8_c1,
+    u8,
+    u8,
+    C1,
+    1,
+    nppiMulDeviceCScale_8u_C1R_Ctx
+);
+impl_add_device_constant_in_place!(
+    multiply_device_constant_scale_u8_c1_in_place,
+    u8,
+    u8,
+    C1,
+    1,
+    nppiMulDeviceCScale_8u_C1IR_Ctx
+);
+impl_add_device_constant!(
+    multiply_device_constant_scale_u8_c3,
+    u8,
+    u8,
+    C3,
+    3,
+    nppiMulDeviceCScale_8u_C3R_Ctx
+);
+impl_add_device_constant_in_place!(
+    multiply_device_constant_scale_u8_c3_in_place,
+    u8,
+    u8,
+    C3,
+    3,
+    nppiMulDeviceCScale_8u_C3IR_Ctx
+);
+impl_add_device_constant!(
+    multiply_device_constant_scale_u8_ac4,
+    u8,
+    u8,
+    AC4,
+    3,
+    nppiMulDeviceCScale_8u_AC4R_Ctx
+);
+impl_add_device_constant_in_place!(
+    multiply_device_constant_scale_u8_ac4_in_place,
+    u8,
+    u8,
+    AC4,
+    3,
+    nppiMulDeviceCScale_8u_AC4IR_Ctx
+);
+impl_add_device_constant!(
+    multiply_device_constant_scale_u8_c4,
+    u8,
+    u8,
+    C4,
+    4,
+    nppiMulDeviceCScale_8u_C4R_Ctx
+);
+impl_add_device_constant_in_place!(
+    multiply_device_constant_scale_u8_c4_in_place,
+    u8,
+    u8,
+    C4,
+    4,
+    nppiMulDeviceCScale_8u_C4IR_Ctx
+);
+impl_add_device_constant!(
+    multiply_device_constant_scale_u16_c1,
+    u16,
+    u16,
+    C1,
+    1,
+    nppiMulDeviceCScale_16u_C1R_Ctx
+);
+impl_add_device_constant_in_place!(
+    multiply_device_constant_scale_u16_c1_in_place,
+    u16,
+    u16,
+    C1,
+    1,
+    nppiMulDeviceCScale_16u_C1IR_Ctx
+);
+impl_add_device_constant!(
+    multiply_device_constant_scale_u16_c3,
+    u16,
+    u16,
+    C3,
+    3,
+    nppiMulDeviceCScale_16u_C3R_Ctx
+);
+impl_add_device_constant_in_place!(
+    multiply_device_constant_scale_u16_c3_in_place,
+    u16,
+    u16,
+    C3,
+    3,
+    nppiMulDeviceCScale_16u_C3IR_Ctx
+);
+impl_add_device_constant!(
+    multiply_device_constant_scale_u16_ac4,
+    u16,
+    u16,
+    AC4,
+    3,
+    nppiMulDeviceCScale_16u_AC4R_Ctx
+);
+impl_add_device_constant_in_place!(
+    multiply_device_constant_scale_u16_ac4_in_place,
+    u16,
+    u16,
+    AC4,
+    3,
+    nppiMulDeviceCScale_16u_AC4IR_Ctx
+);
+impl_add_device_constant!(
+    multiply_device_constant_scale_u16_c4,
+    u16,
+    u16,
+    C4,
+    4,
+    nppiMulDeviceCScale_16u_C4R_Ctx
+);
+impl_add_device_constant_in_place!(
+    multiply_device_constant_scale_u16_c4_in_place,
+    u16,
+    u16,
+    C4,
+    4,
+    nppiMulDeviceCScale_16u_C4IR_Ctx
+);

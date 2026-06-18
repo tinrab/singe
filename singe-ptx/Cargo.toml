@@ -1,0 +1,18 @@
+[package]
+name = "singe-ptx"
+description = "CUDA PTX parser, AST, and instruction metadata utilities."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+keywords = ["cuda", "nvidia", "ptx", "parser"]
+license-file = "../LICENSE"
+readme = "README.md"
+include.workspace = true
+
+[features]
+default = ["ptx_9_1"]
+ptx_9_1 = []
+
+[dependencies]
+thiserror.workspace = true
+nom.workspace = true

@@ -1,0 +1,132 @@
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        exchange,
+        view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
+    },
+};
+
+use super::super::ImagePipeline;
+use super::BorderImage;
+
+impl_border_image!(
+    u8,
+    C1,
+    exchange::copy_replicate_border_c1,
+    exchange::copy_wrap_border_c1
+);
+impl_border_image!(
+    u8,
+    C3,
+    exchange::copy_replicate_border_c3,
+    exchange::copy_wrap_border_c3
+);
+impl_border_image!(
+    u8,
+    C4,
+    exchange::copy_replicate_border_c4,
+    exchange::copy_wrap_border_c4
+);
+impl_border_image!(
+    u8,
+    AC4,
+    exchange::copy_replicate_border_ac4,
+    exchange::copy_wrap_border_ac4
+);
+impl_border_image!(
+    u16,
+    C1,
+    exchange::copy_replicate_border_c1,
+    exchange::copy_wrap_border_c1
+);
+impl_border_image!(
+    u16,
+    C3,
+    exchange::copy_replicate_border_c3,
+    exchange::copy_wrap_border_c3
+);
+impl_border_image!(
+    u16,
+    C4,
+    exchange::copy_replicate_border_c4,
+    exchange::copy_wrap_border_c4
+);
+impl_border_image!(
+    u16,
+    AC4,
+    exchange::copy_replicate_border_ac4,
+    exchange::copy_wrap_border_ac4
+);
+impl_border_image!(
+    i16,
+    C1,
+    exchange::copy_replicate_border_c1,
+    exchange::copy_wrap_border_c1
+);
+impl_border_image!(
+    i16,
+    C3,
+    exchange::copy_replicate_border_c3,
+    exchange::copy_wrap_border_c3
+);
+impl_border_image!(
+    i16,
+    C4,
+    exchange::copy_replicate_border_c4,
+    exchange::copy_wrap_border_c4
+);
+impl_border_image!(
+    i16,
+    AC4,
+    exchange::copy_replicate_border_ac4,
+    exchange::copy_wrap_border_ac4
+);
+impl_border_image!(
+    i32,
+    C1,
+    exchange::copy_replicate_border_c1,
+    exchange::copy_wrap_border_c1
+);
+impl_border_image!(
+    i32,
+    C3,
+    exchange::copy_replicate_border_c3,
+    exchange::copy_wrap_border_c3
+);
+impl_border_image!(
+    i32,
+    C4,
+    exchange::copy_replicate_border_c4,
+    exchange::copy_wrap_border_c4
+);
+impl_border_image!(
+    i32,
+    AC4,
+    exchange::copy_replicate_border_ac4,
+    exchange::copy_wrap_border_ac4
+);
+impl_border_image!(
+    f32,
+    C1,
+    exchange::copy_replicate_border_c1,
+    exchange::copy_wrap_border_c1
+);
+impl_border_image!(
+    f32,
+    C3,
+    exchange::copy_replicate_border_c3,
+    exchange::copy_wrap_border_c3
+);
+impl_border_image!(
+    f32,
+    C4,
+    exchange::copy_replicate_border_c4,
+    exchange::copy_wrap_border_c4
+);
+impl_border_image!(
+    f32,
+    AC4,
+    exchange::copy_replicate_border_ac4,
+    exchange::copy_wrap_border_ac4
+);

@@ -1,0 +1,651 @@
+use super::*;
+
+impl_error_metric!(
+    maximum_relative_error_u8_c1_buffer_size,
+    maximum_relative_error_u8_c1,
+    u8,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_8u_C1R_Ctx,
+    nppiMaximumRelativeError_8u_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u8_c2_buffer_size,
+    maximum_relative_error_u8_c2,
+    u8,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_8u_C2R_Ctx,
+    nppiMaximumRelativeError_8u_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u8_c3_buffer_size,
+    maximum_relative_error_u8_c3,
+    u8,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_8u_C3R_Ctx,
+    nppiMaximumRelativeError_8u_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u8_c4_buffer_size,
+    maximum_relative_error_u8_c4,
+    u8,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_8u_C4R_Ctx,
+    nppiMaximumRelativeError_8u_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i8_c1_buffer_size,
+    maximum_relative_error_i8_c1,
+    i8,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_8s_C1R_Ctx,
+    nppiMaximumRelativeError_8s_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i8_c2_buffer_size,
+    maximum_relative_error_i8_c2,
+    i8,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_8s_C2R_Ctx,
+    nppiMaximumRelativeError_8s_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i8_c3_buffer_size,
+    maximum_relative_error_i8_c3,
+    i8,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_8s_C3R_Ctx,
+    nppiMaximumRelativeError_8s_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i8_c4_buffer_size,
+    maximum_relative_error_i8_c4,
+    i8,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_8s_C4R_Ctx,
+    nppiMaximumRelativeError_8s_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u16_c1_buffer_size,
+    maximum_relative_error_u16_c1,
+    u16,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16u_C1R_Ctx,
+    nppiMaximumRelativeError_16u_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u16_c2_buffer_size,
+    maximum_relative_error_u16_c2,
+    u16,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16u_C2R_Ctx,
+    nppiMaximumRelativeError_16u_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u16_c3_buffer_size,
+    maximum_relative_error_u16_c3,
+    u16,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16u_C3R_Ctx,
+    nppiMaximumRelativeError_16u_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u16_c4_buffer_size,
+    maximum_relative_error_u16_c4,
+    u16,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16u_C4R_Ctx,
+    nppiMaximumRelativeError_16u_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_c1_buffer_size,
+    maximum_relative_error_i16_c1,
+    i16,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16s_C1R_Ctx,
+    nppiMaximumRelativeError_16s_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_c2_buffer_size,
+    maximum_relative_error_i16_c2,
+    i16,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16s_C2R_Ctx,
+    nppiMaximumRelativeError_16s_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_c3_buffer_size,
+    maximum_relative_error_i16_c3,
+    i16,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16s_C3R_Ctx,
+    nppiMaximumRelativeError_16s_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_c4_buffer_size,
+    maximum_relative_error_i16_c4,
+    i16,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16s_C4R_Ctx,
+    nppiMaximumRelativeError_16s_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u32_c1_buffer_size,
+    maximum_relative_error_u32_c1,
+    u32,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32u_C1R_Ctx,
+    nppiMaximumRelativeError_32u_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u32_c2_buffer_size,
+    maximum_relative_error_u32_c2,
+    u32,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32u_C2R_Ctx,
+    nppiMaximumRelativeError_32u_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u32_c3_buffer_size,
+    maximum_relative_error_u32_c3,
+    u32,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32u_C3R_Ctx,
+    nppiMaximumRelativeError_32u_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u32_c4_buffer_size,
+    maximum_relative_error_u32_c4,
+    u32,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32u_C4R_Ctx,
+    nppiMaximumRelativeError_32u_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_c1_buffer_size,
+    maximum_relative_error_i32_c1,
+    i32,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32s_C1R_Ctx,
+    nppiMaximumRelativeError_32s_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_c2_buffer_size,
+    maximum_relative_error_i32_c2,
+    i32,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32s_C2R_Ctx,
+    nppiMaximumRelativeError_32s_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_c3_buffer_size,
+    maximum_relative_error_i32_c3,
+    i32,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32s_C3R_Ctx,
+    nppiMaximumRelativeError_32s_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_c4_buffer_size,
+    maximum_relative_error_i32_c4,
+    i32,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32s_C4R_Ctx,
+    nppiMaximumRelativeError_32s_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_c1_buffer_size,
+    maximum_relative_error_f32_c1,
+    f32,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32f_C1R_Ctx,
+    nppiMaximumRelativeError_32f_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_c2_buffer_size,
+    maximum_relative_error_f32_c2,
+    f32,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32f_C2R_Ctx,
+    nppiMaximumRelativeError_32f_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_c3_buffer_size,
+    maximum_relative_error_f32_c3,
+    f32,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32f_C3R_Ctx,
+    nppiMaximumRelativeError_32f_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_c4_buffer_size,
+    maximum_relative_error_f32_c4,
+    f32,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32f_C4R_Ctx,
+    nppiMaximumRelativeError_32f_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f64_c1_buffer_size,
+    maximum_relative_error_f64_c1,
+    f64,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_64f_C1R_Ctx,
+    nppiMaximumRelativeError_64f_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f64_c2_buffer_size,
+    maximum_relative_error_f64_c2,
+    f64,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_64f_C2R_Ctx,
+    nppiMaximumRelativeError_64f_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f64_c3_buffer_size,
+    maximum_relative_error_f64_c3,
+    f64,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_64f_C3R_Ctx,
+    nppiMaximumRelativeError_64f_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f64_c4_buffer_size,
+    maximum_relative_error_f64_c4,
+    f64,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_64f_C4R_Ctx,
+    nppiMaximumRelativeError_64f_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_complex_c1_buffer_size,
+    maximum_relative_error_i16_complex_c1,
+    ComplexI16,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16sc_C1R_Ctx,
+    nppiMaximumRelativeError_16sc_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_complex_c2_buffer_size,
+    maximum_relative_error_i16_complex_c2,
+    ComplexI16,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16sc_C2R_Ctx,
+    nppiMaximumRelativeError_16sc_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_complex_c3_buffer_size,
+    maximum_relative_error_i16_complex_c3,
+    ComplexI16,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16sc_C3R_Ctx,
+    nppiMaximumRelativeError_16sc_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_complex_c4_buffer_size,
+    maximum_relative_error_i16_complex_c4,
+    ComplexI16,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_16sc_C4R_Ctx,
+    nppiMaximumRelativeError_16sc_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_complex_c1_buffer_size,
+    maximum_relative_error_i32_complex_c1,
+    ComplexI32,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32sc_C1R_Ctx,
+    nppiMaximumRelativeError_32sc_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_complex_c2_buffer_size,
+    maximum_relative_error_i32_complex_c2,
+    ComplexI32,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32sc_C2R_Ctx,
+    nppiMaximumRelativeError_32sc_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_complex_c3_buffer_size,
+    maximum_relative_error_i32_complex_c3,
+    ComplexI32,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32sc_C3R_Ctx,
+    nppiMaximumRelativeError_32sc_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_complex_c4_buffer_size,
+    maximum_relative_error_i32_complex_c4,
+    ComplexI32,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32sc_C4R_Ctx,
+    nppiMaximumRelativeError_32sc_C4R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_complex_c1_buffer_size,
+    maximum_relative_error_f32_complex_c1,
+    Complex32,
+    C1,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32fc_C1R_Ctx,
+    nppiMaximumRelativeError_32fc_C1R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_complex_c2_buffer_size,
+    maximum_relative_error_f32_complex_c2,
+    Complex32,
+    C2,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32fc_C2R_Ctx,
+    nppiMaximumRelativeError_32fc_C2R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_complex_c3_buffer_size,
+    maximum_relative_error_f32_complex_c3,
+    Complex32,
+    C3,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32fc_C3R_Ctx,
+    nppiMaximumRelativeError_32fc_C3R_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_complex_c4_buffer_size,
+    maximum_relative_error_f32_complex_c4,
+    Complex32,
+    C4,
+    1,
+    nppiMaximumRelativeErrorGetBufferHostSize_32fc_C4R_Ctx,
+    nppiMaximumRelativeError_32fc_C4R_Ctx
+);
+
+impl_generic_dot_prod!(
+    MaximumRelativeErrorC1,
+    maximum_relative_error_c1,
+    maximum_relative_error_c1_buffer_size,
+    C1,
+    [
+        (
+            u8,
+            maximum_relative_error_u8_c1,
+            maximum_relative_error_u8_c1_buffer_size
+        ),
+        (
+            i8,
+            maximum_relative_error_i8_c1,
+            maximum_relative_error_i8_c1_buffer_size
+        ),
+        (
+            u16,
+            maximum_relative_error_u16_c1,
+            maximum_relative_error_u16_c1_buffer_size
+        ),
+        (
+            i16,
+            maximum_relative_error_i16_c1,
+            maximum_relative_error_i16_c1_buffer_size
+        ),
+        (
+            u32,
+            maximum_relative_error_u32_c1,
+            maximum_relative_error_u32_c1_buffer_size
+        ),
+        (
+            i32,
+            maximum_relative_error_i32_c1,
+            maximum_relative_error_i32_c1_buffer_size
+        ),
+        (
+            f32,
+            maximum_relative_error_f32_c1,
+            maximum_relative_error_f32_c1_buffer_size
+        ),
+        (
+            f64,
+            maximum_relative_error_f64_c1,
+            maximum_relative_error_f64_c1_buffer_size
+        ),
+        (
+            ComplexI16,
+            maximum_relative_error_i16_complex_c1,
+            maximum_relative_error_i16_complex_c1_buffer_size
+        ),
+        (
+            ComplexI32,
+            maximum_relative_error_i32_complex_c1,
+            maximum_relative_error_i32_complex_c1_buffer_size
+        ),
+        (
+            Complex32,
+            maximum_relative_error_f32_complex_c1,
+            maximum_relative_error_f32_complex_c1_buffer_size
+        ),
+    ]
+);
+impl_generic_dot_prod!(
+    MaximumRelativeErrorC2,
+    maximum_relative_error_c2,
+    maximum_relative_error_c2_buffer_size,
+    C2,
+    [
+        (
+            u8,
+            maximum_relative_error_u8_c2,
+            maximum_relative_error_u8_c2_buffer_size
+        ),
+        (
+            i8,
+            maximum_relative_error_i8_c2,
+            maximum_relative_error_i8_c2_buffer_size
+        ),
+        (
+            u16,
+            maximum_relative_error_u16_c2,
+            maximum_relative_error_u16_c2_buffer_size
+        ),
+        (
+            i16,
+            maximum_relative_error_i16_c2,
+            maximum_relative_error_i16_c2_buffer_size
+        ),
+        (
+            u32,
+            maximum_relative_error_u32_c2,
+            maximum_relative_error_u32_c2_buffer_size
+        ),
+        (
+            i32,
+            maximum_relative_error_i32_c2,
+            maximum_relative_error_i32_c2_buffer_size
+        ),
+        (
+            f32,
+            maximum_relative_error_f32_c2,
+            maximum_relative_error_f32_c2_buffer_size
+        ),
+        (
+            f64,
+            maximum_relative_error_f64_c2,
+            maximum_relative_error_f64_c2_buffer_size
+        ),
+        (
+            ComplexI16,
+            maximum_relative_error_i16_complex_c2,
+            maximum_relative_error_i16_complex_c2_buffer_size
+        ),
+        (
+            ComplexI32,
+            maximum_relative_error_i32_complex_c2,
+            maximum_relative_error_i32_complex_c2_buffer_size
+        ),
+        (
+            Complex32,
+            maximum_relative_error_f32_complex_c2,
+            maximum_relative_error_f32_complex_c2_buffer_size
+        ),
+    ]
+);
+impl_generic_dot_prod!(
+    MaximumRelativeErrorC3,
+    maximum_relative_error_c3,
+    maximum_relative_error_c3_buffer_size,
+    C3,
+    [
+        (
+            u8,
+            maximum_relative_error_u8_c3,
+            maximum_relative_error_u8_c3_buffer_size
+        ),
+        (
+            i8,
+            maximum_relative_error_i8_c3,
+            maximum_relative_error_i8_c3_buffer_size
+        ),
+        (
+            u16,
+            maximum_relative_error_u16_c3,
+            maximum_relative_error_u16_c3_buffer_size
+        ),
+        (
+            i16,
+            maximum_relative_error_i16_c3,
+            maximum_relative_error_i16_c3_buffer_size
+        ),
+        (
+            u32,
+            maximum_relative_error_u32_c3,
+            maximum_relative_error_u32_c3_buffer_size
+        ),
+        (
+            i32,
+            maximum_relative_error_i32_c3,
+            maximum_relative_error_i32_c3_buffer_size
+        ),
+        (
+            f32,
+            maximum_relative_error_f32_c3,
+            maximum_relative_error_f32_c3_buffer_size
+        ),
+        (
+            f64,
+            maximum_relative_error_f64_c3,
+            maximum_relative_error_f64_c3_buffer_size
+        ),
+        (
+            ComplexI16,
+            maximum_relative_error_i16_complex_c3,
+            maximum_relative_error_i16_complex_c3_buffer_size
+        ),
+        (
+            ComplexI32,
+            maximum_relative_error_i32_complex_c3,
+            maximum_relative_error_i32_complex_c3_buffer_size
+        ),
+        (
+            Complex32,
+            maximum_relative_error_f32_complex_c3,
+            maximum_relative_error_f32_complex_c3_buffer_size
+        ),
+    ]
+);
+impl_generic_dot_prod!(
+    MaximumRelativeErrorC4,
+    maximum_relative_error_c4,
+    maximum_relative_error_c4_buffer_size,
+    C4,
+    [
+        (
+            u8,
+            maximum_relative_error_u8_c4,
+            maximum_relative_error_u8_c4_buffer_size
+        ),
+        (
+            i8,
+            maximum_relative_error_i8_c4,
+            maximum_relative_error_i8_c4_buffer_size
+        ),
+        (
+            u16,
+            maximum_relative_error_u16_c4,
+            maximum_relative_error_u16_c4_buffer_size
+        ),
+        (
+            i16,
+            maximum_relative_error_i16_c4,
+            maximum_relative_error_i16_c4_buffer_size
+        ),
+        (
+            u32,
+            maximum_relative_error_u32_c4,
+            maximum_relative_error_u32_c4_buffer_size
+        ),
+        (
+            i32,
+            maximum_relative_error_i32_c4,
+            maximum_relative_error_i32_c4_buffer_size
+        ),
+        (
+            f32,
+            maximum_relative_error_f32_c4,
+            maximum_relative_error_f32_c4_buffer_size
+        ),
+        (
+            f64,
+            maximum_relative_error_f64_c4,
+            maximum_relative_error_f64_c4_buffer_size
+        ),
+        (
+            ComplexI16,
+            maximum_relative_error_i16_complex_c4,
+            maximum_relative_error_i16_complex_c4_buffer_size
+        ),
+        (
+            ComplexI32,
+            maximum_relative_error_i32_complex_c4,
+            maximum_relative_error_i32_complex_c4_buffer_size
+        ),
+        (
+            Complex32,
+            maximum_relative_error_f32_complex_c4,
+            maximum_relative_error_f32_complex_c4_buffer_size
+        ),
+    ]
+);

@@ -1,0 +1,96 @@
+nvml_include_path := "$NVML_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    nvml_num_enums=(
+        "nvmlDeviceAddressingModeType_t"
+        "nvmlBridgeChipType_enum"
+        "nvmlNvLinkUtilizationCountUnits_enum"
+        "nvmlNvLinkUtilizationCountPktTypes_enum"
+        "nvmlNvLinkCapability_enum"
+        "nvmlNvLinkErrorCounter_enum"
+        "nvmlIntNvLinkDeviceType_enum"
+        "nvmlGpuLevel_enum"
+        "nvmlGpuP2PStatus_enum"
+        "nvmlGpuP2PCapsIndex_enum"
+        "nvmlSamplingType_enum"
+        "nvmlPcieUtilCounter_enum"
+        "nvmlValueType_enum"
+        "nvmlPerfPolicyType_enum"
+        "nvmlThermalTarget_t"
+        "nvmlThermalController_t"
+        "nvmlCoolerControl_enum"
+        "nvmlCoolerTarget_enum"
+        "nvmlUUIDType_t"
+        "nvmlEnableState_enum"
+        "nvmlBrandType_enum"
+        "nvmlTemperatureThresholds_enum"
+        "nvmlTemperatureSensors_enum"
+        "nvmlComputeMode_enum"
+        "nvmlMemoryErrorType_enum"
+        "nvmlNvlinkVersion_enum"
+        "nvmlEccCounterType_enum"
+        "nvmlClockType_enum"
+        "nvmlClockId_enum"
+        "nvmlDriverModel_enum"
+        "nvmlPStates_enum"
+        "nvmlGom_enum"
+        "nvmlInforomObject_enum"
+        "nvmlReturn_enum"
+        "nvmlMemoryLocation_enum"
+        "nvmlPageRetirementCause_enum"
+        "nvmlRestrictedAPI_enum"
+        "nvmlGpuUtilizationDomainId_t"
+        "nvmlGpuVirtualizationMode"
+        "nvmlHostVgpuMode_enum"
+        "nvmlVgpuVmIdType"
+        "nvmlVgpuGuestInfoState_enum"
+        "nvmlGridLicenseFeatureCode_t"
+        "nvmlVgpuCapability_enum"
+        "nvmlVgpuDriverCapability_enum"
+        "nvmlDeviceVgpuCapability_enum"
+        "nvmlDeviceGpuRecoveryAction_s"
+        "nvmlFanState_enum"
+        "nvmlLedColor_enum"
+        "nvmlEncoderQueryType_enum"
+        "nvmlFBCSessionType_enum"
+        "nvmlDetachGpuState_enum"
+        "nvmlPcieLinkState_enum"
+        "nvmlClockLimitId_enum"
+        "nvmlVgpuVmCompatibility_enum"
+        "nvmlVgpuPgpuCompatibilityLimitCode_enum"
+        "nvmlGpmMetricId_t"
+        "nvmlPowerProfileType_t"
+    )
+    nvml_enum_args=$(for enum in "${nvml_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{ nvml_include_path }}/nvml.h \
+        $nvml_enum_args \
+        --allowlist-item "^nvml.*" \
+        --allowlist-item "^NVML.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{ nvml_include_path }} \
+        > bindings.rs
+
+    NVML_VERSION=$(grep -m1 -Eo 'NVML_API_VERSION[^=]*=[[:space:]]*[0-9]+' bindings.rs | grep -Eo '[0-9]+' | tail -n1)
+    if [ -z "${NVML_VERSION}" ]; then
+        echo "NVML_API_VERSION not found in bindings.rs"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/nvml_sys_${NVML_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/nvml_sys_*.rs

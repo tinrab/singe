@@ -1,0 +1,398 @@
+use super::*;
+
+impl_statistic!(
+    mean_u8_c1_buffer_size,
+    mean_u8_c1,
+    u8,
+    C1,
+    1,
+    nppiMeanGetBufferHostSize_8u_C1R_Ctx,
+    nppiMean_8u_C1R_Ctx
+);
+impl_statistic!(
+    mean_u16_c1_buffer_size,
+    mean_u16_c1,
+    u16,
+    C1,
+    1,
+    nppiMeanGetBufferHostSize_16u_C1R_Ctx,
+    nppiMean_16u_C1R_Ctx
+);
+impl_statistic!(
+    mean_i16_c1_buffer_size,
+    mean_i16_c1,
+    i16,
+    C1,
+    1,
+    nppiMeanGetBufferHostSize_16s_C1R_Ctx,
+    nppiMean_16s_C1R_Ctx
+);
+impl_statistic!(
+    mean_f32_c1_buffer_size,
+    mean_f32_c1,
+    f32,
+    C1,
+    1,
+    nppiMeanGetBufferHostSize_32f_C1R_Ctx,
+    nppiMean_32f_C1R_Ctx
+);
+impl_statistic!(
+    mean_u8_c3_buffer_size,
+    mean_u8_c3,
+    u8,
+    C3,
+    3,
+    nppiMeanGetBufferHostSize_8u_C3R_Ctx,
+    nppiMean_8u_C3R_Ctx
+);
+impl_statistic!(
+    mean_u16_c3_buffer_size,
+    mean_u16_c3,
+    u16,
+    C3,
+    3,
+    nppiMeanGetBufferHostSize_16u_C3R_Ctx,
+    nppiMean_16u_C3R_Ctx
+);
+impl_statistic!(
+    mean_i16_c3_buffer_size,
+    mean_i16_c3,
+    i16,
+    C3,
+    3,
+    nppiMeanGetBufferHostSize_16s_C3R_Ctx,
+    nppiMean_16s_C3R_Ctx
+);
+impl_statistic!(
+    mean_f32_c3_buffer_size,
+    mean_f32_c3,
+    f32,
+    C3,
+    3,
+    nppiMeanGetBufferHostSize_32f_C3R_Ctx,
+    nppiMean_32f_C3R_Ctx
+);
+impl_statistic!(
+    mean_u8_c4_buffer_size,
+    mean_u8_c4,
+    u8,
+    C4,
+    4,
+    nppiMeanGetBufferHostSize_8u_C4R_Ctx,
+    nppiMean_8u_C4R_Ctx
+);
+impl_statistic!(
+    mean_u16_c4_buffer_size,
+    mean_u16_c4,
+    u16,
+    C4,
+    4,
+    nppiMeanGetBufferHostSize_16u_C4R_Ctx,
+    nppiMean_16u_C4R_Ctx
+);
+impl_statistic!(
+    mean_i16_c4_buffer_size,
+    mean_i16_c4,
+    i16,
+    C4,
+    4,
+    nppiMeanGetBufferHostSize_16s_C4R_Ctx,
+    nppiMean_16s_C4R_Ctx
+);
+impl_statistic!(
+    mean_f32_c4_buffer_size,
+    mean_f32_c4,
+    f32,
+    C4,
+    4,
+    nppiMeanGetBufferHostSize_32f_C4R_Ctx,
+    nppiMean_32f_C4R_Ctx
+);
+impl_statistic!(
+    mean_u8_ac4_buffer_size,
+    mean_u8_ac4,
+    u8,
+    AC4,
+    3,
+    nppiMeanGetBufferHostSize_8u_AC4R_Ctx,
+    nppiMean_8u_AC4R_Ctx
+);
+impl_statistic!(
+    mean_u16_ac4_buffer_size,
+    mean_u16_ac4,
+    u16,
+    AC4,
+    3,
+    nppiMeanGetBufferHostSize_16u_AC4R_Ctx,
+    nppiMean_16u_AC4R_Ctx
+);
+impl_statistic!(
+    mean_i16_ac4_buffer_size,
+    mean_i16_ac4,
+    i16,
+    AC4,
+    3,
+    nppiMeanGetBufferHostSize_16s_AC4R_Ctx,
+    nppiMean_16s_AC4R_Ctx
+);
+impl_statistic!(
+    mean_f32_ac4_buffer_size,
+    mean_f32_ac4,
+    f32,
+    AC4,
+    3,
+    nppiMeanGetBufferHostSize_32f_AC4R_Ctx,
+    nppiMean_32f_AC4R_Ctx
+);
+impl_statistic_masked!(
+    mean_u8_c1_masked_buffer_size,
+    mean_u8_c1_masked,
+    u8,
+    C1,
+    nppiMeanGetBufferHostSize_8u_C1MR_Ctx,
+    nppiMean_8u_C1MR_Ctx
+);
+impl_statistic_masked!(
+    mean_i8_c1_masked_buffer_size,
+    mean_i8_c1_masked,
+    i8,
+    C1,
+    nppiMeanGetBufferHostSize_8s_C1MR_Ctx,
+    nppiMean_8s_C1MR_Ctx
+);
+impl_statistic_masked!(
+    mean_u16_c1_masked_buffer_size,
+    mean_u16_c1_masked,
+    u16,
+    C1,
+    nppiMeanGetBufferHostSize_16u_C1MR_Ctx,
+    nppiMean_16u_C1MR_Ctx
+);
+impl_statistic_masked!(
+    mean_f32_c1_masked_buffer_size,
+    mean_f32_c1_masked,
+    f32,
+    C1,
+    nppiMeanGetBufferHostSize_32f_C1MR_Ctx,
+    nppiMean_32f_C1MR_Ctx
+);
+impl_statistic_masked!(
+    mean_u8_c3_masked_buffer_size,
+    mean_u8_c3_masked,
+    u8,
+    C3,
+    nppiMeanGetBufferHostSize_8u_C3CMR_Ctx,
+    nppiMean_8u_C3CMR_Ctx
+);
+impl_statistic_masked!(
+    mean_i8_c3_masked_buffer_size,
+    mean_i8_c3_masked,
+    i8,
+    C3,
+    nppiMeanGetBufferHostSize_8s_C3CMR_Ctx,
+    nppiMean_8s_C3CMR_Ctx
+);
+impl_statistic_masked!(
+    mean_u16_c3_masked_buffer_size,
+    mean_u16_c3_masked,
+    u16,
+    C3,
+    nppiMeanGetBufferHostSize_16u_C3CMR_Ctx,
+    nppiMean_16u_C3CMR_Ctx
+);
+impl_statistic_masked!(
+    mean_f32_c3_masked_buffer_size,
+    mean_f32_c3_masked,
+    f32,
+    C3,
+    nppiMeanGetBufferHostSize_32f_C3CMR_Ctx,
+    nppiMean_32f_C3CMR_Ctx
+);
+impl_mean_stddev!(
+    mean_stddev_u8_c1_buffer_size,
+    mean_stddev_u8_c1,
+    u8,
+    C1,
+    nppiMeanStdDevGetBufferHostSize_8u_C1R_Ctx,
+    nppiMean_StdDev_8u_C1R_Ctx
+);
+impl_mean_stddev!(
+    mean_stddev_i8_c1_buffer_size,
+    mean_stddev_i8_c1,
+    i8,
+    C1,
+    nppiMeanStdDevGetBufferHostSize_8s_C1R_Ctx,
+    nppiMean_StdDev_8s_C1R_Ctx
+);
+impl_mean_stddev!(
+    mean_stddev_u16_c1_buffer_size,
+    mean_stddev_u16_c1,
+    u16,
+    C1,
+    nppiMeanStdDevGetBufferHostSize_16u_C1R_Ctx,
+    nppiMean_StdDev_16u_C1R_Ctx
+);
+impl_mean_stddev!(
+    mean_stddev_f32_c1_buffer_size,
+    mean_stddev_f32_c1,
+    f32,
+    C1,
+    nppiMeanStdDevGetBufferHostSize_32f_C1R_Ctx,
+    nppiMean_StdDev_32f_C1R_Ctx
+);
+impl_mean_stddev!(
+    mean_stddev_u8_c3_buffer_size,
+    mean_stddev_u8_c3,
+    u8,
+    C3,
+    nppiMeanStdDevGetBufferHostSize_8u_C3CR_Ctx,
+    nppiMean_StdDev_8u_C3CR_Ctx
+);
+impl_mean_stddev!(
+    mean_stddev_i8_c3_buffer_size,
+    mean_stddev_i8_c3,
+    i8,
+    C3,
+    nppiMeanStdDevGetBufferHostSize_8s_C3CR_Ctx,
+    nppiMean_StdDev_8s_C3CR_Ctx
+);
+impl_mean_stddev!(
+    mean_stddev_u16_c3_buffer_size,
+    mean_stddev_u16_c3,
+    u16,
+    C3,
+    nppiMeanStdDevGetBufferHostSize_16u_C3CR_Ctx,
+    nppiMean_StdDev_16u_C3CR_Ctx
+);
+impl_mean_stddev!(
+    mean_stddev_f32_c3_buffer_size,
+    mean_stddev_f32_c3,
+    f32,
+    C3,
+    nppiMeanStdDevGetBufferHostSize_32f_C3CR_Ctx,
+    nppiMean_StdDev_32f_C3CR_Ctx
+);
+impl_mean_stddev_masked!(
+    mean_stddev_u8_c1_masked_buffer_size,
+    mean_stddev_u8_c1_masked,
+    u8,
+    C1,
+    nppiMeanStdDevGetBufferHostSize_8u_C1MR_Ctx,
+    nppiMean_StdDev_8u_C1MR_Ctx
+);
+impl_mean_stddev_masked!(
+    mean_stddev_i8_c1_masked_buffer_size,
+    mean_stddev_i8_c1_masked,
+    i8,
+    C1,
+    nppiMeanStdDevGetBufferHostSize_8s_C1MR_Ctx,
+    nppiMean_StdDev_8s_C1MR_Ctx
+);
+impl_mean_stddev_masked!(
+    mean_stddev_u16_c1_masked_buffer_size,
+    mean_stddev_u16_c1_masked,
+    u16,
+    C1,
+    nppiMeanStdDevGetBufferHostSize_16u_C1MR_Ctx,
+    nppiMean_StdDev_16u_C1MR_Ctx
+);
+impl_mean_stddev_masked!(
+    mean_stddev_f32_c1_masked_buffer_size,
+    mean_stddev_f32_c1_masked,
+    f32,
+    C1,
+    nppiMeanStdDevGetBufferHostSize_32f_C1MR_Ctx,
+    nppiMean_StdDev_32f_C1MR_Ctx
+);
+impl_mean_stddev_masked!(
+    mean_stddev_u8_c3_masked_buffer_size,
+    mean_stddev_u8_c3_masked,
+    u8,
+    C3,
+    nppiMeanStdDevGetBufferHostSize_8u_C3CMR_Ctx,
+    nppiMean_StdDev_8u_C3CMR_Ctx
+);
+impl_mean_stddev_masked!(
+    mean_stddev_i8_c3_masked_buffer_size,
+    mean_stddev_i8_c3_masked,
+    i8,
+    C3,
+    nppiMeanStdDevGetBufferHostSize_8s_C3CMR_Ctx,
+    nppiMean_StdDev_8s_C3CMR_Ctx
+);
+impl_mean_stddev_masked!(
+    mean_stddev_u16_c3_masked_buffer_size,
+    mean_stddev_u16_c3_masked,
+    u16,
+    C3,
+    nppiMeanStdDevGetBufferHostSize_16u_C3CMR_Ctx,
+    nppiMean_StdDev_16u_C3CMR_Ctx
+);
+impl_mean_stddev_masked!(
+    mean_stddev_f32_c3_masked_buffer_size,
+    mean_stddev_f32_c3_masked,
+    f32,
+    C3,
+    nppiMeanStdDevGetBufferHostSize_32f_C3CMR_Ctx,
+    nppiMean_StdDev_32f_C3CMR_Ctx
+);
+impl_generic_statistic_masked_c1!(
+    MeanMaskedC1,
+    mean_c1_masked,
+    mean_c1_masked_buffer_size,
+    [
+        (u8, mean_u8_c1_masked, mean_u8_c1_masked_buffer_size),
+        (i8, mean_i8_c1_masked, mean_i8_c1_masked_buffer_size),
+        (u16, mean_u16_c1_masked, mean_u16_c1_masked_buffer_size),
+        (f32, mean_f32_c1_masked, mean_f32_c1_masked_buffer_size),
+    ]
+);
+impl_generic_statistic_masked_c3!(
+    MeanMaskedC3,
+    mean_c3_masked,
+    mean_c3_masked_buffer_size,
+    [
+        (u8, mean_u8_c3_masked, mean_u8_c3_masked_buffer_size),
+        (i8, mean_i8_c3_masked, mean_i8_c3_masked_buffer_size),
+        (u16, mean_u16_c3_masked, mean_u16_c3_masked_buffer_size),
+        (f32, mean_f32_c3_masked, mean_f32_c3_masked_buffer_size),
+    ]
+);
+impl_generic_mean_stddev_c1!(
+    MeanStdDevC1,
+    mean_stddev_c1,
+    mean_stddev_c1_buffer_size,
+    [
+        (u8, mean_stddev_u8_c1, mean_stddev_u8_c1_buffer_size),
+        (i8, mean_stddev_i8_c1, mean_stddev_i8_c1_buffer_size),
+        (u16, mean_stddev_u16_c1, mean_stddev_u16_c1_buffer_size),
+        (f32, mean_stddev_f32_c1, mean_stddev_f32_c1_buffer_size),
+    ]
+);
+impl_generic_mean_stddev_masked_c1!(
+    MeanStdDevMaskedC1,
+    mean_stddev_c1_masked,
+    mean_stddev_c1_masked_buffer_size,
+    [
+        (
+            u8,
+            mean_stddev_u8_c1_masked,
+            mean_stddev_u8_c1_masked_buffer_size
+        ),
+        (
+            i8,
+            mean_stddev_i8_c1_masked,
+            mean_stddev_i8_c1_masked_buffer_size
+        ),
+        (
+            u16,
+            mean_stddev_u16_c1_masked,
+            mean_stddev_u16_c1_masked_buffer_size
+        ),
+        (
+            f32,
+            mean_stddev_f32_c1_masked,
+            mean_stddev_f32_c1_masked_buffer_size
+        ),
+    ]
+);

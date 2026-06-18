@@ -1,0 +1,16 @@
+[package]
+name = "singe-core"
+description = "Shared utilities for Singe crates."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["singe", "cuda", "nvidia", "utilities"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[dependencies]
+serde.workspace = true

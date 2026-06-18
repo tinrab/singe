@@ -1,0 +1,31 @@
+[package]
+name = "singe-cusparse"
+description = "Safe Rust wrappers for the NVIDIA cuSPARSE sparse linear algebra library."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "cusparse", "sparse"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cusparse_12_7"]
+
+cusparse_12_7 = ["singe-cuda/runtime_13_2", "singe-cusparse-sys/cusparse_12_7"]
+
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-cusparse-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

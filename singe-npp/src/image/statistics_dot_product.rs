@@ -1,0 +1,314 @@
+use super::*;
+
+impl_dot_prod!(
+    dot_prod_u8_c1_buffer_size,
+    dot_prod_u8_c1,
+    u8,
+    C1,
+    1,
+    nppiDotProdGetBufferHostSize_8u64f_C1R_Ctx,
+    nppiDotProd_8u64f_C1R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i8_c1_buffer_size,
+    dot_prod_i8_c1,
+    i8,
+    C1,
+    1,
+    nppiDotProdGetBufferHostSize_8s64f_C1R_Ctx,
+    nppiDotProd_8s64f_C1R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u16_c1_buffer_size,
+    dot_prod_u16_c1,
+    u16,
+    C1,
+    1,
+    nppiDotProdGetBufferHostSize_16u64f_C1R_Ctx,
+    nppiDotProd_16u64f_C1R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i16_c1_buffer_size,
+    dot_prod_i16_c1,
+    i16,
+    C1,
+    1,
+    nppiDotProdGetBufferHostSize_16s64f_C1R_Ctx,
+    nppiDotProd_16s64f_C1R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u32_c1_buffer_size,
+    dot_prod_u32_c1,
+    u32,
+    C1,
+    1,
+    nppiDotProdGetBufferHostSize_32u64f_C1R_Ctx,
+    nppiDotProd_32u64f_C1R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i32_c1_buffer_size,
+    dot_prod_i32_c1,
+    i32,
+    C1,
+    1,
+    nppiDotProdGetBufferHostSize_32s64f_C1R_Ctx,
+    nppiDotProd_32s64f_C1R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_f32_c1_buffer_size,
+    dot_prod_f32_c1,
+    f32,
+    C1,
+    1,
+    nppiDotProdGetBufferHostSize_32f64f_C1R_Ctx,
+    nppiDotProd_32f64f_C1R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u8_c3_buffer_size,
+    dot_prod_u8_c3,
+    u8,
+    C3,
+    3,
+    nppiDotProdGetBufferHostSize_8u64f_C3R_Ctx,
+    nppiDotProd_8u64f_C3R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i8_c3_buffer_size,
+    dot_prod_i8_c3,
+    i8,
+    C3,
+    3,
+    nppiDotProdGetBufferHostSize_8s64f_C3R_Ctx,
+    nppiDotProd_8s64f_C3R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u16_c3_buffer_size,
+    dot_prod_u16_c3,
+    u16,
+    C3,
+    3,
+    nppiDotProdGetBufferHostSize_16u64f_C3R_Ctx,
+    nppiDotProd_16u64f_C3R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i16_c3_buffer_size,
+    dot_prod_i16_c3,
+    i16,
+    C3,
+    3,
+    nppiDotProdGetBufferHostSize_16s64f_C3R_Ctx,
+    nppiDotProd_16s64f_C3R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u32_c3_buffer_size,
+    dot_prod_u32_c3,
+    u32,
+    C3,
+    3,
+    nppiDotProdGetBufferHostSize_32u64f_C3R_Ctx,
+    nppiDotProd_32u64f_C3R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i32_c3_buffer_size,
+    dot_prod_i32_c3,
+    i32,
+    C3,
+    3,
+    nppiDotProdGetBufferHostSize_32s64f_C3R_Ctx,
+    nppiDotProd_32s64f_C3R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_f32_c3_buffer_size,
+    dot_prod_f32_c3,
+    f32,
+    C3,
+    3,
+    nppiDotProdGetBufferHostSize_32f64f_C3R_Ctx,
+    nppiDotProd_32f64f_C3R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u8_c4_buffer_size,
+    dot_prod_u8_c4,
+    u8,
+    C4,
+    4,
+    nppiDotProdGetBufferHostSize_8u64f_C4R_Ctx,
+    nppiDotProd_8u64f_C4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i8_c4_buffer_size,
+    dot_prod_i8_c4,
+    i8,
+    C4,
+    4,
+    nppiDotProdGetBufferHostSize_8s64f_C4R_Ctx,
+    nppiDotProd_8s64f_C4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u16_c4_buffer_size,
+    dot_prod_u16_c4,
+    u16,
+    C4,
+    4,
+    nppiDotProdGetBufferHostSize_16u64f_C4R_Ctx,
+    nppiDotProd_16u64f_C4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i16_c4_buffer_size,
+    dot_prod_i16_c4,
+    i16,
+    C4,
+    4,
+    nppiDotProdGetBufferHostSize_16s64f_C4R_Ctx,
+    nppiDotProd_16s64f_C4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u32_c4_buffer_size,
+    dot_prod_u32_c4,
+    u32,
+    C4,
+    4,
+    nppiDotProdGetBufferHostSize_32u64f_C4R_Ctx,
+    nppiDotProd_32u64f_C4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i32_c4_buffer_size,
+    dot_prod_i32_c4,
+    i32,
+    C4,
+    4,
+    nppiDotProdGetBufferHostSize_32s64f_C4R_Ctx,
+    nppiDotProd_32s64f_C4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_f32_c4_buffer_size,
+    dot_prod_f32_c4,
+    f32,
+    C4,
+    4,
+    nppiDotProdGetBufferHostSize_32f64f_C4R_Ctx,
+    nppiDotProd_32f64f_C4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u8_ac4_buffer_size,
+    dot_prod_u8_ac4,
+    u8,
+    AC4,
+    3,
+    nppiDotProdGetBufferHostSize_8u64f_AC4R_Ctx,
+    nppiDotProd_8u64f_AC4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i8_ac4_buffer_size,
+    dot_prod_i8_ac4,
+    i8,
+    AC4,
+    3,
+    nppiDotProdGetBufferHostSize_8s64f_AC4R_Ctx,
+    nppiDotProd_8s64f_AC4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u16_ac4_buffer_size,
+    dot_prod_u16_ac4,
+    u16,
+    AC4,
+    3,
+    nppiDotProdGetBufferHostSize_16u64f_AC4R_Ctx,
+    nppiDotProd_16u64f_AC4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i16_ac4_buffer_size,
+    dot_prod_i16_ac4,
+    i16,
+    AC4,
+    3,
+    nppiDotProdGetBufferHostSize_16s64f_AC4R_Ctx,
+    nppiDotProd_16s64f_AC4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_u32_ac4_buffer_size,
+    dot_prod_u32_ac4,
+    u32,
+    AC4,
+    3,
+    nppiDotProdGetBufferHostSize_32u64f_AC4R_Ctx,
+    nppiDotProd_32u64f_AC4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_i32_ac4_buffer_size,
+    dot_prod_i32_ac4,
+    i32,
+    AC4,
+    3,
+    nppiDotProdGetBufferHostSize_32s64f_AC4R_Ctx,
+    nppiDotProd_32s64f_AC4R_Ctx
+);
+impl_dot_prod!(
+    dot_prod_f32_ac4_buffer_size,
+    dot_prod_f32_ac4,
+    f32,
+    AC4,
+    3,
+    nppiDotProdGetBufferHostSize_32f64f_AC4R_Ctx,
+    nppiDotProd_32f64f_AC4R_Ctx
+);
+impl_generic_dot_prod!(
+    DotProdC1,
+    dot_prod_c1,
+    dot_prod_c1_buffer_size,
+    C1,
+    [
+        (u8, dot_prod_u8_c1, dot_prod_u8_c1_buffer_size),
+        (i8, dot_prod_i8_c1, dot_prod_i8_c1_buffer_size),
+        (u16, dot_prod_u16_c1, dot_prod_u16_c1_buffer_size),
+        (i16, dot_prod_i16_c1, dot_prod_i16_c1_buffer_size),
+        (u32, dot_prod_u32_c1, dot_prod_u32_c1_buffer_size),
+        (i32, dot_prod_i32_c1, dot_prod_i32_c1_buffer_size),
+        (f32, dot_prod_f32_c1, dot_prod_f32_c1_buffer_size),
+    ]
+);
+impl_generic_dot_prod!(
+    DotProdC3,
+    dot_prod_c3,
+    dot_prod_c3_buffer_size,
+    C3,
+    [
+        (u8, dot_prod_u8_c3, dot_prod_u8_c3_buffer_size),
+        (i8, dot_prod_i8_c3, dot_prod_i8_c3_buffer_size),
+        (u16, dot_prod_u16_c3, dot_prod_u16_c3_buffer_size),
+        (i16, dot_prod_i16_c3, dot_prod_i16_c3_buffer_size),
+        (u32, dot_prod_u32_c3, dot_prod_u32_c3_buffer_size),
+        (i32, dot_prod_i32_c3, dot_prod_i32_c3_buffer_size),
+        (f32, dot_prod_f32_c3, dot_prod_f32_c3_buffer_size),
+    ]
+);
+impl_generic_dot_prod!(
+    DotProdC4,
+    dot_prod_c4,
+    dot_prod_c4_buffer_size,
+    C4,
+    [
+        (u8, dot_prod_u8_c4, dot_prod_u8_c4_buffer_size),
+        (i8, dot_prod_i8_c4, dot_prod_i8_c4_buffer_size),
+        (u16, dot_prod_u16_c4, dot_prod_u16_c4_buffer_size),
+        (i16, dot_prod_i16_c4, dot_prod_i16_c4_buffer_size),
+        (u32, dot_prod_u32_c4, dot_prod_u32_c4_buffer_size),
+        (i32, dot_prod_i32_c4, dot_prod_i32_c4_buffer_size),
+        (f32, dot_prod_f32_c4, dot_prod_f32_c4_buffer_size),
+    ]
+);
+impl_generic_dot_prod!(
+    DotProdAC4,
+    dot_prod_ac4,
+    dot_prod_ac4_buffer_size,
+    AC4,
+    [
+        (u8, dot_prod_u8_ac4, dot_prod_u8_ac4_buffer_size),
+        (i8, dot_prod_i8_ac4, dot_prod_i8_ac4_buffer_size),
+        (u16, dot_prod_u16_ac4, dot_prod_u16_ac4_buffer_size),
+        (i16, dot_prod_i16_ac4, dot_prod_i16_ac4_buffer_size),
+        (u32, dot_prod_u32_ac4, dot_prod_u32_ac4_buffer_size),
+        (i32, dot_prod_i32_ac4, dot_prod_i32_ac4_buffer_size),
+        (f32, dot_prod_f32_ac4, dot_prod_f32_ac4_buffer_size),
+    ]
+);

@@ -1,0 +1,166 @@
+use super::*;
+
+impl_statistic!(
+    sum_u8_c1_buffer_size,
+    sum_u8_c1,
+    u8,
+    C1,
+    1,
+    nppiSumGetBufferHostSize_8u_C1R_Ctx,
+    nppiSum_8u_C1R_Ctx
+);
+impl_typed_statistic!(
+    sum_u8_i64_c1_buffer_size,
+    sum_u8_i64_c1,
+    u8,
+    C1,
+    i64,
+    1,
+    nppiSumGetBufferHostSize_8u64s_C1R_Ctx,
+    nppiSum_8u64s_C1R_Ctx
+);
+impl_statistic!(
+    sum_u16_c1_buffer_size,
+    sum_u16_c1,
+    u16,
+    C1,
+    1,
+    nppiSumGetBufferHostSize_16u_C1R_Ctx,
+    nppiSum_16u_C1R_Ctx
+);
+impl_statistic!(
+    sum_i16_c1_buffer_size,
+    sum_i16_c1,
+    i16,
+    C1,
+    1,
+    nppiSumGetBufferHostSize_16s_C1R_Ctx,
+    nppiSum_16s_C1R_Ctx
+);
+impl_statistic!(
+    sum_f32_c1_buffer_size,
+    sum_f32_c1,
+    f32,
+    C1,
+    1,
+    nppiSumGetBufferHostSize_32f_C1R_Ctx,
+    nppiSum_32f_C1R_Ctx
+);
+impl_statistic!(
+    sum_u8_c3_buffer_size,
+    sum_u8_c3,
+    u8,
+    C3,
+    3,
+    nppiSumGetBufferHostSize_8u_C3R_Ctx,
+    nppiSum_8u_C3R_Ctx
+);
+impl_statistic!(
+    sum_u16_c3_buffer_size,
+    sum_u16_c3,
+    u16,
+    C3,
+    3,
+    nppiSumGetBufferHostSize_16u_C3R_Ctx,
+    nppiSum_16u_C3R_Ctx
+);
+impl_statistic!(
+    sum_i16_c3_buffer_size,
+    sum_i16_c3,
+    i16,
+    C3,
+    3,
+    nppiSumGetBufferHostSize_16s_C3R_Ctx,
+    nppiSum_16s_C3R_Ctx
+);
+impl_statistic!(
+    sum_f32_c3_buffer_size,
+    sum_f32_c3,
+    f32,
+    C3,
+    3,
+    nppiSumGetBufferHostSize_32f_C3R_Ctx,
+    nppiSum_32f_C3R_Ctx
+);
+impl_statistic!(
+    sum_u8_c4_buffer_size,
+    sum_u8_c4,
+    u8,
+    C4,
+    4,
+    nppiSumGetBufferHostSize_8u_C4R_Ctx,
+    nppiSum_8u_C4R_Ctx
+);
+impl_typed_statistic!(
+    sum_u8_i64_c4_buffer_size,
+    sum_u8_i64_c4,
+    u8,
+    C4,
+    i64,
+    4,
+    nppiSumGetBufferHostSize_8u64s_C4R_Ctx,
+    nppiSum_8u64s_C4R_Ctx
+);
+impl_statistic!(
+    sum_u16_c4_buffer_size,
+    sum_u16_c4,
+    u16,
+    C4,
+    4,
+    nppiSumGetBufferHostSize_16u_C4R_Ctx,
+    nppiSum_16u_C4R_Ctx
+);
+impl_statistic!(
+    sum_i16_c4_buffer_size,
+    sum_i16_c4,
+    i16,
+    C4,
+    4,
+    nppiSumGetBufferHostSize_16s_C4R_Ctx,
+    nppiSum_16s_C4R_Ctx
+);
+impl_statistic!(
+    sum_f32_c4_buffer_size,
+    sum_f32_c4,
+    f32,
+    C4,
+    4,
+    nppiSumGetBufferHostSize_32f_C4R_Ctx,
+    nppiSum_32f_C4R_Ctx
+);
+impl_statistic!(
+    sum_u8_ac4_buffer_size,
+    sum_u8_ac4,
+    u8,
+    AC4,
+    3,
+    nppiSumGetBufferHostSize_8u_AC4R_Ctx,
+    nppiSum_8u_AC4R_Ctx
+);
+impl_statistic!(
+    sum_u16_ac4_buffer_size,
+    sum_u16_ac4,
+    u16,
+    AC4,
+    3,
+    nppiSumGetBufferHostSize_16u_AC4R_Ctx,
+    nppiSum_16u_AC4R_Ctx
+);
+impl_statistic!(
+    sum_i16_ac4_buffer_size,
+    sum_i16_ac4,
+    i16,
+    AC4,
+    3,
+    nppiSumGetBufferHostSize_16s_AC4R_Ctx,
+    nppiSum_16s_AC4R_Ctx
+);
+impl_statistic!(
+    sum_f32_ac4_buffer_size,
+    sum_f32_ac4,
+    f32,
+    AC4,
+    3,
+    nppiSumGetBufferHostSize_32f_AC4R_Ctx,
+    nppiSum_32f_AC4R_Ctx
+);

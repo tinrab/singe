@@ -1,0 +1,28 @@
+[package]
+name = "singe-curand"
+description = "Safe cuRAND host API wrappers for CUDA random number generation."
+version = "0.1.0-alpha.1"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "curand", "rng"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["curand_13_2"]
+
+curand_13_2 = ["singe-cuda/runtime_13_2", "singe-curand-sys/curand_13_2"]
+
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-curand-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true

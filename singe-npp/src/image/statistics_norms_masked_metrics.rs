@@ -1,0 +1,711 @@
+use super::*;
+
+impl_error_metric_masked!(
+    norm_diff_inf_u8_c1_masked_buffer_size,
+    norm_diff_inf_u8_c1_masked,
+    u8,
+    C1,
+    nppiNormDiffInfGetBufferHostSize_8u_C1MR_Ctx,
+    nppiNormDiff_Inf_8u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_inf_i8_c1_masked_buffer_size,
+    norm_diff_inf_i8_c1_masked,
+    i8,
+    C1,
+    nppiNormDiffInfGetBufferHostSize_8s_C1MR_Ctx,
+    nppiNormDiff_Inf_8s_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_inf_u16_c1_masked_buffer_size,
+    norm_diff_inf_u16_c1_masked,
+    u16,
+    C1,
+    nppiNormDiffInfGetBufferHostSize_16u_C1MR_Ctx,
+    nppiNormDiff_Inf_16u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_inf_f32_c1_masked_buffer_size,
+    norm_diff_inf_f32_c1_masked,
+    f32,
+    C1,
+    nppiNormDiffInfGetBufferHostSize_32f_C1MR_Ctx,
+    nppiNormDiff_Inf_32f_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_inf_u8_c3_masked_buffer_size,
+    norm_diff_inf_u8_c3_masked,
+    u8,
+    C3,
+    nppiNormDiffInfGetBufferHostSize_8u_C3CMR_Ctx,
+    nppiNormDiff_Inf_8u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_inf_i8_c3_masked_buffer_size,
+    norm_diff_inf_i8_c3_masked,
+    i8,
+    C3,
+    nppiNormDiffInfGetBufferHostSize_8s_C3CMR_Ctx,
+    nppiNormDiff_Inf_8s_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_inf_u16_c3_masked_buffer_size,
+    norm_diff_inf_u16_c3_masked,
+    u16,
+    C3,
+    nppiNormDiffInfGetBufferHostSize_16u_C3CMR_Ctx,
+    nppiNormDiff_Inf_16u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_inf_f32_c3_masked_buffer_size,
+    norm_diff_inf_f32_c3_masked,
+    f32,
+    C3,
+    nppiNormDiffInfGetBufferHostSize_32f_C3CMR_Ctx,
+    nppiNormDiff_Inf_32f_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l1_u8_c1_masked_buffer_size,
+    norm_diff_l1_u8_c1_masked,
+    u8,
+    C1,
+    nppiNormDiffL1GetBufferHostSize_8u_C1MR_Ctx,
+    nppiNormDiff_L1_8u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l1_i8_c1_masked_buffer_size,
+    norm_diff_l1_i8_c1_masked,
+    i8,
+    C1,
+    nppiNormDiffL1GetBufferHostSize_8s_C1MR_Ctx,
+    nppiNormDiff_L1_8s_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l1_u16_c1_masked_buffer_size,
+    norm_diff_l1_u16_c1_masked,
+    u16,
+    C1,
+    nppiNormDiffL1GetBufferHostSize_16u_C1MR_Ctx,
+    nppiNormDiff_L1_16u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l1_f32_c1_masked_buffer_size,
+    norm_diff_l1_f32_c1_masked,
+    f32,
+    C1,
+    nppiNormDiffL1GetBufferHostSize_32f_C1MR_Ctx,
+    nppiNormDiff_L1_32f_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l1_u8_c3_masked_buffer_size,
+    norm_diff_l1_u8_c3_masked,
+    u8,
+    C3,
+    nppiNormDiffL1GetBufferHostSize_8u_C3CMR_Ctx,
+    nppiNormDiff_L1_8u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l1_i8_c3_masked_buffer_size,
+    norm_diff_l1_i8_c3_masked,
+    i8,
+    C3,
+    nppiNormDiffL1GetBufferHostSize_8s_C3CMR_Ctx,
+    nppiNormDiff_L1_8s_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l1_u16_c3_masked_buffer_size,
+    norm_diff_l1_u16_c3_masked,
+    u16,
+    C3,
+    nppiNormDiffL1GetBufferHostSize_16u_C3CMR_Ctx,
+    nppiNormDiff_L1_16u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l1_f32_c3_masked_buffer_size,
+    norm_diff_l1_f32_c3_masked,
+    f32,
+    C3,
+    nppiNormDiffL1GetBufferHostSize_32f_C3CMR_Ctx,
+    nppiNormDiff_L1_32f_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l2_u8_c1_masked_buffer_size,
+    norm_diff_l2_u8_c1_masked,
+    u8,
+    C1,
+    nppiNormDiffL2GetBufferHostSize_8u_C1MR_Ctx,
+    nppiNormDiff_L2_8u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l2_i8_c1_masked_buffer_size,
+    norm_diff_l2_i8_c1_masked,
+    i8,
+    C1,
+    nppiNormDiffL2GetBufferHostSize_8s_C1MR_Ctx,
+    nppiNormDiff_L2_8s_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l2_u16_c1_masked_buffer_size,
+    norm_diff_l2_u16_c1_masked,
+    u16,
+    C1,
+    nppiNormDiffL2GetBufferHostSize_16u_C1MR_Ctx,
+    nppiNormDiff_L2_16u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l2_f32_c1_masked_buffer_size,
+    norm_diff_l2_f32_c1_masked,
+    f32,
+    C1,
+    nppiNormDiffL2GetBufferHostSize_32f_C1MR_Ctx,
+    nppiNormDiff_L2_32f_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l2_u8_c3_masked_buffer_size,
+    norm_diff_l2_u8_c3_masked,
+    u8,
+    C3,
+    nppiNormDiffL2GetBufferHostSize_8u_C3CMR_Ctx,
+    nppiNormDiff_L2_8u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l2_i8_c3_masked_buffer_size,
+    norm_diff_l2_i8_c3_masked,
+    i8,
+    C3,
+    nppiNormDiffL2GetBufferHostSize_8s_C3CMR_Ctx,
+    nppiNormDiff_L2_8s_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l2_u16_c3_masked_buffer_size,
+    norm_diff_l2_u16_c3_masked,
+    u16,
+    C3,
+    nppiNormDiffL2GetBufferHostSize_16u_C3CMR_Ctx,
+    nppiNormDiff_L2_16u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_diff_l2_f32_c3_masked_buffer_size,
+    norm_diff_l2_f32_c3_masked,
+    f32,
+    C3,
+    nppiNormDiffL2GetBufferHostSize_32f_C3CMR_Ctx,
+    nppiNormDiff_L2_32f_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_inf_u8_c1_masked_buffer_size,
+    norm_rel_inf_u8_c1_masked,
+    u8,
+    C1,
+    nppiNormRelInfGetBufferHostSize_8u_C1MR_Ctx,
+    nppiNormRel_Inf_8u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_inf_i8_c1_masked_buffer_size,
+    norm_rel_inf_i8_c1_masked,
+    i8,
+    C1,
+    nppiNormRelInfGetBufferHostSize_8s_C1MR_Ctx,
+    nppiNormRel_Inf_8s_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_inf_u16_c1_masked_buffer_size,
+    norm_rel_inf_u16_c1_masked,
+    u16,
+    C1,
+    nppiNormRelInfGetBufferHostSize_16u_C1MR_Ctx,
+    nppiNormRel_Inf_16u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_inf_f32_c1_masked_buffer_size,
+    norm_rel_inf_f32_c1_masked,
+    f32,
+    C1,
+    nppiNormRelInfGetBufferHostSize_32f_C1MR_Ctx,
+    nppiNormRel_Inf_32f_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_inf_u8_c3_masked_buffer_size,
+    norm_rel_inf_u8_c3_masked,
+    u8,
+    C3,
+    nppiNormRelInfGetBufferHostSize_8u_C3CMR_Ctx,
+    nppiNormRel_Inf_8u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_inf_i8_c3_masked_buffer_size,
+    norm_rel_inf_i8_c3_masked,
+    i8,
+    C3,
+    nppiNormRelInfGetBufferHostSize_8s_C3CMR_Ctx,
+    nppiNormRel_Inf_8s_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_inf_u16_c3_masked_buffer_size,
+    norm_rel_inf_u16_c3_masked,
+    u16,
+    C3,
+    nppiNormRelInfGetBufferHostSize_16u_C3CMR_Ctx,
+    nppiNormRel_Inf_16u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_inf_f32_c3_masked_buffer_size,
+    norm_rel_inf_f32_c3_masked,
+    f32,
+    C3,
+    nppiNormRelInfGetBufferHostSize_32f_C3CMR_Ctx,
+    nppiNormRel_Inf_32f_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l1_u8_c1_masked_buffer_size,
+    norm_rel_l1_u8_c1_masked,
+    u8,
+    C1,
+    nppiNormRelL1GetBufferHostSize_8u_C1MR_Ctx,
+    nppiNormRel_L1_8u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l1_i8_c1_masked_buffer_size,
+    norm_rel_l1_i8_c1_masked,
+    i8,
+    C1,
+    nppiNormRelL1GetBufferHostSize_8s_C1MR_Ctx,
+    nppiNormRel_L1_8s_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l1_u16_c1_masked_buffer_size,
+    norm_rel_l1_u16_c1_masked,
+    u16,
+    C1,
+    nppiNormRelL1GetBufferHostSize_16u_C1MR_Ctx,
+    nppiNormRel_L1_16u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l1_f32_c1_masked_buffer_size,
+    norm_rel_l1_f32_c1_masked,
+    f32,
+    C1,
+    nppiNormRelL1GetBufferHostSize_32f_C1MR_Ctx,
+    nppiNormRel_L1_32f_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l1_u8_c3_masked_buffer_size,
+    norm_rel_l1_u8_c3_masked,
+    u8,
+    C3,
+    nppiNormRelL1GetBufferHostSize_8u_C3CMR_Ctx,
+    nppiNormRel_L1_8u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l1_i8_c3_masked_buffer_size,
+    norm_rel_l1_i8_c3_masked,
+    i8,
+    C3,
+    nppiNormRelL1GetBufferHostSize_8s_C3CMR_Ctx,
+    nppiNormRel_L1_8s_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l1_u16_c3_masked_buffer_size,
+    norm_rel_l1_u16_c3_masked,
+    u16,
+    C3,
+    nppiNormRelL1GetBufferHostSize_16u_C3CMR_Ctx,
+    nppiNormRel_L1_16u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l1_f32_c3_masked_buffer_size,
+    norm_rel_l1_f32_c3_masked,
+    f32,
+    C3,
+    nppiNormRelL1GetBufferHostSize_32f_C3CMR_Ctx,
+    nppiNormRel_L1_32f_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l2_u8_c1_masked_buffer_size,
+    norm_rel_l2_u8_c1_masked,
+    u8,
+    C1,
+    nppiNormRelL2GetBufferHostSize_8u_C1MR_Ctx,
+    nppiNormRel_L2_8u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l2_i8_c1_masked_buffer_size,
+    norm_rel_l2_i8_c1_masked,
+    i8,
+    C1,
+    nppiNormRelL2GetBufferHostSize_8s_C1MR_Ctx,
+    nppiNormRel_L2_8s_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l2_u16_c1_masked_buffer_size,
+    norm_rel_l2_u16_c1_masked,
+    u16,
+    C1,
+    nppiNormRelL2GetBufferHostSize_16u_C1MR_Ctx,
+    nppiNormRel_L2_16u_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l2_f32_c1_masked_buffer_size,
+    norm_rel_l2_f32_c1_masked,
+    f32,
+    C1,
+    nppiNormRelL2GetBufferHostSize_32f_C1MR_Ctx,
+    nppiNormRel_L2_32f_C1MR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l2_u8_c3_masked_buffer_size,
+    norm_rel_l2_u8_c3_masked,
+    u8,
+    C3,
+    nppiNormRelL2GetBufferHostSize_8u_C3CMR_Ctx,
+    nppiNormRel_L2_8u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l2_i8_c3_masked_buffer_size,
+    norm_rel_l2_i8_c3_masked,
+    i8,
+    C3,
+    nppiNormRelL2GetBufferHostSize_8s_C3CMR_Ctx,
+    nppiNormRel_L2_8s_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l2_u16_c3_masked_buffer_size,
+    norm_rel_l2_u16_c3_masked,
+    u16,
+    C3,
+    nppiNormRelL2GetBufferHostSize_16u_C3CMR_Ctx,
+    nppiNormRel_L2_16u_C3CMR_Ctx
+);
+impl_error_metric_masked!(
+    norm_rel_l2_f32_c3_masked_buffer_size,
+    norm_rel_l2_f32_c3_masked,
+    f32,
+    C3,
+    nppiNormRelL2GetBufferHostSize_32f_C3CMR_Ctx,
+    nppiNormRel_L2_32f_C3CMR_Ctx
+);
+impl_generic_error_metric_masked_c1!(
+    NormDiffInfMaskedC1,
+    norm_diff_inf_c1_masked,
+    norm_diff_inf_c1_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_diff_inf_u8_c1_masked,
+            norm_diff_inf_u8_c1_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_diff_inf_i8_c1_masked,
+            norm_diff_inf_i8_c1_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_diff_inf_u16_c1_masked,
+            norm_diff_inf_u16_c1_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_diff_inf_f32_c1_masked,
+            norm_diff_inf_f32_c1_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c3!(
+    NormDiffInfMaskedC3,
+    norm_diff_inf_c3_masked,
+    norm_diff_inf_c3_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_diff_inf_u8_c3_masked,
+            norm_diff_inf_u8_c3_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_diff_inf_i8_c3_masked,
+            norm_diff_inf_i8_c3_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_diff_inf_u16_c3_masked,
+            norm_diff_inf_u16_c3_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_diff_inf_f32_c3_masked,
+            norm_diff_inf_f32_c3_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c1!(
+    NormDiffL1MaskedC1,
+    norm_diff_l1_c1_masked,
+    norm_diff_l1_c1_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_diff_l1_u8_c1_masked,
+            norm_diff_l1_u8_c1_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_diff_l1_i8_c1_masked,
+            norm_diff_l1_i8_c1_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_diff_l1_u16_c1_masked,
+            norm_diff_l1_u16_c1_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_diff_l1_f32_c1_masked,
+            norm_diff_l1_f32_c1_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c3!(
+    NormDiffL1MaskedC3,
+    norm_diff_l1_c3_masked,
+    norm_diff_l1_c3_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_diff_l1_u8_c3_masked,
+            norm_diff_l1_u8_c3_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_diff_l1_i8_c3_masked,
+            norm_diff_l1_i8_c3_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_diff_l1_u16_c3_masked,
+            norm_diff_l1_u16_c3_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_diff_l1_f32_c3_masked,
+            norm_diff_l1_f32_c3_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c1!(
+    NormDiffL2MaskedC1,
+    norm_diff_l2_c1_masked,
+    norm_diff_l2_c1_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_diff_l2_u8_c1_masked,
+            norm_diff_l2_u8_c1_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_diff_l2_i8_c1_masked,
+            norm_diff_l2_i8_c1_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_diff_l2_u16_c1_masked,
+            norm_diff_l2_u16_c1_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_diff_l2_f32_c1_masked,
+            norm_diff_l2_f32_c1_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c3!(
+    NormDiffL2MaskedC3,
+    norm_diff_l2_c3_masked,
+    norm_diff_l2_c3_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_diff_l2_u8_c3_masked,
+            norm_diff_l2_u8_c3_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_diff_l2_i8_c3_masked,
+            norm_diff_l2_i8_c3_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_diff_l2_u16_c3_masked,
+            norm_diff_l2_u16_c3_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_diff_l2_f32_c3_masked,
+            norm_diff_l2_f32_c3_masked_buffer_size
+        ),
+    ]
+);
+
+impl_generic_error_metric_masked_c1!(
+    NormRelInfMaskedC1,
+    norm_rel_inf_c1_masked,
+    norm_rel_inf_c1_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_rel_inf_u8_c1_masked,
+            norm_rel_inf_u8_c1_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_rel_inf_i8_c1_masked,
+            norm_rel_inf_i8_c1_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_rel_inf_u16_c1_masked,
+            norm_rel_inf_u16_c1_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_rel_inf_f32_c1_masked,
+            norm_rel_inf_f32_c1_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c3!(
+    NormRelInfMaskedC3,
+    norm_rel_inf_c3_masked,
+    norm_rel_inf_c3_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_rel_inf_u8_c3_masked,
+            norm_rel_inf_u8_c3_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_rel_inf_i8_c3_masked,
+            norm_rel_inf_i8_c3_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_rel_inf_u16_c3_masked,
+            norm_rel_inf_u16_c3_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_rel_inf_f32_c3_masked,
+            norm_rel_inf_f32_c3_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c1!(
+    NormRelL1MaskedC1,
+    norm_rel_l1_c1_masked,
+    norm_rel_l1_c1_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_rel_l1_u8_c1_masked,
+            norm_rel_l1_u8_c1_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_rel_l1_i8_c1_masked,
+            norm_rel_l1_i8_c1_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_rel_l1_u16_c1_masked,
+            norm_rel_l1_u16_c1_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_rel_l1_f32_c1_masked,
+            norm_rel_l1_f32_c1_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c3!(
+    NormRelL1MaskedC3,
+    norm_rel_l1_c3_masked,
+    norm_rel_l1_c3_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_rel_l1_u8_c3_masked,
+            norm_rel_l1_u8_c3_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_rel_l1_i8_c3_masked,
+            norm_rel_l1_i8_c3_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_rel_l1_u16_c3_masked,
+            norm_rel_l1_u16_c3_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_rel_l1_f32_c3_masked,
+            norm_rel_l1_f32_c3_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c1!(
+    NormRelL2MaskedC1,
+    norm_rel_l2_c1_masked,
+    norm_rel_l2_c1_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_rel_l2_u8_c1_masked,
+            norm_rel_l2_u8_c1_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_rel_l2_i8_c1_masked,
+            norm_rel_l2_i8_c1_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_rel_l2_u16_c1_masked,
+            norm_rel_l2_u16_c1_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_rel_l2_f32_c1_masked,
+            norm_rel_l2_f32_c1_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_error_metric_masked_c3!(
+    NormRelL2MaskedC3,
+    norm_rel_l2_c3_masked,
+    norm_rel_l2_c3_masked_buffer_size,
+    [
+        (
+            u8,
+            norm_rel_l2_u8_c3_masked,
+            norm_rel_l2_u8_c3_masked_buffer_size
+        ),
+        (
+            i8,
+            norm_rel_l2_i8_c3_masked,
+            norm_rel_l2_i8_c3_masked_buffer_size
+        ),
+        (
+            u16,
+            norm_rel_l2_u16_c3_masked,
+            norm_rel_l2_u16_c3_masked_buffer_size
+        ),
+        (
+            f32,
+            norm_rel_l2_f32_c3_masked,
+            norm_rel_l2_f32_c3_masked_buffer_size
+        ),
+    ]
+);

@@ -1,0 +1,10 @@
+**/target
+**/Cargo.lock
+.direnv
+.codex
+**/dist
+!/dist
+__pycache__
+thirdparty
+singe-npp/examples/output
+docs

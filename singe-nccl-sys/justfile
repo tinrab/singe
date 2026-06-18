@@ -1,0 +1,45 @@
+nccl_include_path := "$NCCL_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "ncclResult_t"
+        "ncclRedOp_t"
+        "ncclDataType_t"
+        "ncclScalarResidence_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{nccl_include_path}}/nccl.h \
+        $enum_args \
+        --allowlist-item "^nccl.*" \
+        --allowlist-item "^NCCL.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUstream_st$" \
+        --blocklist-item "^dim3$" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{nccl_include_path}} \
+        > bindings.rs
+
+    NCCL_VERSION=$(cat bindings.rs | grep "NCCL_VERSION_CODE" | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${NCCL_VERSION}" ]; then
+        echo "NCCL_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${NCCL_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

@@ -1,0 +1,108 @@
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        filtering,
+        view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
+    },
+    types::MaskSize,
+};
+
+use super::super::{ImagePipeline, filtering_traits::*};
+
+impl_masked_kernel_filter_image!(
+    u8,
+    C1,
+    filtering::filter_high_pass_u8_c1,
+    filtering::filter_low_pass_u8_c1,
+    filtering::filter_gauss_u8_c1,
+    filtering::filter_laplace_u8_c1
+);
+impl_masked_kernel_filter_image!(
+    u8,
+    C3,
+    filtering::filter_high_pass_u8_c3,
+    filtering::filter_low_pass_u8_c3,
+    filtering::filter_gauss_u8_c3,
+    filtering::filter_laplace_u8_c3
+);
+impl_masked_kernel_filter_image!(
+    u8,
+    C4,
+    filtering::filter_high_pass_u8_c4,
+    filtering::filter_low_pass_u8_c4,
+    filtering::filter_gauss_u8_c4,
+    filtering::filter_laplace_u8_c4
+);
+impl_masked_kernel_filter_image!(
+    u8,
+    AC4,
+    filtering::filter_high_pass_u8_ac4,
+    filtering::filter_low_pass_u8_ac4,
+    filtering::filter_gauss_u8_ac4,
+    filtering::filter_laplace_u8_ac4
+);
+impl_masked_kernel_filter_image!(
+    i16,
+    C1,
+    filtering::filter_high_pass_i16_c1,
+    filtering::filter_low_pass_i16_c1,
+    filtering::filter_gauss_i16_c1,
+    filtering::filter_laplace_i16_c1
+);
+impl_masked_kernel_filter_image!(
+    i16,
+    C3,
+    filtering::filter_high_pass_i16_c3,
+    filtering::filter_low_pass_i16_c3,
+    filtering::filter_gauss_i16_c3,
+    filtering::filter_laplace_i16_c3
+);
+impl_masked_kernel_filter_image!(
+    i16,
+    C4,
+    filtering::filter_high_pass_i16_c4,
+    filtering::filter_low_pass_i16_c4,
+    filtering::filter_gauss_i16_c4,
+    filtering::filter_laplace_i16_c4
+);
+impl_masked_kernel_filter_image!(
+    i16,
+    AC4,
+    filtering::filter_high_pass_i16_ac4,
+    filtering::filter_low_pass_i16_ac4,
+    filtering::filter_gauss_i16_ac4,
+    filtering::filter_laplace_i16_ac4
+);
+impl_masked_kernel_filter_image!(
+    f32,
+    C1,
+    filtering::filter_high_pass_f32_c1,
+    filtering::filter_low_pass_f32_c1,
+    filtering::filter_gauss_f32_c1,
+    filtering::filter_laplace_f32_c1
+);
+impl_masked_kernel_filter_image!(
+    f32,
+    C3,
+    filtering::filter_high_pass_f32_c3,
+    filtering::filter_low_pass_f32_c3,
+    filtering::filter_gauss_f32_c3,
+    filtering::filter_laplace_f32_c3
+);
+impl_masked_kernel_filter_image!(
+    f32,
+    C4,
+    filtering::filter_high_pass_f32_c4,
+    filtering::filter_low_pass_f32_c4,
+    filtering::filter_gauss_f32_c4,
+    filtering::filter_laplace_f32_c4
+);
+impl_masked_kernel_filter_image!(
+    f32,
+    AC4,
+    filtering::filter_high_pass_f32_ac4,
+    filtering::filter_low_pass_f32_ac4,
+    filtering::filter_gauss_f32_ac4,
+    filtering::filter_laplace_f32_ac4
+);

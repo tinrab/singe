@@ -1,0 +1,131 @@
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        arithmetic,
+        view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
+    },
+};
+
+use super::super::{ImagePipeline, operation_traits::*};
+
+impl_logical_binary_image!(
+    u8,
+    C1,
+    arithmetic::logical_and_u8_c1,
+    arithmetic::logical_and_u8_c1_in_place,
+    arithmetic::logical_or_u8_c1,
+    arithmetic::logical_or_u8_c1_in_place,
+    arithmetic::logical_xor_u8_c1,
+    arithmetic::logical_xor_u8_c1_in_place
+);
+impl_logical_binary_image!(
+    u8,
+    C3,
+    arithmetic::logical_and_u8_c3,
+    arithmetic::logical_and_u8_c3_in_place,
+    arithmetic::logical_or_u8_c3,
+    arithmetic::logical_or_u8_c3_in_place,
+    arithmetic::logical_xor_u8_c3,
+    arithmetic::logical_xor_u8_c3_in_place
+);
+impl_logical_binary_image!(
+    u8,
+    C4,
+    arithmetic::logical_and_u8_c4,
+    arithmetic::logical_and_u8_c4_in_place,
+    arithmetic::logical_or_u8_c4,
+    arithmetic::logical_or_u8_c4_in_place,
+    arithmetic::logical_xor_u8_c4,
+    arithmetic::logical_xor_u8_c4_in_place
+);
+impl_logical_binary_image!(
+    u8,
+    AC4,
+    arithmetic::logical_and_u8_ac4,
+    arithmetic::logical_and_u8_ac4_in_place,
+    arithmetic::logical_or_u8_ac4,
+    arithmetic::logical_or_u8_ac4_in_place,
+    arithmetic::logical_xor_u8_ac4,
+    arithmetic::logical_xor_u8_ac4_in_place
+);
+impl_logical_binary_image!(
+    u16,
+    C1,
+    arithmetic::logical_and_u16_c1,
+    arithmetic::logical_and_u16_c1_in_place,
+    arithmetic::logical_or_u16_c1,
+    arithmetic::logical_or_u16_c1_in_place,
+    arithmetic::logical_xor_u16_c1,
+    arithmetic::logical_xor_u16_c1_in_place
+);
+impl_logical_binary_image!(
+    u16,
+    C3,
+    arithmetic::logical_and_u16_c3,
+    arithmetic::logical_and_u16_c3_in_place,
+    arithmetic::logical_or_u16_c3,
+    arithmetic::logical_or_u16_c3_in_place,
+    arithmetic::logical_xor_u16_c3,
+    arithmetic::logical_xor_u16_c3_in_place
+);
+impl_logical_binary_image!(
+    u16,
+    C4,
+    arithmetic::logical_and_u16_c4,
+    arithmetic::logical_and_u16_c4_in_place,
+    arithmetic::logical_or_u16_c4,
+    arithmetic::logical_or_u16_c4_in_place,
+    arithmetic::logical_xor_u16_c4,
+    arithmetic::logical_xor_u16_c4_in_place
+);
+impl_logical_binary_image!(
+    u16,
+    AC4,
+    arithmetic::logical_and_u16_ac4,
+    arithmetic::logical_and_u16_ac4_in_place,
+    arithmetic::logical_or_u16_ac4,
+    arithmetic::logical_or_u16_ac4_in_place,
+    arithmetic::logical_xor_u16_ac4,
+    arithmetic::logical_xor_u16_ac4_in_place
+);
+impl_logical_binary_image!(
+    i32,
+    C1,
+    arithmetic::logical_and_i32_c1,
+    arithmetic::logical_and_i32_c1_in_place,
+    arithmetic::logical_or_i32_c1,
+    arithmetic::logical_or_i32_c1_in_place,
+    arithmetic::logical_xor_i32_c1,
+    arithmetic::logical_xor_i32_c1_in_place
+);
+impl_logical_binary_image!(
+    i32,
+    C3,
+    arithmetic::logical_and_i32_c3,
+    arithmetic::logical_and_i32_c3_in_place,
+    arithmetic::logical_or_i32_c3,
+    arithmetic::logical_or_i32_c3_in_place,
+    arithmetic::logical_xor_i32_c3,
+    arithmetic::logical_xor_i32_c3_in_place
+);
+impl_logical_binary_image!(
+    i32,
+    C4,
+    arithmetic::logical_and_i32_c4,
+    arithmetic::logical_and_i32_c4_in_place,
+    arithmetic::logical_or_i32_c4,
+    arithmetic::logical_or_i32_c4_in_place,
+    arithmetic::logical_xor_i32_c4,
+    arithmetic::logical_xor_i32_c4_in_place
+);
+impl_logical_binary_image!(
+    i32,
+    AC4,
+    arithmetic::logical_and_i32_ac4,
+    arithmetic::logical_and_i32_ac4_in_place,
+    arithmetic::logical_or_i32_ac4,
+    arithmetic::logical_or_i32_ac4_in_place,
+    arithmetic::logical_xor_i32_ac4,
+    arithmetic::logical_xor_i32_ac4_in_place
+);

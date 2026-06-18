@@ -1,0 +1,29 @@
+[package]
+name = "singe-cufile"
+description = "Safe Rust wrappers for NVIDIA cuFile GPUDirect Storage library."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "cufile", "gds"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cufile_1_17"]
+
+cufile_1_17 = ["singe-cuda/driver_13_2", "singe-cufile-sys/cufile_1_17"]
+cuda_13_2 = ["cufile_1_17"]
+
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-cufile-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true

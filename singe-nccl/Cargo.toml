@@ -1,0 +1,29 @@
+[package]
+name = "singe-nccl"
+description = "Safe Rust wrappers for the NVIDIA Collective Communications Library (NCCL)."
+version = "0.1.0-alpha.7"
+edition.workspace = true
+repository.workspace = true
+keywords = ["cuda", "nvidia", "nccl", "communication"]
+license-file = "../LICENSE"
+readme = "README.md"
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["nccl_2_28"]
+
+nccl_2_28 = ["singe-nccl-sys/nccl_2_28", "singe-cuda/runtime_13_2", "singe-cuda-sys/runtime_13_2"]
+
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-cuda-sys.workspace = true
+singe-nccl-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true

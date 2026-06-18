@@ -1,0 +1,316 @@
+[package]
+name = "singe-cudnn"
+description = "Safe Rust wrappers for the NVIDIA cuDNN deep neural network library. Includes backend and frontend APIs."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "cudnn", "tensor", "deep-learning"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cudnn_9_22"]
+
+cudnn_9_22 = ["singe-cudnn-sys/cudnn_9_22"]
+
+testing = ["dep:lazy_static", "singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-cuda-find.workspace = true
+singe-cudnn-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true
+half.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+bomboni_serde.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+lazy_static = { workspace = true, optional = true }
+
+[dev-dependencies]
+singe-cublas.workspace = true
+
+[[example]]
+name = "frontend_slice_matmul"
+path = "examples/frontend/slice_matmul.rs"
+
+[[example]]
+name = "frontend_matmul"
+path = "examples/frontend/matmul.rs"
+
+[[example]]
+name = "frontend_matmul_dynamic_shapes"
+path = "examples/frontend/matmul_dynamic_shapes.rs"
+
+[[example]]
+name = "frontend_int8_matmul"
+path = "examples/frontend/int8_matmul.rs"
+
+[[example]]
+name = "frontend_fp8_matmul"
+path = "examples/frontend/fp8_matmul.rs"
+
+[[example]]
+name = "frontend_mixed_matmul"
+path = "examples/frontend/mixed_matmul.rs"
+
+[[example]]
+name = "frontend_complex_fp32_matmul"
+path = "examples/frontend/complex_fp32_matmul.rs"
+
+[[example]]
+name = "frontend_convolution_fprop"
+path = "examples/frontend/convolution_fprop.rs"
+
+[[example]]
+name = "frontend_convolution_fp8_fprop"
+path = "examples/frontend/convolution_fp8_fprop.rs"
+
+[[example]]
+name = "frontend_convolution_int8_fprop"
+path = "examples/frontend/convolution_int8_fprop.rs"
+
+[[example]]
+name = "frontend_convolution_dynamic_shape_benchmark"
+path = "examples/frontend/convolution_dynamic_shape_benchmark.rs"
+
+[[example]]
+name = "frontend_layer_norm"
+path = "examples/frontend/layer_norm.rs"
+
+[[example]]
+name = "frontend_layer_norm_zero_centered_gamma"
+path = "examples/frontend/layer_norm_zero_centered_gamma.rs"
+
+[[example]]
+name = "frontend_layer_norm_bitmask_relu"
+path = "examples/frontend/layer_norm_bitmask_relu.rs"
+
+[[example]]
+name = "frontend_rms_norm"
+path = "examples/frontend/rms_norm.rs"
+
+[[example]]
+name = "frontend_norm_block_scale"
+path = "examples/frontend/norm_block_scale.rs"
+
+[[example]]
+name = "frontend_adaptive_layer_norm"
+path = "examples/frontend/adaptive_layer_norm.rs"
+
+[[example]]
+name = "frontend_convolution_dgrad"
+path = "examples/frontend/convolution_dgrad.rs"
+
+[[example]]
+name = "frontend_convolution_wgrad"
+path = "examples/frontend/convolution_wgrad.rs"
+
+[[example]]
+name = "frontend_batch_norm"
+path = "examples/frontend/batch_norm.rs"
+
+[[example]]
+name = "frontend_instance_norm"
+path = "examples/frontend/instance_norm.rs"
+
+[[example]]
+name = "frontend_layer_norm_backward"
+path = "examples/frontend/layer_norm_backward.rs"
+
+[[example]]
+name = "frontend_rms_norm_backward"
+path = "examples/frontend/rms_norm_backward.rs"
+
+[[example]]
+name = "frontend_adaptive_layer_norm_backward"
+path = "examples/frontend/adaptive_layer_norm_backward.rs"
+
+[[example]]
+name = "frontend_dbn_weight"
+path = "examples/frontend/dbn_weight.rs"
+
+[[example]]
+name = "frontend_batch_norm_backward"
+path = "examples/frontend/batch_norm_backward.rs"
+
+[[example]]
+name = "frontend_instance_norm_backward"
+path = "examples/frontend/instance_norm_backward.rs"
+
+[[example]]
+name = "frontend_autotuning"
+path = "examples/frontend/autotuning.rs"
+
+[[example]]
+name = "frontend_custom_plan"
+path = "examples/frontend/custom_plan.rs"
+
+[[example]]
+name = "frontend_all_plans_autotune"
+path = "examples/frontend/all_plans_autotune.rs"
+
+[[example]]
+name = "frontend_graph_serialize"
+path = "examples/frontend/graph_serialize.rs"
+
+[[example]]
+name = "frontend_slice"
+path = "examples/frontend/slice.rs"
+
+[[example]]
+name = "frontend_compiled_graph_serialize"
+path = "examples/frontend/compiled_graph_serialize.rs"
+
+[[example]]
+name = "frontend_cudagraphs"
+path = "examples/frontend/cudagraphs.rs"
+
+[[example]]
+name = "frontend_custom_kernel_graph"
+path = "examples/frontend/custom_kernel_graph.rs"
+
+[[example]]
+name = "frontend_cublas_graph"
+path = "examples/frontend/cublas_graph.rs"
+
+[[example]]
+name = "frontend_deviceless_aot_compilation"
+path = "examples/frontend/deviceless_aot_compilation.rs"
+
+[[example]]
+name = "frontend_pointwise"
+path = "examples/frontend/pointwise.rs"
+
+[[example]]
+name = "frontend_resample"
+path = "examples/frontend/resample.rs"
+
+[[example]]
+name = "frontend_parallel_compilation"
+path = "examples/frontend/parallel_compilation.rs"
+
+[[example]]
+name = "frontend_sm_carveout"
+path = "examples/frontend/sm_carveout.rs"
+
+[[example]]
+name = "frontend_moe_grouped_matmul"
+path = "examples/frontend/moe_grouped_matmul.rs"
+
+[[example]]
+name = "frontend_fp8_sdpa"
+path = "examples/frontend/fp8_sdpa.rs"
+
+[[example]]
+name = "frontend_fp8_sdpa_current_scaling"
+path = "examples/frontend/fp8_sdpa_current_scaling.rs"
+
+[[example]]
+name = "frontend_fp8_sdpa_backward"
+path = "examples/frontend/fp8_sdpa_backward.rs"
+
+[[example]]
+name = "frontend_fp8_sdpa_bottom_right_causal"
+path = "examples/frontend/fp8_sdpa_bottom_right_causal.rs"
+
+[[example]]
+name = "frontend_fp8_sdpa_backward_current_scaling"
+path = "examples/frontend/fp8_sdpa_backward_current_scaling.rs"
+
+[[example]]
+name = "frontend_fp8_sdpa_backward_bottom_right_causal"
+path = "examples/frontend/fp8_sdpa_backward_bottom_right_causal.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa"
+path = "examples/frontend/fp16_sdpa.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_cached"
+path = "examples/frontend/fp16_sdpa_cached.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_benchmark"
+path = "examples/frontend/fp16_sdpa_benchmark.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_paged_caches"
+path = "examples/frontend/fp16_sdpa_paged_caches.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_sink_token"
+path = "examples/frontend/fp16_sdpa_sink_token.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_backward_sink_token"
+path = "examples/frontend/fp16_sdpa_backward_sink_token.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_block_mask"
+path = "examples/frontend/fp16_sdpa_block_mask.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_custom_dropout"
+path = "examples/frontend/fp16_sdpa_custom_dropout.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_bottom_right_causal"
+path = "examples/frontend/fp16_sdpa_bottom_right_causal.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_cudagraphs"
+path = "examples/frontend/fp16_sdpa_cudagraphs.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_backward_cudagraphs"
+path = "examples/frontend/fp16_sdpa_backward_cudagraphs.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_dynamic_shapes"
+path = "examples/frontend/fp16_sdpa_dynamic_shapes.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_flexible_graphs"
+path = "examples/frontend/fp16_sdpa_flexible_graphs.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_paged_decode_and_prefill"
+path = "examples/frontend/fp16_sdpa_paged_decode_and_prefill.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_backward_flexible_graphs"
+path = "examples/frontend/fp16_sdpa_backward_flexible_graphs.rs"
+
+[[example]]
+name = "frontend_fp16_sdpa_backward"
+path = "examples/frontend/fp16_sdpa_backward.rs"
+
+[[example]]
+name = "frontend_mxfp8_sdpa"
+path = "examples/frontend/mxfp8_sdpa.rs"
+
+[[example]]
+name = "frontend_mxfp8_sdpa_backward"
+path = "examples/frontend/mxfp8_sdpa_backward.rs"
+
+[[example]]
+name = "frontend_general_block_scale_matmul"
+path = "examples/frontend/general_block_scale_matmul.rs"
+
+[[example]]
+name = "frontend_nvfp4_matmul"
+path = "examples/frontend/nvfp4_matmul.rs"
+
+[[example]]
+name = "frontend_block_scale_matmul_swiglu"
+path = "examples/frontend/block_scale_matmul_swiglu.rs"

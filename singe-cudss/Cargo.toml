@@ -1,0 +1,32 @@
+[package]
+name = "singe-cudss"
+description = "Safe Rust wrappers for the NVIDIA Direct Sparse Solvers (cuDSS) library."
+version = "0.1.0-alpha.2"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "cudss", "sparse", "solver"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cudss_8_0"]
+
+cudss_8_0 = ["singe-cuda/runtime_13_2", "singe-cudss-sys/cudss_8_0"]
+
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-cuda-sys.workspace = true
+singe-cudss-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

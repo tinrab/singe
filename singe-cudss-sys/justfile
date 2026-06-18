@@ -1,0 +1,59 @@
+cudss_include_path := "$CUDSS_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "cudssDataType_t"
+        "cudssConfigParam_t"
+        "cudssDataParam_t"
+        "cudssPhase_t"
+        "cudssStatus_t"
+        "cudssMatrixType_t"
+        "cudssMatrixViewType_t"
+        "cudssIndexBase_t"
+        "cudssLayout_t"
+        "cudssReorderingAlg_t"
+        "cudssFactorizationAlg_t"
+        "cudssPivotEpsilonAlg_t"
+        "cudssSolveAlg_t"
+        "cudssMatchingAlg_t"
+        "cudssPivotType_t"
+        "cudssMatrixFormat_t"
+        "cudssOpType_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cudss_include_path}}/cudss.h \
+        $enum_args \
+        --allowlist-item "^cudss.*" \
+        --allowlist-item "^CUDSS.*" \
+        --blocklist-item "^cuda(Stream|DataType)(_t)?$" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{cudss_include_path}} \
+        > bindings.rs
+
+    CUDSS_VERSION=$(grep "CUDSS_VERSION:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${CUDSS_VERSION}" ]; then
+        echo "CUDSS_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${CUDSS_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

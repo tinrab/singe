@@ -1,0 +1,1103 @@
+use super::*;
+
+impl_binary_statistic!(
+    norm_diff_inf_f32_buffer_size,
+    norm_diff_inf_f32_to_device_with_scratch,
+    norm_diff_inf_f32_to_device,
+    f32,
+    nppsNormDiffInfGetBufferSize_32f_Ctx,
+    nppsNormDiff_Inf_32f_Ctx
+);
+impl_binary_statistic!(
+    norm_diff_inf_f64_buffer_size,
+    norm_diff_inf_f64_to_device_with_scratch,
+    norm_diff_inf_f64_to_device,
+    f64,
+    nppsNormDiffInfGetBufferSize_64f_Ctx,
+    nppsNormDiff_Inf_64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_inf_f32_complex_to_f32_buffer_size,
+    norm_diff_inf_f32_complex_to_f32_to_device_with_scratch,
+    norm_diff_inf_f32_complex_to_f32_to_device,
+    Complex32,
+    f32,
+    nppsNormDiffInfGetBufferSize_32fc32f_Ctx,
+    nppsNormDiff_Inf_32fc32f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_inf_f64_complex_to_f64_buffer_size,
+    norm_diff_inf_f64_complex_to_f64_to_device_with_scratch,
+    norm_diff_inf_f64_complex_to_f64_to_device,
+    Complex64,
+    f64,
+    nppsNormDiffInfGetBufferSize_64fc64f_Ctx,
+    nppsNormDiff_Inf_64fc64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_inf_i16_to_f32_buffer_size,
+    norm_diff_inf_i16_to_f32_to_device_with_scratch,
+    norm_diff_inf_i16_to_f32_to_device,
+    i16,
+    f32,
+    nppsNormDiffInfGetBufferSize_16s32f_Ctx,
+    nppsNormDiff_Inf_16s32f_Ctx
+);
+impl_scaled_binary_statistic!(
+    norm_diff_inf_i16_to_i32_scaled_buffer_size,
+    norm_diff_inf_i16_to_i32_scaled_to_device_with_scratch,
+    norm_diff_inf_i16_to_i32_scaled_to_device,
+    i16,
+    i32,
+    nppsNormDiffInfGetBufferSize_16s32s_Sfs_Ctx,
+    nppsNormDiff_Inf_16s32s_Sfs_Ctx
+);
+impl_binary_statistic!(
+    norm_diff_l1_f32_buffer_size,
+    norm_diff_l1_f32_to_device_with_scratch,
+    norm_diff_l1_f32_to_device,
+    f32,
+    nppsNormDiffL1GetBufferSize_32f_Ctx,
+    nppsNormDiff_L1_32f_Ctx
+);
+impl_binary_statistic!(
+    norm_diff_l1_f64_buffer_size,
+    norm_diff_l1_f64_to_device_with_scratch,
+    norm_diff_l1_f64_to_device,
+    f64,
+    nppsNormDiffL1GetBufferSize_64f_Ctx,
+    nppsNormDiff_L1_64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_l1_f32_complex_to_f64_buffer_size,
+    norm_diff_l1_f32_complex_to_f64_to_device_with_scratch,
+    norm_diff_l1_f32_complex_to_f64_to_device,
+    Complex32,
+    f64,
+    nppsNormDiffL1GetBufferSize_32fc64f_Ctx,
+    nppsNormDiff_L1_32fc64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_l1_f64_complex_to_f64_buffer_size,
+    norm_diff_l1_f64_complex_to_f64_to_device_with_scratch,
+    norm_diff_l1_f64_complex_to_f64_to_device,
+    Complex64,
+    f64,
+    nppsNormDiffL1GetBufferSize_64fc64f_Ctx,
+    nppsNormDiff_L1_64fc64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_l1_i16_to_f32_buffer_size,
+    norm_diff_l1_i16_to_f32_to_device_with_scratch,
+    norm_diff_l1_i16_to_f32_to_device,
+    i16,
+    f32,
+    nppsNormDiffL1GetBufferSize_16s32f_Ctx,
+    nppsNormDiff_L1_16s32f_Ctx
+);
+impl_scaled_binary_statistic!(
+    norm_diff_l1_i16_to_i32_scaled_buffer_size,
+    norm_diff_l1_i16_to_i32_scaled_to_device_with_scratch,
+    norm_diff_l1_i16_to_i32_scaled_to_device,
+    i16,
+    i32,
+    nppsNormDiffL1GetBufferSize_16s32s_Sfs_Ctx,
+    nppsNormDiff_L1_16s32s_Sfs_Ctx
+);
+impl_scaled_binary_statistic!(
+    norm_diff_l1_i16_to_i64_scaled_buffer_size,
+    norm_diff_l1_i16_to_i64_scaled_to_device_with_scratch,
+    norm_diff_l1_i16_to_i64_scaled_to_device,
+    i16,
+    i64,
+    nppsNormDiffL1GetBufferSize_16s64s_Sfs_Ctx,
+    nppsNormDiff_L1_16s64s_Sfs_Ctx
+);
+impl_binary_statistic!(
+    norm_diff_l2_f32_buffer_size,
+    norm_diff_l2_f32_to_device_with_scratch,
+    norm_diff_l2_f32_to_device,
+    f32,
+    nppsNormDiffL2GetBufferSize_32f_Ctx,
+    nppsNormDiff_L2_32f_Ctx
+);
+impl_binary_statistic!(
+    norm_diff_l2_f64_buffer_size,
+    norm_diff_l2_f64_to_device_with_scratch,
+    norm_diff_l2_f64_to_device,
+    f64,
+    nppsNormDiffL2GetBufferSize_64f_Ctx,
+    nppsNormDiff_L2_64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_l2_f32_complex_to_f64_buffer_size,
+    norm_diff_l2_f32_complex_to_f64_to_device_with_scratch,
+    norm_diff_l2_f32_complex_to_f64_to_device,
+    Complex32,
+    f64,
+    nppsNormDiffL2GetBufferSize_32fc64f_Ctx,
+    nppsNormDiff_L2_32fc64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_l2_f64_complex_to_f64_buffer_size,
+    norm_diff_l2_f64_complex_to_f64_to_device_with_scratch,
+    norm_diff_l2_f64_complex_to_f64_to_device,
+    Complex64,
+    f64,
+    nppsNormDiffL2GetBufferSize_64fc64f_Ctx,
+    nppsNormDiff_L2_64fc64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    norm_diff_l2_i16_to_f32_buffer_size,
+    norm_diff_l2_i16_to_f32_to_device_with_scratch,
+    norm_diff_l2_i16_to_f32_to_device,
+    i16,
+    f32,
+    nppsNormDiffL2GetBufferSize_16s32f_Ctx,
+    nppsNormDiff_L2_16s32f_Ctx
+);
+impl_scaled_binary_statistic!(
+    norm_diff_l2_i16_to_i32_scaled_buffer_size,
+    norm_diff_l2_i16_to_i32_scaled_to_device_with_scratch,
+    norm_diff_l2_i16_to_i32_scaled_to_device,
+    i16,
+    i32,
+    nppsNormDiffL2GetBufferSize_16s32s_Sfs_Ctx,
+    nppsNormDiff_L2_16s32s_Sfs_Ctx
+);
+impl_scaled_binary_statistic!(
+    norm_diff_l2_squared_i16_to_i64_scaled_buffer_size,
+    norm_diff_l2_squared_i16_to_i64_scaled_to_device_with_scratch,
+    norm_diff_l2_squared_i16_to_i64_scaled_to_device,
+    i16,
+    i64,
+    nppsNormDiffL2SqrGetBufferSize_16s64s_Sfs_Ctx,
+    nppsNormDiff_L2Sqr_16s64s_Sfs_Ctx
+);
+impl_binary_statistic!(
+    dot_product_f32_buffer_size,
+    dot_product_f32_to_device_with_scratch,
+    dot_product_f32_to_device,
+    f32,
+    nppsDotProdGetBufferSize_32f_Ctx,
+    nppsDotProd_32f_Ctx
+);
+impl_binary_statistic!(
+    dot_product_f64_buffer_size,
+    dot_product_f64_to_device_with_scratch,
+    dot_product_f64_to_device,
+    f64,
+    nppsDotProdGetBufferSize_64f_Ctx,
+    nppsDotProd_64f_Ctx
+);
+impl_mixed_binary_statistic!(
+    dot_product_f32_to_f64_buffer_size,
+    dot_product_f32_to_f64_to_device_with_scratch,
+    dot_product_f32_to_f64_to_device,
+    f32,
+    f64,
+    nppsDotProdGetBufferSize_32f64f_Ctx,
+    nppsDotProd_32f64f_Ctx
+);
+impl_binary_statistic!(
+    dot_product_f32_complex_buffer_size,
+    dot_product_f32_complex_to_device_with_scratch,
+    dot_product_f32_complex_to_device,
+    Complex32,
+    nppsDotProdGetBufferSize_32fc_Ctx,
+    nppsDotProd_32fc_Ctx
+);
+impl_binary_statistic!(
+    dot_product_f64_complex_buffer_size,
+    dot_product_f64_complex_to_device_with_scratch,
+    dot_product_f64_complex_to_device,
+    Complex64,
+    nppsDotProdGetBufferSize_64fc_Ctx,
+    nppsDotProd_64fc_Ctx
+);
+impl_mixed_binary_statistic!(
+    dot_product_f32_complex_to_f64_complex_buffer_size,
+    dot_product_f32_complex_to_f64_complex_to_device_with_scratch,
+    dot_product_f32_complex_to_f64_complex_to_device,
+    Complex32,
+    Complex64,
+    nppsDotProdGetBufferSize_32fc64fc_Ctx,
+    nppsDotProd_32fc64fc_Ctx
+);
+impl_heterogeneous_binary_statistic!(
+    dot_product_f32_and_f32_complex_to_f32_complex_buffer_size,
+    dot_product_f32_and_f32_complex_to_f32_complex_to_device_with_scratch,
+    dot_product_f32_and_f32_complex_to_f32_complex_to_device,
+    f32,
+    Complex32,
+    Complex32,
+    nppsDotProdGetBufferSize_32f32fc_Ctx,
+    nppsDotProd_32f32fc_Ctx
+);
+impl_heterogeneous_binary_statistic!(
+    dot_product_f32_and_f32_complex_to_f64_complex_buffer_size,
+    dot_product_f32_and_f32_complex_to_f64_complex_to_device_with_scratch,
+    dot_product_f32_and_f32_complex_to_f64_complex_to_device,
+    f32,
+    Complex32,
+    Complex64,
+    nppsDotProdGetBufferSize_32f32fc64fc_Ctx,
+    nppsDotProd_32f32fc64fc_Ctx
+);
+impl_heterogeneous_binary_statistic!(
+    dot_product_f64_and_f64_complex_to_f64_complex_buffer_size,
+    dot_product_f64_and_f64_complex_to_f64_complex_to_device_with_scratch,
+    dot_product_f64_and_f64_complex_to_f64_complex_to_device,
+    f64,
+    Complex64,
+    Complex64,
+    nppsDotProdGetBufferSize_64f64fc_Ctx,
+    nppsDotProd_64f64fc_Ctx
+);
+impl_mixed_binary_statistic!(
+    dot_product_i16_to_i64_buffer_size,
+    dot_product_i16_to_i64_to_device_with_scratch,
+    dot_product_i16_to_i64_to_device,
+    i16,
+    i64,
+    nppsDotProdGetBufferSize_16s64s_Ctx,
+    nppsDotProd_16s64s_Ctx
+);
+impl_mixed_binary_statistic!(
+    dot_product_i16_to_f32_buffer_size,
+    dot_product_i16_to_f32_to_device_with_scratch,
+    dot_product_i16_to_f32_to_device,
+    i16,
+    f32,
+    nppsDotProdGetBufferSize_16s32f_Ctx,
+    nppsDotProd_16s32f_Ctx
+);
+impl_mixed_binary_statistic!(
+    dot_product_i16_complex_to_i64_complex_buffer_size,
+    dot_product_i16_complex_to_i64_complex_to_device_with_scratch,
+    dot_product_i16_complex_to_i64_complex_to_device,
+    ComplexI16,
+    ComplexI64,
+    nppsDotProdGetBufferSize_16sc64sc_Ctx,
+    nppsDotProd_16sc64sc_Ctx
+);
+impl_mixed_binary_statistic!(
+    dot_product_i16_complex_to_f32_complex_buffer_size,
+    dot_product_i16_complex_to_f32_complex_to_device_with_scratch,
+    dot_product_i16_complex_to_f32_complex_to_device,
+    ComplexI16,
+    Complex32,
+    nppsDotProdGetBufferSize_16sc32fc_Ctx,
+    nppsDotProd_16sc32fc_Ctx
+);
+impl_heterogeneous_binary_statistic!(
+    dot_product_i16_and_i16_complex_to_i64_complex_buffer_size,
+    dot_product_i16_and_i16_complex_to_i64_complex_to_device_with_scratch,
+    dot_product_i16_and_i16_complex_to_i64_complex_to_device,
+    i16,
+    ComplexI16,
+    ComplexI64,
+    nppsDotProdGetBufferSize_16s16sc64sc_Ctx,
+    nppsDotProd_16s16sc64sc_Ctx
+);
+impl_heterogeneous_binary_statistic!(
+    dot_product_i16_and_i16_complex_to_f32_complex_buffer_size,
+    dot_product_i16_and_i16_complex_to_f32_complex_to_device_with_scratch,
+    dot_product_i16_and_i16_complex_to_f32_complex_to_device,
+    i16,
+    ComplexI16,
+    Complex32,
+    nppsDotProdGetBufferSize_16s16sc32fc_Ctx,
+    nppsDotProd_16s16sc32fc_Ctx
+);
+impl_scaled_binary_statistic!(
+    dot_product_i16_scaled_buffer_size,
+    dot_product_i16_scaled_to_device_with_scratch,
+    dot_product_i16_scaled_to_device,
+    i16,
+    i16,
+    nppsDotProdGetBufferSize_16s_Sfs_Ctx,
+    nppsDotProd_16s_Sfs_Ctx
+);
+impl_scaled_binary_statistic!(
+    dot_product_i16_to_i32_scaled_buffer_size,
+    dot_product_i16_to_i32_scaled_to_device_with_scratch,
+    dot_product_i16_to_i32_scaled_to_device,
+    i16,
+    i32,
+    nppsDotProdGetBufferSize_16s32s_Sfs_Ctx,
+    nppsDotProd_16s32s_Sfs_Ctx
+);
+impl_scaled_binary_statistic!(
+    dot_product_i32_scaled_buffer_size,
+    dot_product_i32_scaled_to_device_with_scratch,
+    dot_product_i32_scaled_to_device,
+    i32,
+    i32,
+    nppsDotProdGetBufferSize_32s_Sfs_Ctx,
+    nppsDotProd_32s_Sfs_Ctx
+);
+impl_scaled_binary_statistic!(
+    dot_product_i16_complex_scaled_buffer_size,
+    dot_product_i16_complex_scaled_to_device_with_scratch,
+    dot_product_i16_complex_scaled_to_device,
+    ComplexI16,
+    ComplexI16,
+    nppsDotProdGetBufferSize_16sc_Sfs_Ctx,
+    nppsDotProd_16sc_Sfs_Ctx
+);
+impl_scaled_binary_statistic!(
+    dot_product_i16_complex_to_i32_complex_scaled_buffer_size,
+    dot_product_i16_complex_to_i32_complex_scaled_to_device_with_scratch,
+    dot_product_i16_complex_to_i32_complex_scaled_to_device,
+    ComplexI16,
+    ComplexI32,
+    nppsDotProdGetBufferSize_16sc32sc_Sfs_Ctx,
+    nppsDotProd_16sc32sc_Sfs_Ctx
+);
+impl_scaled_binary_statistic!(
+    dot_product_i32_complex_scaled_buffer_size,
+    dot_product_i32_complex_scaled_to_device_with_scratch,
+    dot_product_i32_complex_scaled_to_device,
+    ComplexI32,
+    ComplexI32,
+    nppsDotProdGetBufferSize_32sc_Sfs_Ctx,
+    nppsDotProd_32sc_Sfs_Ctx
+);
+impl_scaled_heterogeneous_binary_statistic!(
+    dot_product_i16_and_i16_complex_scaled_buffer_size,
+    dot_product_i16_and_i16_complex_scaled_to_device_with_scratch,
+    dot_product_i16_and_i16_complex_scaled_to_device,
+    i16,
+    ComplexI16,
+    ComplexI16,
+    nppsDotProdGetBufferSize_16s16sc_Sfs_Ctx,
+    nppsDotProd_16s16sc_Sfs_Ctx
+);
+impl_scaled_heterogeneous_binary_statistic!(
+    dot_product_i16_and_i16_complex_to_i32_complex_scaled_buffer_size,
+    dot_product_i16_and_i16_complex_to_i32_complex_scaled_to_device_with_scratch,
+    dot_product_i16_and_i16_complex_to_i32_complex_scaled_to_device,
+    i16,
+    ComplexI16,
+    ComplexI32,
+    nppsDotProdGetBufferSize_16s16sc32sc_Sfs_Ctx,
+    nppsDotProd_16s16sc32sc_Sfs_Ctx
+);
+impl_scaled_heterogeneous_binary_statistic!(
+    dot_product_i16_and_i32_to_i32_scaled_buffer_size,
+    dot_product_i16_and_i32_to_i32_scaled_to_device_with_scratch,
+    dot_product_i16_and_i32_to_i32_scaled_to_device,
+    i16,
+    i32,
+    i32,
+    nppsDotProdGetBufferSize_16s32s32s_Sfs_Ctx,
+    nppsDotProd_16s32s32s_Sfs_Ctx
+);
+impl_scaled_heterogeneous_binary_statistic!(
+    dot_product_i32_and_i32_complex_scaled_buffer_size,
+    dot_product_i32_and_i32_complex_scaled_to_device_with_scratch,
+    dot_product_i32_and_i32_complex_scaled_to_device,
+    i32,
+    ComplexI32,
+    ComplexI32,
+    nppsDotProdGetBufferSize_32s32sc_Sfs_Ctx,
+    nppsDotProd_32s32sc_Sfs_Ctx
+);
+impl_zero_crossing!(
+    zero_crossing_i16_to_f32_buffer_size,
+    zero_crossing_i16_to_f32_to_device_with_scratch,
+    zero_crossing_i16_to_f32_to_device,
+    i16,
+    nppsZeroCrossingGetBufferSize_16s32f_Ctx,
+    nppsZeroCrossing_16s32f_Ctx
+);
+impl_zero_crossing!(
+    zero_crossing_f32_buffer_size,
+    zero_crossing_f32_to_device_with_scratch,
+    zero_crossing_f32_to_device,
+    f32,
+    nppsZeroCrossingGetBufferSize_32f_Ctx,
+    nppsZeroCrossing_32f_Ctx
+);
+impl_error_metric!(
+    maximum_error_u8_buffer_size,
+    maximum_error_u8_to_device_with_scratch,
+    maximum_error_u8_to_device,
+    u8,
+    nppsMaximumErrorGetBufferSize_8u_Ctx,
+    nppsMaximumError_8u_Ctx
+);
+impl_error_metric!(
+    maximum_error_i8_buffer_size,
+    maximum_error_i8_to_device_with_scratch,
+    maximum_error_i8_to_device,
+    i8,
+    nppsMaximumErrorGetBufferSize_8s_Ctx,
+    nppsMaximumError_8s_Ctx
+);
+impl_error_metric!(
+    maximum_error_u16_buffer_size,
+    maximum_error_u16_to_device_with_scratch,
+    maximum_error_u16_to_device,
+    u16,
+    nppsMaximumErrorGetBufferSize_16u_Ctx,
+    nppsMaximumError_16u_Ctx
+);
+impl_error_metric!(
+    maximum_error_i16_buffer_size,
+    maximum_error_i16_to_device_with_scratch,
+    maximum_error_i16_to_device,
+    i16,
+    nppsMaximumErrorGetBufferSize_16s_Ctx,
+    nppsMaximumError_16s_Ctx
+);
+impl_error_metric!(
+    maximum_error_i16_complex_buffer_size,
+    maximum_error_i16_complex_to_device_with_scratch,
+    maximum_error_i16_complex_to_device,
+    ComplexI16,
+    nppsMaximumErrorGetBufferSize_16sc_Ctx,
+    nppsMaximumError_16sc_Ctx
+);
+impl_error_metric!(
+    maximum_error_u32_buffer_size,
+    maximum_error_u32_to_device_with_scratch,
+    maximum_error_u32_to_device,
+    u32,
+    nppsMaximumErrorGetBufferSize_32u_Ctx,
+    nppsMaximumError_32u_Ctx
+);
+impl_error_metric!(
+    maximum_error_i32_buffer_size,
+    maximum_error_i32_to_device_with_scratch,
+    maximum_error_i32_to_device,
+    i32,
+    nppsMaximumErrorGetBufferSize_32s_Ctx,
+    nppsMaximumError_32s_Ctx
+);
+impl_error_metric!(
+    maximum_error_i32_complex_buffer_size,
+    maximum_error_i32_complex_to_device_with_scratch,
+    maximum_error_i32_complex_to_device,
+    ComplexI32,
+    nppsMaximumErrorGetBufferSize_32sc_Ctx,
+    nppsMaximumError_32sc_Ctx
+);
+impl_error_metric!(
+    maximum_error_i64_buffer_size,
+    maximum_error_i64_to_device_with_scratch,
+    maximum_error_i64_to_device,
+    i64,
+    nppsMaximumErrorGetBufferSize_64s_Ctx,
+    nppsMaximumError_64s_Ctx
+);
+impl_error_metric!(
+    maximum_error_i64_complex_buffer_size,
+    maximum_error_i64_complex_to_device_with_scratch,
+    maximum_error_i64_complex_to_device,
+    ComplexI64,
+    nppsMaximumErrorGetBufferSize_64sc_Ctx,
+    nppsMaximumError_64sc_Ctx
+);
+impl_error_metric!(
+    maximum_error_f32_buffer_size,
+    maximum_error_f32_to_device_with_scratch,
+    maximum_error_f32_to_device,
+    f32,
+    nppsMaximumErrorGetBufferSize_32f_Ctx,
+    nppsMaximumError_32f_Ctx
+);
+impl_error_metric!(
+    maximum_error_f32_complex_buffer_size,
+    maximum_error_f32_complex_to_device_with_scratch,
+    maximum_error_f32_complex_to_device,
+    Complex32,
+    nppsMaximumErrorGetBufferSize_32fc_Ctx,
+    nppsMaximumError_32fc_Ctx
+);
+impl_error_metric!(
+    maximum_error_f64_buffer_size,
+    maximum_error_f64_to_device_with_scratch,
+    maximum_error_f64_to_device,
+    f64,
+    nppsMaximumErrorGetBufferSize_64f_Ctx,
+    nppsMaximumError_64f_Ctx
+);
+impl_error_metric!(
+    maximum_error_f64_complex_buffer_size,
+    maximum_error_f64_complex_to_device_with_scratch,
+    maximum_error_f64_complex_to_device,
+    Complex64,
+    nppsMaximumErrorGetBufferSize_64fc_Ctx,
+    nppsMaximumError_64fc_Ctx
+);
+impl_error_metric!(
+    average_error_u8_buffer_size,
+    average_error_u8_to_device_with_scratch,
+    average_error_u8_to_device,
+    u8,
+    nppsAverageErrorGetBufferSize_8u_Ctx,
+    nppsAverageError_8u_Ctx
+);
+impl_error_metric!(
+    average_error_i8_buffer_size,
+    average_error_i8_to_device_with_scratch,
+    average_error_i8_to_device,
+    i8,
+    nppsAverageErrorGetBufferSize_8s_Ctx,
+    nppsAverageError_8s_Ctx
+);
+impl_error_metric!(
+    average_error_u16_buffer_size,
+    average_error_u16_to_device_with_scratch,
+    average_error_u16_to_device,
+    u16,
+    nppsAverageErrorGetBufferSize_16u_Ctx,
+    nppsAverageError_16u_Ctx
+);
+impl_error_metric!(
+    average_error_i16_buffer_size,
+    average_error_i16_to_device_with_scratch,
+    average_error_i16_to_device,
+    i16,
+    nppsAverageErrorGetBufferSize_16s_Ctx,
+    nppsAverageError_16s_Ctx
+);
+impl_error_metric!(
+    average_error_i16_complex_buffer_size,
+    average_error_i16_complex_to_device_with_scratch,
+    average_error_i16_complex_to_device,
+    ComplexI16,
+    nppsAverageErrorGetBufferSize_16sc_Ctx,
+    nppsAverageError_16sc_Ctx
+);
+impl_error_metric!(
+    average_error_u32_buffer_size,
+    average_error_u32_to_device_with_scratch,
+    average_error_u32_to_device,
+    u32,
+    nppsAverageErrorGetBufferSize_32u_Ctx,
+    nppsAverageError_32u_Ctx
+);
+impl_error_metric!(
+    average_error_i32_buffer_size,
+    average_error_i32_to_device_with_scratch,
+    average_error_i32_to_device,
+    i32,
+    nppsAverageErrorGetBufferSize_32s_Ctx,
+    nppsAverageError_32s_Ctx
+);
+impl_error_metric!(
+    average_error_i32_complex_buffer_size,
+    average_error_i32_complex_to_device_with_scratch,
+    average_error_i32_complex_to_device,
+    ComplexI32,
+    nppsAverageErrorGetBufferSize_32sc_Ctx,
+    nppsAverageError_32sc_Ctx
+);
+impl_error_metric!(
+    average_error_i64_buffer_size,
+    average_error_i64_to_device_with_scratch,
+    average_error_i64_to_device,
+    i64,
+    nppsAverageErrorGetBufferSize_64s_Ctx,
+    nppsAverageError_64s_Ctx
+);
+impl_error_metric!(
+    average_error_i64_complex_buffer_size,
+    average_error_i64_complex_to_device_with_scratch,
+    average_error_i64_complex_to_device,
+    ComplexI64,
+    nppsAverageErrorGetBufferSize_64sc_Ctx,
+    nppsAverageError_64sc_Ctx
+);
+impl_error_metric!(
+    average_error_f32_buffer_size,
+    average_error_f32_to_device_with_scratch,
+    average_error_f32_to_device,
+    f32,
+    nppsAverageErrorGetBufferSize_32f_Ctx,
+    nppsAverageError_32f_Ctx
+);
+impl_error_metric!(
+    average_error_f32_complex_buffer_size,
+    average_error_f32_complex_to_device_with_scratch,
+    average_error_f32_complex_to_device,
+    Complex32,
+    nppsAverageErrorGetBufferSize_32fc_Ctx,
+    nppsAverageError_32fc_Ctx
+);
+impl_error_metric!(
+    average_error_f64_buffer_size,
+    average_error_f64_to_device_with_scratch,
+    average_error_f64_to_device,
+    f64,
+    nppsAverageErrorGetBufferSize_64f_Ctx,
+    nppsAverageError_64f_Ctx
+);
+impl_error_metric!(
+    average_error_f64_complex_buffer_size,
+    average_error_f64_complex_to_device_with_scratch,
+    average_error_f64_complex_to_device,
+    Complex64,
+    nppsAverageErrorGetBufferSize_64fc_Ctx,
+    nppsAverageError_64fc_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u8_buffer_size,
+    maximum_relative_error_u8_to_device_with_scratch,
+    maximum_relative_error_u8_to_device,
+    u8,
+    nppsMaximumRelativeErrorGetBufferSize_8u_Ctx,
+    nppsMaximumRelativeError_8u_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i8_buffer_size,
+    maximum_relative_error_i8_to_device_with_scratch,
+    maximum_relative_error_i8_to_device,
+    i8,
+    nppsMaximumRelativeErrorGetBufferSize_8s_Ctx,
+    nppsMaximumRelativeError_8s_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u16_buffer_size,
+    maximum_relative_error_u16_to_device_with_scratch,
+    maximum_relative_error_u16_to_device,
+    u16,
+    nppsMaximumRelativeErrorGetBufferSize_16u_Ctx,
+    nppsMaximumRelativeError_16u_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_buffer_size,
+    maximum_relative_error_i16_to_device_with_scratch,
+    maximum_relative_error_i16_to_device,
+    i16,
+    nppsMaximumRelativeErrorGetBufferSize_16s_Ctx,
+    nppsMaximumRelativeError_16s_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i16_complex_buffer_size,
+    maximum_relative_error_i16_complex_to_device_with_scratch,
+    maximum_relative_error_i16_complex_to_device,
+    ComplexI16,
+    nppsMaximumRelativeErrorGetBufferSize_16sc_Ctx,
+    nppsMaximumRelativeError_16sc_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_u32_buffer_size,
+    maximum_relative_error_u32_to_device_with_scratch,
+    maximum_relative_error_u32_to_device,
+    u32,
+    nppsMaximumRelativeErrorGetBufferSize_32u_Ctx,
+    nppsMaximumRelativeError_32u_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_buffer_size,
+    maximum_relative_error_i32_to_device_with_scratch,
+    maximum_relative_error_i32_to_device,
+    i32,
+    nppsMaximumRelativeErrorGetBufferSize_32s_Ctx,
+    nppsMaximumRelativeError_32s_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i32_complex_buffer_size,
+    maximum_relative_error_i32_complex_to_device_with_scratch,
+    maximum_relative_error_i32_complex_to_device,
+    ComplexI32,
+    nppsMaximumRelativeErrorGetBufferSize_32sc_Ctx,
+    nppsMaximumRelativeError_32sc_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i64_buffer_size,
+    maximum_relative_error_i64_to_device_with_scratch,
+    maximum_relative_error_i64_to_device,
+    i64,
+    nppsMaximumRelativeErrorGetBufferSize_64s_Ctx,
+    nppsMaximumRelativeError_64s_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_i64_complex_buffer_size,
+    maximum_relative_error_i64_complex_to_device_with_scratch,
+    maximum_relative_error_i64_complex_to_device,
+    ComplexI64,
+    nppsMaximumRelativeErrorGetBufferSize_64sc_Ctx,
+    nppsMaximumRelativeError_64sc_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_buffer_size,
+    maximum_relative_error_f32_to_device_with_scratch,
+    maximum_relative_error_f32_to_device,
+    f32,
+    nppsMaximumRelativeErrorGetBufferSize_32f_Ctx,
+    nppsMaximumRelativeError_32f_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f32_complex_buffer_size,
+    maximum_relative_error_f32_complex_to_device_with_scratch,
+    maximum_relative_error_f32_complex_to_device,
+    Complex32,
+    nppsMaximumRelativeErrorGetBufferSize_32fc_Ctx,
+    nppsMaximumRelativeError_32fc_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f64_buffer_size,
+    maximum_relative_error_f64_to_device_with_scratch,
+    maximum_relative_error_f64_to_device,
+    f64,
+    nppsMaximumRelativeErrorGetBufferSize_64f_Ctx,
+    nppsMaximumRelativeError_64f_Ctx
+);
+impl_error_metric!(
+    maximum_relative_error_f64_complex_buffer_size,
+    maximum_relative_error_f64_complex_to_device_with_scratch,
+    maximum_relative_error_f64_complex_to_device,
+    Complex64,
+    nppsMaximumRelativeErrorGetBufferSize_64fc_Ctx,
+    nppsMaximumRelativeError_64fc_Ctx
+);
+impl_error_metric!(
+    average_relative_error_u8_buffer_size,
+    average_relative_error_u8_to_device_with_scratch,
+    average_relative_error_u8_to_device,
+    u8,
+    nppsAverageRelativeErrorGetBufferSize_8u_Ctx,
+    nppsAverageRelativeError_8u_Ctx
+);
+impl_error_metric!(
+    average_relative_error_i8_buffer_size,
+    average_relative_error_i8_to_device_with_scratch,
+    average_relative_error_i8_to_device,
+    i8,
+    nppsAverageRelativeErrorGetBufferSize_8s_Ctx,
+    nppsAverageRelativeError_8s_Ctx
+);
+impl_error_metric!(
+    average_relative_error_u16_buffer_size,
+    average_relative_error_u16_to_device_with_scratch,
+    average_relative_error_u16_to_device,
+    u16,
+    nppsAverageRelativeErrorGetBufferSize_16u_Ctx,
+    nppsAverageRelativeError_16u_Ctx
+);
+impl_error_metric!(
+    average_relative_error_i16_buffer_size,
+    average_relative_error_i16_to_device_with_scratch,
+    average_relative_error_i16_to_device,
+    i16,
+    nppsAverageRelativeErrorGetBufferSize_16s_Ctx,
+    nppsAverageRelativeError_16s_Ctx
+);
+impl_error_metric!(
+    average_relative_error_i16_complex_buffer_size,
+    average_relative_error_i16_complex_to_device_with_scratch,
+    average_relative_error_i16_complex_to_device,
+    ComplexI16,
+    nppsAverageRelativeErrorGetBufferSize_16sc_Ctx,
+    nppsAverageRelativeError_16sc_Ctx
+);
+impl_error_metric!(
+    average_relative_error_u32_buffer_size,
+    average_relative_error_u32_to_device_with_scratch,
+    average_relative_error_u32_to_device,
+    u32,
+    nppsAverageRelativeErrorGetBufferSize_32u_Ctx,
+    nppsAverageRelativeError_32u_Ctx
+);
+impl_error_metric!(
+    average_relative_error_i32_buffer_size,
+    average_relative_error_i32_to_device_with_scratch,
+    average_relative_error_i32_to_device,
+    i32,
+    nppsAverageRelativeErrorGetBufferSize_32s_Ctx,
+    nppsAverageRelativeError_32s_Ctx
+);
+impl_error_metric!(
+    average_relative_error_i32_complex_buffer_size,
+    average_relative_error_i32_complex_to_device_with_scratch,
+    average_relative_error_i32_complex_to_device,
+    ComplexI32,
+    nppsAverageRelativeErrorGetBufferSize_32sc_Ctx,
+    nppsAverageRelativeError_32sc_Ctx
+);
+impl_error_metric!(
+    average_relative_error_i64_buffer_size,
+    average_relative_error_i64_to_device_with_scratch,
+    average_relative_error_i64_to_device,
+    i64,
+    nppsAverageRelativeErrorGetBufferSize_64s_Ctx,
+    nppsAverageRelativeError_64s_Ctx
+);
+impl_error_metric!(
+    average_relative_error_i64_complex_buffer_size,
+    average_relative_error_i64_complex_to_device_with_scratch,
+    average_relative_error_i64_complex_to_device,
+    ComplexI64,
+    nppsAverageRelativeErrorGetBufferSize_64sc_Ctx,
+    nppsAverageRelativeError_64sc_Ctx
+);
+impl_error_metric!(
+    average_relative_error_f32_buffer_size,
+    average_relative_error_f32_to_device_with_scratch,
+    average_relative_error_f32_to_device,
+    f32,
+    nppsAverageRelativeErrorGetBufferSize_32f_Ctx,
+    nppsAverageRelativeError_32f_Ctx
+);
+impl_error_metric!(
+    average_relative_error_f32_complex_buffer_size,
+    average_relative_error_f32_complex_to_device_with_scratch,
+    average_relative_error_f32_complex_to_device,
+    Complex32,
+    nppsAverageRelativeErrorGetBufferSize_32fc_Ctx,
+    nppsAverageRelativeError_32fc_Ctx
+);
+impl_error_metric!(
+    average_relative_error_f64_buffer_size,
+    average_relative_error_f64_to_device_with_scratch,
+    average_relative_error_f64_to_device,
+    f64,
+    nppsAverageRelativeErrorGetBufferSize_64f_Ctx,
+    nppsAverageRelativeError_64f_Ctx
+);
+impl_error_metric!(
+    average_relative_error_f64_complex_buffer_size,
+    average_relative_error_f64_complex_to_device_with_scratch,
+    average_relative_error_f64_complex_to_device,
+    Complex64,
+    nppsAverageRelativeErrorGetBufferSize_64fc_Ctx,
+    nppsAverageRelativeError_64fc_Ctx
+);
+impl_statistic!(
+    max_i16_buffer_size,
+    max_i16_to_device_with_scratch,
+    max_i16_to_device,
+    i16,
+    nppsMaxGetBufferSize_16s_Ctx,
+    nppsMax_16s_Ctx
+);
+impl_statistic!(
+    max_i32_buffer_size,
+    max_i32_to_device_with_scratch,
+    max_i32_to_device,
+    i32,
+    nppsMaxGetBufferSize_32s_Ctx,
+    nppsMax_32s_Ctx
+);
+impl_statistic!(
+    max_f32_buffer_size,
+    max_f32_to_device_with_scratch,
+    max_f32_to_device,
+    f32,
+    nppsMaxGetBufferSize_32f_Ctx,
+    nppsMax_32f_Ctx
+);
+impl_statistic!(
+    max_f64_buffer_size,
+    max_f64_to_device_with_scratch,
+    max_f64_to_device,
+    f64,
+    nppsMaxGetBufferSize_64f_Ctx,
+    nppsMax_64f_Ctx
+);
+impl_statistic!(
+    min_i16_buffer_size,
+    min_i16_to_device_with_scratch,
+    min_i16_to_device,
+    i16,
+    nppsMinGetBufferSize_16s_Ctx,
+    nppsMin_16s_Ctx
+);
+impl_statistic!(
+    min_i32_buffer_size,
+    min_i32_to_device_with_scratch,
+    min_i32_to_device,
+    i32,
+    nppsMinGetBufferSize_32s_Ctx,
+    nppsMin_32s_Ctx
+);
+impl_statistic!(
+    min_f32_buffer_size,
+    min_f32_to_device_with_scratch,
+    min_f32_to_device,
+    f32,
+    nppsMinGetBufferSize_32f_Ctx,
+    nppsMin_32f_Ctx
+);
+impl_statistic!(
+    min_f64_buffer_size,
+    min_f64_to_device_with_scratch,
+    min_f64_to_device,
+    f64,
+    nppsMinGetBufferSize_64f_Ctx,
+    nppsMin_64f_Ctx
+);
+impl_statistic!(
+    max_absolute_i16_buffer_size,
+    max_absolute_i16_to_device_with_scratch,
+    max_absolute_i16_to_device,
+    i16,
+    nppsMaxAbsGetBufferSize_16s_Ctx,
+    nppsMaxAbs_16s_Ctx
+);
+impl_statistic!(
+    max_absolute_i32_buffer_size,
+    max_absolute_i32_to_device_with_scratch,
+    max_absolute_i32_to_device,
+    i32,
+    nppsMaxAbsGetBufferSize_32s_Ctx,
+    nppsMaxAbs_32s_Ctx
+);
+impl_statistic!(
+    min_absolute_i16_buffer_size,
+    min_absolute_i16_to_device_with_scratch,
+    min_absolute_i16_to_device,
+    i16,
+    nppsMinAbsGetBufferSize_16s_Ctx,
+    nppsMinAbs_16s_Ctx
+);
+impl_statistic!(
+    min_absolute_i32_buffer_size,
+    min_absolute_i32_to_device_with_scratch,
+    min_absolute_i32_to_device,
+    i32,
+    nppsMinAbsGetBufferSize_32s_Ctx,
+    nppsMinAbs_32s_Ctx
+);
+impl_indexed_statistic!(
+    max_index_i16_buffer_size,
+    max_index_i16_to_device_with_scratch,
+    max_index_i16_to_device,
+    i16,
+    nppsMaxIndxGetBufferSize_16s_Ctx,
+    nppsMaxIndx_16s_Ctx
+);
+impl_indexed_statistic!(
+    max_index_i32_buffer_size,
+    max_index_i32_to_device_with_scratch,
+    max_index_i32_to_device,
+    i32,
+    nppsMaxIndxGetBufferSize_32s_Ctx,
+    nppsMaxIndx_32s_Ctx
+);
+impl_indexed_statistic!(
+    max_index_f32_buffer_size,
+    max_index_f32_to_device_with_scratch,
+    max_index_f32_to_device,
+    f32,
+    nppsMaxIndxGetBufferSize_32f_Ctx,
+    nppsMaxIndx_32f_Ctx
+);
+impl_indexed_statistic!(
+    max_index_f64_buffer_size,
+    max_index_f64_to_device_with_scratch,
+    max_index_f64_to_device,
+    f64,
+    nppsMaxIndxGetBufferSize_64f_Ctx,
+    nppsMaxIndx_64f_Ctx
+);
+impl_indexed_statistic!(
+    min_index_i16_buffer_size,
+    min_index_i16_to_device_with_scratch,
+    min_index_i16_to_device,
+    i16,
+    nppsMinIndxGetBufferSize_16s_Ctx,
+    nppsMinIndx_16s_Ctx
+);
+impl_indexed_statistic!(
+    min_index_i32_buffer_size,
+    min_index_i32_to_device_with_scratch,
+    min_index_i32_to_device,
+    i32,
+    nppsMinIndxGetBufferSize_32s_Ctx,
+    nppsMinIndx_32s_Ctx
+);
+impl_indexed_statistic!(
+    min_index_f32_buffer_size,
+    min_index_f32_to_device_with_scratch,
+    min_index_f32_to_device,
+    f32,
+    nppsMinIndxGetBufferSize_32f_Ctx,
+    nppsMinIndx_32f_Ctx
+);
+impl_indexed_statistic!(
+    min_index_f64_buffer_size,
+    min_index_f64_to_device_with_scratch,
+    min_index_f64_to_device,
+    f64,
+    nppsMinIndxGetBufferSize_64f_Ctx,
+    nppsMinIndx_64f_Ctx
+);
+impl_indexed_statistic!(
+    max_absolute_index_i16_buffer_size,
+    max_absolute_index_i16_to_device_with_scratch,
+    max_absolute_index_i16_to_device,
+    i16,
+    nppsMaxAbsIndxGetBufferSize_16s_Ctx,
+    nppsMaxAbsIndx_16s_Ctx
+);
+impl_indexed_statistic!(
+    max_absolute_index_i32_buffer_size,
+    max_absolute_index_i32_to_device_with_scratch,
+    max_absolute_index_i32_to_device,
+    i32,
+    nppsMaxAbsIndxGetBufferSize_32s_Ctx,
+    nppsMaxAbsIndx_32s_Ctx
+);
+impl_indexed_statistic!(
+    min_absolute_index_i16_buffer_size,
+    min_absolute_index_i16_to_device_with_scratch,
+    min_absolute_index_i16_to_device,
+    i16,
+    nppsMinAbsIndxGetBufferSize_16s_Ctx,
+    nppsMinAbsIndx_16s_Ctx
+);
+impl_indexed_statistic!(
+    min_absolute_index_i32_buffer_size,
+    min_absolute_index_i32_to_device_with_scratch,
+    min_absolute_index_i32_to_device,
+    i32,
+    nppsMinAbsIndxGetBufferSize_32s_Ctx,
+    nppsMinAbsIndx_32s_Ctx
+);
+
+pub(crate) fn count_in_range_i32_buffer_size(
+    stream_context: &StreamContext,
+    source: &SignalView<'_, i32>,
+) -> Result<usize> {
+    let mut bytes = 0;
+    unsafe {
+        try_ffi!(sys::nppsCountInRangeGetBufferSize_32s_Ctx(
+            to_u64(source.len(), "len")?,
+            &raw mut bytes,
+            stream_context.as_raw(),
+        ))?;
+    }
+    to_usize(bytes, "scratch bytes")
+}
+
+pub(crate) fn count_in_range_i32_to_device_with_scratch(
+    stream_context: &StreamContext,
+    source: &SignalView<'_, i32>,
+    count: &mut SignalViewMut<'_, i32>,
+    lower_bound: i32,
+    upper_bound: i32,
+    scratch: &mut ScratchBuffer,
+) -> Result<()> {
+    validate_scalar_output(count, "count")?;
+    let required_bytes = count_in_range_i32_buffer_size(stream_context, source)?;
+    scratch.require(required_bytes)?;
+
+    unsafe {
+        try_ffi!(sys::nppsCountInRange_32s_Ctx(
+            source.as_ptr().cast(),
+            to_u64(source.len(), "len")?,
+            count.as_mut_ptr().cast(),
+            lower_bound,
+            upper_bound,
+            scratch.as_mut_ptr().cast(),
+            stream_context.as_raw(),
+        ))?;
+    }
+    Ok(())
+}

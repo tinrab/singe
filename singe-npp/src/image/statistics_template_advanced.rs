@@ -1,0 +1,680 @@
+use super::*;
+
+impl_advanced_template_match_buffer_size!(
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevel_GetAdvancedScratchBufferSize
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_f32_c1,
+    f32,
+    f32,
+    C1,
+    1,
+    cross_correlation_full_norm_level_f32_c1_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_f32_c3,
+    f32,
+    f32,
+    C3,
+    3,
+    cross_correlation_full_norm_level_f32_c3_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_f32_c4,
+    f32,
+    f32,
+    C4,
+    4,
+    cross_correlation_full_norm_level_f32_c4_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_f64_c1,
+    f64,
+    f64,
+    C1,
+    1,
+    cross_correlation_full_norm_level_f64_c1_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_64f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_f64_c3,
+    f64,
+    f64,
+    C3,
+    3,
+    cross_correlation_full_norm_level_f64_c3_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_64f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_f64_c4,
+    f64,
+    f64,
+    C4,
+    4,
+    cross_correlation_full_norm_level_f64_c4_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_64f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_u8_to_f32_c1,
+    u8,
+    f32,
+    C1,
+    1,
+    cross_correlation_full_norm_level_u8_to_f32_c1_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_8u32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_u8_to_f32_c3,
+    u8,
+    f32,
+    C3,
+    3,
+    cross_correlation_full_norm_level_u8_to_f32_c3_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_8u32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_u8_to_f32_c4,
+    u8,
+    f32,
+    C4,
+    4,
+    cross_correlation_full_norm_level_u8_to_f32_c4_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_8u32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_i8_to_f32_c1,
+    i8,
+    f32,
+    C1,
+    1,
+    cross_correlation_full_norm_level_i8_to_f32_c1_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_8s32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_i8_to_f32_c3,
+    i8,
+    f32,
+    C3,
+    3,
+    cross_correlation_full_norm_level_i8_to_f32_c3_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_8s32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_i8_to_f32_c4,
+    i8,
+    f32,
+    C4,
+    4,
+    cross_correlation_full_norm_level_i8_to_f32_c4_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_8s32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_u16_to_f32_c1,
+    u16,
+    f32,
+    C1,
+    1,
+    cross_correlation_full_norm_level_u16_to_f32_c1_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_16u32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_u16_to_f32_c3,
+    u16,
+    f32,
+    C3,
+    3,
+    cross_correlation_full_norm_level_u16_to_f32_c3_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_16u32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_full!(
+    cross_correlation_full_norm_level_advanced_u16_to_f32_c4,
+    u16,
+    f32,
+    C4,
+    4,
+    cross_correlation_full_norm_level_u16_to_f32_c4_buffer_size,
+    cross_correlation_full_norm_level_advanced_buffer_size,
+    nppiCrossCorrFull_NormLevelAdvanced_16u32f_C4R_Ctx
+);
+impl_advanced_template_match_buffer_size!(
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevel_GetAdvancedScratchBufferSize
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_f32_c1,
+    f32,
+    f32,
+    C1,
+    1,
+    cross_correlation_same_norm_level_f32_c1_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_f32_c3,
+    f32,
+    f32,
+    C3,
+    3,
+    cross_correlation_same_norm_level_f32_c3_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_f32_c4,
+    f32,
+    f32,
+    C4,
+    4,
+    cross_correlation_same_norm_level_f32_c4_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_f64_c1,
+    f64,
+    f64,
+    C1,
+    1,
+    cross_correlation_same_norm_level_f64_c1_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_64f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_f64_c3,
+    f64,
+    f64,
+    C3,
+    3,
+    cross_correlation_same_norm_level_f64_c3_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_64f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_f64_c4,
+    f64,
+    f64,
+    C4,
+    4,
+    cross_correlation_same_norm_level_f64_c4_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_64f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_u8_to_f32_c1,
+    u8,
+    f32,
+    C1,
+    1,
+    cross_correlation_same_norm_level_u8_to_f32_c1_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_8u32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_u8_to_f32_c3,
+    u8,
+    f32,
+    C3,
+    3,
+    cross_correlation_same_norm_level_u8_to_f32_c3_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_8u32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_u8_to_f32_c4,
+    u8,
+    f32,
+    C4,
+    4,
+    cross_correlation_same_norm_level_u8_to_f32_c4_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_8u32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_i8_to_f32_c1,
+    i8,
+    f32,
+    C1,
+    1,
+    cross_correlation_same_norm_level_i8_to_f32_c1_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_8s32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_i8_to_f32_c3,
+    i8,
+    f32,
+    C3,
+    3,
+    cross_correlation_same_norm_level_i8_to_f32_c3_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_8s32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_i8_to_f32_c4,
+    i8,
+    f32,
+    C4,
+    4,
+    cross_correlation_same_norm_level_i8_to_f32_c4_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_8s32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_u16_to_f32_c1,
+    u16,
+    f32,
+    C1,
+    1,
+    cross_correlation_same_norm_level_u16_to_f32_c1_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_16u32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_u16_to_f32_c3,
+    u16,
+    f32,
+    C3,
+    3,
+    cross_correlation_same_norm_level_u16_to_f32_c3_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_16u32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_same!(
+    cross_correlation_same_norm_level_advanced_u16_to_f32_c4,
+    u16,
+    f32,
+    C4,
+    4,
+    cross_correlation_same_norm_level_u16_to_f32_c4_buffer_size,
+    cross_correlation_same_norm_level_advanced_buffer_size,
+    nppiCrossCorrSame_NormLevelAdvanced_16u32f_C4R_Ctx
+);
+impl_advanced_template_match_buffer_size!(
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevel_GetAdvancedScratchBufferSize
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_f32_c1,
+    f32,
+    f32,
+    C1,
+    1,
+    cross_correlation_valid_norm_level_f32_c1_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_f32_c3,
+    f32,
+    f32,
+    C3,
+    3,
+    cross_correlation_valid_norm_level_f32_c3_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_f32_c4,
+    f32,
+    f32,
+    C4,
+    4,
+    cross_correlation_valid_norm_level_f32_c4_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_f64_c1,
+    f64,
+    f64,
+    C1,
+    1,
+    cross_correlation_valid_norm_level_f64_c1_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_64f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_f64_c3,
+    f64,
+    f64,
+    C3,
+    3,
+    cross_correlation_valid_norm_level_f64_c3_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_64f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_f64_c4,
+    f64,
+    f64,
+    C4,
+    4,
+    cross_correlation_valid_norm_level_f64_c4_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_64f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_u8_to_f32_c1,
+    u8,
+    f32,
+    C1,
+    1,
+    cross_correlation_valid_norm_level_u8_to_f32_c1_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_8u32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_u8_to_f32_c3,
+    u8,
+    f32,
+    C3,
+    3,
+    cross_correlation_valid_norm_level_u8_to_f32_c3_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_8u32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_u8_to_f32_c4,
+    u8,
+    f32,
+    C4,
+    4,
+    cross_correlation_valid_norm_level_u8_to_f32_c4_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_8u32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_i8_to_f32_c1,
+    i8,
+    f32,
+    C1,
+    1,
+    cross_correlation_valid_norm_level_i8_to_f32_c1_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_8s32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_i8_to_f32_c3,
+    i8,
+    f32,
+    C3,
+    3,
+    cross_correlation_valid_norm_level_i8_to_f32_c3_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_8s32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_i8_to_f32_c4,
+    i8,
+    f32,
+    C4,
+    4,
+    cross_correlation_valid_norm_level_i8_to_f32_c4_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_8s32f_C4R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_u16_to_f32_c1,
+    u16,
+    f32,
+    C1,
+    1,
+    cross_correlation_valid_norm_level_u16_to_f32_c1_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_16u32f_C1R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_u16_to_f32_c3,
+    u16,
+    f32,
+    C3,
+    3,
+    cross_correlation_valid_norm_level_u16_to_f32_c3_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_16u32f_C3R_Ctx
+);
+impl_template_match_norm_level_advanced_valid!(
+    cross_correlation_valid_norm_level_advanced_u16_to_f32_c4,
+    u16,
+    f32,
+    C4,
+    4,
+    cross_correlation_valid_norm_level_u16_to_f32_c4_buffer_size,
+    cross_correlation_valid_norm_level_advanced_buffer_size,
+    nppiCrossCorrValid_NormLevelAdvanced_16u32f_C4R_Ctx
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationFullNormLevelAdvancedC1,
+    cross_correlation_full_norm_level_advanced_c1,
+    C1,
+    [
+        (f32, f32, cross_correlation_full_norm_level_advanced_f32_c1),
+        (f64, f64, cross_correlation_full_norm_level_advanced_f64_c1),
+        (
+            u8,
+            f32,
+            cross_correlation_full_norm_level_advanced_u8_to_f32_c1
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_full_norm_level_advanced_i8_to_f32_c1
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_full_norm_level_advanced_u16_to_f32_c1
+        ),
+    ]
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationFullNormLevelAdvancedC3,
+    cross_correlation_full_norm_level_advanced_c3,
+    C3,
+    [
+        (f32, f32, cross_correlation_full_norm_level_advanced_f32_c3),
+        (f64, f64, cross_correlation_full_norm_level_advanced_f64_c3),
+        (
+            u8,
+            f32,
+            cross_correlation_full_norm_level_advanced_u8_to_f32_c3
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_full_norm_level_advanced_i8_to_f32_c3
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_full_norm_level_advanced_u16_to_f32_c3
+        ),
+    ]
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationFullNormLevelAdvancedC4,
+    cross_correlation_full_norm_level_advanced_c4,
+    C4,
+    [
+        (f32, f32, cross_correlation_full_norm_level_advanced_f32_c4),
+        (f64, f64, cross_correlation_full_norm_level_advanced_f64_c4),
+        (
+            u8,
+            f32,
+            cross_correlation_full_norm_level_advanced_u8_to_f32_c4
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_full_norm_level_advanced_i8_to_f32_c4
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_full_norm_level_advanced_u16_to_f32_c4
+        ),
+    ]
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationSameNormLevelAdvancedC1,
+    cross_correlation_same_norm_level_advanced_c1,
+    C1,
+    [
+        (f32, f32, cross_correlation_same_norm_level_advanced_f32_c1),
+        (f64, f64, cross_correlation_same_norm_level_advanced_f64_c1),
+        (
+            u8,
+            f32,
+            cross_correlation_same_norm_level_advanced_u8_to_f32_c1
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_same_norm_level_advanced_i8_to_f32_c1
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_same_norm_level_advanced_u16_to_f32_c1
+        ),
+    ]
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationSameNormLevelAdvancedC3,
+    cross_correlation_same_norm_level_advanced_c3,
+    C3,
+    [
+        (f32, f32, cross_correlation_same_norm_level_advanced_f32_c3),
+        (f64, f64, cross_correlation_same_norm_level_advanced_f64_c3),
+        (
+            u8,
+            f32,
+            cross_correlation_same_norm_level_advanced_u8_to_f32_c3
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_same_norm_level_advanced_i8_to_f32_c3
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_same_norm_level_advanced_u16_to_f32_c3
+        ),
+    ]
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationSameNormLevelAdvancedC4,
+    cross_correlation_same_norm_level_advanced_c4,
+    C4,
+    [
+        (f32, f32, cross_correlation_same_norm_level_advanced_f32_c4),
+        (f64, f64, cross_correlation_same_norm_level_advanced_f64_c4),
+        (
+            u8,
+            f32,
+            cross_correlation_same_norm_level_advanced_u8_to_f32_c4
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_same_norm_level_advanced_i8_to_f32_c4
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_same_norm_level_advanced_u16_to_f32_c4
+        ),
+    ]
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationValidNormLevelAdvancedC1,
+    cross_correlation_valid_norm_level_advanced_c1,
+    C1,
+    [
+        (f32, f32, cross_correlation_valid_norm_level_advanced_f32_c1),
+        (f64, f64, cross_correlation_valid_norm_level_advanced_f64_c1),
+        (
+            u8,
+            f32,
+            cross_correlation_valid_norm_level_advanced_u8_to_f32_c1
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_valid_norm_level_advanced_i8_to_f32_c1
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_valid_norm_level_advanced_u16_to_f32_c1
+        ),
+    ]
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationValidNormLevelAdvancedC3,
+    cross_correlation_valid_norm_level_advanced_c3,
+    C3,
+    [
+        (f32, f32, cross_correlation_valid_norm_level_advanced_f32_c3),
+        (f64, f64, cross_correlation_valid_norm_level_advanced_f64_c3),
+        (
+            u8,
+            f32,
+            cross_correlation_valid_norm_level_advanced_u8_to_f32_c3
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_valid_norm_level_advanced_i8_to_f32_c3
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_valid_norm_level_advanced_u16_to_f32_c3
+        ),
+    ]
+);
+impl_generic_template_match_advanced!(
+    CrossCorrelationValidNormLevelAdvancedC4,
+    cross_correlation_valid_norm_level_advanced_c4,
+    C4,
+    [
+        (f32, f32, cross_correlation_valid_norm_level_advanced_f32_c4),
+        (f64, f64, cross_correlation_valid_norm_level_advanced_f64_c4),
+        (
+            u8,
+            f32,
+            cross_correlation_valid_norm_level_advanced_u8_to_f32_c4
+        ),
+        (
+            i8,
+            f32,
+            cross_correlation_valid_norm_level_advanced_i8_to_f32_c4
+        ),
+        (
+            u16,
+            f32,
+            cross_correlation_valid_norm_level_advanced_u16_to_f32_c4
+        ),
+    ]
+);

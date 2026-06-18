@@ -1,0 +1,124 @@
+use singe_cuda::memory::DeviceMemory;
+
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        color,
+        view::{AC4, C3, C4, ImageView, ImageViewMut},
+    },
+};
+
+use super::{ImagePipeline, PackedLookupTableImage};
+
+#[path = "color_lookup_packed_f32_dispatch.rs"]
+mod f32_dispatch;
+
+impl_packed_lookup_table_image!(
+    u8,
+    C3,
+    3,
+    i32,
+    color::lookup_table_c3,
+    color::lookup_table_c3_in_place,
+    color::lookup_table_linear_u8_c3,
+    color::lookup_table_linear_u8_c3_in_place,
+    color::lookup_table_cubic_u8_c3,
+    color::lookup_table_cubic_u8_c3_in_place
+);
+impl_packed_lookup_table_image!(
+    u8,
+    C4,
+    4,
+    i32,
+    color::lookup_table_c4,
+    color::lookup_table_c4_in_place,
+    color::lookup_table_linear_u8_c4,
+    color::lookup_table_linear_u8_c4_in_place,
+    color::lookup_table_cubic_u8_c4,
+    color::lookup_table_cubic_u8_c4_in_place
+);
+impl_packed_lookup_table_image!(
+    u8,
+    AC4,
+    3,
+    i32,
+    color::lookup_table_ac4,
+    color::lookup_table_ac4_in_place,
+    color::lookup_table_linear_u8_ac4,
+    color::lookup_table_linear_u8_ac4_in_place,
+    color::lookup_table_cubic_u8_ac4,
+    color::lookup_table_cubic_u8_ac4_in_place
+);
+impl_packed_lookup_table_image!(
+    u16,
+    C3,
+    3,
+    i32,
+    color::lookup_table_c3,
+    color::lookup_table_c3_in_place,
+    color::lookup_table_linear_u16_c3,
+    color::lookup_table_linear_u16_c3_in_place,
+    color::lookup_table_cubic_u16_c3,
+    color::lookup_table_cubic_u16_c3_in_place
+);
+impl_packed_lookup_table_image!(
+    u16,
+    C4,
+    4,
+    i32,
+    color::lookup_table_c4,
+    color::lookup_table_c4_in_place,
+    color::lookup_table_linear_u16_c4,
+    color::lookup_table_linear_u16_c4_in_place,
+    color::lookup_table_cubic_u16_c4,
+    color::lookup_table_cubic_u16_c4_in_place
+);
+impl_packed_lookup_table_image!(
+    u16,
+    AC4,
+    3,
+    i32,
+    color::lookup_table_ac4,
+    color::lookup_table_ac4_in_place,
+    color::lookup_table_linear_u16_ac4,
+    color::lookup_table_linear_u16_ac4_in_place,
+    color::lookup_table_cubic_u16_ac4,
+    color::lookup_table_cubic_u16_ac4_in_place
+);
+impl_packed_lookup_table_image!(
+    i16,
+    C3,
+    3,
+    i32,
+    color::lookup_table_c3,
+    color::lookup_table_c3_in_place,
+    color::lookup_table_linear_i16_c3,
+    color::lookup_table_linear_i16_c3_in_place,
+    color::lookup_table_cubic_i16_c3,
+    color::lookup_table_cubic_i16_c3_in_place
+);
+impl_packed_lookup_table_image!(
+    i16,
+    C4,
+    4,
+    i32,
+    color::lookup_table_c4,
+    color::lookup_table_c4_in_place,
+    color::lookup_table_linear_i16_c4,
+    color::lookup_table_linear_i16_c4_in_place,
+    color::lookup_table_cubic_i16_c4,
+    color::lookup_table_cubic_i16_c4_in_place
+);
+impl_packed_lookup_table_image!(
+    i16,
+    AC4,
+    3,
+    i32,
+    color::lookup_table_ac4,
+    color::lookup_table_ac4_in_place,
+    color::lookup_table_linear_i16_ac4,
+    color::lookup_table_linear_i16_ac4_in_place,
+    color::lookup_table_cubic_i16_ac4,
+    color::lookup_table_cubic_i16_ac4_in_place
+);

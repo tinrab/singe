@@ -1,0 +1,108 @@
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        statistics,
+        view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
+    },
+    pipeline::image::ImagePipeline,
+};
+
+use super::super::traits::*;
+
+impl_square_distance_norm_to_image!(
+    u8,
+    f32,
+    C1,
+    statistics::square_distance_full_norm_u8_to_f32_c1,
+    statistics::square_distance_same_norm_u8_to_f32_c1,
+    statistics::square_distance_valid_norm_u8_to_f32_c1
+);
+impl_square_distance_norm_to_image!(
+    u8,
+    f32,
+    C3,
+    statistics::square_distance_full_norm_u8_to_f32_c3,
+    statistics::square_distance_same_norm_u8_to_f32_c3,
+    statistics::square_distance_valid_norm_u8_to_f32_c3
+);
+impl_square_distance_norm_to_image!(
+    u8,
+    f32,
+    C4,
+    statistics::square_distance_full_norm_u8_to_f32_c4,
+    statistics::square_distance_same_norm_u8_to_f32_c4,
+    statistics::square_distance_valid_norm_u8_to_f32_c4
+);
+impl_square_distance_norm_to_image!(
+    u8,
+    f32,
+    AC4,
+    statistics::square_distance_full_norm_u8_to_f32_ac4,
+    statistics::square_distance_same_norm_u8_to_f32_ac4,
+    statistics::square_distance_valid_norm_u8_to_f32_ac4
+);
+impl_square_distance_norm_to_image!(
+    i8,
+    f32,
+    C1,
+    statistics::square_distance_full_norm_i8_to_f32_c1,
+    statistics::square_distance_same_norm_i8_to_f32_c1,
+    statistics::square_distance_valid_norm_i8_to_f32_c1
+);
+impl_square_distance_norm_to_image!(
+    i8,
+    f32,
+    C3,
+    statistics::square_distance_full_norm_i8_to_f32_c3,
+    statistics::square_distance_same_norm_i8_to_f32_c3,
+    statistics::square_distance_valid_norm_i8_to_f32_c3
+);
+impl_square_distance_norm_to_image!(
+    i8,
+    f32,
+    C4,
+    statistics::square_distance_full_norm_i8_to_f32_c4,
+    statistics::square_distance_same_norm_i8_to_f32_c4,
+    statistics::square_distance_valid_norm_i8_to_f32_c4
+);
+impl_square_distance_norm_to_image!(
+    i8,
+    f32,
+    AC4,
+    statistics::square_distance_full_norm_i8_to_f32_ac4,
+    statistics::square_distance_same_norm_i8_to_f32_ac4,
+    statistics::square_distance_valid_norm_i8_to_f32_ac4
+);
+impl_square_distance_norm_to_image!(
+    u16,
+    f32,
+    C1,
+    statistics::square_distance_full_norm_u16_to_f32_c1,
+    statistics::square_distance_same_norm_u16_to_f32_c1,
+    statistics::square_distance_valid_norm_u16_to_f32_c1
+);
+impl_square_distance_norm_to_image!(
+    u16,
+    f32,
+    C3,
+    statistics::square_distance_full_norm_u16_to_f32_c3,
+    statistics::square_distance_same_norm_u16_to_f32_c3,
+    statistics::square_distance_valid_norm_u16_to_f32_c3
+);
+impl_square_distance_norm_to_image!(
+    u16,
+    f32,
+    C4,
+    statistics::square_distance_full_norm_u16_to_f32_c4,
+    statistics::square_distance_same_norm_u16_to_f32_c4,
+    statistics::square_distance_valid_norm_u16_to_f32_c4
+);
+impl_square_distance_norm_to_image!(
+    u16,
+    f32,
+    AC4,
+    statistics::square_distance_full_norm_u16_to_f32_ac4,
+    statistics::square_distance_same_norm_u16_to_f32_ac4,
+    statistics::square_distance_valid_norm_u16_to_f32_ac4
+);

@@ -1,0 +1,79 @@
+use singe_cuda::types::f16;
+
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        geometry,
+        view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
+    },
+};
+
+use super::super::ImagePipeline;
+
+impl_warp_batch_image!(
+    u8,
+    C1,
+    geometry::warp_affine_batch_u8_c1,
+    geometry::warp_perspective_batch_u8_c1
+);
+impl_warp_batch_image!(
+    u8,
+    C3,
+    geometry::warp_affine_batch_u8_c3,
+    geometry::warp_perspective_batch_u8_c3
+);
+impl_warp_batch_image!(
+    u8,
+    C4,
+    geometry::warp_affine_batch_u8_c4,
+    geometry::warp_perspective_batch_u8_c4
+);
+impl_warp_batch_image!(
+    u8,
+    AC4,
+    geometry::warp_affine_batch_u8_ac4,
+    geometry::warp_perspective_batch_u8_ac4
+);
+impl_warp_batch_image!(
+    f16,
+    C1,
+    geometry::warp_affine_batch_f16_c1,
+    geometry::warp_perspective_batch_f16_c1
+);
+impl_warp_batch_image!(
+    f16,
+    C3,
+    geometry::warp_affine_batch_f16_c3,
+    geometry::warp_perspective_batch_f16_c3
+);
+impl_warp_batch_image!(
+    f16,
+    C4,
+    geometry::warp_affine_batch_f16_c4,
+    geometry::warp_perspective_batch_f16_c4
+);
+impl_warp_batch_image!(
+    f32,
+    C1,
+    geometry::warp_affine_batch_f32_c1,
+    geometry::warp_perspective_batch_f32_c1
+);
+impl_warp_batch_image!(
+    f32,
+    C3,
+    geometry::warp_affine_batch_f32_c3,
+    geometry::warp_perspective_batch_f32_c3
+);
+impl_warp_batch_image!(
+    f32,
+    C4,
+    geometry::warp_affine_batch_f32_c4,
+    geometry::warp_perspective_batch_f32_c4
+);
+impl_warp_batch_image!(
+    f32,
+    AC4,
+    geometry::warp_affine_batch_f32_ac4,
+    geometry::warp_perspective_batch_f32_ac4
+);

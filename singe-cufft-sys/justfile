@@ -1,0 +1,46 @@
+cufft_include_path := "$CUFFT_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "libraryPropertyType_t"
+        "cufftResult_t"
+        "cufftType_t"
+        "cufftCompatibility_t"
+        "cufftProperty_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cufft_include_path}}/cufft.h \
+        $enum_args \
+        --allowlist-item "^cufft.*" \
+        --allowlist-item "^CUFFT.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{cufft_include_path}} \
+        > bindings.rs
+
+    CUFFT_VERSION=$(cat bindings.rs | grep "CUFFT_VERSION" | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${CUFFT_VERSION}" ]; then
+        echo "CUFFT_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${CUFFT_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

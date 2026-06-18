@@ -1,0 +1,26 @@
+[package]
+name = "singe-cufft-sys"
+description = "Low-level FFI bindings for the NVIDIA cuFFT fast Fourier transform library."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "cufft", "bindings", "ffi"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cufft_12_2"]
+
+cufft_12_2 = ["singe-cuda-sys/runtime_13_2"]
+
+[dependencies]
+singe-cuda-sys.workspace = true
+num_enum.workspace = true
+
+[build-dependencies]
+singe-cuda-find.workspace = true
+anyhow.workspace = true

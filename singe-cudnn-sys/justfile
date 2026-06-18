@@ -1,0 +1,109 @@
+cuda_path := "$CUDA_PATH"
+cudnn_include_path := "$CUDNN_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "cudnnStatus_t"
+        "cudnnErrQueryMode_t"
+        "cudnnDataType_t"
+        "cudnnMathType_t"
+        "cudnnNanPropagation_t"
+        "cudnnCTCGradMode_t"
+        "cudnnTensorFormat_t"
+        "cudnnReduceTensorOp_t"
+        "cudnnActivationMode_t"
+        "cudnnSeverity_t"
+        "cudnnConvolutionMode_t"
+        "cudnnReorderType_t"
+        "cudnnPointwiseMode_t"
+        "cudnnResampleMode_t"
+        "cudnnSignalMode_t"
+        "cudnnGenStatsMode_t"
+        "cudnnBnFinalizeStatsMode_t"
+        "cudnnRngDistribution_t"
+        "cudnnBackendAttributeName_t"
+        "cudnnBackendAttributeType_t"
+        "cudnnBackendDescriptorType_t"
+        "cudnnBackendNumericalNote_t"
+        "cudnnBackendBehaviorNote_t"
+        "cudnnBackendKnobType_t"
+        "cudnnBackendLayoutType_t"
+        "cudnnBackendHeurMode_t"
+        "cudnnBackendTensorReordering_t"
+        "cudnnPaddingMode_t"
+        "cudnnBackendNormalizationMode_t"
+        "cudnnBackendNormalizationForwardPhase_t"
+        "cudnnDeterminism_t"
+        "cudnnFoldingDirection_t"
+        "cudnnOpTensorOp_t"
+        "cudnnReduceTensorIndices_t"
+        "cudnnIndicesType_t"
+        "cudnnSoftmaxAlgorithm_t"
+        "cudnnSoftmaxMode_t"
+        "cudnnPoolingMode_t"
+        "cudnnLRNMode_t"
+        "cudnnDivNormMode_t"
+        "cudnnBatchNormMode_t"
+        "cudnnBatchNormOps_t"
+        "cudnnNormMode_t"
+        "cudnnNormAlgo_t"
+        "cudnnSamplerType_t"
+        "cudnnConvolutionFwdAlgo_t"
+        "cudnnConvolutionBwdFilterAlgo_t"
+        "cudnnConvolutionBwdDataAlgo_t"
+        "cudnnCTCLossAlgo_t"
+        "cudnnRNNAlgo_t"
+        "cudnnForwardMode_t"
+        "cudnnRNNMode_t"
+        "cudnnRNNBiasMode_t"
+        "cudnnDirectionMode_t"
+        "cudnnRNNInputMode_t"
+        "cudnnRNNClipMode_t"
+        "cudnnRNNDataLayout_t"
+        "cudnnSeqDataAxis_t"
+        "cudnnMultiHeadAttnWeightKind_t"
+        "cudnnWgradMode_t"
+        "cudnnLossNormalizationMode_t"
+        "cudnnFusedOps_t"
+        "cudnnFusedOpsConstParamLabel_t"
+        "cudnnFusedOpsPointerPlaceHolder_t"
+        "cudnnFusedOpsVariantParamLabel_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen "{{cudnn_include_path}}"/cudnn.h \
+        $enum_args \
+        --allowlist-item "^cudnn.*" \
+        --allowlist-item "^CUDNN.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --allowlist-file ".*[^\w]cudnn.h" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -x c++ \
+            -I {{cuda_path}}/include \
+        > bindings.rs
+
+    CUDNN_VERSION=$(cat bindings.rs | grep "CUDNN_VERSION" | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${CUDNN_VERSION}" ]; then
+        echo "CUDNN_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${CUDNN_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

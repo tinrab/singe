@@ -1,0 +1,24 @@
+[package]
+name = "singe-cupti-sys"
+description = "Raw FFI bindings for the NVIDIA CUPTI profiling interface."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["nvidia", "cupti", "profiling", "ffi", "cuda"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cupti_13_2"]
+
+cupti_13_2 = []
+
+[dependencies]
+num_enum.workspace = true
+
+[build-dependencies]
+singe-cuda-find.workspace = true

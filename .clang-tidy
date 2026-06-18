@@ -1,0 +1,10 @@
+Checks: >
+    -*,
+    modernize-*,
+    -modernize-use-trailing-return-type,
+    performance-*,
+    portability-*
+
+WarningsAsErrors: true
+HeaderFilterRegex: ""
+FormatStyle: google

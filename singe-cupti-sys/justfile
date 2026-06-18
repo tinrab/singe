@@ -1,0 +1,42 @@
+cupti_include_path := "$CUPTI_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "CUptiResult"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cupti_include_path}}/cupti.h \
+        $enum_args \
+        --allowlist-item "^cupti.*" \
+        --allowlist-item "^CUpti.*" \
+        --allowlist-item "^CUPTI.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^NV.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{cupti_include_path}} \
+        > bindings.rs
+
+    CUPTI_API_VERSION=$(grep -m1 -Eo 'CUPTI_API_VERSION[^=]*=[[:space:]]*[0-9]+' bindings.rs | grep -Eo '[0-9]+' | tail -n1)
+    if [ -z "${CUPTI_API_VERSION}" ]; then
+        echo "CUPTI_API_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/cupti_sys_${CUPTI_API_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/cupti_sys_*.rs

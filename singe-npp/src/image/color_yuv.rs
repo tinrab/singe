@@ -1,0 +1,844 @@
+use super::*;
+
+impl_color_convert_same_layout!(rgb_to_xyz_u8_c3, u8, C3, nppiRGBToXYZ_8u_C3R_Ctx);
+impl_color_convert_same_layout!(rgb_to_xyz_u8_ac4, u8, AC4, nppiRGBToXYZ_8u_AC4R_Ctx);
+impl_color_convert_same_layout!(xyz_to_rgb_u8_c3, u8, C3, nppiXYZToRGB_8u_C3R_Ctx);
+impl_color_convert_same_layout!(xyz_to_rgb_u8_ac4, u8, AC4, nppiXYZToRGB_8u_AC4R_Ctx);
+impl_color_convert_same_layout!(rgb_to_luv_u8_c3, u8, C3, nppiRGBToLUV_8u_C3R_Ctx);
+impl_color_convert_same_layout!(rgb_to_luv_u8_ac4, u8, AC4, nppiRGBToLUV_8u_AC4R_Ctx);
+impl_color_convert_same_layout!(luv_to_rgb_u8_c3, u8, C3, nppiLUVToRGB_8u_C3R_Ctx);
+impl_color_convert_same_layout!(luv_to_rgb_u8_ac4, u8, AC4, nppiLUVToRGB_8u_AC4R_Ctx);
+impl_color_convert_same_layout!(rgb_to_hsv_u8_c3, u8, C3, nppiRGBToHSV_8u_C3R_Ctx);
+impl_color_convert_same_layout!(rgb_to_hsv_u8_ac4, u8, AC4, nppiRGBToHSV_8u_AC4R_Ctx);
+impl_color_convert_same_layout!(hsv_to_rgb_u8_c3, u8, C3, nppiHSVToRGB_8u_C3R_Ctx);
+impl_color_convert_same_layout!(hsv_to_rgb_u8_ac4, u8, AC4, nppiHSVToRGB_8u_AC4R_Ctx);
+impl_color_convert_same_layout!(rgb_to_hls_u8_c3, u8, C3, nppiRGBToHLS_8u_C3R_Ctx);
+impl_color_convert_same_layout!(rgb_to_hls_u8_ac4, u8, AC4, nppiRGBToHLS_8u_AC4R_Ctx);
+impl_color_convert_same_layout!(hls_to_rgb_u8_c3, u8, C3, nppiHLSToRGB_8u_C3R_Ctx);
+impl_color_convert_same_layout!(hls_to_rgb_u8_ac4, u8, AC4, nppiHLSToRGB_8u_AC4R_Ctx);
+impl_color_convert_same_layout!(bgr_to_lab_u8_c3, u8, C3, nppiBGRToLab_8u_C3R_Ctx);
+impl_color_convert_same_layout!(lab_to_bgr_u8_c3, u8, C3, nppiLabToBGR_8u_C3R_Ctx);
+impl_color_convert_same_layout!(rgb_to_yuv_u8_c3, u8, C3, nppiRGBToYUV_8u_C3R_Ctx);
+impl_color_convert_same_layout!(rgb_to_yuv_u8_ac4, u8, AC4, nppiRGBToYUV_8u_AC4R_Ctx);
+impl_generic_color_convert_same_layout!(RgbToXyzC3, rgb_to_xyz, rgb_to_xyz_c3, C3, [
+    u8 => rgb_to_xyz_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(RgbToXyzAC4, rgb_to_xyz, rgb_to_xyz_ac4, AC4, [
+    u8 => rgb_to_xyz_u8_ac4,
+]);
+impl_generic_color_convert_same_layout!(XyzToRgbC3, xyz_to_rgb, xyz_to_rgb_c3, C3, [
+    u8 => xyz_to_rgb_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(XyzToRgbAC4, xyz_to_rgb, xyz_to_rgb_ac4, AC4, [
+    u8 => xyz_to_rgb_u8_ac4,
+]);
+impl_generic_color_convert_same_layout!(RgbToLuvC3, rgb_to_luv, rgb_to_luv_c3, C3, [
+    u8 => rgb_to_luv_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(RgbToLuvAC4, rgb_to_luv, rgb_to_luv_ac4, AC4, [
+    u8 => rgb_to_luv_u8_ac4,
+]);
+impl_generic_color_convert_same_layout!(LuvToRgbC3, luv_to_rgb, luv_to_rgb_c3, C3, [
+    u8 => luv_to_rgb_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(LuvToRgbAC4, luv_to_rgb, luv_to_rgb_ac4, AC4, [
+    u8 => luv_to_rgb_u8_ac4,
+]);
+impl_generic_color_convert_same_layout!(RgbToHsvC3, rgb_to_hsv, rgb_to_hsv_c3, C3, [
+    u8 => rgb_to_hsv_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(RgbToHsvAC4, rgb_to_hsv, rgb_to_hsv_ac4, AC4, [
+    u8 => rgb_to_hsv_u8_ac4,
+]);
+impl_generic_color_convert_same_layout!(HsvToRgbC3, hsv_to_rgb, hsv_to_rgb_c3, C3, [
+    u8 => hsv_to_rgb_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(HsvToRgbAC4, hsv_to_rgb, hsv_to_rgb_ac4, AC4, [
+    u8 => hsv_to_rgb_u8_ac4,
+]);
+impl_generic_color_convert_same_layout!(RgbToHlsC3, rgb_to_hls, rgb_to_hls_c3, C3, [
+    u8 => rgb_to_hls_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(RgbToHlsAC4, rgb_to_hls, rgb_to_hls_ac4, AC4, [
+    u8 => rgb_to_hls_u8_ac4,
+]);
+impl_generic_color_convert_same_layout!(HlsToRgbC3, hls_to_rgb, hls_to_rgb_c3, C3, [
+    u8 => hls_to_rgb_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(HlsToRgbAC4, hls_to_rgb, hls_to_rgb_ac4, AC4, [
+    u8 => hls_to_rgb_u8_ac4,
+]);
+impl_generic_color_convert_same_layout!(BgrToLabC3, bgr_to_lab, bgr_to_lab_c3, C3, [
+    u8 => bgr_to_lab_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(LabToBgrC3, lab_to_bgr, lab_to_bgr_c3, C3, [
+    u8 => lab_to_bgr_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(RgbToYuvC3, rgb_to_yuv, rgb_to_yuv_c3, C3, [
+    u8 => rgb_to_yuv_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(RgbToYuvAC4, rgb_to_yuv, rgb_to_yuv_ac4, AC4, [
+    u8 => rgb_to_yuv_u8_ac4,
+]);
+impl_color_convert_different_layout!(
+    rgb_to_yuv422_u8_c3_to_c2,
+    u8,
+    C3,
+    C2,
+    nppiRGBToYUV422_8u_C3C2R_Ctx
+);
+impl_color_twist_different_layout!(
+    rgb_to_yuv422_u8_color_twist_c3_to_c2,
+    u8,
+    C3,
+    C2,
+    nppiRGBToYUV422_8u_ColorTwist32f_C3C2R_Ctx
+);
+impl_color_twist_different_layout!(
+    rgb_to_yuv422_u16_color_twist_c3_to_c2,
+    u16,
+    C3,
+    C2,
+    nppiRGBToYUV422_16u_ColorTwist32f_C3C2R_Ctx
+);
+impl_color_convert_same_layout!(yuv_to_rgb_u8_c3, u8, C3, nppiYUVToRGB_8u_C3R_Ctx);
+impl_color_convert_same_layout!(yuv_to_rgb_u8_ac4, u8, AC4, nppiYUVToRGB_8u_AC4R_Ctx);
+impl_generic_color_convert_same_layout!(YuvToRgbC3, yuv_to_rgb, yuv_to_rgb_c3, C3, [
+    u8 => yuv_to_rgb_u8_c3,
+]);
+impl_generic_color_convert_same_layout!(YuvToRgbAC4, yuv_to_rgb, yuv_to_rgb_ac4, AC4, [
+    u8 => yuv_to_rgb_u8_ac4,
+]);
+impl_color_convert_different_layout!(
+    yuv422_to_rgb_u8_c2_to_c3,
+    u8,
+    C2,
+    C3,
+    nppiYUV422ToRGB_8u_C2C3R_Ctx
+);
+impl_color_twist_different_layout!(
+    yuv422_to_rgb_u8_color_twist_c2_to_c3,
+    u8,
+    C2,
+    C3,
+    nppiYUV422ToRGB_8u_ColorTwist32f_C2C3R_Ctx
+);
+impl_color_twist_different_layout!(
+    yuv422_to_rgb_u16_color_twist_c2_to_c3,
+    u16,
+    C2,
+    C3,
+    nppiYUV422ToRGB_16u_ColorTwist32f_C2C3R_Ctx
+);
+impl_subsampled_color_twist_planar_forward!(
+    rgb_to_yuv422_u8_color_twist_p3,
+    u8,
+    nppiRGBToYUV422_8u_ColorTwist32f_P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_planar_forward!(
+    rgb_to_yuv422_u16_color_twist_p3,
+    u16,
+    nppiRGBToYUV422_16u_ColorTwist32f_P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_packed_forward!(
+    rgb_to_yuv422_u8_color_twist_c3_to_p3,
+    u8,
+    C3,
+    nppiRGBToYUV422_8u_ColorTwist32f_C3P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_packed_forward!(
+    rgb_to_yuv422_u16_color_twist_c3_to_p3,
+    u16,
+    C3,
+    nppiRGBToYUV422_16u_ColorTwist32f_C3P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_planar_inverse!(
+    yuv422_to_rgb_u8_color_twist_p3,
+    u8,
+    nppiYUV422ToRGB_8u_ColorTwist32f_P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_planar_inverse!(
+    yuv422_to_rgb_u16_color_twist_p3,
+    u16,
+    nppiYUV422ToRGB_16u_ColorTwist32f_P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_packed_inverse!(
+    yuv422_to_rgb_u8_color_twist_p3_to_c3,
+    u8,
+    C3,
+    nppiYUV422ToRGB_8u_ColorTwist32f_P3C3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_packed_inverse!(
+    yuv422_to_rgb_u16_color_twist_p3_to_c3,
+    u16,
+    C3,
+    nppiYUV422ToRGB_16u_ColorTwist32f_P3C3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_packed_inverse_constant_alpha!(
+    yuv422_to_rgb_u8_color_twist_p3_to_ac4,
+    u8,
+    nppiYUV422ToRGB_8u_ColorTwist32f_P3AC4R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_packed_inverse_constant_alpha!(
+    yuv422_to_rgb_u16_color_twist_p3_to_ac4,
+    u16,
+    nppiYUV422ToRGB_16u_ColorTwist32f_P3AC4R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_twist_planar_forward!(
+    rgb_to_yuv420_u8_color_twist_p3,
+    u8,
+    nppiRGBToYUV420_8u_ColorTwist32f_P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_planar_forward!(
+    rgb_to_yuv420_u16_color_twist_p3,
+    u16,
+    nppiRGBToYUV420_16u_ColorTwist32f_P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_packed_forward!(
+    rgb_to_yuv420_u8_color_twist_c3_to_p3,
+    u8,
+    C3,
+    nppiRGBToYUV420_8u_ColorTwist32f_C3P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_packed_forward!(
+    rgb_to_yuv420_u16_color_twist_c3_to_p3,
+    u16,
+    C3,
+    nppiRGBToYUV420_16u_ColorTwist32f_C3P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_planar_inverse!(
+    yuv420_to_rgb_u8_color_twist_p3,
+    u8,
+    nppiYUV420ToRGB_8u_ColorTwist32f_P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_planar_inverse!(
+    yuv420_to_rgb_u16_color_twist_p3,
+    u16,
+    nppiYUV420ToRGB_16u_ColorTwist32f_P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_packed_inverse!(
+    yuv420_to_rgb_u8_color_twist_p3_to_c3,
+    u8,
+    C3,
+    nppiYUV420ToRGB_8u_ColorTwist32f_P3C3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_packed_inverse!(
+    yuv420_to_rgb_u16_color_twist_p3_to_c3,
+    u16,
+    C3,
+    nppiYUV420ToRGB_16u_ColorTwist32f_P3C3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_packed_inverse!(
+    yuv420_to_rgb_u8_color_twist_p3_to_c4,
+    u8,
+    C4,
+    nppiYUV420ToRGB_8u_ColorTwist32f_P3C4R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_packed_inverse!(
+    yuv420_to_rgb_u16_color_twist_p3_to_c4,
+    u16,
+    C4,
+    nppiYUV420ToRGB_16u_ColorTwist32f_P3C4R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_packed_inverse_constant_alpha!(
+    yuv420_to_rgb_u8_color_twist_p3_to_ac4,
+    u8,
+    nppiYUV420ToRGB_8u_ColorTwist32f_P3AC4R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_twist_packed_inverse_constant_alpha!(
+    yuv420_to_rgb_u16_color_twist_p3_to_ac4,
+    u16,
+    nppiYUV420ToRGB_16u_ColorTwist32f_P3AC4R_Ctx,
+    2,
+    2
+);
+impl_nv12_color_twist_planar_forward!(
+    rgb_to_nv12_u8_color_twist_p3,
+    u8,
+    nppiRGBToNV12_8u_ColorTwist32f_P3P2R_Ctx
+);
+impl_nv12_color_twist_planar_forward!(
+    rgb_to_nv12_u16_color_twist_p3,
+    u16,
+    nppiRGBToNV12_16u_ColorTwist32f_P3P2R_Ctx
+);
+impl_nv12_color_twist_packed_forward!(
+    rgb_to_nv12_u8_color_twist_c3_to_p2,
+    u8,
+    C3,
+    nppiRGBToNV12_8u_ColorTwist32f_C3P2R_Ctx
+);
+impl_nv12_color_twist_packed_forward!(
+    rgb_to_nv12_u16_color_twist_c3_to_p2,
+    u16,
+    C3,
+    nppiRGBToNV12_16u_ColorTwist32f_C3P2R_Ctx
+);
+impl_nv12_color_twist_packed_inverse!(
+    nv12_to_rgb_u8_color_twist_p2_to_c3,
+    u8,
+    C3,
+    nppiNV12ToRGB_8u_ColorTwist32f_P2C3R_Ctx
+);
+impl_nv12_color_twist_packed_inverse!(
+    nv12_to_rgb_u16_color_twist_p2_to_c3,
+    u16,
+    C3,
+    nppiNV12ToRGB_16u_ColorTwist32f_P2C3R_Ctx
+);
+impl_nv12_packed_inverse!(nv12_to_rgb_u8_p2_to_c3, u8, C3, nppiNV12ToRGB_8u_P2C3R_Ctx);
+impl_nv12_packed_inverse!(
+    nv12_to_rgb_709hdtv_u8_p2_to_c3,
+    u8,
+    C3,
+    nppiNV12ToRGB_709HDTV_8u_P2C3R_Ctx
+);
+impl_nv12_packed_inverse!(
+    nv12_to_rgb_709csc_u8_p2_to_c3,
+    u8,
+    C3,
+    nppiNV12ToRGB_709CSC_8u_P2C3R_Ctx
+);
+impl_nv12_packed_inverse!(nv12_to_bgr_u8_p2_to_c3, u8, C3, nppiNV12ToBGR_8u_P2C3R_Ctx);
+impl_nv12_packed_inverse!(
+    nv12_to_bgr_709hdtv_u8_p2_to_c3,
+    u8,
+    C3,
+    nppiNV12ToBGR_709HDTV_8u_P2C3R_Ctx
+);
+impl_nv12_packed_inverse!(
+    nv12_to_bgr_709csc_u8_p2_to_c3,
+    u8,
+    C3,
+    nppiNV12ToBGR_709CSC_8u_P2C3R_Ctx
+);
+impl_nv12_to_planar!(nv12_to_yuv420_u8_p2_to_p3, nppiNV12ToYUV420_8u_P2P3R_Ctx);
+impl_jpeg_subsampled_packed_inverse!(
+    yuv420_to_rgb_u8_p3_to_ac4,
+    AC4,
+    nppiYUV420ToRGB_8u_P3AC4R_Ctx,
+    2,
+    2
+);
+impl_jpeg_subsampled_packed_inverse_constant_alpha!(
+    ycrcb420_to_rgb_u8_p3_to_c4,
+    nppiYCrCb420ToRGB_8u_P3C4R_Ctx,
+    2,
+    2
+);
+impl_subsampled_p2_to_p3!(ycbcr420_u8_p2_to_p3, nppiYCbCr420_8u_P2P3R_Ctx, 2, 2, 2, 2);
+impl_subsampled_p2_to_p3!(
+    ycbcr420_to_ycbcr422_u8_p2_to_p3,
+    nppiYCbCr420ToYCbCr422_8u_P2P3R_Ctx,
+    2,
+    2,
+    2,
+    1
+);
+impl_subsampled_p2_to_p3!(
+    ycbcr420_to_ycbcr411_u8_p2_to_p3,
+    nppiYCbCr420ToYCbCr411_8u_P2P3R_Ctx,
+    2,
+    2,
+    4,
+    1
+);
+impl_subsampled_p2_to_p3!(
+    ycbcr420_to_ycrcb420_u8_p2_to_p3,
+    nppiYCbCr420ToYCrCb420_8u_P2P3R_Ctx,
+    2,
+    2,
+    2,
+    2
+);
+impl_subsampled_p2_to_p3!(ycbcr411_u8_p2_to_p3, nppiYCbCr411_8u_P2P3R_Ctx, 4, 1, 4, 1);
+impl_subsampled_p2_to_p3!(
+    ycbcr411_to_ycbcr422_u8_p2_to_p3,
+    nppiYCbCr411ToYCbCr422_8u_P2P3R_Ctx,
+    4,
+    1,
+    2,
+    1
+);
+impl_subsampled_p2_to_p3!(
+    ycbcr411_to_ycbcr420_u8_p2_to_p3,
+    nppiYCbCr411ToYCbCr420_8u_P2P3R_Ctx,
+    4,
+    1,
+    2,
+    2
+);
+impl_subsampled_p2_to_p3!(
+    ycbcr411_to_ycrcb420_u8_p2_to_p3,
+    nppiYCbCr411ToYCrCb420_8u_P2P3R_Ctx,
+    4,
+    1,
+    2,
+    2
+);
+impl_subsampled_c2_to_p3!(ycbcr422_u8_c2_to_p3, nppiYCbCr422_8u_C2P3R_Ctx, 2, 1);
+impl_subsampled_c2_to_p3!(
+    ycbcr422_to_ycbcr420_u8_c2_to_p3,
+    nppiYCbCr422ToYCbCr420_8u_C2P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_c2_to_p2!(
+    ycbcr422_to_ycbcr420_u8_c2_to_p2,
+    nppiYCbCr422ToYCbCr420_8u_C2P2R_Ctx,
+    2,
+    2
+);
+impl_subsampled_c2_to_p3!(
+    ycbcr422_to_ycbcr411_u8_c2_to_p3,
+    nppiYCbCr422ToYCbCr411_8u_C2P3R_Ctx,
+    4,
+    1
+);
+impl_subsampled_c2_to_p2!(
+    ycbcr422_to_ycbcr411_u8_c2_to_p2,
+    nppiYCbCr422ToYCbCr411_8u_C2P2R_Ctx,
+    4,
+    1
+);
+impl_subsampled_c2_to_p3!(
+    ycbcr422_to_ycrcb420_u8_c2_to_p3,
+    nppiYCbCr422ToYCrCb420_8u_C2P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_c2_to_p3!(
+    ycrcb422_to_ycbcr422_u8_c2_to_p3,
+    nppiYCrCb422ToYCbCr422_8u_C2P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_c2_to_p3!(
+    ycrcb422_to_ycbcr420_u8_c2_to_p3,
+    nppiYCrCb422ToYCbCr420_8u_C2P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_c2_to_p3!(
+    ycrcb422_to_ycbcr411_u8_c2_to_p3,
+    nppiYCrCb422ToYCbCr411_8u_C2P3R_Ctx,
+    4,
+    1
+);
+impl_subsampled_c2_to_p3!(
+    cbycr422_to_ycbcr422_u8_c2_to_p3,
+    nppiCbYCr422ToYCbCr422_8u_C2P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_c2_to_p3!(
+    cbycr422_to_ycbcr420_u8_c2_to_p3,
+    nppiCbYCr422ToYCbCr420_8u_C2P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_c2_to_p2!(
+    cbycr422_to_ycbcr420_u8_c2_to_p2,
+    nppiCbYCr422ToYCbCr420_8u_C2P2R_Ctx,
+    2,
+    2
+);
+impl_subsampled_c2_to_p3!(
+    cbycr422_to_ycbcr411_u8_c2_to_p3,
+    nppiCbYCr422ToYCbCr411_8u_C2P3R_Ctx,
+    4,
+    1
+);
+impl_subsampled_c2_to_p3!(
+    cbycr422_to_ycrcb420_u8_c2_to_p3,
+    nppiCbYCr422ToYCrCb420_8u_C2P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_p3_to_p2!(ycbcr420_u8_p3_to_p2, nppiYCbCr420_8u_P3P2R_Ctx, 2, 2, 2, 2);
+impl_subsampled_p3_to_p2!(
+    ycbcr420_to_ycbcr411_u8_p3_to_p2,
+    nppiYCbCr420ToYCbCr411_8u_P3P2R_Ctx,
+    2,
+    2,
+    4,
+    1
+);
+impl_subsampled_p3_to_p2!(
+    ycbcr422_to_ycbcr420_u8_p3_to_p2,
+    nppiYCbCr422ToYCbCr420_8u_P3P2R_Ctx,
+    2,
+    1,
+    2,
+    2
+);
+impl_subsampled_p3_to_p2!(
+    ycbcr422_to_ycbcr411_u8_p3_to_p2,
+    nppiYCbCr422ToYCbCr411_8u_P3P2R_Ctx,
+    2,
+    1,
+    4,
+    1
+);
+impl_subsampled_p3_to_p2!(
+    ycrcb420_to_ycbcr420_u8_p3_to_p2,
+    nppiYCrCb420ToYCbCr420_8u_P3P2R_Ctx,
+    2,
+    2,
+    2,
+    2
+);
+impl_subsampled_p3_to_p2!(
+    ycrcb420_to_ycbcr411_u8_p3_to_p2,
+    nppiYCrCb420ToYCbCr411_8u_P3P2R_Ctx,
+    2,
+    2,
+    4,
+    1
+);
+impl_subsampled_p3_to_p2!(ycbcr411_u8_p3_to_p2, nppiYCbCr411_8u_P3P2R_Ctx, 4, 1, 4, 1);
+impl_subsampled_p3_to_p2!(
+    ycbcr411_to_ycbcr420_u8_p3_to_p2,
+    nppiYCbCr411ToYCbCr420_8u_P3P2R_Ctx,
+    4,
+    1,
+    2,
+    2
+);
+impl_subsampled_p3_to_c2!(ycbcr422_u8_p3_to_c2, nppiYCbCr422_8u_P3C2R_Ctx, 2, 1);
+impl_subsampled_p3_to_c2!(
+    ycbcr422_to_ycrcb422_u8_p3_to_c2,
+    nppiYCbCr422ToYCrCb422_8u_P3C2R_Ctx,
+    2,
+    1
+);
+impl_subsampled_p3_to_c2!(
+    ycrcb420_to_ycbcr422_u8_p3_to_c2,
+    nppiYCrCb420ToYCbCr422_8u_P3C2R_Ctx,
+    2,
+    2
+);
+impl_subsampled_p3_to_c2!(
+    ycrcb420_to_cbycr422_u8_p3_to_c2,
+    nppiYCrCb420ToCbYCr422_8u_P3C2R_Ctx,
+    2,
+    2
+);
+impl_subsampled_p3_to_c2!(
+    ycbcr411_to_ycbcr422_u8_p3_to_c2,
+    nppiYCbCr411ToYCbCr422_8u_P3C2R_Ctx,
+    4,
+    1
+);
+impl_subsampled_p3_to_c2!(
+    ycbcr411_to_ycrcb422_u8_p3_to_c2,
+    nppiYCbCr411ToYCrCb422_8u_P3C2R_Ctx,
+    4,
+    1
+);
+impl_subsampled_p3_to_p3!(
+    ycbcr420_to_ycbcr422_u8_p3_to_p3,
+    nppiYCbCr420ToYCbCr422_8u_P3R_Ctx,
+    2,
+    2,
+    2,
+    1
+);
+impl_subsampled_p3_to_p3!(
+    ycbcr422_to_ycbcr420_u8_p3_to_p3,
+    nppiYCbCr422ToYCbCr420_8u_P3R_Ctx,
+    2,
+    1,
+    2,
+    2
+);
+impl_subsampled_p3_to_p3!(
+    ycbcr422_to_ycbcr411_u8_p3_to_p3,
+    nppiYCbCr422ToYCbCr411_8u_P3R_Ctx,
+    2,
+    1,
+    4,
+    1
+);
+impl_subsampled_p3_to_p3!(
+    ycrcb420_to_ycbcr422_u8_p3_to_p3,
+    nppiYCrCb420ToYCbCr422_8u_P3R_Ctx,
+    2,
+    2,
+    2,
+    1
+);
+impl_subsampled_p3_to_p3!(
+    ycbcr411_to_ycbcr422_u8_p3_to_p3,
+    nppiYCbCr411ToYCbCr422_8u_P3R_Ctx,
+    4,
+    1,
+    2,
+    1
+);
+impl_subsampled_p3_to_p3!(
+    ycbcr411_to_ycbcr420_u8_p3_to_p3,
+    nppiYCbCr411ToYCbCr420_8u_P3R_Ctx,
+    4,
+    1,
+    2,
+    2
+);
+impl_subsampled_p3_to_p3!(
+    ycbcr411_to_ycrcb422_u8_p3_to_p3,
+    nppiYCbCr411ToYCrCb422_8u_P3R_Ctx,
+    4,
+    1,
+    2,
+    1
+);
+impl_subsampled_p2_to_c2!(
+    ycbcr420_to_ycbcr422_u8_p2_to_c2,
+    nppiYCbCr420ToYCbCr422_8u_P2C2R_Ctx,
+    2,
+    2
+);
+impl_subsampled_p2_to_c2!(
+    ycbcr420_to_cbycr422_u8_p2_to_c2,
+    nppiYCbCr420ToCbYCr422_8u_P2C2R_Ctx,
+    2,
+    2
+);
+impl_subsampled_p2_to_c2!(
+    ycbcr411_to_ycbcr422_u8_p2_to_c2,
+    nppiYCbCr411ToYCbCr422_8u_P2C2R_Ctx,
+    4,
+    1
+);
+impl_subsampled_packed_to_p3!(
+    rgb_to_ycbcr420_u8_c3_to_p3,
+    C3,
+    nppiRGBToYCbCr420_8u_C3P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    rgb_to_ycrcb420_u8_ac4_to_p3,
+    AC4,
+    nppiRGBToYCrCb420_8u_AC4P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr420_u8_c3_to_p3,
+    C3,
+    nppiBGRToYCbCr420_8u_C3P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr420_u8_ac4_to_p3,
+    AC4,
+    nppiBGRToYCbCr420_8u_AC4P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycrcb420_u8_c3_to_p3,
+    C3,
+    nppiBGRToYCrCb420_8u_C3P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycrcb420_u8_ac4_to_p3,
+    AC4,
+    nppiBGRToYCrCb420_8u_AC4P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr420_709csc_u8_c3_to_p3,
+    C3,
+    nppiBGRToYCbCr420_709CSC_8u_C3P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr420_709csc_u8_ac4_to_p3,
+    AC4,
+    nppiBGRToYCbCr420_709CSC_8u_AC4P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr420_709hdtv_u8_ac4_to_p3,
+    AC4,
+    nppiBGRToYCbCr420_709HDTV_8u_AC4P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycrcb420_709csc_u8_c3_to_p3,
+    C3,
+    nppiBGRToYCrCb420_709CSC_8u_C3P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycrcb420_709csc_u8_ac4_to_p3,
+    AC4,
+    nppiBGRToYCrCb420_709CSC_8u_AC4P3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_packed_to_p3!(
+    rgb_to_ycbcr411_u8_c3_to_p3,
+    C3,
+    nppiRGBToYCbCr411_8u_C3P3R_Ctx,
+    4,
+    1
+);
+impl_subsampled_packed_to_p3!(
+    rgb_to_ycbcr411_u8_ac4_to_p3,
+    AC4,
+    nppiRGBToYCbCr411_8u_AC4P3R_Ctx,
+    4,
+    1
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr411_u8_c3_to_p3,
+    C3,
+    nppiBGRToYCbCr411_8u_C3P3R_Ctx,
+    4,
+    1
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr411_u8_ac4_to_p3,
+    AC4,
+    nppiBGRToYCbCr411_8u_AC4P3R_Ctx,
+    4,
+    1
+);
+impl_subsampled_packed_to_p3!(
+    rgb_to_ycbcr422_u8_c3_to_p3,
+    C3,
+    nppiRGBToYCbCr422_8u_C3P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr422_u8_c3_to_p3,
+    C3,
+    nppiBGRToYCbCr422_8u_C3P3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_packed_to_p3!(
+    bgr_to_ycbcr422_u8_ac4_to_p3,
+    AC4,
+    nppiBGRToYCbCr422_8u_AC4P3R_Ctx,
+    2,
+    1
+);
+impl_nv12_packed_inverse!(nv21_to_rgb_u8_p2_to_c4, u8, C4, nppiNV21ToRGB_8u_P2C4R_Ctx);
+impl_nv12_packed_inverse!(nv21_to_bgr_u8_p2_to_c4, u8, C4, nppiNV21ToBGR_8u_P2C4R_Ctx);
+impl_color_convert_batch_same_layout!(yuv_to_rgb_batch_u8_c3, u8, C3, nppiYUVToRGBBatch_8u_C3R_Ctx);
+impl_color_convert_batch_same_layout_advanced!(
+    yuv_to_rgb_batch_u8_c3_advanced,
+    u8,
+    C3,
+    nppiYUVToRGBBatch_8u_C3R_Advanced_Ctx
+);
+impl_color_convert_batch_planar_to_packed!(
+    yuv_to_rgb_batch_u8_p3_to_c3,
+    u8,
+    3,
+    C3,
+    nppiYUVToRGBBatch_8u_P3C3R_Ctx
+);
+impl_color_convert_batch_planar_to_packed_advanced!(
+    yuv_to_rgb_batch_u8_p3_to_c3_advanced,
+    u8,
+    3,
+    C3,
+    nppiYUVToRGBBatch_8u_P3C3R_Advanced_Ctx
+);
+impl_subsampled_color_convert_batch_planar_to_packed!(
+    yuv422_to_rgb_batch_u8_p3_to_c3,
+    u8,
+    C3,
+    nppiYUV422ToRGBBatch_8u_P3C3R_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_convert_batch_planar_to_packed_advanced!(
+    yuv422_to_rgb_batch_u8_p3_to_c3_advanced,
+    u8,
+    C3,
+    nppiYUV422ToRGBBatch_8u_P3C3R_Advanced_Ctx,
+    2,
+    1
+);
+impl_subsampled_color_convert_batch_planar_to_packed!(
+    yuv420_to_rgb_batch_u8_p3_to_c3,
+    u8,
+    C3,
+    nppiYUV420ToRGBBatch_8u_P3C3R_Ctx,
+    2,
+    2
+);
+impl_subsampled_color_convert_batch_planar_to_packed_advanced!(
+    yuv420_to_rgb_batch_u8_p3_to_c3_advanced,
+    u8,
+    C3,
+    nppiYUV420ToRGBBatch_8u_P3C3R_Advanced_Ctx,
+    2,
+    2
+);
+impl_color_convert_packed_to_planar!(rgb_to_yuv_u8_c3_to_p3, u8, C3, 3, nppiRGBToYUV_8u_C3P3R_Ctx);
+impl_color_convert_packed_to_planar!(
+    rgb_to_yuv_u8_ac4_to_p4,
+    u8,
+    AC4,
+    4,
+    nppiRGBToYUV_8u_AC4P4R_Ctx
+);
+impl_color_convert_planar_to_packed!(yuv_to_rgb_u8_p3_to_c3, u8, 3, C3, nppiYUVToRGB_8u_P3C3R_Ctx);

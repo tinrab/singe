@@ -1,0 +1,247 @@
+use super::*;
+
+impl_constant_signal!(
+    f32,
+    arithmetic::add_constant_f32,
+    arithmetic::add_constant_f32_in_place,
+    arithmetic::subtract_constant_f32,
+    arithmetic::subtract_constant_f32_in_place,
+    arithmetic::multiply_constant_f32,
+    arithmetic::multiply_constant_f32_in_place,
+    arithmetic::divide_constant_f32,
+    arithmetic::divide_constant_f32_in_place
+);
+impl_constant_signal!(
+    f64,
+    arithmetic::add_constant_f64,
+    arithmetic::add_constant_f64_in_place,
+    arithmetic::subtract_constant_f64,
+    arithmetic::subtract_constant_f64_in_place,
+    arithmetic::multiply_constant_f64,
+    arithmetic::multiply_constant_f64_in_place,
+    arithmetic::divide_constant_f64,
+    arithmetic::divide_constant_f64_in_place
+);
+impl_constant_signal!(
+    Complex32,
+    arithmetic::add_constant_f32_complex,
+    arithmetic::add_constant_f32_complex_in_place,
+    arithmetic::subtract_constant_f32_complex,
+    arithmetic::subtract_constant_f32_complex_in_place,
+    arithmetic::multiply_constant_f32_complex,
+    arithmetic::multiply_constant_f32_complex_in_place,
+    arithmetic::divide_constant_f32_complex,
+    arithmetic::divide_constant_f32_complex_in_place
+);
+impl_constant_signal!(
+    Complex64,
+    arithmetic::add_constant_f64_complex,
+    arithmetic::add_constant_f64_complex_in_place,
+    arithmetic::subtract_constant_f64_complex,
+    arithmetic::subtract_constant_f64_complex_in_place,
+    arithmetic::multiply_constant_f64_complex,
+    arithmetic::multiply_constant_f64_complex_in_place,
+    arithmetic::divide_constant_f64_complex,
+    arithmetic::divide_constant_f64_complex_in_place
+);
+impl_subtract_from_constant_signal!(
+    f32,
+    arithmetic::subtract_from_constant_f32,
+    arithmetic::subtract_from_constant_f32_in_place
+);
+impl_subtract_from_constant_signal!(
+    f64,
+    arithmetic::subtract_from_constant_f64,
+    arithmetic::subtract_from_constant_f64_in_place
+);
+impl_subtract_from_constant_signal!(
+    Complex32,
+    arithmetic::subtract_from_constant_f32_complex,
+    arithmetic::subtract_from_constant_f32_complex_in_place
+);
+impl_subtract_from_constant_signal!(
+    Complex64,
+    arithmetic::subtract_from_constant_f64_complex,
+    arithmetic::subtract_from_constant_f64_complex_in_place
+);
+impl_divide_into_constant_signal!(
+    u16,
+    arithmetic::divide_into_constant_u16,
+    arithmetic::divide_into_constant_u16_in_place
+);
+impl_divide_into_constant_signal!(
+    f32,
+    arithmetic::divide_into_constant_f32,
+    arithmetic::divide_into_constant_f32_in_place
+);
+
+impl<'a> SignalPipeline<'a, f32> {
+    pub fn add_product_constant_f32_in_place(
+        stream_context: &StreamContext,
+        source: &SignalView<'_, f32>,
+        value: f32,
+        destination: &mut SignalViewMut<'_, f32>,
+    ) -> Result<()> {
+        arithmetic::add_product_constant_f32(stream_context, source, value, destination)
+    }
+}
+
+impl<'a, T> SignalPipeline<'a, T>
+where
+    T: Copy + arithmetic::AddProductConstant,
+{
+    pub fn add_product_constant_in_place(
+        stream_context: &StreamContext,
+        source: &SignalView<'_, T>,
+        value: T,
+        destination: &mut SignalViewMut<'_, T>,
+    ) -> Result<()> {
+        arithmetic::add_product_constant(stream_context, source, value, destination)
+    }
+}
+
+impl_unary_signal!(
+    f32,
+    arithmetic::exponent_f32,
+    arithmetic::exponent_f32_in_place,
+    arithmetic::natural_logarithm_f32,
+    arithmetic::natural_logarithm_f32_in_place,
+    arithmetic::square_f32,
+    arithmetic::square_f32_in_place,
+    arithmetic::square_root_f32,
+    arithmetic::square_root_f32_in_place
+);
+impl_unary_signal!(
+    f64,
+    arithmetic::exponent_f64,
+    arithmetic::exponent_f64_in_place,
+    arithmetic::natural_logarithm_f64,
+    arithmetic::natural_logarithm_f64_in_place,
+    arithmetic::square_f64,
+    arithmetic::square_f64_in_place,
+    arithmetic::square_root_f64,
+    arithmetic::square_root_f64_in_place
+);
+impl_threshold_signal!(
+    i16,
+    conversion::threshold_i16,
+    conversion::threshold_i16_in_place
+);
+impl_threshold_signal!(
+    f32,
+    conversion::threshold_f32,
+    conversion::threshold_f32_in_place
+);
+impl_threshold_signal!(
+    f64,
+    conversion::threshold_f64,
+    conversion::threshold_f64_in_place
+);
+impl_complex_threshold_signal!(
+    ComplexI16,
+    i16,
+    conversion::threshold_i16_complex,
+    conversion::threshold_i16_complex_in_place
+);
+impl_complex_threshold_signal!(
+    Complex32,
+    f32,
+    conversion::threshold_f32_complex,
+    conversion::threshold_f32_complex_in_place
+);
+impl_complex_threshold_signal!(
+    Complex64,
+    f64,
+    conversion::threshold_f64_complex,
+    conversion::threshold_f64_complex_in_place
+);
+impl_fixed_threshold_signal!(
+    i16,
+    conversion::threshold_less_i16,
+    conversion::threshold_less_i16_in_place,
+    conversion::threshold_greater_i16,
+    conversion::threshold_greater_i16_in_place
+);
+impl_fixed_threshold_signal!(
+    f32,
+    conversion::threshold_less_f32,
+    conversion::threshold_less_f32_in_place,
+    conversion::threshold_greater_f32,
+    conversion::threshold_greater_f32_in_place
+);
+impl_fixed_threshold_signal!(
+    f64,
+    conversion::threshold_less_f64,
+    conversion::threshold_less_f64_in_place,
+    conversion::threshold_greater_f64,
+    conversion::threshold_greater_f64_in_place
+);
+impl_complex_fixed_threshold_signal!(
+    ComplexI16,
+    i16,
+    conversion::threshold_less_i16_complex,
+    conversion::threshold_less_i16_complex_in_place,
+    conversion::threshold_greater_i16_complex,
+    conversion::threshold_greater_i16_complex_in_place
+);
+impl_complex_fixed_threshold_signal!(
+    Complex32,
+    f32,
+    conversion::threshold_less_f32_complex,
+    conversion::threshold_less_f32_complex_in_place,
+    conversion::threshold_greater_f32_complex,
+    conversion::threshold_greater_f32_complex_in_place
+);
+impl_complex_fixed_threshold_signal!(
+    Complex64,
+    f64,
+    conversion::threshold_less_f64_complex,
+    conversion::threshold_less_f64_complex_in_place,
+    conversion::threshold_greater_f64_complex,
+    conversion::threshold_greater_f64_complex_in_place
+);
+impl_value_threshold_signal!(
+    i16,
+    conversion::threshold_less_value_i16,
+    conversion::threshold_less_value_i16_in_place,
+    conversion::threshold_greater_value_i16,
+    conversion::threshold_greater_value_i16_in_place
+);
+impl_value_threshold_signal!(
+    f32,
+    conversion::threshold_less_value_f32,
+    conversion::threshold_less_value_f32_in_place,
+    conversion::threshold_greater_value_f32,
+    conversion::threshold_greater_value_f32_in_place
+);
+impl_value_threshold_signal!(
+    f64,
+    conversion::threshold_less_value_f64,
+    conversion::threshold_less_value_f64_in_place,
+    conversion::threshold_greater_value_f64,
+    conversion::threshold_greater_value_f64_in_place
+);
+impl_complex_value_threshold_signal!(
+    ComplexI16,
+    i16,
+    conversion::threshold_less_value_i16_complex,
+    conversion::threshold_less_value_i16_complex_in_place,
+    conversion::threshold_greater_value_i16_complex,
+    conversion::threshold_greater_value_i16_complex_in_place
+);
+impl_complex_value_threshold_signal!(
+    Complex32,
+    f32,
+    conversion::threshold_less_value_f32_complex,
+    conversion::threshold_less_value_f32_complex_in_place,
+    conversion::threshold_greater_value_f32_complex,
+    conversion::threshold_greater_value_f32_complex_in_place
+);
+impl_complex_value_threshold_signal!(
+    Complex64,
+    f64,
+    conversion::threshold_less_value_f64_complex,
+    conversion::threshold_less_value_f64_complex_in_place,
+    conversion::threshold_greater_value_f64_complex,
+    conversion::threshold_greater_value_f64_complex_in_place
+);

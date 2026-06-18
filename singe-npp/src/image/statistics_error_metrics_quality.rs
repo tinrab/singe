@@ -1,0 +1,124 @@
+use super::*;
+
+impl_quality_index!(
+    quality_index_u8_c1_buffer_size,
+    quality_index_u8_c1,
+    u8,
+    C1,
+    1,
+    nppiQualityIndexGetBufferHostSize_8u32f_C1R_Ctx,
+    nppiQualityIndex_8u32f_C1R_Ctx
+);
+impl_quality_index!(
+    quality_index_u16_c1_buffer_size,
+    quality_index_u16_c1,
+    u16,
+    C1,
+    1,
+    nppiQualityIndexGetBufferHostSize_16u32f_C1R_Ctx,
+    nppiQualityIndex_16u32f_C1R_Ctx
+);
+impl_quality_index!(
+    quality_index_f32_c1_buffer_size,
+    quality_index_f32_c1,
+    f32,
+    C1,
+    1,
+    nppiQualityIndexGetBufferHostSize_32f_C1R_Ctx,
+    nppiQualityIndex_32f_C1R_Ctx
+);
+impl_quality_index!(
+    quality_index_u8_c3_buffer_size,
+    quality_index_u8_c3,
+    u8,
+    C3,
+    3,
+    nppiQualityIndexGetBufferHostSize_8u32f_C3R_Ctx,
+    nppiQualityIndex_8u32f_C3R_Ctx
+);
+impl_quality_index!(
+    quality_index_u16_c3_buffer_size,
+    quality_index_u16_c3,
+    u16,
+    C3,
+    3,
+    nppiQualityIndexGetBufferHostSize_16u32f_C3R_Ctx,
+    nppiQualityIndex_16u32f_C3R_Ctx
+);
+impl_quality_index!(
+    quality_index_f32_c3_buffer_size,
+    quality_index_f32_c3,
+    f32,
+    C3,
+    3,
+    nppiQualityIndexGetBufferHostSize_32f_C3R_Ctx,
+    nppiQualityIndex_32f_C3R_Ctx
+);
+impl_quality_index!(
+    quality_index_u8_ac4_buffer_size,
+    quality_index_u8_ac4,
+    u8,
+    AC4,
+    3,
+    nppiQualityIndexGetBufferHostSize_8u32f_AC4R_Ctx,
+    nppiQualityIndex_8u32f_AC4R_Ctx
+);
+impl_quality_index!(
+    quality_index_u16_ac4_buffer_size,
+    quality_index_u16_ac4,
+    u16,
+    AC4,
+    3,
+    nppiQualityIndexGetBufferHostSize_16u32f_AC4R_Ctx,
+    nppiQualityIndex_16u32f_AC4R_Ctx
+);
+impl_quality_index!(
+    quality_index_f32_ac4_buffer_size,
+    quality_index_f32_ac4,
+    f32,
+    AC4,
+    3,
+    nppiQualityIndexGetBufferHostSize_32f_AC4R_Ctx,
+    nppiQualityIndex_32f_AC4R_Ctx
+);
+impl_generic_quality_index!(
+    QualityIndexC1,
+    quality_index_c1,
+    quality_index_c1_buffer_size,
+    C1,
+    [
+        (u8, quality_index_u8_c1, quality_index_u8_c1_buffer_size),
+        (u16, quality_index_u16_c1, quality_index_u16_c1_buffer_size),
+        (f32, quality_index_f32_c1, quality_index_f32_c1_buffer_size),
+    ]
+);
+impl_generic_quality_index!(
+    QualityIndexC3,
+    quality_index_c3,
+    quality_index_c3_buffer_size,
+    C3,
+    [
+        (u8, quality_index_u8_c3, quality_index_u8_c3_buffer_size),
+        (u16, quality_index_u16_c3, quality_index_u16_c3_buffer_size),
+        (f32, quality_index_f32_c3, quality_index_f32_c3_buffer_size),
+    ]
+);
+impl_generic_quality_index!(
+    QualityIndexAC4,
+    quality_index_ac4,
+    quality_index_ac4_buffer_size,
+    AC4,
+    [
+        (u8, quality_index_u8_ac4, quality_index_u8_ac4_buffer_size),
+        (
+            u16,
+            quality_index_u16_ac4,
+            quality_index_u16_ac4_buffer_size
+        ),
+        (
+            f32,
+            quality_index_f32_ac4,
+            quality_index_f32_ac4_buffer_size
+        ),
+    ]
+);

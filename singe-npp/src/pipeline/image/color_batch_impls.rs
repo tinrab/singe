@@ -1,0 +1,96 @@
+use singe_cuda::types::f16;
+
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        color,
+        view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
+    },
+};
+
+use super::super::{
+    ColorTwistBatchConstantsMatrix4, ColorTwistMatrix, ImagePipeline, color_dispatch::*,
+};
+
+impl_color_twist_batch_image!(
+    u8,
+    C1,
+    color::color_twist_batch_u8_c1,
+    color::color_twist_batch_u8_c1_in_place
+);
+impl_color_twist_batch_image!(
+    u8,
+    C3,
+    color::color_twist_batch_u8_c3,
+    color::color_twist_batch_u8_c3_in_place
+);
+impl_color_twist_batch_image!(
+    u8,
+    C4,
+    color::color_twist_batch_u8_c4,
+    color::color_twist_batch_u8_c4_in_place
+);
+impl_color_twist_batch_image!(
+    u8,
+    AC4,
+    color::color_twist_batch_u8_ac4,
+    color::color_twist_batch_u8_ac4_in_place
+);
+impl_color_twist_batch_image!(
+    f16,
+    C1,
+    color::color_twist_batch_f16_c1,
+    color::color_twist_batch_f16_c1_in_place
+);
+impl_color_twist_batch_image!(
+    f16,
+    C3,
+    color::color_twist_batch_f16_c3,
+    color::color_twist_batch_f16_c3_in_place
+);
+impl_color_twist_batch_image!(
+    f16,
+    C4,
+    color::color_twist_batch_f16_c4,
+    color::color_twist_batch_f16_c4_in_place
+);
+impl_color_twist_batch_image!(
+    f32,
+    C1,
+    color::color_twist_batch_f32_c1,
+    color::color_twist_batch_f32_c1_in_place
+);
+impl_color_twist_batch_image!(
+    f32,
+    C3,
+    color::color_twist_batch_f32_c3,
+    color::color_twist_batch_f32_c3_in_place
+);
+impl_color_twist_batch_image!(
+    f32,
+    C4,
+    color::color_twist_batch_f32_c4,
+    color::color_twist_batch_f32_c4_in_place
+);
+impl_color_twist_batch_image!(
+    f32,
+    AC4,
+    color::color_twist_batch_f32_ac4,
+    color::color_twist_batch_f32_ac4_in_place
+);
+impl_color_twist_batch_with_constants_image!(
+    u8,
+    color::color_twist_batch_u8_c4_with_constants,
+    color::color_twist_batch_u8_c4_with_constants_in_place
+);
+impl_color_twist_batch_with_constants_image!(
+    f16,
+    color::color_twist_batch_f16_c4_with_constants,
+    color::color_twist_batch_f16_c4_with_constants_in_place
+);
+impl_color_twist_batch_with_constants_image!(
+    f32,
+    color::color_twist_batch_f32_c4_with_constants,
+    color::color_twist_batch_f32_c4_with_constants_in_place
+);

@@ -1,0 +1,58 @@
+cusolver_include_path := "$CUSOLVER_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "libraryPropertyType_t"
+        "cusolverStatus_t"
+        "cusolverEigType_t"
+        "cusolverEigMode_t"
+        "cusolverEigRange_t"
+        "cusolverNorm_t"
+        "cusolverIRSRefinement_t"
+        "cusolverPrecType_t"
+        "cusolverAlgMode_t"
+        "cusolverStorevMode_t"
+        "cusolverDirectMode_t"
+        "cusolverDeterministicMode_t"
+        "cusolverMathMode_t"
+        "cusolverDnFunction_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cusolver_include_path}}/cusolverDn.h \
+        $enum_args \
+        --allowlist-item "^cusolver.*" \
+        --allowlist-item "^CUSOLVER.*" \
+        --allowlist-item "^cublas(Operation|FillMode|SideMode|DiagType)_t$" \
+        --allowlist-item "^cudaEmulationStrategy_t$" \
+        --blocklist-item "^cuda(Stream|DataType)(_t)?$" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{cusolver_include_path}} \
+        > bindings.rs
+
+    CUSOLVER_VERSION=$(cat bindings.rs | grep "CUSOLVER_VERSION" | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${CUSOLVER_VERSION}" ]; then
+        echo "CUSOLVER_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${CUSOLVER_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

@@ -1,0 +1,91 @@
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        filtering,
+        view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
+    },
+};
+
+use super::super::super::{ImagePipeline, filtering_traits::*};
+
+impl_edge_directional_filter_image!(
+    u8,
+    C1,
+    filtering::filter_prewitt_horizontal_u8_c1,
+    filtering::filter_prewitt_vertical_u8_c1,
+    filtering::filter_roberts_down_u8_c1,
+    filtering::filter_roberts_up_u8_c1,
+    filtering::filter_sobel_horizontal_u8_c1,
+    filtering::filter_sobel_vertical_u8_c1
+);
+impl_edge_directional_filter_image!(
+    u8,
+    C3,
+    filtering::filter_prewitt_horizontal_u8_c3,
+    filtering::filter_prewitt_vertical_u8_c3,
+    filtering::filter_roberts_down_u8_c3,
+    filtering::filter_roberts_up_u8_c3,
+    filtering::filter_sobel_horizontal_u8_c3,
+    filtering::filter_sobel_vertical_u8_c3
+);
+impl_edge_directional_filter_image!(
+    u8,
+    C4,
+    filtering::filter_prewitt_horizontal_u8_c4,
+    filtering::filter_prewitt_vertical_u8_c4,
+    filtering::filter_roberts_down_u8_c4,
+    filtering::filter_roberts_up_u8_c4,
+    filtering::filter_sobel_horizontal_u8_c4,
+    filtering::filter_sobel_vertical_u8_c4
+);
+impl_edge_directional_filter_image!(
+    u8,
+    AC4,
+    filtering::filter_prewitt_horizontal_u8_ac4,
+    filtering::filter_prewitt_vertical_u8_ac4,
+    filtering::filter_roberts_down_u8_ac4,
+    filtering::filter_roberts_up_u8_ac4,
+    filtering::filter_sobel_horizontal_u8_ac4,
+    filtering::filter_sobel_vertical_u8_ac4
+);
+impl_edge_directional_filter_image!(
+    i16,
+    C1,
+    filtering::filter_prewitt_horizontal_i16_c1,
+    filtering::filter_prewitt_vertical_i16_c1,
+    filtering::filter_roberts_down_i16_c1,
+    filtering::filter_roberts_up_i16_c1,
+    filtering::filter_sobel_horizontal_i16_c1,
+    filtering::filter_sobel_vertical_i16_c1
+);
+impl_edge_directional_filter_image!(
+    i16,
+    C3,
+    filtering::filter_prewitt_horizontal_i16_c3,
+    filtering::filter_prewitt_vertical_i16_c3,
+    filtering::filter_roberts_down_i16_c3,
+    filtering::filter_roberts_up_i16_c3,
+    filtering::filter_sobel_horizontal_i16_c3,
+    filtering::filter_sobel_vertical_i16_c3
+);
+impl_edge_directional_filter_image!(
+    i16,
+    C4,
+    filtering::filter_prewitt_horizontal_i16_c4,
+    filtering::filter_prewitt_vertical_i16_c4,
+    filtering::filter_roberts_down_i16_c4,
+    filtering::filter_roberts_up_i16_c4,
+    filtering::filter_sobel_horizontal_i16_c4,
+    filtering::filter_sobel_vertical_i16_c4
+);
+impl_edge_directional_filter_image!(
+    i16,
+    AC4,
+    filtering::filter_prewitt_horizontal_i16_ac4,
+    filtering::filter_prewitt_vertical_i16_ac4,
+    filtering::filter_roberts_down_i16_ac4,
+    filtering::filter_roberts_up_i16_ac4,
+    filtering::filter_sobel_horizontal_i16_ac4,
+    filtering::filter_sobel_vertical_i16_ac4
+);

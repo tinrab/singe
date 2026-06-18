@@ -1,0 +1,52 @@
+curand_include_path := env_var_or_default("CURAND_INCLUDE_PATH", "")
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    include_path="{{curand_include_path}}"
+    if [ -z "${include_path}" ]; then
+        include_path="${CUDA_PATH}/include"
+    fi
+
+    num_enums=(
+        "libraryPropertyType"
+        "curandStatus"
+        "curandRngType"
+        "curandOrdering"
+        "curandDirectionVectorSet"
+        "curandMethod"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen "${include_path}/curand.h" \
+        $enum_args \
+        --allowlist-item "^curand.*" \
+        --allowlist-item "^CURAND.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I "${include_path}" \
+        > bindings.rs
+
+    CURAND_VERSION=$(grep "CURAND_VERSION" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${CURAND_VERSION}" ]; then
+        echo "CURAND_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${CURAND_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

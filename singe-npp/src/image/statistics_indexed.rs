@@ -1,0 +1,667 @@
+use super::*;
+
+impl_typed_indexed_statistic!(
+    min_indx_u8_c1_buffer_size,
+    min_indx_u8_c1,
+    u8,
+    C1,
+    u8,
+    1,
+    nppiMinIndxGetBufferHostSize_8u_C1R_Ctx,
+    nppiMinIndx_8u_C1R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_u16_c1_buffer_size,
+    min_indx_u16_c1,
+    u16,
+    C1,
+    u16,
+    1,
+    nppiMinIndxGetBufferHostSize_16u_C1R_Ctx,
+    nppiMinIndx_16u_C1R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_i16_c1_buffer_size,
+    min_indx_i16_c1,
+    i16,
+    C1,
+    i16,
+    1,
+    nppiMinIndxGetBufferHostSize_16s_C1R_Ctx,
+    nppiMinIndx_16s_C1R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_f32_c1_buffer_size,
+    min_indx_f32_c1,
+    f32,
+    C1,
+    f32,
+    1,
+    nppiMinIndxGetBufferHostSize_32f_C1R_Ctx,
+    nppiMinIndx_32f_C1R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_u8_c3_buffer_size,
+    min_indx_u8_c3,
+    u8,
+    C3,
+    u8,
+    3,
+    nppiMinIndxGetBufferHostSize_8u_C3R_Ctx,
+    nppiMinIndx_8u_C3R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_u16_c3_buffer_size,
+    min_indx_u16_c3,
+    u16,
+    C3,
+    u16,
+    3,
+    nppiMinIndxGetBufferHostSize_16u_C3R_Ctx,
+    nppiMinIndx_16u_C3R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_i16_c3_buffer_size,
+    min_indx_i16_c3,
+    i16,
+    C3,
+    i16,
+    3,
+    nppiMinIndxGetBufferHostSize_16s_C3R_Ctx,
+    nppiMinIndx_16s_C3R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_f32_c3_buffer_size,
+    min_indx_f32_c3,
+    f32,
+    C3,
+    f32,
+    3,
+    nppiMinIndxGetBufferHostSize_32f_C3R_Ctx,
+    nppiMinIndx_32f_C3R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_u8_c4_buffer_size,
+    min_indx_u8_c4,
+    u8,
+    C4,
+    u8,
+    4,
+    nppiMinIndxGetBufferHostSize_8u_C4R_Ctx,
+    nppiMinIndx_8u_C4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_u16_c4_buffer_size,
+    min_indx_u16_c4,
+    u16,
+    C4,
+    u16,
+    4,
+    nppiMinIndxGetBufferHostSize_16u_C4R_Ctx,
+    nppiMinIndx_16u_C4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_i16_c4_buffer_size,
+    min_indx_i16_c4,
+    i16,
+    C4,
+    i16,
+    4,
+    nppiMinIndxGetBufferHostSize_16s_C4R_Ctx,
+    nppiMinIndx_16s_C4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_f32_c4_buffer_size,
+    min_indx_f32_c4,
+    f32,
+    C4,
+    f32,
+    4,
+    nppiMinIndxGetBufferHostSize_32f_C4R_Ctx,
+    nppiMinIndx_32f_C4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_u8_ac4_buffer_size,
+    min_indx_u8_ac4,
+    u8,
+    AC4,
+    u8,
+    3,
+    nppiMinIndxGetBufferHostSize_8u_AC4R_Ctx,
+    nppiMinIndx_8u_AC4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_u16_ac4_buffer_size,
+    min_indx_u16_ac4,
+    u16,
+    AC4,
+    u16,
+    3,
+    nppiMinIndxGetBufferHostSize_16u_AC4R_Ctx,
+    nppiMinIndx_16u_AC4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_i16_ac4_buffer_size,
+    min_indx_i16_ac4,
+    i16,
+    AC4,
+    i16,
+    3,
+    nppiMinIndxGetBufferHostSize_16s_AC4R_Ctx,
+    nppiMinIndx_16s_AC4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    min_indx_f32_ac4_buffer_size,
+    min_indx_f32_ac4,
+    f32,
+    AC4,
+    f32,
+    3,
+    nppiMinIndxGetBufferHostSize_32f_AC4R_Ctx,
+    nppiMinIndx_32f_AC4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_u8_c1_buffer_size,
+    max_indx_u8_c1,
+    u8,
+    C1,
+    u8,
+    1,
+    nppiMaxIndxGetBufferHostSize_8u_C1R_Ctx,
+    nppiMaxIndx_8u_C1R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_u16_c1_buffer_size,
+    max_indx_u16_c1,
+    u16,
+    C1,
+    u16,
+    1,
+    nppiMaxIndxGetBufferHostSize_16u_C1R_Ctx,
+    nppiMaxIndx_16u_C1R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_i16_c1_buffer_size,
+    max_indx_i16_c1,
+    i16,
+    C1,
+    i16,
+    1,
+    nppiMaxIndxGetBufferHostSize_16s_C1R_Ctx,
+    nppiMaxIndx_16s_C1R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_f32_c1_buffer_size,
+    max_indx_f32_c1,
+    f32,
+    C1,
+    f32,
+    1,
+    nppiMaxIndxGetBufferHostSize_32f_C1R_Ctx,
+    nppiMaxIndx_32f_C1R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_u8_c3_buffer_size,
+    max_indx_u8_c3,
+    u8,
+    C3,
+    u8,
+    3,
+    nppiMaxIndxGetBufferHostSize_8u_C3R_Ctx,
+    nppiMaxIndx_8u_C3R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_u16_c3_buffer_size,
+    max_indx_u16_c3,
+    u16,
+    C3,
+    u16,
+    3,
+    nppiMaxIndxGetBufferHostSize_16u_C3R_Ctx,
+    nppiMaxIndx_16u_C3R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_i16_c3_buffer_size,
+    max_indx_i16_c3,
+    i16,
+    C3,
+    i16,
+    3,
+    nppiMaxIndxGetBufferHostSize_16s_C3R_Ctx,
+    nppiMaxIndx_16s_C3R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_f32_c3_buffer_size,
+    max_indx_f32_c3,
+    f32,
+    C3,
+    f32,
+    3,
+    nppiMaxIndxGetBufferHostSize_32f_C3R_Ctx,
+    nppiMaxIndx_32f_C3R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_u8_c4_buffer_size,
+    max_indx_u8_c4,
+    u8,
+    C4,
+    u8,
+    4,
+    nppiMaxIndxGetBufferHostSize_8u_C4R_Ctx,
+    nppiMaxIndx_8u_C4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_u16_c4_buffer_size,
+    max_indx_u16_c4,
+    u16,
+    C4,
+    u16,
+    4,
+    nppiMaxIndxGetBufferHostSize_16u_C4R_Ctx,
+    nppiMaxIndx_16u_C4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_i16_c4_buffer_size,
+    max_indx_i16_c4,
+    i16,
+    C4,
+    i16,
+    4,
+    nppiMaxIndxGetBufferHostSize_16s_C4R_Ctx,
+    nppiMaxIndx_16s_C4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_f32_c4_buffer_size,
+    max_indx_f32_c4,
+    f32,
+    C4,
+    f32,
+    4,
+    nppiMaxIndxGetBufferHostSize_32f_C4R_Ctx,
+    nppiMaxIndx_32f_C4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_u8_ac4_buffer_size,
+    max_indx_u8_ac4,
+    u8,
+    AC4,
+    u8,
+    3,
+    nppiMaxIndxGetBufferHostSize_8u_AC4R_Ctx,
+    nppiMaxIndx_8u_AC4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_u16_ac4_buffer_size,
+    max_indx_u16_ac4,
+    u16,
+    AC4,
+    u16,
+    3,
+    nppiMaxIndxGetBufferHostSize_16u_AC4R_Ctx,
+    nppiMaxIndx_16u_AC4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_i16_ac4_buffer_size,
+    max_indx_i16_ac4,
+    i16,
+    AC4,
+    i16,
+    3,
+    nppiMaxIndxGetBufferHostSize_16s_AC4R_Ctx,
+    nppiMaxIndx_16s_AC4R_Ctx
+);
+impl_typed_indexed_statistic!(
+    max_indx_f32_ac4_buffer_size,
+    max_indx_f32_ac4,
+    f32,
+    AC4,
+    f32,
+    3,
+    nppiMaxIndxGetBufferHostSize_32f_AC4R_Ctx,
+    nppiMaxIndx_32f_AC4R_Ctx
+);
+impl_generic_typed_indexed_statistic!(
+    MinIndxC1,
+    min_indx_c1,
+    min_indx_c1_buffer_size,
+    C1,
+    [
+        (u8, u8, min_indx_u8_c1, min_indx_u8_c1_buffer_size),
+        (u16, u16, min_indx_u16_c1, min_indx_u16_c1_buffer_size),
+        (i16, i16, min_indx_i16_c1, min_indx_i16_c1_buffer_size),
+        (f32, f32, min_indx_f32_c1, min_indx_f32_c1_buffer_size),
+    ]
+);
+impl_generic_typed_indexed_statistic!(
+    MinIndxC3,
+    min_indx_c3,
+    min_indx_c3_buffer_size,
+    C3,
+    [
+        (u8, u8, min_indx_u8_c3, min_indx_u8_c3_buffer_size),
+        (u16, u16, min_indx_u16_c3, min_indx_u16_c3_buffer_size),
+        (i16, i16, min_indx_i16_c3, min_indx_i16_c3_buffer_size),
+        (f32, f32, min_indx_f32_c3, min_indx_f32_c3_buffer_size),
+    ]
+);
+impl_generic_typed_indexed_statistic!(
+    MinIndxC4,
+    min_indx_c4,
+    min_indx_c4_buffer_size,
+    C4,
+    [
+        (u8, u8, min_indx_u8_c4, min_indx_u8_c4_buffer_size),
+        (u16, u16, min_indx_u16_c4, min_indx_u16_c4_buffer_size),
+        (i16, i16, min_indx_i16_c4, min_indx_i16_c4_buffer_size),
+        (f32, f32, min_indx_f32_c4, min_indx_f32_c4_buffer_size),
+    ]
+);
+impl_generic_typed_indexed_statistic!(
+    MinIndxAC4,
+    min_indx_ac4,
+    min_indx_ac4_buffer_size,
+    AC4,
+    [
+        (u8, u8, min_indx_u8_ac4, min_indx_u8_ac4_buffer_size),
+        (u16, u16, min_indx_u16_ac4, min_indx_u16_ac4_buffer_size),
+        (i16, i16, min_indx_i16_ac4, min_indx_i16_ac4_buffer_size),
+        (f32, f32, min_indx_f32_ac4, min_indx_f32_ac4_buffer_size),
+    ]
+);
+
+impl_generic_typed_indexed_statistic!(
+    MaxIndxC1,
+    max_indx_c1,
+    max_indx_c1_buffer_size,
+    C1,
+    [
+        (u8, u8, max_indx_u8_c1, max_indx_u8_c1_buffer_size),
+        (u16, u16, max_indx_u16_c1, max_indx_u16_c1_buffer_size),
+        (i16, i16, max_indx_i16_c1, max_indx_i16_c1_buffer_size),
+        (f32, f32, max_indx_f32_c1, max_indx_f32_c1_buffer_size),
+    ]
+);
+impl_generic_typed_indexed_statistic!(
+    MaxIndxC3,
+    max_indx_c3,
+    max_indx_c3_buffer_size,
+    C3,
+    [
+        (u8, u8, max_indx_u8_c3, max_indx_u8_c3_buffer_size),
+        (u16, u16, max_indx_u16_c3, max_indx_u16_c3_buffer_size),
+        (i16, i16, max_indx_i16_c3, max_indx_i16_c3_buffer_size),
+        (f32, f32, max_indx_f32_c3, max_indx_f32_c3_buffer_size),
+    ]
+);
+impl_generic_typed_indexed_statistic!(
+    MaxIndxC4,
+    max_indx_c4,
+    max_indx_c4_buffer_size,
+    C4,
+    [
+        (u8, u8, max_indx_u8_c4, max_indx_u8_c4_buffer_size),
+        (u16, u16, max_indx_u16_c4, max_indx_u16_c4_buffer_size),
+        (i16, i16, max_indx_i16_c4, max_indx_i16_c4_buffer_size),
+        (f32, f32, max_indx_f32_c4, max_indx_f32_c4_buffer_size),
+    ]
+);
+impl_generic_typed_indexed_statistic!(
+    MaxIndxAC4,
+    max_indx_ac4,
+    max_indx_ac4_buffer_size,
+    AC4,
+    [
+        (u8, u8, max_indx_u8_ac4, max_indx_u8_ac4_buffer_size),
+        (u16, u16, max_indx_u16_ac4, max_indx_u16_ac4_buffer_size),
+        (i16, i16, max_indx_i16_ac4, max_indx_i16_ac4_buffer_size),
+        (f32, f32, max_indx_f32_ac4, max_indx_f32_ac4_buffer_size),
+    ]
+);
+impl_typed_pair_indexed_statistic!(
+    min_max_indx_u8_c1_buffer_size,
+    min_max_indx_u8_c1,
+    u8,
+    C1,
+    u8,
+    nppiMinMaxIndxGetBufferHostSize_8u_C1R_Ctx,
+    nppiMinMaxIndx_8u_C1R_Ctx
+);
+impl_typed_pair_indexed_statistic!(
+    min_max_indx_i8_c1_buffer_size,
+    min_max_indx_i8_c1,
+    i8,
+    C1,
+    i8,
+    nppiMinMaxIndxGetBufferHostSize_8s_C1R_Ctx,
+    nppiMinMaxIndx_8s_C1R_Ctx
+);
+impl_typed_pair_indexed_statistic!(
+    min_max_indx_u16_c1_buffer_size,
+    min_max_indx_u16_c1,
+    u16,
+    C1,
+    u16,
+    nppiMinMaxIndxGetBufferHostSize_16u_C1R_Ctx,
+    nppiMinMaxIndx_16u_C1R_Ctx
+);
+impl_typed_pair_indexed_statistic!(
+    min_max_indx_f32_c1_buffer_size,
+    min_max_indx_f32_c1,
+    f32,
+    C1,
+    f32,
+    nppiMinMaxIndxGetBufferHostSize_32f_C1R_Ctx,
+    nppiMinMaxIndx_32f_C1R_Ctx
+);
+impl_typed_pair_indexed_statistic!(
+    min_max_indx_u8_c3_buffer_size,
+    min_max_indx_u8_c3,
+    u8,
+    C3,
+    u8,
+    nppiMinMaxIndxGetBufferHostSize_8u_C3CR_Ctx,
+    nppiMinMaxIndx_8u_C3CR_Ctx
+);
+impl_typed_pair_indexed_statistic!(
+    min_max_indx_i8_c3_buffer_size,
+    min_max_indx_i8_c3,
+    i8,
+    C3,
+    i8,
+    nppiMinMaxIndxGetBufferHostSize_8s_C3CR_Ctx,
+    nppiMinMaxIndx_8s_C3CR_Ctx
+);
+impl_typed_pair_indexed_statistic!(
+    min_max_indx_u16_c3_buffer_size,
+    min_max_indx_u16_c3,
+    u16,
+    C3,
+    u16,
+    nppiMinMaxIndxGetBufferHostSize_16u_C3CR_Ctx,
+    nppiMinMaxIndx_16u_C3CR_Ctx
+);
+impl_typed_pair_indexed_statistic!(
+    min_max_indx_f32_c3_buffer_size,
+    min_max_indx_f32_c3,
+    f32,
+    C3,
+    f32,
+    nppiMinMaxIndxGetBufferHostSize_32f_C3CR_Ctx,
+    nppiMinMaxIndx_32f_C3CR_Ctx
+);
+impl_typed_pair_indexed_statistic_masked!(
+    min_max_indx_u8_c1_masked_buffer_size,
+    min_max_indx_u8_c1_masked,
+    u8,
+    C1,
+    u8,
+    nppiMinMaxIndxGetBufferHostSize_8u_C1MR_Ctx,
+    nppiMinMaxIndx_8u_C1MR_Ctx
+);
+impl_typed_pair_indexed_statistic_masked!(
+    min_max_indx_i8_c1_masked_buffer_size,
+    min_max_indx_i8_c1_masked,
+    i8,
+    C1,
+    i8,
+    nppiMinMaxIndxGetBufferHostSize_8s_C1MR_Ctx,
+    nppiMinMaxIndx_8s_C1MR_Ctx
+);
+impl_typed_pair_indexed_statistic_masked!(
+    min_max_indx_u16_c1_masked_buffer_size,
+    min_max_indx_u16_c1_masked,
+    u16,
+    C1,
+    u16,
+    nppiMinMaxIndxGetBufferHostSize_16u_C1MR_Ctx,
+    nppiMinMaxIndx_16u_C1MR_Ctx
+);
+impl_typed_pair_indexed_statistic_masked!(
+    min_max_indx_f32_c1_masked_buffer_size,
+    min_max_indx_f32_c1_masked,
+    f32,
+    C1,
+    f32,
+    nppiMinMaxIndxGetBufferHostSize_32f_C1MR_Ctx,
+    nppiMinMaxIndx_32f_C1MR_Ctx
+);
+impl_typed_pair_indexed_statistic_masked!(
+    min_max_indx_u8_c3_masked_buffer_size,
+    min_max_indx_u8_c3_masked,
+    u8,
+    C3,
+    u8,
+    nppiMinMaxIndxGetBufferHostSize_8u_C3CMR_Ctx,
+    nppiMinMaxIndx_8u_C3CMR_Ctx
+);
+impl_typed_pair_indexed_statistic_masked!(
+    min_max_indx_i8_c3_masked_buffer_size,
+    min_max_indx_i8_c3_masked,
+    i8,
+    C3,
+    i8,
+    nppiMinMaxIndxGetBufferHostSize_8s_C3CMR_Ctx,
+    nppiMinMaxIndx_8s_C3CMR_Ctx
+);
+impl_typed_pair_indexed_statistic_masked!(
+    min_max_indx_u16_c3_masked_buffer_size,
+    min_max_indx_u16_c3_masked,
+    u16,
+    C3,
+    u16,
+    nppiMinMaxIndxGetBufferHostSize_16u_C3CMR_Ctx,
+    nppiMinMaxIndx_16u_C3CMR_Ctx
+);
+impl_typed_pair_indexed_statistic_masked!(
+    min_max_indx_f32_c3_masked_buffer_size,
+    min_max_indx_f32_c3_masked,
+    f32,
+    C3,
+    f32,
+    nppiMinMaxIndxGetBufferHostSize_32f_C3CMR_Ctx,
+    nppiMinMaxIndx_32f_C3CMR_Ctx
+);
+impl_generic_typed_pair_indexed_statistic_c1!(
+    MinMaxIndxC1,
+    min_max_indx_c1,
+    min_max_indx_c1_buffer_size,
+    [
+        (u8, u8, min_max_indx_u8_c1, min_max_indx_u8_c1_buffer_size),
+        (i8, i8, min_max_indx_i8_c1, min_max_indx_i8_c1_buffer_size),
+        (
+            u16,
+            u16,
+            min_max_indx_u16_c1,
+            min_max_indx_u16_c1_buffer_size
+        ),
+        (
+            f32,
+            f32,
+            min_max_indx_f32_c1,
+            min_max_indx_f32_c1_buffer_size
+        ),
+    ]
+);
+impl_generic_typed_pair_indexed_statistic_c3!(
+    MinMaxIndxC3,
+    min_max_indx_c3,
+    min_max_indx_c3_buffer_size,
+    [
+        (u8, u8, min_max_indx_u8_c3, min_max_indx_u8_c3_buffer_size),
+        (i8, i8, min_max_indx_i8_c3, min_max_indx_i8_c3_buffer_size),
+        (
+            u16,
+            u16,
+            min_max_indx_u16_c3,
+            min_max_indx_u16_c3_buffer_size
+        ),
+        (
+            f32,
+            f32,
+            min_max_indx_f32_c3,
+            min_max_indx_f32_c3_buffer_size
+        ),
+    ]
+);
+impl_generic_typed_pair_indexed_statistic_masked_c1!(
+    MinMaxIndxMaskedC1,
+    min_max_indx_c1_masked,
+    min_max_indx_c1_masked_buffer_size,
+    [
+        (
+            u8,
+            u8,
+            min_max_indx_u8_c1_masked,
+            min_max_indx_u8_c1_masked_buffer_size
+        ),
+        (
+            i8,
+            i8,
+            min_max_indx_i8_c1_masked,
+            min_max_indx_i8_c1_masked_buffer_size
+        ),
+        (
+            u16,
+            u16,
+            min_max_indx_u16_c1_masked,
+            min_max_indx_u16_c1_masked_buffer_size
+        ),
+        (
+            f32,
+            f32,
+            min_max_indx_f32_c1_masked,
+            min_max_indx_f32_c1_masked_buffer_size
+        ),
+    ]
+);
+impl_generic_typed_pair_indexed_statistic_masked_c3!(
+    MinMaxIndxMaskedC3,
+    min_max_indx_c3_masked,
+    min_max_indx_c3_masked_buffer_size,
+    [
+        (
+            u8,
+            u8,
+            min_max_indx_u8_c3_masked,
+            min_max_indx_u8_c3_masked_buffer_size
+        ),
+        (
+            i8,
+            i8,
+            min_max_indx_i8_c3_masked,
+            min_max_indx_i8_c3_masked_buffer_size
+        ),
+        (
+            u16,
+            u16,
+            min_max_indx_u16_c3_masked,
+            min_max_indx_u16_c3_masked_buffer_size
+        ),
+        (
+            f32,
+            f32,
+            min_max_indx_f32_c3_masked,
+            min_max_indx_f32_c3_masked_buffer_size
+        ),
+    ]
+);

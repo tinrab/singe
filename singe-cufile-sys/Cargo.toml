@@ -1,0 +1,27 @@
+[package]
+name = "singe-cufile-sys"
+description = "Low-level FFI bindings for the NVIDIA cuFile GPUDirect Storage library."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "cufile", "gds", "bindings", "ffi"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cufile_1_17"]
+
+cufile_1_17 = ["singe-cuda-sys/driver_13_2"]
+cuda_13_2 = ["cufile_1_17"]
+
+[dependencies]
+singe-cuda-sys.workspace = true
+num_enum.workspace = true
+
+[build-dependencies]
+singe-cuda-find.workspace = true
+anyhow.workspace = true

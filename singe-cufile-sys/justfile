@@ -1,0 +1,66 @@
+cuda_path := "$CUDA_PATH"
+cufile_include_path := "$CUFILE_INCLUDE_PATH"
+cufile_path := "$CUFILE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "CUfileOpError"
+        "CUfileDriverStatusFlags"
+        "CUfileDriverControlFlags"
+        "CUfileFeatureFlags"
+        "CUfileOpcode"
+        "CUfileFileHandleType"
+        "CUFILEStatus_enum"
+        "cufileBatchMode"
+        "CUFileSizeTConfigParameter_t"
+        "CUFileBoolConfigParameter_t"
+        "CUFileStringConfigParameter_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cufile_include_path}}/cufile.h \
+        $enum_args \
+        --allowlist-item "^cuFile.*" \
+        --allowlist-item "^CUfile.*" \
+        --allowlist-item "^CUFILE.*" \
+        --allowlist-item "^CU_FILE.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^CUstream.*" \
+        --blocklist-item "^CUresult.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --newtype-enum "CUfileP2PFlags" \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -x c++ \
+            -I {{cuda_path}}/include \
+            -I {{cufile_include_path}} \
+        > bindings.rs
+
+    CUFILE_VERSION=$(
+        find {{cufile_path}} -maxdepth 1 -type f -o -type l |
+        sed -nE 's|.*/libcufile\.so\.([0-9]+)\.([0-9]+)\.[0-9]+$|\1 \2|p' |
+        sort -n -k1,1 -k2,2 |
+        tail -n1 |
+        awk '{ print 1000 * $1 + 10 * $2 }'
+    )
+    if [ -z "${CUFILE_VERSION}" ]; then
+        echo "CUFILE_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${CUFILE_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

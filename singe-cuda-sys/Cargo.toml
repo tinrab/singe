@@ -1,0 +1,37 @@
+[package]
+name = "singe-cuda-sys"
+description = "Low-level FFI bindings for CUDA driver, runtime, NVRTC, NVVM, NVTX, and related NVIDIA APIs."
+version = "0.1.0-alpha.7"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "ffi", "bindings", "nvtx"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["driver_13_2", "runtime_13_2", "nvrtc_13_2", "nvvm_13_2", "nvtx_3"]
+
+driver = []
+driver_13_2 = ["driver"]
+
+runtime = []
+runtime_13_2 = ["runtime"]
+
+nvrtc = []
+nvrtc_13_2 = ["nvrtc"]
+
+nvvm = []
+nvvm_13_2 = ["nvvm"]
+
+nvtx = []
+nvtx_3 = ["nvtx"]
+
+[dependencies]
+num_enum.workspace = true
+
+[build-dependencies]
+singe-cuda-find.workspace = true

@@ -1,0 +1,188 @@
+use super::*;
+
+impl_add_constant_scalar!(
+    left_shift_constant_u8_c1,
+    u8,
+    u32,
+    C1,
+    nppiLShiftC_8u_C1R_Ctx
+);
+impl_add_constant_scalar_in_place!(
+    left_shift_constant_u8_c1_in_place,
+    u8,
+    u32,
+    C1,
+    nppiLShiftC_8u_C1IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_u8_c3,
+    u8,
+    u32,
+    C3,
+    3,
+    nppiLShiftC_8u_C3R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_u8_c3_in_place,
+    u8,
+    u32,
+    C3,
+    3,
+    nppiLShiftC_8u_C3IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_u8_ac4,
+    u8,
+    u32,
+    AC4,
+    3,
+    nppiLShiftC_8u_AC4R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_u8_ac4_in_place,
+    u8,
+    u32,
+    AC4,
+    3,
+    nppiLShiftC_8u_AC4IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_u8_c4,
+    u8,
+    u32,
+    C4,
+    4,
+    nppiLShiftC_8u_C4R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_u8_c4_in_place,
+    u8,
+    u32,
+    C4,
+    4,
+    nppiLShiftC_8u_C4IR_Ctx
+);
+impl_add_constant_scalar!(
+    left_shift_constant_u16_c1,
+    u16,
+    u32,
+    C1,
+    nppiLShiftC_16u_C1R_Ctx
+);
+impl_add_constant_scalar_in_place!(
+    left_shift_constant_u16_c1_in_place,
+    u16,
+    u32,
+    C1,
+    nppiLShiftC_16u_C1IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_u16_c3,
+    u16,
+    u32,
+    C3,
+    3,
+    nppiLShiftC_16u_C3R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_u16_c3_in_place,
+    u16,
+    u32,
+    C3,
+    3,
+    nppiLShiftC_16u_C3IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_u16_ac4,
+    u16,
+    u32,
+    AC4,
+    3,
+    nppiLShiftC_16u_AC4R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_u16_ac4_in_place,
+    u16,
+    u32,
+    AC4,
+    3,
+    nppiLShiftC_16u_AC4IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_u16_c4,
+    u16,
+    u32,
+    C4,
+    4,
+    nppiLShiftC_16u_C4R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_u16_c4_in_place,
+    u16,
+    u32,
+    C4,
+    4,
+    nppiLShiftC_16u_C4IR_Ctx
+);
+impl_add_constant_scalar!(
+    left_shift_constant_i32_c1,
+    i32,
+    u32,
+    C1,
+    nppiLShiftC_32s_C1R_Ctx
+);
+impl_add_constant_scalar_in_place!(
+    left_shift_constant_i32_c1_in_place,
+    i32,
+    u32,
+    C1,
+    nppiLShiftC_32s_C1IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_i32_c3,
+    i32,
+    u32,
+    C3,
+    3,
+    nppiLShiftC_32s_C3R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_i32_c3_in_place,
+    i32,
+    u32,
+    C3,
+    3,
+    nppiLShiftC_32s_C3IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_i32_ac4,
+    i32,
+    u32,
+    AC4,
+    3,
+    nppiLShiftC_32s_AC4R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_i32_ac4_in_place,
+    i32,
+    u32,
+    AC4,
+    3,
+    nppiLShiftC_32s_AC4IR_Ctx
+);
+impl_add_constant_array!(
+    left_shift_constant_i32_c4,
+    i32,
+    u32,
+    C4,
+    4,
+    nppiLShiftC_32s_C4R_Ctx
+);
+impl_add_constant_array_in_place!(
+    left_shift_constant_i32_c4_in_place,
+    i32,
+    u32,
+    C4,
+    4,
+    nppiLShiftC_32s_C4IR_Ctx
+);

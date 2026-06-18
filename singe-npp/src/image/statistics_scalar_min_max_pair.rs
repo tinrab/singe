@@ -1,0 +1,162 @@
+use super::*;
+
+impl_typed_pair_statistic!(
+    min_max_u8_c1_buffer_size,
+    min_max_u8_c1,
+    u8,
+    C1,
+    u8,
+    1,
+    nppiMinMaxGetBufferHostSize_8u_C1R_Ctx,
+    nppiMinMax_8u_C1R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_u16_c1_buffer_size,
+    min_max_u16_c1,
+    u16,
+    C1,
+    u16,
+    1,
+    nppiMinMaxGetBufferHostSize_16u_C1R_Ctx,
+    nppiMinMax_16u_C1R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_i16_c1_buffer_size,
+    min_max_i16_c1,
+    i16,
+    C1,
+    i16,
+    1,
+    nppiMinMaxGetBufferHostSize_16s_C1R_Ctx,
+    nppiMinMax_16s_C1R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_f32_c1_buffer_size,
+    min_max_f32_c1,
+    f32,
+    C1,
+    f32,
+    1,
+    nppiMinMaxGetBufferHostSize_32f_C1R_Ctx,
+    nppiMinMax_32f_C1R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_u8_c3_buffer_size,
+    min_max_u8_c3,
+    u8,
+    C3,
+    u8,
+    3,
+    nppiMinMaxGetBufferHostSize_8u_C3R_Ctx,
+    nppiMinMax_8u_C3R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_u16_c3_buffer_size,
+    min_max_u16_c3,
+    u16,
+    C3,
+    u16,
+    3,
+    nppiMinMaxGetBufferHostSize_16u_C3R_Ctx,
+    nppiMinMax_16u_C3R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_i16_c3_buffer_size,
+    min_max_i16_c3,
+    i16,
+    C3,
+    i16,
+    3,
+    nppiMinMaxGetBufferHostSize_16s_C3R_Ctx,
+    nppiMinMax_16s_C3R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_f32_c3_buffer_size,
+    min_max_f32_c3,
+    f32,
+    C3,
+    f32,
+    3,
+    nppiMinMaxGetBufferHostSize_32f_C3R_Ctx,
+    nppiMinMax_32f_C3R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_u8_c4_buffer_size,
+    min_max_u8_c4,
+    u8,
+    C4,
+    u8,
+    4,
+    nppiMinMaxGetBufferHostSize_8u_C4R_Ctx,
+    nppiMinMax_8u_C4R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_u16_c4_buffer_size,
+    min_max_u16_c4,
+    u16,
+    C4,
+    u16,
+    4,
+    nppiMinMaxGetBufferHostSize_16u_C4R_Ctx,
+    nppiMinMax_16u_C4R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_i16_c4_buffer_size,
+    min_max_i16_c4,
+    i16,
+    C4,
+    i16,
+    4,
+    nppiMinMaxGetBufferHostSize_16s_C4R_Ctx,
+    nppiMinMax_16s_C4R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_f32_c4_buffer_size,
+    min_max_f32_c4,
+    f32,
+    C4,
+    f32,
+    4,
+    nppiMinMaxGetBufferHostSize_32f_C4R_Ctx,
+    nppiMinMax_32f_C4R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_u8_ac4_buffer_size,
+    min_max_u8_ac4,
+    u8,
+    AC4,
+    u8,
+    3,
+    nppiMinMaxGetBufferHostSize_8u_AC4R_Ctx,
+    nppiMinMax_8u_AC4R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_u16_ac4_buffer_size,
+    min_max_u16_ac4,
+    u16,
+    AC4,
+    u16,
+    3,
+    nppiMinMaxGetBufferHostSize_16u_AC4R_Ctx,
+    nppiMinMax_16u_AC4R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_i16_ac4_buffer_size,
+    min_max_i16_ac4,
+    i16,
+    AC4,
+    i16,
+    3,
+    nppiMinMaxGetBufferHostSize_16s_AC4R_Ctx,
+    nppiMinMax_16s_AC4R_Ctx
+);
+impl_typed_pair_statistic!(
+    min_max_f32_ac4_buffer_size,
+    min_max_f32_ac4,
+    f32,
+    AC4,
+    f32,
+    3,
+    nppiMinMaxGetBufferHostSize_32f_AC4R_Ctx,
+    nppiMinMax_32f_AC4R_Ctx
+);

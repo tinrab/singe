@@ -1,0 +1,44 @@
+cusparse_include_path := "$CUSPARSE_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "cusparseStatus_t"
+        # TODO: add other enums
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cusparse_include_path}}/cusparse.h \
+        $enum_args \
+        --allowlist-item "^cusparse.*" \
+        --allowlist-item "^CUSPARSE.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --allowlist-file ".*[^\w]cusparse.h" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{cusparse_include_path}} \
+        > bindings.rs
+
+    CUSPARSE_VERSION=$(cat bindings.rs | grep "CUSPARSE_VERSION" | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${CUSPARSE_VERSION}" ]; then
+        echo "CUSPARSE_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${CUSPARSE_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

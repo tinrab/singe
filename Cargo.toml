@@ -1,0 +1,119 @@
+[workspace]
+resolver = "3"
+
+members = [
+    "singe-core",
+    "singe-cublas",
+    "singe-cublas-sys",
+    "singe-cuda",
+    "singe-cuda-macros",
+    "singe-cuda-find",
+    "singe-cuda-sys",
+    "singe-cufile",
+    "singe-cufile-sys",
+    "singe-curand",
+    "singe-curand-sys",
+    "singe-cudnn",
+    "singe-cudnn-sys",
+    "singe-cudss",
+    "singe-cudss-sys",
+    "singe-cufft",
+    "singe-cufft-sys",
+    "singe-cusolver",
+    "singe-cusolver-sys",
+    "singe-cupti",
+    "singe-cupti-sys",
+    "singe-cusparse",
+    "singe-cusparse-sys",
+    "singe-cutensor",
+    "singe-cutensor-sys",
+    "singe-nvml",
+    "singe-nvml-sys",
+    "singe-nccl",
+    "singe-nccl-sys",
+    "singe-npp",
+    "singe-npp-sys",
+    "singe-onnx",
+    "singe-ptx",
+    "xtask",
+]
+
+[workspace.package]
+edition = "2024"
+repository = "https://github.com/tinrab/singe"
+include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*"]
+
+[workspace.dependencies]
+singe-core = { path = "singe-core", version = "0.1.0-alpha.6" }
+singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.6" }
+singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.6" }
+singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.7" }
+singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.6" }
+singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0-alpha.7" }
+singe-cuda-sys = { path = "singe-cuda-sys", version = "0.1.0-alpha.7" }
+singe-cufile = { path = "singe-cufile", version = "0.1.0-alpha.6" }
+singe-cufile-sys = { path = "singe-cufile-sys", version = "0.1.0-alpha.6" }
+singe-curand = { path = "singe-curand", version = "0.1.0-alpha.1" }
+singe-curand-sys = { path = "singe-curand-sys", version = "0.1.0-alpha.1" }
+singe-cudnn = { path = "singe-cudnn", version = "0.1.0-alpha.6" }
+singe-cudnn-sys = { path = "singe-cudnn-sys", version = "0.1.0-alpha.6" }
+singe-cudss = { path = "singe-cudss", version = "0.1.0-alpha.2" }
+singe-cudss-sys = { path = "singe-cudss-sys", version = "0.1.0-alpha.2" }
+singe-cufft = { path = "singe-cufft", version = "0.1.0-alpha.6" }
+singe-cufft-sys = { path = "singe-cufft-sys", version = "0.1.0-alpha.6" }
+singe-cusolver = { path = "singe-cusolver", version = "0.1.0-alpha.6" }
+singe-cusolver-sys = { path = "singe-cusolver-sys", version = "0.1.0-alpha.6" }
+singe-cupti = { path = "singe-cupti", version = "0.1.0-alpha.7" }
+singe-cupti-sys = { path = "singe-cupti-sys", version = "0.1.0-alpha.6" }
+singe-cusparse = { path = "singe-cusparse", version = "0.1.0-alpha.6" }
+singe-cusparse-sys = { path = "singe-cusparse-sys", version = "0.1.0-alpha.6" }
+singe-cutensor = { path = "singe-cutensor", version = "0.1.0-alpha.6" }
+singe-cutensor-sys = { path = "singe-cutensor-sys", version = "0.1.0-alpha.6" }
+singe-nccl = { path = "singe-nccl", version = "0.1.0-alpha.7" }
+singe-nccl-sys = { path = "singe-nccl-sys", version = "0.1.0-alpha.6" }
+singe-npp = { path = "singe-npp", version = "0.1.0-alpha.8" }
+singe-npp-sys = { path = "singe-npp-sys", version = "0.1.0-alpha.6" }
+singe-nvml = { path = "singe-nvml", version = "0.1.0-alpha.8" }
+singe-nvml-sys = { path = "singe-nvml-sys", version = "0.1.0-alpha.6" }
+singe-onnx = { path = "singe-onnx", version = "0.1.0-alpha.5" }
+singe-ptx = { path = "singe-ptx", version = "0.1.0-alpha.6" }
+
+thiserror = "2.0.18"
+num-traits = "0.2.19"
+num-complex = "0.4.6"
+num_enum = "0.7.6"
+bitflags = "2.13.0"
+lazy_static = "1.5.0"
+half = "2.7.1"
+rand = "0.10.1"
+anyhow = "1.0.102"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+glob = "0.3.3"
+regex = "1.12.4"
+prost = "0.14.4"
+nom = "8.0.0"
+bomboni_core = "0.3.1"
+bomboni_serde = "0.3.1"
+bomboni_proto = "0.3.1"
+bomboni_prost = "0.3.1"
+bomboni_request = "0.3.1"
+
+pretty_assertions = "1.4.1"
+bindgen = "0.72.1"
+cc = "1.2.63"
+proc-macro2 = "1.0.106"
+quote = "1.0.45"
+syn = "2.0.117"
+prost-build = "0.14.4"
+prettyplease = "0.2.37"
+sha2 = "0.11.0"
+hex = "0.4.3"
+tree-sitter = "0.26.9"
+tree-sitter-c = "0.24.2"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

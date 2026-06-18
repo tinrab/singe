@@ -1,0 +1,82 @@
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        exchange,
+        view::{C3, C4, ImageView, ImageViewMut},
+    },
+};
+
+use super::super::ImagePipeline;
+use super::SwapChannelsImage;
+
+impl_swap_channels_image!(
+    u8,
+    C3,
+    3,
+    exchange::swap_channels_c3,
+    exchange::swap_channels_c3_in_place
+);
+impl_swap_channels_image!(
+    u8,
+    C4,
+    4,
+    exchange::swap_channels_c4,
+    exchange::swap_channels_c4_in_place
+);
+impl_swap_channels_image!(
+    u16,
+    C3,
+    3,
+    exchange::swap_channels_c3,
+    exchange::swap_channels_c3_in_place
+);
+impl_swap_channels_image!(
+    u16,
+    C4,
+    4,
+    exchange::swap_channels_c4,
+    exchange::swap_channels_c4_in_place
+);
+impl_swap_channels_image!(
+    i16,
+    C3,
+    3,
+    exchange::swap_channels_c3,
+    exchange::swap_channels_c3_in_place
+);
+impl_swap_channels_image!(
+    i16,
+    C4,
+    4,
+    exchange::swap_channels_c4,
+    exchange::swap_channels_c4_in_place
+);
+impl_swap_channels_image!(
+    i32,
+    C3,
+    3,
+    exchange::swap_channels_c3,
+    exchange::swap_channels_c3_in_place
+);
+impl_swap_channels_image!(
+    i32,
+    C4,
+    4,
+    exchange::swap_channels_c4,
+    exchange::swap_channels_c4_in_place
+);
+impl_swap_channels_image!(
+    f32,
+    C3,
+    3,
+    exchange::swap_channels_c3,
+    exchange::swap_channels_c3_in_place
+);
+impl_swap_channels_image!(
+    f32,
+    C4,
+    4,
+    exchange::swap_channels_c4,
+    exchange::swap_channels_c4_in_place
+);

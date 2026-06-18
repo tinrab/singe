@@ -1,0 +1,25 @@
+[package]
+name = "singe-cuda-macros"
+description = "Procedural macros for working with CUDA."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+keywords = ["singe", "cuda", "ptx", "macros", "nvidia"]
+license-file = "../LICENSE"
+readme = "README.md"
+include.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+hex.workspace = true
+singe-cuda-find.workspace = true
+singe-ptx.workspace = true
+tree-sitter.workspace = true
+tree-sitter-c.workspace = true

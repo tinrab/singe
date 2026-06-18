@@ -1,0 +1,120 @@
+cuda_path := "$CUDA_PATH"
+cutensor_include_path := "$CUTENSOR_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    core_enums=(
+        "cutensorDataType_t"
+        "cutensorOperator_t"
+        "cutensorStatus_t"
+        "cutensorAlgo_t"
+        "cutensorWorksizePreference_t"
+        "cutensorOperationDescriptorAttribute_t"
+        "cutensorPlanPreferenceAttribute_t"
+        "cutensorAutotuneMode_t"
+        "cutensorJitMode_t"
+        "cutensorCacheMode_t"
+        "cutensorPlanAttribute_t"
+        "cutensorComputeType_t"
+        "cutensorContractionDescriptorAttributes_t"
+        "cutensorContractionFindAttributes_t"
+    )
+    mg_enums=(
+        "cutensorMgHostDevice_t"
+        "cutensorMgAlgo_t"
+        "cutensorMgContractionFindAttribute_t"
+    )
+    mp_enums=(
+        "cutensorMpAlgo_t"
+        "cutensorMpPlanAttribute_t"
+    )
+
+    core_enum_args=$(for enum in "${core_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+    mg_enum_args=$(for enum in "${mg_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+    mp_enum_args=$(for enum in "${mp_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    common_args=(
+        --blocklist-item "^cuda.*"
+        --blocklist-item "^CUDA.*"
+        --blocklist-item "^nccl.*"
+        --blocklist-item "^NCCL.*"
+        --blocklist-item "^libraryPropertyType.*"
+        --no-doc-comments
+        --no-size_t-is-usize
+        --no-layout-tests
+        --with-derive-default
+        --with-derive-eq
+        --with-derive-hash
+        --with-derive-ord
+        --use-core
+        --default-enum-style=rust
+    )
+    extension_args=(
+        "${common_args[@]}"
+        --blocklist-item "^CUstream_st$"
+        --blocklist-item "^size_t$"
+        --blocklist-item "^cutensorOperator_t$"
+        --blocklist-item "^cutensorStatus_t$"
+        --blocklist-item "^cutensorWorksizePreference_t$"
+        --blocklist-item "^cutensorComputeDescriptor$"
+        --blocklist-item "^cutensorComputeDescriptor_t$"
+    )
+    clang_args=(
+        -x c++
+        -I {{cuda_path}}/include
+        -I {{cutensor_include_path}}
+        -I ${NCCL_INCLUDE_PATH:-{{cuda_path}}/include}
+    )
+
+    # Core cuTENSOR
+    bindgen {{cutensor_include_path}}/cutensor.h \
+        $core_enum_args \
+        --allowlist-item "^cutensor.*" \
+        --allowlist-item "^CUTENSOR.*" \
+        --blocklist-item "^cudaDataType.*" \
+        "${common_args[@]}" \
+        --  \
+            "${clang_args[@]}" \
+        > bindings.rs
+
+    CUTENSOR_VERSION=$(cat bindings.rs | grep "CUTENSOR_VERSION" | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${CUTENSOR_VERSION}" ]; then
+        echo "CUTENSOR_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${CUTENSOR_VERSION}.rs
+
+    # cuTENSORMg
+    bindgen {{cutensor_include_path}}/cutensorMg.h \
+        $mg_enum_args \
+        --allowlist-item "^cutensorMg.*" \
+        --allowlist-item "^CUTENSOR_MG.*" \
+        --blocklist-item "^cudaDataType.*" \
+        "${extension_args[@]}" \
+        --  \
+            "${clang_args[@]}" \
+        > bindings.rs
+
+    mv bindings.rs ./src/mg_${CUTENSOR_VERSION}.rs
+
+    # cuTENSORMp
+    bindgen {{cutensor_include_path}}/cutensorMp.h \
+        $mp_enum_args \
+        --allowlist-item "^cutensorMp.*" \
+        --allowlist-item "^CUTENSORMP.*" \
+        --blocklist-item "^cudaDataType.*" \
+        "${extension_args[@]}" \
+        --  \
+            "${clang_args[@]}" \
+        > bindings.rs
+
+    mv bindings.rs ./src/mp_${CUTENSOR_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs
+    rm -f ./src/mg_*.rs
+    rm -f ./src/mp_*.rs

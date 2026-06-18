@@ -1,0 +1,45 @@
+[package]
+name = "singe-cuda"
+description = "Safe Rust wrappers for CUDA driver, runtime, NVRTC, NVVM, NVTX, memory, streams, modules, and graphs."
+version = "0.1.0-alpha.7"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "gpu", "nvtx"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["macros", "driver_13_2", "runtime_13_2", "nvrtc_13_2", "nvvm_13_2", "nvtx_3"]
+
+driver_13_2 = ["singe-cuda-sys/driver_13_2"]
+
+runtime_13_2 = ["singe-cuda-sys/runtime_13_2"]
+
+nvrtc_13_2 = ["singe-cuda-sys/nvrtc_13_2"]
+
+nvvm_13_2 = ["singe-cuda-sys/nvvm_13_2"]
+
+nvtx_3 = ["singe-cuda-sys/nvtx_3"]
+
+macros = ["dep:singe-cuda-macros"]
+
+testing = []
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+num-complex.workspace = true
+bitflags.workspace = true
+half.workspace = true
+
+singe-cuda-macros = { workspace = true, optional = true }
+
+[dev-dependencies]
+rand.workspace = true
+singe-cuda-find.workspace = true

@@ -1,0 +1,55 @@
+cuda_path := "$CUDA_PATH"
+npp_include_path := "$NPP_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "NppStatus"
+        "NppiInterpolationMode"
+        "NppiBayerGridPosition"
+        "NppiMaskSize"
+        "NppiDifferentialKernel"
+        "NppCmpOp"
+        "NppRoundMode"
+        "NppiBorderType"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{npp_include_path}}/npp.h \
+        $enum_args \
+        --allowlist-item "^npp.*" \
+        --allowlist-item "^nppi.*" \
+        --allowlist-item "^npps.*" \
+        --allowlist-item "^NPP.*" \
+        --allowlist-item "^Npp.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -x c++ \
+            -I {{cuda_path}}/include \
+            -I {{npp_include_path}} \
+        > bindings.rs
+
+    NPP_VERSION=$(cat bindings.rs | grep "NPP_VERSION:" | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${NPP_VERSION}" ]; then
+        echo "NPP_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${NPP_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

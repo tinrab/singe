@@ -1,0 +1,97 @@
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        statistics,
+        view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
+    },
+    pipeline::image::ImagePipeline,
+};
+
+use super::super::traits::*;
+
+impl_cross_correlation_norm_level_image!(
+    f32,
+    C1,
+    statistics::cross_correlation_full_norm_level_f32_c1,
+    statistics::cross_correlation_same_norm_level_f32_c1,
+    statistics::cross_correlation_valid_norm_level_f32_c1
+);
+impl_cross_correlation_norm_level_image!(
+    f32,
+    C3,
+    statistics::cross_correlation_full_norm_level_f32_c3,
+    statistics::cross_correlation_same_norm_level_f32_c3,
+    statistics::cross_correlation_valid_norm_level_f32_c3
+);
+impl_cross_correlation_norm_level_image!(
+    f32,
+    C4,
+    statistics::cross_correlation_full_norm_level_f32_c4,
+    statistics::cross_correlation_same_norm_level_f32_c4,
+    statistics::cross_correlation_valid_norm_level_f32_c4
+);
+impl_cross_correlation_norm_level_image!(
+    f32,
+    AC4,
+    statistics::cross_correlation_full_norm_level_f32_ac4,
+    statistics::cross_correlation_same_norm_level_f32_ac4,
+    statistics::cross_correlation_valid_norm_level_f32_ac4
+);
+impl_cross_correlation_norm_level_image!(
+    f64,
+    C1,
+    statistics::cross_correlation_full_norm_level_f64_c1,
+    statistics::cross_correlation_same_norm_level_f64_c1,
+    statistics::cross_correlation_valid_norm_level_f64_c1
+);
+impl_cross_correlation_norm_level_image!(
+    f64,
+    C3,
+    statistics::cross_correlation_full_norm_level_f64_c3,
+    statistics::cross_correlation_same_norm_level_f64_c3,
+    statistics::cross_correlation_valid_norm_level_f64_c3
+);
+impl_cross_correlation_norm_level_image!(
+    f64,
+    C4,
+    statistics::cross_correlation_full_norm_level_f64_c4,
+    statistics::cross_correlation_same_norm_level_f64_c4,
+    statistics::cross_correlation_valid_norm_level_f64_c4
+);
+impl_cross_correlation_norm_level_image!(
+    f64,
+    AC4,
+    statistics::cross_correlation_full_norm_level_f64_ac4,
+    statistics::cross_correlation_same_norm_level_f64_ac4,
+    statistics::cross_correlation_valid_norm_level_f64_ac4
+);
+
+impl_cross_correlation_norm_level_scaled_image!(
+    u8,
+    C1,
+    statistics::cross_correlation_full_norm_level_u8_c1,
+    statistics::cross_correlation_same_norm_level_u8_c1,
+    statistics::cross_correlation_valid_norm_level_u8_c1
+);
+impl_cross_correlation_norm_level_scaled_image!(
+    u8,
+    C3,
+    statistics::cross_correlation_full_norm_level_u8_c3,
+    statistics::cross_correlation_same_norm_level_u8_c3,
+    statistics::cross_correlation_valid_norm_level_u8_c3
+);
+impl_cross_correlation_norm_level_scaled_image!(
+    u8,
+    C4,
+    statistics::cross_correlation_full_norm_level_u8_c4,
+    statistics::cross_correlation_same_norm_level_u8_c4,
+    statistics::cross_correlation_valid_norm_level_u8_c4
+);
+impl_cross_correlation_norm_level_scaled_image!(
+    u8,
+    AC4,
+    statistics::cross_correlation_full_norm_level_u8_ac4,
+    statistics::cross_correlation_same_norm_level_u8_ac4,
+    statistics::cross_correlation_valid_norm_level_u8_ac4
+);

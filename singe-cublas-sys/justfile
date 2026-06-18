@@ -1,0 +1,100 @@
+cuda_path := "$CUDA_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    cublas_num_enums=(
+        "cublasStatus_t"
+        "cublasFillMode_t"
+        "cublasDiagType_t"
+        "cublasSideMode_t"
+        "cublasOperation_t"
+        "cublasPointerMode_t"
+        "cublasAtomicsMode_t"
+        "cublasMath_t"
+        "cublasComputeType_t"
+        "cublasGemmAlgo_t"
+    )
+    cublas_enum_args=$(for enum in "${cublas_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cuda_path}}/include/cublas_v2.h \
+        $cublas_enum_args \
+        --allowlist-item "^cublas.*" \
+        --allowlist-item "^CUBLAS.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --allowlist-file ".*[^\w]cublas_api.h" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{cuda_path}}/include \
+        > bindings.rs
+
+    CUBLAS_VERSION=$(cat bindings.rs | grep "CUBLAS_VERSION" | awk '{ print $6 }' | sed 's/.$//')
+    if [ -z "${CUBLAS_VERSION}" ]; then
+        echo "CUBLAS_VERSION is empty"
+        exit 1
+    fi
+
+    grep -v "pub use self::cudaDataType as cublasDataType_t;" bindings.rs > bindings2.rs
+    rm bindings.rs
+
+    mv bindings2.rs ./src/sys_${CUBLAS_VERSION}.rs
+
+    cublas_lt_num_enums=(
+        "cublasLtBatchMode_t"
+        "cublasLtClusterShape_t"
+        "cublasLtEpilogue_t"
+        "cublasLtEmulationDescAttributes_t"
+        "cublasLtIntegerWidth_t"
+        "cublasLtMatmulAlgoCapAttributes_t"
+        "cublasLtMatmulAlgoConfigAttributes_t"
+        "cublasLtMatmulDescAttributes_t"
+        "cublasLtMatmulMatrixScale_t"
+        "cublasLtMatmulPreferenceAttributes_t"
+        "cublasLtMatmulSearch_t"
+        "cublasLtMatmulStages_t"
+        "cublasLtMatmulTile_t"
+        "cublasLtMatrixLayoutAttribute_t"
+        "cublasLtMatrixTransformDescAttributes_t"
+        "cublasLtOrder_t"
+        "cublasLtPointerMode_t"
+        "cublasLtReductionScheme_t"
+    )
+    cublas_lt_enum_args=$(for enum in "${cublas_lt_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cuda_path}}/include/cublasLt.h \
+        $cublas_lt_enum_args \
+        --allowlist-item "^cublasLt.*" \
+        --allowlist-item "^CUBLASLT.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --blocklist-item "^cublasStatus_t$" \
+        --blocklist-item "^cublasComputeType_t$" \
+        --allowlist-file ".*[^\w]cublasLt.h" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{cuda_path}}/include \
+        > ./src/sys_lt_${CUBLAS_VERSION}.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

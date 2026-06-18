@@ -1,0 +1,33 @@
+[package]
+name = "singe-cufft"
+description = "Safe Rust wrappers for the NVIDIA cuFFT fast Fourier transform library."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "cufft", "fft"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cufft_12_2"]
+
+cufft_12_2 = [
+    "singe-cuda/runtime_13_2",
+    "singe-cuda-sys/runtime_13_2",
+    "singe-cufft-sys/cufft_12_2",
+]
+
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-cuda-sys.workspace = true
+singe-cufft-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true

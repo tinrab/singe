@@ -1,0 +1,35 @@
+[package]
+name = "singe-cutensor"
+description = "Safe Rust wrappers for NVIDIA cuTENSOR library."
+version = "0.1.0-alpha.6"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "cutensor", "tensor"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cutensor_2_6", "mg", "mp"]
+
+cutensor_2_6 = ["singe-cuda/runtime_13_2", "singe-cutensor-sys/cutensor_2_6"]
+
+testing = ["singe-cuda/testing"]
+
+mg = ["singe-cutensor-sys/mg"]
+mp = ["singe-cutensor-sys/mp", "singe-nccl"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-cutensor-sys.workspace = true
+singe-nccl = { workspace = true, optional = true }
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

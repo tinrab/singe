@@ -1,0 +1,212 @@
+use super::*;
+
+impl_lookup_table_c1!(
+    lookup_table_linear_u8_c1,
+    u8,
+    i32,
+    nppiLUT_Linear_8u_C1R_Ctx
+);
+impl_lookup_table_c1_in_place!(
+    lookup_table_linear_u8_c1_in_place,
+    u8,
+    i32,
+    nppiLUT_Linear_8u_C1IR_Ctx
+);
+impl_lookup_table_c1!(
+    lookup_table_linear_u16_c1,
+    u16,
+    i32,
+    nppiLUT_Linear_16u_C1R_Ctx
+);
+impl_lookup_table_c1_in_place!(
+    lookup_table_linear_u16_c1_in_place,
+    u16,
+    i32,
+    nppiLUT_Linear_16u_C1IR_Ctx
+);
+impl_lookup_table_c1!(
+    lookup_table_linear_i16_c1,
+    i16,
+    i32,
+    nppiLUT_Linear_16s_C1R_Ctx
+);
+impl_lookup_table_c1_in_place!(
+    lookup_table_linear_i16_c1_in_place,
+    i16,
+    i32,
+    nppiLUT_Linear_16s_C1IR_Ctx
+);
+impl_lookup_table_c1!(
+    lookup_table_linear_f32_c1,
+    f32,
+    f32,
+    nppiLUT_Linear_32f_C1R_Ctx
+);
+impl_lookup_table_c1_in_place!(
+    lookup_table_linear_f32_c1_in_place,
+    f32,
+    f32,
+    nppiLUT_Linear_32f_C1IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_u8_c3,
+    u8,
+    C3,
+    3,
+    nppiLUT_Linear_8u_C3R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_u8_c3_in_place,
+    u8,
+    C3,
+    3,
+    nppiLUT_Linear_8u_C3IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_u8_c4,
+    u8,
+    C4,
+    4,
+    nppiLUT_Linear_8u_C4R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_u8_c4_in_place,
+    u8,
+    C4,
+    4,
+    nppiLUT_Linear_8u_C4IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_u8_ac4,
+    u8,
+    AC4,
+    3,
+    nppiLUT_Linear_8u_AC4R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_u8_ac4_in_place,
+    u8,
+    AC4,
+    3,
+    nppiLUT_Linear_8u_AC4IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_u16_c3,
+    u16,
+    C3,
+    3,
+    nppiLUT_Linear_16u_C3R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_u16_c3_in_place,
+    u16,
+    C3,
+    3,
+    nppiLUT_Linear_16u_C3IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_u16_c4,
+    u16,
+    C4,
+    4,
+    nppiLUT_Linear_16u_C4R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_u16_c4_in_place,
+    u16,
+    C4,
+    4,
+    nppiLUT_Linear_16u_C4IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_u16_ac4,
+    u16,
+    AC4,
+    3,
+    nppiLUT_Linear_16u_AC4R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_u16_ac4_in_place,
+    u16,
+    AC4,
+    3,
+    nppiLUT_Linear_16u_AC4IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_i16_c3,
+    i16,
+    C3,
+    3,
+    nppiLUT_Linear_16s_C3R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_i16_c3_in_place,
+    i16,
+    C3,
+    3,
+    nppiLUT_Linear_16s_C3IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_i16_c4,
+    i16,
+    C4,
+    4,
+    nppiLUT_Linear_16s_C4R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_i16_c4_in_place,
+    i16,
+    C4,
+    4,
+    nppiLUT_Linear_16s_C4IR_Ctx
+);
+impl_lookup_table_packed!(
+    lookup_table_linear_i16_ac4,
+    i16,
+    AC4,
+    3,
+    nppiLUT_Linear_16s_AC4R_Ctx
+);
+impl_lookup_table_packed_in_place!(
+    lookup_table_linear_i16_ac4_in_place,
+    i16,
+    AC4,
+    3,
+    nppiLUT_Linear_16s_AC4IR_Ctx
+);
+impl_lookup_table_packed_f32!(
+    lookup_table_linear_f32_c3,
+    C3,
+    3,
+    nppiLUT_Linear_32f_C3R_Ctx
+);
+impl_lookup_table_packed_f32_in_place!(
+    lookup_table_linear_f32_c3_in_place,
+    C3,
+    3,
+    nppiLUT_Linear_32f_C3IR_Ctx
+);
+impl_lookup_table_packed_f32!(
+    lookup_table_linear_f32_c4,
+    C4,
+    4,
+    nppiLUT_Linear_32f_C4R_Ctx
+);
+impl_lookup_table_packed_f32_in_place!(
+    lookup_table_linear_f32_c4_in_place,
+    C4,
+    4,
+    nppiLUT_Linear_32f_C4IR_Ctx
+);
+impl_lookup_table_packed_f32!(
+    lookup_table_linear_f32_ac4,
+    AC4,
+    3,
+    nppiLUT_Linear_32f_AC4R_Ctx
+);
+impl_lookup_table_packed_f32_in_place!(
+    lookup_table_linear_f32_ac4_in_place,
+    AC4,
+    3,
+    nppiLUT_Linear_32f_AC4IR_Ctx
+);

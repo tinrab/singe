@@ -1,0 +1,15 @@
+[package]
+name = "singe-cuda-find"
+description = "CUDA toolkit discovery and library path resolution utilities."
+version = "0.1.0-alpha.7"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["cuda", "nvidia", "build-script"]
+include.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+glob.workspace = true
+regex.workspace = true

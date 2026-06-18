@@ -1,0 +1,31 @@
+[package]
+name = "singe-cupti"
+description = "Safe Rust wrappers for NVIDIA CUPTI profiling and callback APIs."
+version = "0.1.0-alpha.7"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+keywords = ["nvidia", "cupti", "profiling", "cuda", "trace"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["cupti_13_2"]
+
+cupti_13_2 = ["singe-cuda/runtime_13_2", "singe-cupti-sys/cupti_13_2"]
+
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-cupti-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
