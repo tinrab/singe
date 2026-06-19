@@ -75,7 +75,7 @@ singe-npp = { path = "singe-npp", version = "0.1.0-alpha.8" }
 singe-npp-sys = { path = "singe-npp-sys", version = "0.1.0-alpha.6" }
 singe-nvml = { path = "singe-nvml", version = "0.1.0-alpha.8" }
 singe-nvml-sys = { path = "singe-nvml-sys", version = "0.1.0-alpha.6" }
-singe-onnx = { path = "singe-onnx", version = "0.1.0-alpha.5" }
+singe-onnx = { path = "singe-onnx", version = "0.1.0-alpha.6" }
 singe-ptx = { path = "singe-ptx", version = "0.1.0-alpha.6" }
 
 thiserror = "2.0.18"

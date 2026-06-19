@@ -6,7 +6,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR is set by cargo"));
     let descriptor_path = out_dir.join("onnx.bin");
     let proto_root = PathBuf::from("proto");
-    let proto_paths = [proto_root.join("onnx.proto")];
+    let proto_paths = [
+        proto_root.join("onnx.proto"),
+        proto_root.join("onnx_structure.proto"),
+    ];
 
     let mut prost_config = prost_build::Config::default();
     prost_config

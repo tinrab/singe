@@ -6,7 +6,7 @@ use bomboni_request::{
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use crate::proto::onnx;
+use crate::proto::{onnx, onnx_structure};
 
 /// Metadata key-value pairs from ONNX `StringStringEntryProto` lists.
 ///
@@ -552,6 +552,12 @@ impl RequestParse<onnx::ModelProto> for Model {
     }
 }
 
+impl RequestParse<onnx_structure::ModelProto> for Model {
+    fn parse(value: onnx_structure::ModelProto) -> RequestResult<Self> {
+        onnx::ModelProto::from(value).parse_into()
+    }
+}
+
 impl RequestParse<onnx::OperatorSetIdProto> for OperatorSetId {
     fn parse(value: onnx::OperatorSetIdProto) -> RequestResult<Self> {
         Ok(Self {
@@ -900,6 +906,313 @@ impl RequestParse<onnx::FunctionProto> for Function {
                 error.wrap_field(onnx::FunctionProto::METADATA_PROPS_FIELD_NAME)
             })?,
         })
+    }
+}
+
+impl From<onnx_structure::ModelProto> for onnx::ModelProto {
+    fn from(value: onnx_structure::ModelProto) -> Self {
+        Self {
+            ir_version: value.ir_version,
+            opset_import: value.opset_import.into_iter().map(Into::into).collect(),
+            producer_name: value.producer_name,
+            producer_version: value.producer_version,
+            domain: value.domain,
+            model_version: value.model_version,
+            doc_string: value.doc_string,
+            graph: value.graph.map(Into::into),
+            metadata_props: value.metadata_props.into_iter().map(Into::into).collect(),
+            training_info: value.training_info.into_iter().map(Into::into).collect(),
+            functions: value.functions.into_iter().map(Into::into).collect(),
+            configuration: Vec::new(),
+        }
+    }
+}
+
+impl From<onnx_structure::OperatorSetIdProto> for onnx::OperatorSetIdProto {
+    fn from(value: onnx_structure::OperatorSetIdProto) -> Self {
+        Self {
+            domain: value.domain,
+            version: value.version,
+        }
+    }
+}
+
+impl From<onnx_structure::GraphProto> for onnx::GraphProto {
+    fn from(value: onnx_structure::GraphProto) -> Self {
+        Self {
+            node: value.node.into_iter().map(Into::into).collect(),
+            name: value.name,
+            initializer: value.initializer.into_iter().map(Into::into).collect(),
+            sparse_initializer: value
+                .sparse_initializer
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            doc_string: value.doc_string,
+            input: value.input.into_iter().map(Into::into).collect(),
+            output: value.output.into_iter().map(Into::into).collect(),
+            value_info: value.value_info.into_iter().map(Into::into).collect(),
+            quantization_annotation: value
+                .quantization_annotation
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            metadata_props: value.metadata_props.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<onnx_structure::NodeProto> for onnx::NodeProto {
+    fn from(value: onnx_structure::NodeProto) -> Self {
+        Self {
+            input: value.input,
+            output: value.output,
+            name: value.name,
+            op_type: value.op_type,
+            attribute: value.attribute.into_iter().map(Into::into).collect(),
+            doc_string: value.doc_string,
+            domain: value.domain,
+            overload: value.overload,
+            metadata_props: value.metadata_props.into_iter().map(Into::into).collect(),
+            device_configurations: Vec::new(),
+        }
+    }
+}
+
+impl From<onnx_structure::AttributeProto> for onnx::AttributeProto {
+    fn from(value: onnx_structure::AttributeProto) -> Self {
+        Self {
+            name: value.name,
+            ref_attr_name: value.ref_attr_name,
+            doc_string: value.doc_string,
+            r#type: value.r#type,
+            f: value.f,
+            i: value.i,
+            s: value.s,
+            t: value.t.map(Into::into),
+            g: value.g.map(Into::into),
+            sparse_tensor: value.sparse_tensor.map(Into::into),
+            tp: value.tp.map(Into::into),
+            floats: value.floats,
+            ints: value.ints,
+            strings: value.strings,
+            tensors: value.tensors.into_iter().map(Into::into).collect(),
+            graphs: value.graphs.into_iter().map(Into::into).collect(),
+            sparse_tensors: value.sparse_tensors.into_iter().map(Into::into).collect(),
+            type_protos: value.type_protos.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<onnx_structure::TensorProto> for onnx::TensorProto {
+    fn from(value: onnx_structure::TensorProto) -> Self {
+        Self {
+            dims: value.dims,
+            data_type: value.data_type,
+            segment: value.segment.map(Into::into),
+            float_data: Vec::new(),
+            int32_data: Vec::new(),
+            string_data: Vec::new(),
+            int64_data: Vec::new(),
+            name: value.name,
+            doc_string: value.doc_string,
+            raw_data: Vec::new(),
+            external_data: value.external_data.into_iter().map(Into::into).collect(),
+            data_location: value.data_location,
+            double_data: Vec::new(),
+            uint64_data: Vec::new(),
+            metadata_props: value.metadata_props.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<onnx_structure::tensor_proto::Segment> for onnx::tensor_proto::Segment {
+    fn from(value: onnx_structure::tensor_proto::Segment) -> Self {
+        Self {
+            begin: value.begin,
+            end: value.end,
+        }
+    }
+}
+
+impl From<onnx_structure::SparseTensorProto> for onnx::SparseTensorProto {
+    fn from(value: onnx_structure::SparseTensorProto) -> Self {
+        Self {
+            values: value.values.map(Into::into),
+            indices: value.indices.map(Into::into),
+            dims: value.dims,
+        }
+    }
+}
+
+impl From<onnx_structure::ValueInfoProto> for onnx::ValueInfoProto {
+    fn from(value: onnx_structure::ValueInfoProto) -> Self {
+        Self {
+            name: value.name,
+            r#type: value.r#type.map(Into::into),
+            doc_string: value.doc_string,
+            metadata_props: value.metadata_props.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<onnx_structure::TypeProto> for onnx::TypeProto {
+    fn from(value: onnx_structure::TypeProto) -> Self {
+        Self {
+            denotation: value.denotation,
+            value: value.value.map(Into::into),
+        }
+    }
+}
+
+impl From<onnx_structure::type_proto::Value> for onnx::type_proto::Value {
+    fn from(value: onnx_structure::type_proto::Value) -> Self {
+        match value {
+            onnx_structure::type_proto::Value::TensorType(value) => Self::TensorType(value.into()),
+            onnx_structure::type_proto::Value::SequenceType(value) => {
+                Self::SequenceType(Box::new((*value).into()))
+            }
+            onnx_structure::type_proto::Value::MapType(value) => {
+                Self::MapType(Box::new((*value).into()))
+            }
+            onnx_structure::type_proto::Value::SparseTensorType(value) => {
+                Self::SparseTensorType(value.into())
+            }
+            onnx_structure::type_proto::Value::OptionalType(value) => {
+                Self::OptionalType(Box::new((*value).into()))
+            }
+        }
+    }
+}
+
+impl From<onnx_structure::type_proto::Tensor> for onnx::type_proto::Tensor {
+    fn from(value: onnx_structure::type_proto::Tensor) -> Self {
+        Self {
+            elem_type: value.elem_type,
+            shape: value.shape.map(Into::into),
+        }
+    }
+}
+
+impl From<onnx_structure::type_proto::Sequence> for onnx::type_proto::Sequence {
+    fn from(value: onnx_structure::type_proto::Sequence) -> Self {
+        Self {
+            elem_type: value.elem_type.map(|value| Box::new((*value).into())),
+        }
+    }
+}
+
+impl From<onnx_structure::type_proto::Map> for onnx::type_proto::Map {
+    fn from(value: onnx_structure::type_proto::Map) -> Self {
+        Self {
+            key_type: value.key_type,
+            value_type: value.value_type.map(|value| Box::new((*value).into())),
+        }
+    }
+}
+
+impl From<onnx_structure::type_proto::Optional> for onnx::type_proto::Optional {
+    fn from(value: onnx_structure::type_proto::Optional) -> Self {
+        Self {
+            elem_type: value.elem_type.map(|value| Box::new((*value).into())),
+        }
+    }
+}
+
+impl From<onnx_structure::type_proto::SparseTensor> for onnx::type_proto::SparseTensor {
+    fn from(value: onnx_structure::type_proto::SparseTensor) -> Self {
+        Self {
+            elem_type: value.elem_type,
+            shape: value.shape.map(Into::into),
+        }
+    }
+}
+
+impl From<onnx_structure::TensorShapeProto> for onnx::TensorShapeProto {
+    fn from(value: onnx_structure::TensorShapeProto) -> Self {
+        Self {
+            dim: value.dim.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<onnx_structure::tensor_shape_proto::Dimension> for onnx::tensor_shape_proto::Dimension {
+    fn from(value: onnx_structure::tensor_shape_proto::Dimension) -> Self {
+        Self {
+            denotation: value.denotation,
+            value: value.value.map(Into::into),
+        }
+    }
+}
+
+impl From<onnx_structure::tensor_shape_proto::dimension::Value>
+    for onnx::tensor_shape_proto::dimension::Value
+{
+    fn from(value: onnx_structure::tensor_shape_proto::dimension::Value) -> Self {
+        match value {
+            onnx_structure::tensor_shape_proto::dimension::Value::DimValue(value) => {
+                Self::DimValue(value)
+            }
+            onnx_structure::tensor_shape_proto::dimension::Value::DimParam(value) => {
+                Self::DimParam(value)
+            }
+        }
+    }
+}
+
+impl From<onnx_structure::TensorAnnotation> for onnx::TensorAnnotation {
+    fn from(value: onnx_structure::TensorAnnotation) -> Self {
+        Self {
+            tensor_name: value.tensor_name,
+            quant_parameter_tensor_names: value
+                .quant_parameter_tensor_names
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
+impl From<onnx_structure::TrainingInfoProto> for onnx::TrainingInfoProto {
+    fn from(value: onnx_structure::TrainingInfoProto) -> Self {
+        Self {
+            initialization: value.initialization.map(Into::into),
+            algorithm: value.algorithm.map(Into::into),
+            initialization_binding: value
+                .initialization_binding
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            update_binding: value.update_binding.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<onnx_structure::FunctionProto> for onnx::FunctionProto {
+    fn from(value: onnx_structure::FunctionProto) -> Self {
+        Self {
+            name: value.name,
+            input: value.input,
+            output: value.output,
+            attribute: value.attribute,
+            node: value.node.into_iter().map(Into::into).collect(),
+            doc_string: value.doc_string,
+            opset_import: value.opset_import.into_iter().map(Into::into).collect(),
+            domain: value.domain,
+            attribute_proto: value.attribute_proto.into_iter().map(Into::into).collect(),
+            value_info: value.value_info.into_iter().map(Into::into).collect(),
+            overload: value.overload,
+            metadata_props: value.metadata_props.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<onnx_structure::StringStringEntryProto> for onnx::StringStringEntryProto {
+    fn from(value: onnx_structure::StringStringEntryProto) -> Self {
+        Self {
+            key: value.key,
+            value: value.value,
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 [package]
 name = "singe-onnx"
-description = "ONNX model loading utilities."
-version = "0.1.0-alpha.5"
+description = "ONNX model utilities."
+version = "0.1.0-alpha.6"
 edition.workspace = true
 repository.workspace = true
 keywords = ["singe", "onnx", "model"]
