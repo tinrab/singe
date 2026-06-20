@@ -19,7 +19,5 @@ syn.workspace = true
 thiserror.workspace = true
 sha2.workspace = true
 hex.workspace = true
-singe-cuda-find.workspace = true
-singe-ptx.workspace = true
 tree-sitter.workspace = true
 tree-sitter-c.workspace = true

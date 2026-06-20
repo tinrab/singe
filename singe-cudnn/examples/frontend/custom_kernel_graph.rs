@@ -25,7 +25,6 @@ cuda_module! {
         }
         "#,
         compile: {
-            nvcc_args: ["--std=c++20"],
             nvrtc_args: ["--std=c++20"],
         },
     }

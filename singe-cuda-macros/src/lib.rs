@@ -4,7 +4,7 @@ mod cuda_module;
 
 use proc_macro::TokenStream;
 
-/// Compiles CUDA source with `nvcc` and generates a typed kernel-launch module.
+/// Generates a typed kernel-launch module that compiles CUDA source with NVRTC at runtime.
 ///
 /// The macro expects a module declaration containing a CUDA source file, exported
 /// kernel names, optional header files, and optional compiler arguments:
@@ -16,18 +16,15 @@ use proc_macro::TokenStream;
 ///         exports: [add_kernel],
 ///         headers: ["kernels/common.cuh"],
 ///         compile: {
-///             nvcc_args: ["--std=c++17"],
 ///             nvrtc_args: ["--std=c++17"],
 ///         },
 ///     }
 /// }
 /// ```
 ///
-/// Expansion runs `nvcc`, using the surrounding CUDA environment including
-/// `CUDA_CCBIN` when set, parses the resulting PTX with `singe-ptx`, and emits a
-/// Rust module with a `create` constructor plus typed wrappers for exported
-/// kernels. Syntax errors, missing files, `nvcc` failures, unsupported PTX, and
-/// exports mismatches are reported as compile-time errors.
+/// Expansion parses the CUDA source with tree-sitter and emits a Rust module
+/// with a `create` constructor plus typed wrappers for exported kernels.
+/// CUDA compilation, PTX/cubin generation, and lowered kernel-name resolution happen through NVRTC when the generated module is created.
 #[proc_macro]
 pub fn cuda_module(input: TokenStream) -> TokenStream {
     match cuda_module::expand_module(input.into()) {

@@ -44,7 +44,6 @@ cuda_module! {
             "#,
         },
         compile: {
-            nvcc_args: ["--std=c++20"],
             nvrtc_args: ["--std=c++20"],
         },
     }
@@ -91,6 +90,40 @@ cuda_module! {
     }
 }
 
+cuda_module! {
+    pub mod cxx_linkage_kernel {
+        source: r#"
+        __global__ void cxx_scale(float* values, float factor, int len) {
+            int i = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+            if (i < len) {
+                values[i] *= factor;
+            }
+        }
+        "#,
+    }
+}
+
+cuda_module! {
+    pub mod alias_scalar_kernel {
+        source: r#"
+        using index_t = int;
+        typedef unsigned int flags_t;
+
+        extern "C" __global__ void alias_scalar(
+            const float* input,
+            float* output,
+            index_t len,
+            flags_t flags
+        ) {
+            index_t i = static_cast<index_t>(blockIdx.x * blockDim.x + threadIdx.x);
+            if (i < len && flags != 0) {
+                output[i] = input[i] + 2.0f;
+            }
+        }
+        "#,
+    }
+}
+
 #[test]
 fn launches_kernel_from_generated_module() {
     let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
@@ -117,6 +150,57 @@ fn launches_kernel_from_generated_module() {
         .iter()
         .map(|value| value * alpha + 1.0)
         .collect::<Vec<_>>();
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn launches_cxx_linkage_kernel_from_generated_module() {
+    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+
+    let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
+    let mut output = vec![0.0f32; input.len()];
+    let factor = 3.0f32;
+    let length = input.len() as i32;
+
+    let mut values_device = DeviceMemory::from_slice(&input).unwrap();
+
+    let module = cxx_linkage_kernel::Module::create(&ctx).unwrap();
+    let config = LaunchConfig::for_1d_grid(input.len(), 128);
+    unsafe {
+        module
+            .cxx_scale_with_memory(&config, &mut values_device, factor, length)
+            .unwrap();
+    }
+
+    values_device.copy_to_host(&mut output).unwrap();
+
+    let expected = input.iter().map(|value| value * factor).collect::<Vec<_>>();
+    assert_eq!(output, expected);
+}
+
+#[test]
+fn launches_kernel_with_scalar_alias_parameters() {
+    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+
+    let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
+    let mut output = vec![0.0f32; input.len()];
+    let length = input.len() as i32;
+    let flags = 1_u32;
+
+    let input_device = DeviceMemory::from_slice(&input).unwrap();
+    let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+
+    let module = alias_scalar_kernel::Module::create(&ctx).unwrap();
+    let config = LaunchConfig::for_1d_grid(input.len(), 128);
+    unsafe {
+        module
+            .alias_scalar_with_memory(&config, &input_device, &mut output_device, length, flags)
+            .unwrap();
+    }
+
+    output_device.copy_to_host(&mut output).unwrap();
+
+    let expected = input.iter().map(|value| value + 2.0).collect::<Vec<_>>();
     assert_eq!(output, expected);
 }
 

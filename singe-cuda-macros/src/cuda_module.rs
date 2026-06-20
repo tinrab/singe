@@ -1,17 +1,8 @@
-use std::{
-    collections::HashMap,
-    env, fs, io,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::{collections::HashMap, path::Path};
 
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use sha2::{Digest, Sha256};
-use singe_ptx::{
-    ast::{Parameter, ScalarType, TopLevelItem},
-    parser::parse_module,
-};
 use syn::{
     Error as SynError, Ident, LitStr, Result as SynResult, Token, Visibility, braced, bracketed,
     parse::{Parse, ParseStream},
@@ -52,7 +43,6 @@ struct ModuleConfig {
     source: LitStr,
     exports: Vec<ExportSpec>,
     headers: Vec<HeaderSpec>,
-    nvcc_args: Vec<LitStr>,
     nvrtc_args: Vec<LitStr>,
 }
 
@@ -61,7 +51,6 @@ impl ModuleConfig {
         let mut source = None;
         let mut exports = Vec::new();
         let mut headers = Vec::new();
-        let mut nvcc_args = Vec::new();
         let mut nvrtc_args = Vec::new();
         let mut compile = false;
 
@@ -94,7 +83,6 @@ impl ModuleConfig {
                     }
                     compile = true;
                     let config = parse_compile_config(input)?;
-                    nvcc_args = config.nvcc_args;
                     nvrtc_args = config.nvrtc_args;
                 }
                 _ => return Err(SynError::new(key.span(), format!("unknown field `{key}`"))),
@@ -113,14 +101,12 @@ impl ModuleConfig {
             source,
             exports,
             headers,
-            nvcc_args,
             nvrtc_args,
         })
     }
 }
 
 struct CompileConfig {
-    nvcc_args: Vec<LitStr>,
     nvrtc_args: Vec<LitStr>,
 }
 
@@ -140,13 +126,8 @@ struct ModuleMetadata {
     kernels: Vec<KernelMetadata>,
 }
 
-struct NvccToolchain {
-    path: PathBuf,
-    identity: String,
-}
-
 struct KernelMetadata {
-    ptx_name: String,
+    source_name: String,
     rust_name: Ident,
     params: Vec<KernelParam>,
 }
@@ -161,7 +142,6 @@ struct KernelParam {
 struct SourceKernel {
     name: String,
     exported_name: String,
-    extern_c: bool,
     params: Vec<SourceParam>,
 }
 
@@ -201,38 +181,10 @@ enum RustScalar {
 
 #[derive(Debug, Error)]
 enum MacroError {
-    #[error("failed to create kernel cache directory: {0}")]
-    CreateCacheDir(io::Error),
-    #[error("failed to write temporary cuda source: {0}")]
-    WriteSource(io::Error),
-    #[error("failed to write temporary header `{header}`: {source}")]
-    WriteHeader { header: String, source: io::Error },
-    #[error("failed to read generated ptx: {0}")]
-    ReadPtx(io::Error),
-    #[error("nvcc not found")]
-    NvccNotFound,
-    #[error("failed to invoke nvcc: {0}")]
-    NvccInvocation(io::Error),
-    #[error("failed to query nvcc version: {0}")]
-    NvccVersion(io::Error),
-    #[error("nvcc failed: {0}")]
-    NvccFailed(String),
-    #[error("failed to parse ptx: {0}")]
-    ParsePtx(String),
     #[error("failed to parse cuda source: {0}")]
     ParseSource(String),
-    #[error("kernel `{kernel}` from source was not found in ptx entries ({available})")]
-    MissingSourceKernel { kernel: String, available: String },
-    #[error(
-        "kernel `{kernel}` matched multiple ptx entries ({matches}); use `extern \"C\"` or simplify the declaration"
-    )]
-    AmbiguousPtxKernel { kernel: String, matches: String },
-    #[error("kernel `{0}` parameter count mismatch between source and ptx")]
-    ParameterCountMismatch(String),
-    #[error("unsupported ptx parameter type for `{kernel}`: {detail}")]
+    #[error("unsupported source parameter type for `{kernel}`: {detail}")]
     UnsupportedParameter { kernel: String, detail: String },
-    #[error("failed to resolve cargo manifest directory")]
-    MissingManifestDir,
     #[error("header include name must be a relative include path")]
     InvalidHeaderName,
     #[error("multiple source kernels named `{0}` require a more robust parser")]
@@ -249,44 +201,17 @@ enum MacroError {
 
 fn extract_metadata(config: &ModuleConfig) -> SynResult<ModuleMetadata> {
     let source = config.source.value();
-    let nvcc = resolve_nvcc_toolchain()?;
     let headers = config
         .headers
         .iter()
         .map(|header| (header.include_name.value(), header.source.value()))
         .collect::<Vec<_>>();
-    let nvcc_args = config
-        .nvcc_args
-        .iter()
-        .map(LitStr::value)
-        .collect::<Vec<_>>();
 
-    let cache_key = cache_key(
-        &source,
-        &nvcc.identity,
-        &config.exports,
-        &headers,
-        &nvcc_args,
-        &config.nvrtc_args,
-    );
-    let cache_dir = kernel_cache_dir().map_err(to_syn_error)?;
-    fs::create_dir_all(&cache_dir).map_err(|err| to_syn_error(MacroError::CreateCacheDir(err)))?;
-
-    let source_path = cache_dir.join(format!("{cache_key}.cu"));
-    let ptx_path = cache_dir.join(format!("{cache_key}.ptx"));
-    let header_dir = cache_dir.join(format!("{cache_key}-headers"));
-
-    fs::write(&source_path, &source).map_err(|err| to_syn_error(MacroError::WriteSource(err)))?;
-    materialize_headers(&header_dir, &headers)?;
-
-    if !ptx_path.is_file() {
-        compile_to_ptx(&nvcc.path, &source_path, &ptx_path, &header_dir, &nvcc_args)?;
+    for (include_name, _) in &headers {
+        validate_header_name(include_name)?;
     }
 
-    let ptx =
-        fs::read_to_string(&ptx_path).map_err(|err| to_syn_error(MacroError::ReadPtx(err)))?;
-    let parsed =
-        parse_module(&ptx).map_err(|err| to_syn_error(MacroError::ParsePtx(err.to_string())))?;
+    let cache_key = cache_key(&source, &config.exports, &headers, &config.nvrtc_args);
     let source_kernels = parse_source_kernels(&source)?;
     if source_kernels.is_empty() {
         return Err(to_syn_error(MacroError::MissingSourceKernels));
@@ -352,66 +277,14 @@ fn extract_metadata(config: &ModuleConfig) -> SynResult<ModuleMetadata> {
     let mut kernels = Vec::new();
     for selected in selected_kernels {
         let source_kernel = selected.kernel;
-        let matches = parsed
-            .items
-            .iter()
-            .filter_map(|item| match item {
-                TopLevelItem::Function(function) if function.entry => Some(function),
-                _ => None,
-            })
-            .filter(|function| {
-                function.name == source_kernel.name
-                    || demangle_like_name(&function.name) == Some(source_kernel.name.as_str())
-            })
-            .collect::<Vec<_>>();
-
-        let ptx_function = match matches.as_slice() {
-            [] => {
-                return Err(to_syn_error(MacroError::MissingSourceKernel {
-                    kernel: source_kernel.name.clone(),
-                    available: join_kernel_names(parsed_entry_names(&parsed.items)),
-                }));
-            }
-            [function] => *function,
-            _ if source_kernel.extern_c => {
-                let match_names =
-                    join_kernel_names(matches.iter().map(|function| function.name.as_str()));
-                matches
-                    .iter()
-                    .copied()
-                    .find(|function| function.name == source_kernel.name)
-                    .ok_or_else(|| {
-                        to_syn_error(MacroError::AmbiguousPtxKernel {
-                            kernel: source_kernel.name.clone(),
-                            matches: match_names.clone(),
-                        })
-                    })?
-            }
-            _ => {
-                let match_names =
-                    join_kernel_names(matches.iter().map(|function| function.name.as_str()));
-                return Err(to_syn_error(MacroError::AmbiguousPtxKernel {
-                    kernel: source_kernel.name.clone(),
-                    matches: match_names,
-                }));
-            }
-        };
-
-        if source_kernel.params.len() != ptx_function.params.len() {
-            return Err(to_syn_error(MacroError::ParameterCountMismatch(
-                source_kernel.name.clone(),
-            )));
-        }
-
-        let params = ptx_function
+        let params = source_kernel
             .params
             .iter()
-            .zip(&source_kernel.params)
-            .map(|(param, source_param)| map_param(&source_kernel.name, param, source_param))
+            .map(|source_param| map_param(&source_kernel.name, source_param))
             .collect::<SynResult<Vec<_>>>()?;
 
         kernels.push(KernelMetadata {
-            ptx_name: ptx_function.name.clone(),
+            source_name: source_kernel.name.clone(),
             rust_name: selected.rust_name.unwrap_or_else(|| {
                 format_ident!("{}", sanitize_identifier(&source_kernel.exported_name))
             }),
@@ -443,7 +316,7 @@ fn generate_module(
     let nvrtc_args = config.nvrtc_args.iter();
 
     let methods = metadata.kernels.iter().map(|kernel| {
-        let ptx_name = &kernel.ptx_name;
+        let source_name = &kernel.source_name;
         let name = &kernel.rust_name;
         let on_name = format_ident!("{}_on", name);
         let record_name = format_ident!("{}_record", name);
@@ -641,7 +514,7 @@ fn generate_module(
                 config: &LaunchConfig,
                 #(#launch_args),*
             ) -> Result<()> {
-                let function = self.module.function(#ptx_name)?;
+                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
                 let mut params = KernelParameters::new();
                 #(#launch_arg_names)*
                 function.launch(config, params)
@@ -660,7 +533,7 @@ fn generate_module(
                 stream: &Stream,
                 #(#on_args),*
             ) -> Result<()> {
-                let function = self.module.function(#ptx_name)?;
+                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
                 let mut params = KernelParameters::new();
                 #(#on_arg_names)*
                 function.launch_on(config, params, stream)
@@ -679,7 +552,7 @@ fn generate_module(
                 config: &LaunchConfig,
                 #(#launch_args),*
             ) -> Result<()> {
-                let function = self.module.function(#ptx_name)?;
+                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
                 let mut params = KernelParameters::new();
                 #(#launch_arg_names)*
                 scope.record(unsafe { function.launch_operation(config, &mut params) })
@@ -701,7 +574,7 @@ fn generate_module(
                 config: &LaunchConfig,
                 #(#node_args),*
             ) -> Result<GraphNode> {
-                let function = self.module.function(#ptx_name)?;
+                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
                 let mut params = KernelParameters::new();
                 #(#node_arg_names)*
                 unsafe { function.add_to_graph(graph, dependencies, config, &mut params) }
@@ -723,7 +596,7 @@ fn generate_module(
                 config: &LaunchConfig,
                 #(#node_args),*
             ) -> Result<()> {
-                let function = self.module.function(#ptx_name)?;
+                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
                 let mut params = KernelParameters::new();
                 #(#node_arg_names)*
                 unsafe { function.set_graph_node_params(executable, node, config, &mut params) }
@@ -733,13 +606,14 @@ fn generate_module(
         }
     });
 
+    let kernel_names = metadata.kernels.iter().map(|kernel| &kernel.source_name);
+
     Ok(quote! {
         #visibility mod #module {
             #[allow(unused_extern_crates, clippy::useless_attribute)]
             extern crate singe_cuda as _singe_cuda;
 
             use std::{
-                io,
                 collections::HashMap,
                 sync::{Arc, Mutex, OnceLock},
             };
@@ -762,7 +636,7 @@ fn generate_module(
             }
 
             type ModuleCacheKey = (usize, &'static str);
-            type ModuleCacheMap = HashMap<ModuleCacheKey, Arc<CudaModule>>;
+            type ModuleCacheMap = HashMap<ModuleCacheKey, Arc<CompiledModule>>;
 
             static MODULE_CACHE: OnceLock<Mutex<ModuleCacheMap>> = OnceLock::new();
 
@@ -770,18 +644,33 @@ fn generate_module(
                 MODULE_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
             }
 
+            #[derive(Debug)]
+            struct CompiledModule {
+                module: CudaModule,
+                symbols: HashMap<&'static str, String>,
+            }
+
             fn compile_module(
                 ctx: &Arc<Context>,
                 source: &str,
                 headers: &[Header<'_>],
                 nvrtc_args: &[&str],
-            ) -> Result<CudaModule> {
+                kernel_names: &[&'static str],
+            ) -> Result<CompiledModule> {
                 let properties = ctx.device().properties()?;
                 let (architecture, output_kind) =
                     supported_gpu_architecture(properties.major, properties.minor);
                 let program = Program::from_source(source)
                     .with_name("cuda_module.cu")
                     .with_headers(headers);
+                let name_expressions = kernel_names
+                    .iter()
+                    .map(|name| format!("&{name}"))
+                    .collect::<Vec<_>>();
+                for name_expression in &name_expressions {
+                    program.add_name_expression(name_expression)?;
+                }
+
                 let mut options = CompileOptions::new().gpu_architecture(architecture);
 
                 for arg in nvrtc_args {
@@ -789,7 +678,13 @@ fn generate_module(
                 }
 
                 program.compile_with_options(&options)?;
-                ctx.load_nvrtc_module(&program, output_kind)
+                let mut symbols = HashMap::new();
+                for (kernel_name, name_expression) in kernel_names.iter().zip(&name_expressions) {
+                    symbols.insert(*kernel_name, program.lowered_name(name_expression)?);
+                }
+
+                let module = ctx.load_nvrtc_module(&program, output_kind)?;
+                Ok(CompiledModule { module, symbols })
             }
 
             fn supported_gpu_architecture(major: i32, minor: i32) -> (GpuArchitecture, OutputKind) {
@@ -845,7 +740,7 @@ fn generate_module(
 
             #[derive(Debug, Clone)]
             pub struct Module {
-                module: Arc<CudaModule>,
+                module: Arc<CompiledModule>,
             }
 
             impl Module {
@@ -854,6 +749,7 @@ fn generate_module(
                 pub fn create(ctx: &Arc<Context>) -> Result<Self> {
                     let headers = [#(#header_literals),*];
                     let nvrtc_args = [#(#nvrtc_args),*];
+                    let kernel_names = [#(#kernel_names),*];
                     let context_key = unsafe { ctx.as_raw() as usize };
                     let cache_key = (context_key, module_cache_key_suffix());
                     let cache = module_cache();
@@ -862,7 +758,13 @@ fn generate_module(
                         return Ok(Self { module: Arc::clone(module) });
                     }
 
-                    let module = Arc::new(compile_module(ctx, Self::SOURCE, &headers, &nvrtc_args)?);
+                    let module = Arc::new(compile_module(
+                        ctx,
+                        Self::SOURCE,
+                        &headers,
+                        &nvrtc_args,
+                        &kernel_names,
+                    )?);
                     let mut cache = cache.lock().expect("cuda module cache poisoned");
                     let entry = cache.entry(cache_key).or_insert_with(|| Arc::clone(&module));
 
@@ -871,7 +773,15 @@ fn generate_module(
                 }
 
                 pub fn raw(&self) -> &CudaModule {
-                    self.module.as_ref()
+                    &self.module.module
+                }
+
+                fn kernel_symbol(&self, name: &'static str) -> &str {
+                    self.module
+                        .symbols
+                        .get(name)
+                        .map(String::as_str)
+                        .expect("cuda module kernel symbol missing")
                 }
 
                 #(#methods)*
@@ -880,35 +790,19 @@ fn generate_module(
     })
 }
 
-fn map_param(
-    kernel_name: &str,
-    param: &Parameter,
-    source_param: &SourceParam,
-) -> SynResult<KernelParam> {
+fn map_param(kernel_name: &str, source_param: &SourceParam) -> SynResult<KernelParam> {
     let rust_type = match &source_param.kind {
         SourceParamKind::Pointer { levels, element } => rust_pointer_type(levels, *element),
-        SourceParamKind::Scalar(source_scalar) if param.ptr => {
-            rust_pointer_type(&[true], *source_scalar)
-        }
-        SourceParamKind::Scalar(source_scalar) => {
-            match (*source_scalar).or_else(|| ptx_scalar_type(param.ty)) {
-                Some(scalar) => rust_scalar_type(scalar),
-                None => {
-                    return Err(to_syn_error(MacroError::UnsupportedParameter {
-                        kernel: kernel_name.to_string(),
-                        detail: format!("{} ({:?})", source_param.declaration, param.ty),
-                    }));
-                }
+        SourceParamKind::Scalar(source_scalar) => match *source_scalar {
+            Some(scalar) => rust_scalar_type(scalar),
+            None => {
+                return Err(to_syn_error(MacroError::UnsupportedParameter {
+                    kernel: kernel_name.to_string(),
+                    detail: source_param.declaration.clone(),
+                }));
             }
-        }
+        },
     };
-
-    if !param.array_bounds.is_empty() {
-        return Err(to_syn_error(MacroError::UnsupportedParameter {
-            kernel: kernel_name.to_string(),
-            detail: "by-value array parameters are not supported yet".to_string(),
-        }));
-    }
 
     Ok(KernelParam {
         rust_name: format_ident!("{}", sanitize_identifier(&source_param.name)),
@@ -988,105 +882,12 @@ fn rust_scalar_type(scalar: RustScalar) -> TokenStream {
     }
 }
 
-fn ptx_scalar_type(ty: ScalarType) -> Option<RustScalar> {
-    match ty {
-        ScalarType::U8 | ScalarType::B8 => Some(RustScalar::U8),
-        ScalarType::S8 => Some(RustScalar::I8),
-        ScalarType::U16 | ScalarType::B16 => Some(RustScalar::U16),
-        ScalarType::S16 => Some(RustScalar::I16),
-        ScalarType::F16 => Some(RustScalar::F16),
-        ScalarType::Bf16 => Some(RustScalar::Bf16),
-        ScalarType::F32 => Some(RustScalar::F32),
-        ScalarType::F64 => Some(RustScalar::F64),
-        ScalarType::U32 | ScalarType::B32 => Some(RustScalar::U32),
-        ScalarType::S32 => Some(RustScalar::I32),
-        ScalarType::U64 | ScalarType::B64 => Some(RustScalar::U64),
-        ScalarType::S64 => Some(RustScalar::I64),
-        _ => None,
-    }
-}
-
-fn compile_to_ptx(
-    nvcc_path: &Path,
-    source_path: &Path,
-    ptx_path: &Path,
-    header_dir: &Path,
-    nvcc_args: &[String],
-) -> SynResult<()> {
-    let mut command = Command::new(nvcc_path);
-    command.arg("--ptx");
-    if header_dir.is_dir() {
-        command.arg(format!("--include-path={}", header_dir.display()));
-    }
-    command.args(nvcc_args);
-    command.arg(source_path).arg("-o").arg(ptx_path);
-
-    let output = command
-        .output()
-        .map_err(|err| to_syn_error(MacroError::NvccInvocation(err)))?;
-    if output.status.success() {
-        return Ok(());
-    }
-
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let message = if stderr.trim().is_empty() {
-        stdout.trim().to_string()
-    } else if stdout.trim().is_empty() {
-        stderr.trim().to_string()
-    } else {
-        format!("{}\n{}", stdout.trim(), stderr.trim())
-    };
-    Err(to_syn_error(MacroError::NvccFailed(message)))
-}
-
-fn materialize_headers(header_dir: &Path, headers: &[(String, String)]) -> SynResult<()> {
-    if headers.is_empty() {
-        return Ok(());
-    }
-
-    fs::create_dir_all(header_dir).map_err(|err| to_syn_error(MacroError::CreateCacheDir(err)))?;
-    for (include_name, source) in headers {
-        validate_header_name(include_name)?;
-        let path = header_dir.join(include_name);
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|err| to_syn_error(MacroError::CreateCacheDir(err)))?;
-        }
-        fs::write(&path, source).map_err(|err| {
-            to_syn_error(MacroError::WriteHeader {
-                header: include_name.clone(),
-                source: err,
-            })
-        })?;
-    }
-    Ok(())
-}
-
 fn validate_header_name(include_name: &str) -> SynResult<()> {
     let path = Path::new(include_name);
     if include_name.is_empty() || path.is_absolute() || include_name.contains("..") {
         return Err(to_syn_error(MacroError::InvalidHeaderName));
     }
     Ok(())
-}
-
-fn kernel_cache_dir() -> Result<PathBuf, MacroError> {
-    if let Some(out_dir) = env::var_os("OUT_DIR") {
-        return Ok(PathBuf::from(out_dir).join("singe-kernels"));
-    }
-
-    let manifest_dir = env::var_os("CARGO_MANIFEST_DIR").ok_or(MacroError::MissingManifestDir)?;
-    Ok(PathBuf::from(manifest_dir)
-        .join("target")
-        .join("singe-kernels"))
-}
-
-fn parsed_entry_names<'a>(items: &'a [TopLevelItem]) -> impl Iterator<Item = &'a str> + 'a {
-    items.iter().filter_map(|item| match item {
-        TopLevelItem::Function(function) if function.entry => Some(function.name.as_str()),
-        _ => None,
-    })
 }
 
 fn join_kernel_names<'a>(names: impl Iterator<Item = &'a str>) -> String {
@@ -1100,16 +901,12 @@ fn join_kernel_names<'a>(names: impl Iterator<Item = &'a str>) -> String {
 
 fn cache_key(
     source: &str,
-    nvcc_identity: &str,
     exports: &[ExportSpec],
     headers: &[(String, String)],
-    nvcc_args: &[String],
     nvrtc_args: &[LitStr],
 ) -> String {
     let mut hasher = Sha256::new();
     hasher.update(source.as_bytes());
-    hasher.update(nvcc_identity.as_bytes());
-    hasher.update([0]);
     for export in exports {
         hasher.update(export.source_name.to_string().as_bytes());
         hasher.update([0]);
@@ -1122,10 +919,6 @@ fn cache_key(
         hasher.update(include_name.as_bytes());
         hasher.update([0]);
         hasher.update(header_source.as_bytes());
-        hasher.update([0]);
-    }
-    for arg in nvcc_args {
-        hasher.update(arg.as_bytes());
         hasher.update([0]);
     }
     for arg in nvrtc_args {
@@ -1183,7 +976,6 @@ fn parse_compile_config(input: ParseStream) -> SynResult<CompileConfig> {
     let content;
     braced!(content in input);
 
-    let mut nvcc_args = None;
     let mut nvrtc_args = None;
 
     while !content.is_empty() {
@@ -1191,12 +983,6 @@ fn parse_compile_config(input: ParseStream) -> SynResult<CompileConfig> {
         content.parse::<Token![:]>()?;
 
         match key.to_string().as_str() {
-            "nvcc_args" => {
-                if nvcc_args.is_some() {
-                    return Err(SynError::new(key.span(), "duplicate `nvcc_args` field"));
-                }
-                nvcc_args = Some(parse_string_list(&content)?);
-            }
             "nvrtc_args" => {
                 if nvrtc_args.is_some() {
                     return Err(SynError::new(key.span(), "duplicate `nvrtc_args` field"));
@@ -1217,7 +1003,6 @@ fn parse_compile_config(input: ParseStream) -> SynResult<CompileConfig> {
     }
 
     Ok(CompileConfig {
-        nvcc_args: nvcc_args.unwrap_or_default(),
         nvrtc_args: nvrtc_args.unwrap_or_default(),
     })
 }
@@ -1245,26 +1030,36 @@ fn parse_source_kernels(source: &str) -> SynResult<Vec<SourceKernel>> {
         .parse(source, None)
         .ok_or_else(|| to_syn_error(MacroError::ParseSource("parser returned no tree".into())))?;
 
+    let aliases = collect_type_aliases(source, tree.root_node());
     let mut kernels = Vec::new();
-    collect_source_kernels(source, tree.root_node(), &mut kernels);
+    collect_source_kernels(source, tree.root_node(), &aliases, &mut kernels);
     Ok(kernels)
 }
 
-fn collect_source_kernels(source: &str, node: Node<'_>, kernels: &mut Vec<SourceKernel>) {
+fn collect_source_kernels(
+    source: &str,
+    node: Node<'_>,
+    aliases: &HashMap<String, RustScalar>,
+    kernels: &mut Vec<SourceKernel>,
+) {
     if node.kind() == "function_definition"
-        && let Some(kernel) = parse_source_kernel(source, node)
+        && let Some(kernel) = parse_source_kernel(source, node, aliases)
     {
         kernels.push(kernel);
     }
 
     for index in 0..node.child_count() {
         if let Some(child) = node_child(node, index) {
-            collect_source_kernels(source, child, kernels);
+            collect_source_kernels(source, child, aliases, kernels);
         }
     }
 }
 
-fn parse_source_kernel(source: &str, node: Node<'_>) -> Option<SourceKernel> {
+fn parse_source_kernel(
+    source: &str,
+    node: Node<'_>,
+    aliases: &HashMap<String, RustScalar>,
+) -> Option<SourceKernel> {
     let declarator = function_declarator(node)?;
     let prefix = &source[node.start_byte()..declarator.start_byte()];
     if !contains_identifier(prefix, "__global__") {
@@ -1278,13 +1073,12 @@ fn parse_source_kernel(source: &str, node: Node<'_>) -> Option<SourceKernel> {
     let params = declarator
         .child_by_field_name("parameters")
         .or_else(|| find_descendant_kind(declarator, "parameter_list"))
-        .map(|parameters| parse_source_parameters(source, parameters))
+        .map(|parameters| parse_source_parameters(source, parameters, aliases))
         .unwrap_or_default();
 
     Some(SourceKernel {
         exported_name: name.clone(),
         name,
-        extern_c: has_extern_c_linkage(source, node) || prefix.contains("extern \"C\""),
         params,
     })
 }
@@ -1294,7 +1088,11 @@ fn function_declarator<'a>(node: Node<'a>) -> Option<Node<'a>> {
         .and_then(|declarator| find_descendant_kind(declarator, "function_declarator"))
 }
 
-fn parse_source_parameters(source: &str, parameters: Node<'_>) -> Vec<SourceParam> {
+fn parse_source_parameters(
+    source: &str,
+    parameters: Node<'_>,
+    aliases: &HashMap<String, RustScalar>,
+) -> Vec<SourceParam> {
     let mut params = Vec::new();
     for index in 0..parameters.child_count() {
         let Some(child) = node_child(parameters, index) else {
@@ -1303,14 +1101,19 @@ fn parse_source_parameters(source: &str, parameters: Node<'_>) -> Vec<SourcePara
         if child.kind() != "parameter_declaration" {
             continue;
         }
-        if let Some(param) = parse_source_parameter(source, child, params.len()) {
+        if let Some(param) = parse_source_parameter(source, child, params.len(), aliases) {
             params.push(param);
         }
     }
     params
 }
 
-fn parse_source_parameter(source: &str, node: Node<'_>, index: usize) -> Option<SourceParam> {
+fn parse_source_parameter(
+    source: &str,
+    node: Node<'_>,
+    index: usize,
+    aliases: &HashMap<String, RustScalar>,
+) -> Option<SourceParam> {
     let declaration = node_text(source, node).trim();
     if declaration.is_empty() || declaration == "void" {
         return None;
@@ -1324,7 +1127,7 @@ fn parse_source_parameter(source: &str, node: Node<'_>, index: usize) -> Option<
         .unwrap_or_else(|| format!("arg{index}"));
     let array = declarator.is_some_and(|node| declarator_has_kind(node, "array_declarator"));
     let levels = pointer_levels_from_declaration(declaration, array);
-    let scalar = source_scalar_type(declaration, &name);
+    let scalar = source_scalar_type(declaration, &name, aliases);
     let kind = if levels.is_empty() {
         SourceParamKind::Scalar(scalar)
     } else {
@@ -1359,10 +1162,24 @@ fn pointer_levels_from_declaration(declaration: &str, array: bool) -> Vec<bool> 
     levels
 }
 
-fn source_scalar_type(declaration: &str, name: &str) -> Option<RustScalar> {
+fn source_scalar_type(
+    declaration: &str,
+    name: &str,
+    aliases: &HashMap<String, RustScalar>,
+) -> Option<RustScalar> {
     let tokens = declaration_type_tokens(declaration, name);
+    resolve_scalar_tokens(&tokens, aliases)
+}
+
+fn resolve_scalar_tokens(
+    tokens: &[String],
+    aliases: &HashMap<String, RustScalar>,
+) -> Option<RustScalar> {
     if tokens.iter().any(|token| token == "void") {
         return None;
+    }
+    if let Some(scalar) = tokens.iter().find_map(|token| aliases.get(token).copied()) {
+        return Some(scalar);
     }
     if tokens
         .iter()
@@ -1466,6 +1283,71 @@ fn source_scalar_type(declaration: &str, name: &str) -> Option<RustScalar> {
     None
 }
 
+fn collect_type_aliases(source: &str, root: Node<'_>) -> HashMap<String, RustScalar> {
+    let mut aliases = HashMap::new();
+    collect_typedef_aliases(source, root, &mut aliases);
+    collect_using_aliases(source, &mut aliases);
+    aliases
+}
+
+fn collect_typedef_aliases(
+    source: &str,
+    node: Node<'_>,
+    aliases: &mut HashMap<String, RustScalar>,
+) {
+    if node.kind() == "type_definition" {
+        collect_typedef_alias(source, node, aliases);
+    }
+
+    for index in 0..node.child_count() {
+        if let Some(child) = node_child(node, index) {
+            collect_typedef_aliases(source, child, aliases);
+        }
+    }
+}
+
+fn collect_typedef_alias(source: &str, node: Node<'_>, aliases: &mut HashMap<String, RustScalar>) {
+    let Some(type_node) = node.child_by_field_name("type") else {
+        return;
+    };
+    let base = node_text(source, type_node).trim();
+    let scalar = source_scalar_type(base, "", aliases);
+    for index in 0..node.child_count() {
+        let Some(child) = node_child(node, index) else {
+            continue;
+        };
+        if child.kind() == "type_identifier"
+            && let Some(scalar) = scalar
+        {
+            aliases.insert(node_text(source, child).trim().to_ascii_lowercase(), scalar);
+        }
+    }
+}
+
+fn collect_using_aliases(source: &str, aliases: &mut HashMap<String, RustScalar>) {
+    for statement in source.split(';') {
+        let statement = statement.trim();
+        let Some(rest) = statement.strip_prefix("using ") else {
+            continue;
+        };
+        let Some((alias, ty)) = rest.split_once('=') else {
+            continue;
+        };
+        let alias = alias.trim();
+        if alias.is_empty() || !alias.chars().all(is_c_identifier_char) {
+            continue;
+        }
+        let ty = ty.trim();
+        if ty.contains('*') || ty.contains('&') {
+            continue;
+        }
+        let Some(scalar) = source_scalar_type(ty, "", aliases) else {
+            continue;
+        };
+        aliases.insert(alias.to_ascii_lowercase(), scalar);
+    }
+}
+
 fn declaration_type_tokens(declaration: &str, name: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     let mut current = String::new();
@@ -1561,19 +1443,6 @@ fn declarator_has_kind(node: Node<'_>, kind: &str) -> bool {
     false
 }
 
-fn has_extern_c_linkage(source: &str, mut node: Node<'_>) -> bool {
-    while let Some(parent) = node.parent() {
-        if parent.kind() == "linkage_specification"
-            && let Some(value) = parent.child_by_field_name("value")
-            && node_text(source, value).contains("\"C\"")
-        {
-            return true;
-        }
-        node = parent;
-    }
-    false
-}
-
 fn contains_identifier(source: &str, needle: &str) -> bool {
     let mut start = 0usize;
     while let Some(relative) = source[start..].find(needle) {
@@ -1609,43 +1478,9 @@ fn node_child<'a>(node: Node<'a>, index: usize) -> Option<Node<'a>> {
         .and_then(|index| node.child(index))
 }
 
-fn resolve_nvcc_toolchain() -> SynResult<NvccToolchain> {
-    let path = singe_cuda_find::find_nvcc()
-        .map_err(|_| to_syn_error(MacroError::NvccNotFound))?
-        .ok_or_else(|| to_syn_error(MacroError::NvccNotFound))?;
-    let output = Command::new(&path)
-        .arg("--version")
-        .output()
-        .map_err(|err| to_syn_error(MacroError::NvccVersion(err)))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let identity = format!("{}\n{}\n{}", path.display(), stdout.trim(), stderr.trim());
-
-    Ok(NvccToolchain { path, identity })
-}
-
 struct SelectedKernel<'a> {
     kernel: &'a SourceKernel,
     rust_name: Option<Ident>,
-}
-
-fn demangle_like_name(name: &str) -> Option<&str> {
-    if !name.starts_with("_Z") {
-        return None;
-    }
-
-    let mut index = 2usize;
-    let bytes = name.as_bytes();
-    let mut length = 0usize;
-    while index < bytes.len() && bytes[index].is_ascii_digit() {
-        length = length * 10 + (bytes[index] - b'0') as usize;
-        index += 1;
-    }
-    if length == 0 || index + length > name.len() {
-        return None;
-    }
-    Some(&name[index..index + length])
 }
 
 fn sanitize_identifier(name: &str) -> String {
@@ -1745,7 +1580,6 @@ mod tests {
 
         let kernel = &kernels[0];
         assert_eq!(kernel.name, "scale_add");
-        assert!(kernel.extern_c);
         assert_eq!(kernel.params.len(), 9);
         assert_pointer(&kernel.params[0], &[false], Some(RustScalar::F32));
         assert_pointer(&kernel.params[1], &[true], Some(RustScalar::F32));
@@ -1772,6 +1606,29 @@ mod tests {
         assert_pointer(&params[0], &[false], Some(RustScalar::F32));
         assert_pointer(&params[1], &[true], Some(RustScalar::U32));
         assert_pointer(&params[2], &[true], None);
+    }
+
+    #[test]
+    fn test_resolve_scalar_alias_parameters() {
+        let source = r#"
+            using index_t = int;
+            using count_t = index_t;
+            typedef unsigned int flags_t;
+            typedef unsigned long long seed_t;
+
+            extern "C" __global__ void aliases(
+                index_t index,
+                count_t count,
+                flags_t flags,
+                seed_t seed
+            ) {}
+        "#;
+        let kernels = parse_source_kernels(source).unwrap();
+        let params = &kernels[0].params;
+        assert_scalar(&params[0], Some(RustScalar::I32));
+        assert_scalar(&params[1], Some(RustScalar::I32));
+        assert_scalar(&params[2], Some(RustScalar::U32));
+        assert_scalar(&params[3], Some(RustScalar::U64));
     }
 
     fn assert_scalar(param: &SourceParam, expected: Option<RustScalar>) {

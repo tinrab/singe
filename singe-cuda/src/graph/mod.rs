@@ -604,7 +604,7 @@ impl GraphNode {
     /// Returns an error if this is not a memcpy node, CUDA cannot query the
     /// parameters, a previous asynchronous launch reports an error, or CUDA
     /// reports runtime initialization diagnostics.
-    pub fn memcpy_node_params(&self) -> Result<runtime::cudaMemcpy3DParms> {
+    pub fn memory_copy_node_params(&self) -> Result<runtime::cudaMemcpy3DParms> {
         self.bind_context()?;
         let mut params = runtime::cudaMemcpy3DParms::default();
         unsafe {
@@ -625,7 +625,7 @@ impl GraphNode {
     /// Returns an error if this is not a memset node, CUDA cannot query the
     /// parameters, a previous asynchronous launch reports an error, or CUDA
     /// reports runtime initialization diagnostics.
-    pub fn memset_node_params(&self) -> Result<driver::CUDA_MEMSET_NODE_PARAMS> {
+    pub fn memory_set_node_params(&self) -> Result<driver::CUDA_MEMSET_NODE_PARAMS> {
         self.bind_context()?;
         let mut params = driver::CUDA_MEMSET_NODE_PARAMS::default();
         unsafe {
@@ -670,7 +670,7 @@ impl GraphNode {
     /// Returns an error if this is not a memory-allocation node, CUDA cannot
     /// query the parameters, a previous asynchronous launch reports an error,
     /// or CUDA reports runtime initialization diagnostics.
-    pub fn mem_alloc_node_info(&self) -> Result<MemoryAllocationNodeInfo> {
+    pub fn memory_allocation_node_info(&self) -> Result<MemoryAllocationNodeInfo> {
         self.bind_context()?;
         let mut params = runtime::cudaMemAllocNodeParams::default();
         unsafe {
@@ -702,7 +702,7 @@ impl GraphNode {
     ///
     /// The node must still be a valid memory-free node in a live graph, and the
     /// returned pointer must not be used after the graph frees it.
-    pub unsafe fn mem_free_node_ptr(&self) -> Result<DevicePtr> {
+    pub unsafe fn memory_free_node_ptr(&self) -> Result<DevicePtr> {
         self.bind_context()?;
         let mut ptr = ptr::null_mut();
         unsafe {
