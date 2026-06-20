@@ -21,16 +21,16 @@ fn main() -> Result<()> {
     let c1 = DeviceMemory::<f64>::zeroes(4)?;
 
     let a = [
-        DevicePtr::from(a0.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(a1.as_ptr().cast_mut().cast::<()>()),
+        unsafe { DevicePtr::from_raw(a0.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(a1.as_ptr().cast_mut().cast::<()>()) },
     ];
     let b = [
-        DevicePtr::from(b0.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(b1.as_ptr().cast_mut().cast::<()>()),
+        unsafe { DevicePtr::from_raw(b0.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(b1.as_ptr().cast_mut().cast::<()>()) },
     ];
     let mut c = [
-        DevicePtr::from(c0.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(c1.as_ptr().cast_mut().cast::<()>()),
+        unsafe { DevicePtr::from_raw(c0.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(c1.as_ptr().cast_mut().cast::<()>()) },
     ];
 
     gemm_batched_ex(

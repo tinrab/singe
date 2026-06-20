@@ -1485,12 +1485,9 @@ fn bytes_to_string(mut bytes: Vec<u8>) -> String {
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::{
-        context::Context, device::Device, error::Result, memory::DeviceMemory,
-        module::LaunchConfig, testing,
+        device::Device, error::Result, memory::DeviceMemory, module::LaunchConfig, testing,
     };
 
     fn current_device_sm_architecture() -> Result<GpuArchitecture> {
@@ -1509,14 +1506,6 @@ mod tests {
             (12, 1) => GpuArchitecture::Sm121,
             (major, minor) => panic!("unsupported device architecture sm_{major}{minor}"),
         })
-    }
-
-    fn maybe_context() -> Option<Arc<Context>> {
-        match Context::create() {
-            Ok(ctx) => Some(ctx),
-            Err(error) if testing::is_stub_library(&error) => None,
-            Err(error) => panic!("{error:?}"),
-        }
     }
 
     #[test]
@@ -1593,7 +1582,7 @@ mod tests {
 
     #[test]
     fn compile_with_cancel_flag_succeeds_when_not_cancelled() {
-        let _lock = testing::device_lock(0).unwrap();
+        let (_lock, _ctx) = testing::bootstrap().unwrap();
         let cancel = AtomicBool::new(false);
         let program = Program::from_source(
             r#"
@@ -1618,10 +1607,7 @@ mod tests {
 
     #[test]
     fn cubin_artifact_loads_as_module() {
-        let _lock = testing::device_lock(0).unwrap();
-        let Some(ctx) = maybe_context() else {
-            return;
-        };
+        let (_lock, ctx) = testing::bootstrap().unwrap();
         let program = Program::from_source(
             r#"
             extern "C" __global__ void saxpy(float a, const float* x, const float* y, float* out, size_t n) {
@@ -1633,11 +1619,7 @@ mod tests {
             "#,
         )
         .with_name("saxpy_module.cu");
-        let architecture = match current_device_sm_architecture() {
-            Ok(architecture) => architecture,
-            Err(error) if testing::is_stub_library(&error) => return,
-            Err(error) => panic!("{error:?}"),
-        };
+        let architecture = current_device_sm_architecture().unwrap();
         let options = CompileOptions::new().gpu_architecture(architecture);
         program.compile_with_options(&options).unwrap();
 
@@ -1647,21 +1629,14 @@ mod tests {
 
     #[test]
     fn cubin_artifact_loads_as_module_with_jit_options() {
-        let _lock = testing::device_lock(0).unwrap();
-        let Some(ctx) = maybe_context() else {
-            return;
-        };
+        let (_lock, ctx) = testing::bootstrap().unwrap();
         let program = Program::from_source(
             r#"
             extern "C" __global__ void noop() {}
             "#,
         )
         .with_name("noop_module_jit.cu");
-        let architecture = match current_device_sm_architecture() {
-            Ok(architecture) => architecture,
-            Err(error) if testing::is_stub_library(&error) => return,
-            Err(error) => panic!("{error:?}"),
-        };
+        let architecture = current_device_sm_architecture().unwrap();
         let options = CompileOptions::new().gpu_architecture(architecture);
         program.compile_with_options(&options).unwrap();
 
@@ -1680,24 +1655,13 @@ mod tests {
 
     #[test]
     fn compiles_loads_launches_and_reads_back_results() {
-        let _lock = testing::device_lock(0).unwrap();
-        let Some(ctx) = maybe_context() else {
-            return;
-        };
+        let (_lock, ctx) = testing::bootstrap().unwrap();
 
         let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
         let mut output = vec![0.0f32; input.len()];
         let scalar = 2.5f32;
-        let input_device = match DeviceMemory::from_slice(&input) {
-            Ok(input_device) => input_device,
-            Err(error) if testing::is_stub_library(&error) => return,
-            Err(error) => panic!("{error:?}"),
-        };
-        let output_device = match DeviceMemory::<f32>::zeroes(output.len()) {
-            Ok(output_device) => output_device,
-            Err(error) if testing::is_stub_library(&error) => return,
-            Err(error) => panic!("{error:?}"),
-        };
+        let input_device = DeviceMemory::from_slice(&input).unwrap();
+        let output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
         let length = input.len();
 
         let program = Program::from_source(
@@ -1711,11 +1675,7 @@ mod tests {
             "#,
         )
         .with_name("scale_add.cu");
-        let architecture = match current_device_sm_architecture() {
-            Ok(architecture) => architecture,
-            Err(error) if testing::is_stub_library(&error) => return,
-            Err(error) => panic!("{error:?}"),
-        };
+        let architecture = current_device_sm_architecture().unwrap();
         let compile_options = CompileOptions::new().gpu_architecture(architecture);
         program.compile_with_options(&compile_options).unwrap();
 
@@ -1740,21 +1700,14 @@ mod tests {
 
     #[test]
     fn cubin_artifact_loads_as_library() {
-        let _lock = testing::device_lock(0).unwrap();
-        let Some(ctx) = maybe_context() else {
-            return;
-        };
+        let (_lock, ctx) = testing::bootstrap().unwrap();
         let program = Program::from_source(
             r#"
             extern "C" __global__ void noop() {}
             "#,
         )
         .with_name("noop_library.cu");
-        let architecture = match current_device_sm_architecture() {
-            Ok(architecture) => architecture,
-            Err(error) if testing::is_stub_library(&error) => return,
-            Err(error) => panic!("{error:?}"),
-        };
+        let architecture = current_device_sm_architecture().unwrap();
         let options = CompileOptions::new().gpu_architecture(architecture);
         program.compile_with_options(&options).unwrap();
 

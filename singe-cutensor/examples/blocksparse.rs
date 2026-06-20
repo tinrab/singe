@@ -38,7 +38,7 @@ fn block_elements(section_extents: &[Vec<u64>], modes: &[char], coordinates: &[i
 fn make_block_pointers<T>(memory: &DeviceMemory<T>, offsets: &[usize]) -> Vec<DevicePtr> {
     offsets
         .iter()
-        .map(|&offset| DevicePtr::from(unsafe { memory.as_mut_ptr().add(offset).cast::<()>() }))
+        .map(|&offset| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().add(offset).cast::<()>()) })
         .collect()
 }
 

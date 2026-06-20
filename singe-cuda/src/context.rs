@@ -5,6 +5,7 @@ use singe_cuda_sys::driver;
 use crate::{
     device::Device,
     error::{Error, Result},
+    graph::Graph,
     jit::JitOptions,
     library::Library,
     module::{Module, ModuleImage},
@@ -186,6 +187,20 @@ impl Context {
             }
             Module::from_raw(module_handle, Arc::clone(self))
         }
+    }
+
+    /// Creates an empty CUDA graph associated with this context.
+    ///
+    /// Prefer this over [`RawGraph::create`](crate::graph::RawGraph::create)
+    /// for ordinary Singe code. The returned graph carries its context
+    /// association into instantiated executable graphs, allowing launches and
+    /// uploads to reject streams from another context before calling CUDA.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context cannot be bound or CUDA cannot create the graph.
+    pub fn create_graph(self: &Arc<Self>) -> Result<Graph> {
+        Graph::create_in_context(Arc::clone(self))
     }
 
     pub fn unload_module(self: &Arc<Self>, module: Module) -> Result<()> {

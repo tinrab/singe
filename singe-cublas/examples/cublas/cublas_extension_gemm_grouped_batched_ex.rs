@@ -24,19 +24,19 @@ fn main() -> Result<()> {
     let c2 = DeviceMemory::<f32>::zeroes(9)?;
 
     let a = [
-        DevicePtr::from(a0.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(a1.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(a2.as_ptr().cast_mut().cast::<()>()),
+        unsafe { DevicePtr::from_raw(a0.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(a1.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(a2.as_ptr().cast_mut().cast::<()>()) },
     ];
     let b = [
-        DevicePtr::from(b0.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(b1.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(b2.as_ptr().cast_mut().cast::<()>()),
+        unsafe { DevicePtr::from_raw(b0.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(b1.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(b2.as_ptr().cast_mut().cast::<()>()) },
     ];
     let mut c = [
-        DevicePtr::from(c0.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(c1.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(c2.as_ptr().cast_mut().cast::<()>()),
+        unsafe { DevicePtr::from_raw(c0.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(c1.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(c2.as_ptr().cast_mut().cast::<()>()) },
     ];
 
     gemm_grouped_batched_ex(

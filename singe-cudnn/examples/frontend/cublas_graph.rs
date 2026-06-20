@@ -1,7 +1,7 @@
 mod common;
 
 use singe_cublas::{blas::level3, context::Context as CublasContext, types::Operation};
-use singe_cuda::{graph::Graph as CudaGraph, memory::DeviceMemory, stream::StreamCaptureMode};
+use singe_cuda::{memory::DeviceMemory, stream::StreamCaptureMode};
 use singe_cudnn::{
     backend::behavior::BackendBehaviorNote,
     backend::pointwise::PointwiseMode,
@@ -82,7 +82,7 @@ fn run() -> Result<()> {
     ))?;
     let cublas_graph = ctx.stream.end_capture()?;
 
-    let mut main_graph = CudaGraph::create()?;
+    let mut main_graph = ctx.cudnn.cuda_context().create_graph()?;
     let cublas_node = main_graph.add_child_graph_node(&[], &cublas_graph)?;
     match compiled.append_to_cuda_graph(
         &ctx.cudnn,

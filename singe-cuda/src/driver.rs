@@ -21,14 +21,9 @@ pub fn version() -> Result<i32> {
 #[cfg(all(test, feature = "testing"))]
 mod tests {
     use super::*;
-    use crate::testing;
 
     #[test]
     fn it_works() {
-        match version() {
-            Ok(version) => assert_ne!(version, 0),
-            Err(error) if testing::is_stub_library(&error) => {}
-            Err(error) => panic!("{error:?}"),
-        }
+        assert_ne!(version().unwrap(), 0);
     }
 }

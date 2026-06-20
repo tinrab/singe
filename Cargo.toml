@@ -47,8 +47,8 @@ include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*"]
 singe-core = { path = "singe-core", version = "0.1.0-alpha.6" }
 singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.6" }
 singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.6" }
-singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.7" }
-singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.6" }
+singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.8" }
+singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.8" }
 singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0-alpha.7" }
 singe-cuda-sys = { path = "singe-cuda-sys", version = "0.1.0-alpha.7" }
 singe-cufile = { path = "singe-cufile", version = "0.1.0-alpha.6" }
@@ -111,6 +111,7 @@ sha2 = "0.11.0"
 hex = "0.4.3"
 tree-sitter = "0.26.9"
 tree-sitter-c = "0.24.2"
+tokio = "1.48.0"
 
 [profile.dev]
 opt-level = 1

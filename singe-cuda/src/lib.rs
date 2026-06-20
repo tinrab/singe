@@ -36,6 +36,7 @@ pub mod dim;
 pub mod error;
 pub mod event;
 pub mod external_memory;
+pub mod future;
 pub mod graph;
 pub mod ipc;
 pub mod jit;
@@ -50,6 +51,8 @@ pub mod profile;
 pub mod stream;
 pub mod types;
 pub mod view;
+
+pub(crate) mod utility;
 
 #[cfg(feature = "macros")]
 pub use singe_cuda_macros::cuda_module;

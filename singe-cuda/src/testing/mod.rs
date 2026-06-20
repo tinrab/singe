@@ -3,11 +3,17 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{self, Read, Write},
     path::{Path, PathBuf},
-    process, thread,
+    process,
+    sync::Arc,
+    thread,
     time::Duration,
 };
 
-use crate::error::{Error, Result, Status};
+use crate::{
+    context::Context,
+    device::Device,
+    error::{Error, Result, Status},
+};
 
 pub struct DeviceLock {
     _file: File,
@@ -42,6 +48,16 @@ impl DeviceLock {
 
 pub fn device_lock(device_id: i32) -> Result<DeviceLock> {
     DeviceLock::acquire(device_id)
+}
+
+pub fn bootstrap() -> Result<(DeviceLock, Arc<Context>)> {
+    bootstrap_for_device(0)
+}
+
+pub fn bootstrap_for_device(device_id: i32) -> Result<(DeviceLock, Arc<Context>)> {
+    let lock = device_lock(device_id)?;
+    let ctx = Context::create_for_device(Device::new(device_id))?;
+    Ok((lock, ctx))
 }
 
 pub fn is_stub_library(error: &Error) -> bool {

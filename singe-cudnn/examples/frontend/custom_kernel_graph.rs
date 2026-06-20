@@ -1,8 +1,6 @@
 mod common;
 
-use singe_cuda::{
-    cuda_module, graph::Graph as CudaGraph, memory::DeviceMemory, module::LaunchConfig,
-};
+use singe_cuda::{cuda_module, memory::DeviceMemory, module::LaunchConfig};
 use singe_cudnn::{
     backend::behavior::BackendBehaviorNote,
     backend::tensor::{Shape, TensorSpec},
@@ -74,7 +72,7 @@ fn run() -> Result<()> {
     bindings.set(b, &mut b_dev)?;
     bindings.set(c, &mut c_dev)?;
 
-    let mut main_graph = CudaGraph::create()?;
+    let mut main_graph = ctx.cudnn.cuda_context().create_graph()?;
     let cudnn_node = match compiled.append_to_cuda_graph(
         &ctx.cudnn,
         &bindings,
@@ -98,7 +96,7 @@ fn run() -> Result<()> {
     let kernel_node = unsafe {
         module.affine_node(
             &mut main_graph,
-            &[cudnn_node],
+            &[cudnn_node.clone()],
             &launch,
             c_dev.as_mut_ptr() as _,
             element_count as i32,

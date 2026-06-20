@@ -11,11 +11,11 @@ use singe_cudss::{
 use crate::common::*;
 
 fn host_ptr<T>(values: &[T]) -> DevicePtr {
-    DevicePtr::from_raw(values.as_ptr().cast_mut().cast())
+    unsafe { DevicePtr::from_raw(values.as_ptr().cast_mut().cast()) }
 }
 
 fn host_mut_ptr<T>(values: &mut [T]) -> DevicePtr {
-    DevicePtr::from_raw(values.as_mut_ptr().cast())
+    unsafe { DevicePtr::from_raw(values.as_mut_ptr().cast()) }
 }
 
 fn main() -> Result<()> {

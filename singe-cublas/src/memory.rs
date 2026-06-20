@@ -595,7 +595,7 @@ mod tests {
         let host_async = vec![6_i32, 5, 4, 3, 2, 1];
         let mut async_result = vec![0_i32; host_async.len()];
         let mut transfer_result = Ok(());
-        stream.scope(|scope| {
+        stream.sync_scope(|scope| {
             transfer_result = copy_vector_to_device_async(
                 &context,
                 host_async.len(),
@@ -660,7 +660,7 @@ mod tests {
 
         let mut result = vec![0.0_f32; host.len()];
         let mut transfer_result = Ok(());
-        stream.scope(|scope| {
+        stream.sync_scope(|scope| {
             transfer_result = copy_matrix_to_device_async(
                 &context,
                 rows,

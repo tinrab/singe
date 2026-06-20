@@ -8,7 +8,6 @@ use std::{
     sync::Arc,
 };
 
-use singe_core::checked_int;
 use singe_cuda_sys::driver;
 
 use crate::{
@@ -18,9 +17,10 @@ use crate::{
     graph::{ExecutableGraph, Graph, GraphNode},
     kernel::{self, ModuleKernelHandle},
     memory::{DeviceMemory, ManagedMemory},
-    stream::Stream,
+    stream::{GraphRecordable, Stream, StreamCaptureScope},
     try_ffi,
     types::{DeviceFunction, FunctionAttribute, SharedMemoryCarveout},
+    utility::{to_u32, to_u64},
     view::{DeviceRepr, DeviceSlice, DeviceSliceMut, DeviceView, DeviceViewMut},
 };
 
@@ -86,9 +86,9 @@ pub struct OccupancyMaxPotentialBlockSize {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClusterLaunchConfig {
-    pub grid_dim: Dim3,
-    pub block_dim: Dim3,
-    pub shared_memory_bytes: usize,
+    grid_dim: Dim3,
+    block_dim: Dim3,
+    shared_memory_bytes: usize,
 }
 
 #[derive(Debug)]
@@ -128,11 +128,18 @@ pub struct KernelFunction<'a> {
     module: &'a Module,
 }
 
+#[derive(Debug)]
+pub struct KernelLaunchOperation<'kernel, 'config, P> {
+    function: &'kernel KernelFunction<'kernel>,
+    config: &'config LaunchConfig,
+    params: P,
+}
+
 #[derive(Debug, Clone)]
 pub struct LaunchConfig {
-    pub grid_dim: Dim3,
-    pub block_dim: Dim3,
-    pub shared_memory_bytes: usize,
+    grid_dim: Dim3,
+    block_dim: Dim3,
+    shared_memory_bytes: usize,
 }
 
 /// Dynamically built CUDA kernel argument list.
@@ -181,7 +188,18 @@ pub trait PushKernelArg {
 /// of shared or mutable references up to 16 elements.
 pub trait KernelLaunchArgs<'a>: private::Sealed {
     #[doc(hidden)]
-    fn with_raw_pointers<R>(self, f: impl FnOnce(&mut [*mut ()]) -> R) -> R;
+    fn with_encoded_arguments<R>(self, f: impl FnOnce(EncodedKernelArgs<'_>) -> R) -> R;
+}
+
+/// Encoded CUDA kernel arguments for one launch or graph-node update call.
+///
+/// This is an implementation detail of [`KernelLaunchArgs`]. CUDA receives a
+/// temporary array of pointers to encoded argument values; callers should use
+/// [`KernelParameters`] or generated launch methods instead of constructing raw
+/// argument arrays directly.
+#[doc(hidden)]
+pub struct EncodedKernelArgs<'a> {
+    pointers: &'a mut [*mut ()],
 }
 
 trait KernelTupleArgument<'a> {
@@ -291,7 +309,8 @@ impl Module {
             if function_handle.is_null() {
                 return Err(Error::NullHandle);
             }
-            Ok(KernelFunction::from_raw(function_handle.into(), self))
+            let function = DeviceFunction::from_raw(function_handle);
+            Ok(KernelFunction::from_raw(function, self))
         }
     }
 
@@ -436,6 +455,39 @@ impl KernelFunction<'_> {
         KernelFunction { handle, module }
     }
 
+    /// Creates a stream operation that launches this kernel.
+    ///
+    /// # Safety
+    ///
+    /// If this operation is recorded during stream capture, CUDA copies kernel argument values into the captured graph.
+    /// For pointer arguments, only the pointer address is copied.
+    /// The caller must ensure every copied pointer value remains valid for every captured graph execution that can use this operation, and mutable pointer arguments must remain exclusive for the work ordered by those graph launches.
+    pub const unsafe fn launch_operation<'kernel, 'config, P>(
+        &'kernel self,
+        config: &'config LaunchConfig,
+        params: P,
+    ) -> KernelLaunchOperation<'kernel, 'config, P> {
+        KernelLaunchOperation {
+            function: self,
+            config,
+            params,
+        }
+    }
+
+    fn check_graph_context(&self, graph: &Graph) -> Result<()> {
+        if matches!(graph.context(), Some(ctx) if ctx != self.module.ctx.as_ref()) {
+            return Err(Error::GraphContextMismatch);
+        }
+        Ok(())
+    }
+
+    fn check_executable_graph_context(&self, executable: &ExecutableGraph) -> Result<()> {
+        if matches!(executable.context(), Some(ctx) if ctx != self.module.ctx.as_ref()) {
+            return Err(Error::GraphContextMismatch);
+        }
+        Ok(())
+    }
+
     /// Invokes this kernel function on a grid of blocks.
     /// Each block contains the threads specified by [`LaunchConfig::block_dim`].
     ///
@@ -459,16 +511,16 @@ impl KernelFunction<'_> {
         P: KernelLaunchArgs<'a>,
     {
         self.module.ctx.bind()?;
-        params.with_raw_pointers(|arguments| unsafe {
+        params.with_encoded_arguments(|mut arguments| unsafe {
             try_ffi!(driver::cuLaunchKernel(
                 self.handle.as_raw(),
-                config.grid_dim.x,
-                config.grid_dim.y,
-                config.grid_dim.z,
-                config.block_dim.x,
-                config.block_dim.y,
-                config.block_dim.z,
-                config.shared_memory_bytes as _,
+                config.grid_dim().x,
+                config.grid_dim().y,
+                config.grid_dim().z,
+                config.block_dim().x,
+                config.block_dim().y,
+                config.block_dim().z,
+                config.shared_memory_bytes_u32(),
                 ptr::null_mut(),
                 arguments.as_mut_ptr().cast(),
                 ptr::null_mut(),
@@ -504,16 +556,16 @@ impl KernelFunction<'_> {
         }
 
         self.module.ctx.bind()?;
-        params.with_raw_pointers(|arguments| unsafe {
+        params.with_encoded_arguments(|mut arguments| unsafe {
             try_ffi!(driver::cuLaunchKernel(
                 self.handle.as_raw(),
-                config.grid_dim.x,
-                config.grid_dim.y,
-                config.grid_dim.z,
-                config.block_dim.x,
-                config.block_dim.y,
-                config.block_dim.z,
-                config.shared_memory_bytes as _,
+                config.grid_dim().x,
+                config.grid_dim().y,
+                config.grid_dim().z,
+                config.block_dim().x,
+                config.block_dim().y,
+                config.block_dim().z,
+                config.shared_memory_bytes_u32(),
                 stream.as_raw(),
                 arguments.as_mut_ptr().cast(),
                 ptr::null_mut(),
@@ -522,7 +574,18 @@ impl KernelFunction<'_> {
         })
     }
 
-    pub fn add_to_graph<'a, P>(
+    /// Adds this kernel to `graph` as a kernel node.
+    ///
+    /// # Safety
+    ///
+    /// CUDA copies each kernel argument value during this call. Non-pointer
+    /// argument values may be borrowed from stack or temporary storage that
+    /// outlives this call. If an argument value is a pointer, CUDA stores only
+    /// the pointer address. The caller must ensure every copied pointer value
+    /// remains valid for every graph instantiation, update, and launch that can
+    /// execute the created node. Mutable pointer arguments must remain exclusive
+    /// for the work ordered by those launches.
+    pub unsafe fn add_to_graph<'a, P>(
         &self,
         graph: &mut Graph,
         dependencies: &[GraphNode],
@@ -532,10 +595,22 @@ impl KernelFunction<'_> {
     where
         P: KernelLaunchArgs<'a>,
     {
-        graph.add_kernel_node(dependencies, self.handle, config, params)
+        self.check_graph_context(graph)?;
+        unsafe { graph.add_kernel_node(dependencies, self.handle, config, params) }
     }
 
-    pub fn set_graph_node_params<'a, P>(
+    /// Updates this kernel's parameters in an executable graph node.
+    ///
+    /// # Safety
+    ///
+    /// CUDA copies each kernel argument value during this call. Non-pointer
+    /// argument values may be borrowed from stack or temporary storage that
+    /// outlives this call. If an argument value is a pointer, CUDA stores only
+    /// the pointer address. The caller must ensure every copied pointer value
+    /// remains valid for every future launch that can execute `node`. Mutable
+    /// pointer arguments must remain exclusive for the work ordered by those
+    /// launches.
+    pub unsafe fn set_graph_node_params<'a, P>(
         &self,
         executable: &mut ExecutableGraph,
         node: GraphNode,
@@ -545,7 +620,8 @@ impl KernelFunction<'_> {
     where
         P: KernelLaunchArgs<'a>,
     {
-        executable.set_kernel_node_params(node, self.handle, config, params)
+        self.check_executable_graph_context(executable)?;
+        unsafe { executable.set_kernel_node_params(node, self.handle, config, params) }
     }
 
     pub const fn module(&self) -> &Module {
@@ -654,6 +730,8 @@ impl KernelFunction<'_> {
         flags: OccupancyFlags,
     ) -> Result<i32> {
         self.module.ctx.bind()?;
+        let dynamic_shared_memory_bytes =
+            validate_dynamic_shared_memory_bytes(dynamic_shared_memory_bytes)?;
         let mut blocks = 0;
         unsafe {
             try_ffi!(
@@ -661,7 +739,7 @@ impl KernelFunction<'_> {
                     &raw mut blocks,
                     self.handle.as_raw(),
                     block_size,
-                    dynamic_shared_memory_bytes as _,
+                    dynamic_shared_memory_bytes,
                     flags.bits(),
                 )
             )?;
@@ -739,6 +817,8 @@ impl KernelFunction<'_> {
         flags: OccupancyFlags,
     ) -> Result<OccupancyMaxPotentialBlockSize> {
         self.module.ctx.bind()?;
+        let dynamic_shared_memory_bytes =
+            validate_dynamic_shared_memory_bytes(dynamic_shared_memory_bytes)?;
         let mut min_grid_size = 0;
         let mut block_size = 0;
         unsafe {
@@ -747,7 +827,7 @@ impl KernelFunction<'_> {
                 &raw mut block_size,
                 self.handle.as_raw(),
                 None,
-                dynamic_shared_memory_bytes as _,
+                dynamic_shared_memory_bytes,
                 block_size_limit,
                 flags.bits(),
             ))?;
@@ -779,13 +859,13 @@ impl KernelFunction<'_> {
         self.module.ctx.bind()?;
         let mut cluster_size = 0;
         let config = driver::CUlaunchConfig {
-            gridDimX: config.grid_dim.x,
-            gridDimY: config.grid_dim.y,
-            gridDimZ: config.grid_dim.z,
-            blockDimX: config.block_dim.x,
-            blockDimY: config.block_dim.y,
-            blockDimZ: config.block_dim.z,
-            sharedMemBytes: config.shared_memory_bytes as _,
+            gridDimX: config.grid_dim().x,
+            gridDimY: config.grid_dim().y,
+            gridDimZ: config.grid_dim().z,
+            blockDimX: config.block_dim().x,
+            blockDimY: config.block_dim().y,
+            blockDimZ: config.block_dim().z,
+            sharedMemBytes: config.shared_memory_bytes_u32(),
             hStream: ptr::null_mut(),
             attrs: ptr::null_mut(),
             numAttrs: 0,
@@ -820,13 +900,13 @@ impl KernelFunction<'_> {
         self.module.ctx.bind()?;
         let mut clusters = 0;
         let config = driver::CUlaunchConfig {
-            gridDimX: config.grid_dim.x,
-            gridDimY: config.grid_dim.y,
-            gridDimZ: config.grid_dim.z,
-            blockDimX: config.block_dim.x,
-            blockDimY: config.block_dim.y,
-            blockDimZ: config.block_dim.z,
-            sharedMemBytes: config.shared_memory_bytes as _,
+            gridDimX: config.grid_dim().x,
+            gridDimY: config.grid_dim().y,
+            gridDimZ: config.grid_dim().z,
+            blockDimX: config.block_dim().x,
+            blockDimY: config.block_dim().y,
+            blockDimZ: config.block_dim().z,
+            sharedMemBytes: config.shared_memory_bytes_u32(),
             hStream: ptr::null_mut(),
             attrs: ptr::null_mut(),
             numAttrs: 0,
@@ -846,8 +926,31 @@ impl KernelFunction<'_> {
     }
 }
 
+unsafe impl<'a, P> GraphRecordable for KernelLaunchOperation<'_, '_, P>
+where
+    P: KernelLaunchArgs<'a>,
+{
+    type Output = ();
+
+    fn record(self, scope: &StreamCaptureScope<'_>) -> Result<Self::Output> {
+        self.function
+            .launch_on(self.config, self.params, scope.stream())
+    }
+}
+
 impl LaunchConfig {
-    pub const fn new(grid_dim: Dim3, block_dim: Dim3, shared_memory_bytes: usize) -> Self {
+    pub fn new(grid_dim: Dim3, block_dim: Dim3, shared_memory_bytes: usize) -> Result<Self> {
+        validate_dim3(grid_dim, "grid_dim")?;
+        validate_dim3(block_dim, "block_dim")?;
+        validate_shared_memory_bytes(shared_memory_bytes)?;
+        Ok(Self::from_validated(
+            grid_dim,
+            block_dim,
+            shared_memory_bytes,
+        ))
+    }
+
+    const fn from_validated(grid_dim: Dim3, block_dim: Dim3, shared_memory_bytes: usize) -> Self {
         Self {
             grid_dim,
             block_dim,
@@ -855,11 +958,35 @@ impl LaunchConfig {
         }
     }
 
+    pub const fn grid_dim(&self) -> Dim3 {
+        self.grid_dim
+    }
+
+    pub const fn block_dim(&self) -> Dim3 {
+        self.block_dim
+    }
+
+    pub const fn shared_memory_bytes(&self) -> usize {
+        self.shared_memory_bytes
+    }
+
+    pub(crate) const fn shared_memory_bytes_u32(&self) -> u32 {
+        self.shared_memory_bytes as u32
+    }
+
+    pub fn with_shared_memory_bytes(mut self, shared_memory_bytes: usize) -> Result<Self> {
+        validate_shared_memory_bytes(shared_memory_bytes)?;
+        self.shared_memory_bytes = shared_memory_bytes;
+        Ok(self)
+    }
+
     pub fn try_for_1d_grid(element_count: usize, block_size: usize) -> Result<Self> {
         validate_block_dimension(block_size, "block_size")?;
         let grid_size = element_count.div_ceil(block_size);
 
-        Ok(Self::new(
+        validate_grid_dimension(grid_size, "grid_size")?;
+
+        Ok(Self::from_validated(
             Dim3::new(to_u32(grid_size, "grid_size")?, 1, 1),
             Dim3::new(to_u32(block_size, "block_size")?, 1, 1),
             0,
@@ -890,8 +1017,10 @@ impl LaunchConfig {
         validate_block_dimension(block_height, "block_height")?;
         let grid_x = width.div_ceil(block_width);
         let grid_y = height.div_ceil(block_height);
+        validate_grid_dimension(grid_x, "grid_x")?;
+        validate_grid_dimension(grid_y, "grid_y")?;
 
-        Ok(Self::new(
+        Ok(Self::from_validated(
             Dim3::new(to_u32(grid_x, "grid_x")?, to_u32(grid_y, "grid_y")?, 1),
             Dim3::new(
                 to_u32(block_width, "block_width")?,
@@ -926,8 +1055,11 @@ impl LaunchConfig {
         let grid_x = width.div_ceil(block_width);
         let grid_y = height.div_ceil(block_height);
         let grid_z = depth.div_ceil(block_depth);
+        validate_grid_dimension(grid_x, "grid_x")?;
+        validate_grid_dimension(grid_y, "grid_y")?;
+        validate_grid_dimension(grid_z, "grid_z")?;
 
-        Ok(Self::new(
+        Ok(Self::from_validated(
             Dim3::new(
                 to_u32(grid_x, "grid_x")?,
                 to_u32(grid_y, "grid_y")?,
@@ -955,6 +1087,57 @@ impl LaunchConfig {
     }
 }
 
+impl ClusterLaunchConfig {
+    pub fn new(grid_dim: Dim3, block_dim: Dim3, shared_memory_bytes: usize) -> Result<Self> {
+        validate_dim3(grid_dim, "grid_dim")?;
+        validate_dim3(block_dim, "block_dim")?;
+        validate_shared_memory_bytes(shared_memory_bytes)?;
+        Ok(Self {
+            grid_dim,
+            block_dim,
+            shared_memory_bytes,
+        })
+    }
+
+    pub const fn grid_dim(&self) -> Dim3 {
+        self.grid_dim
+    }
+
+    pub const fn block_dim(&self) -> Dim3 {
+        self.block_dim
+    }
+
+    pub const fn shared_memory_bytes(&self) -> usize {
+        self.shared_memory_bytes
+    }
+
+    pub(crate) const fn shared_memory_bytes_u32(&self) -> u32 {
+        self.shared_memory_bytes as u32
+    }
+
+    pub fn with_shared_memory_bytes(mut self, shared_memory_bytes: usize) -> Result<Self> {
+        validate_shared_memory_bytes(shared_memory_bytes)?;
+        self.shared_memory_bytes = shared_memory_bytes;
+        Ok(self)
+    }
+}
+
+fn validate_dim3(value: Dim3, name: &str) -> Result<()> {
+    validate_grid_dimension(value.x as usize, &format!("{name}.x"))?;
+    validate_grid_dimension(value.y as usize, &format!("{name}.y"))?;
+    validate_grid_dimension(value.z as usize, &format!("{name}.z"))?;
+    Ok(())
+}
+
+fn validate_grid_dimension(value: usize, name: &str) -> Result<()> {
+    if value == 0 {
+        return Err(Error::ZeroValue {
+            name: name.to_owned(),
+        });
+    }
+    Ok(())
+}
+
 fn validate_block_dimension(value: usize, name: &str) -> Result<()> {
     if value == 0 {
         return Err(Error::ZeroValue {
@@ -964,8 +1147,12 @@ fn validate_block_dimension(value: usize, name: &str) -> Result<()> {
     Ok(())
 }
 
-fn to_u32(value: usize, name: &str) -> Result<u32> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
+fn validate_shared_memory_bytes(value: usize) -> Result<u32> {
+    to_u32(value, "shared_memory_bytes")
+}
+
+fn validate_dynamic_shared_memory_bytes(value: usize) -> Result<u64> {
+    to_u64(value, "dynamic_shared_memory_bytes")
 }
 
 impl<'a> KernelParameters<'a> {
@@ -1109,28 +1296,40 @@ impl RawKernelPointers {
     }
 }
 
+impl EncodedKernelArgs<'_> {
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut *mut () {
+        self.pointers.as_mut_ptr()
+    }
+}
+
 impl<'a> KernelLaunchArgs<'a> for KernelParameters<'a> {
-    fn with_raw_pointers<R>(mut self, f: impl FnOnce(&mut [*mut ()]) -> R) -> R {
-        let mut arguments = self.raw_pointers();
-        f(arguments.as_mut_slice())
+    fn with_encoded_arguments<R>(mut self, f: impl FnOnce(EncodedKernelArgs<'_>) -> R) -> R {
+        let mut pointers = self.raw_pointers();
+        f(EncodedKernelArgs {
+            pointers: pointers.as_mut_slice(),
+        })
     }
 }
 
 impl private::Sealed for KernelParameters<'_> {}
 
 impl<'a> KernelLaunchArgs<'a> for &mut KernelParameters<'a> {
-    fn with_raw_pointers<R>(self, f: impl FnOnce(&mut [*mut ()]) -> R) -> R {
-        let mut arguments = self.raw_pointers();
-        f(arguments.as_mut_slice())
+    fn with_encoded_arguments<R>(self, f: impl FnOnce(EncodedKernelArgs<'_>) -> R) -> R {
+        let mut pointers = self.raw_pointers();
+        f(EncodedKernelArgs {
+            pointers: pointers.as_mut_slice(),
+        })
     }
 }
 
 impl private::Sealed for &mut KernelParameters<'_> {}
 
 impl<'a> KernelLaunchArgs<'a> for () {
-    fn with_raw_pointers<R>(self, f: impl FnOnce(&mut [*mut ()]) -> R) -> R {
-        let mut arguments: [*mut (); 0] = [];
-        f(&mut arguments)
+    fn with_encoded_arguments<R>(self, f: impl FnOnce(EncodedKernelArgs<'_>) -> R) -> R {
+        let mut pointers: [*mut (); 0] = [];
+        f(EncodedKernelArgs {
+            pointers: &mut pointers,
+        })
     }
 }
 
@@ -1148,13 +1347,15 @@ macro_rules! impl_kernel_arguments_for_tuple {
         where
             $($arg: KernelTupleArgument<'a>,)+
         {
-            fn with_raw_pointers<R>(self, f: impl FnOnce(&mut [*mut ()]) -> R) -> R {
+            fn with_encoded_arguments<R>(self, f: impl FnOnce(EncodedKernelArgs<'_>) -> R) -> R {
                 #[allow(non_snake_case)]
                 let ($($arg,)+) = self;
-                let mut arguments = [
+                let mut pointers = [
                     $($arg.into_kernel_argument_ptr(),)+
                 ];
-                f(&mut arguments)
+                f(EncodedKernelArgs {
+                    pointers: &mut pointers,
+                })
             }
         }
     };
@@ -1280,5 +1481,52 @@ mod tests {
         };
 
         assert_eq!(argument.as_mut_ptr(), expected);
+    }
+
+    #[test]
+    fn launch_config_rejects_zero_grid_dimensions() {
+        let error = LaunchConfig::try_for_1d_grid(0, 128).unwrap_err();
+        assert!(matches!(error, Error::ZeroValue { name } if name == "grid_size"));
+
+        let error = LaunchConfig::new(Dim3::new(0, 1, 1), Dim3::new(128, 1, 1), 0).unwrap_err();
+        assert!(matches!(error, Error::ZeroValue { name } if name == "grid_dim.x"));
+    }
+
+    #[test]
+    fn launch_config_rejects_invalid_shared_memory_size() {
+        let error = LaunchConfig::try_for_1d_grid(1, 128)
+            .unwrap()
+            .with_shared_memory_bytes(u32::MAX as usize + 1)
+            .unwrap_err();
+        assert!(matches!(error, Error::OutOfRange { name } if name == "shared_memory_bytes"));
+    }
+
+    #[test]
+    fn launch_config_exposes_checked_shared_memory_u32() {
+        let config = LaunchConfig::try_for_1d_grid(1, 128)
+            .unwrap()
+            .with_shared_memory_bytes(u32::MAX as usize)
+            .unwrap();
+
+        assert_eq!(config.shared_memory_bytes(), u32::MAX as usize);
+        assert_eq!(config.shared_memory_bytes_u32(), u32::MAX);
+    }
+
+    #[test]
+    fn occupancy_dynamic_shared_memory_uses_checked_driver_width() {
+        assert_eq!(validate_dynamic_shared_memory_bytes(0).unwrap(), 0);
+        assert_eq!(
+            validate_dynamic_shared_memory_bytes(usize::MAX).unwrap(),
+            usize::MAX as u64
+        );
+    }
+
+    #[test]
+    fn cluster_launch_config_uses_checked_construction() {
+        let config = ClusterLaunchConfig::new(Dim3::new(1, 1, 1), Dim3::new(32, 1, 1), 0).unwrap();
+
+        assert_eq!(config.grid_dim(), Dim3::new(1, 1, 1));
+        assert_eq!(config.block_dim(), Dim3::new(32, 1, 1));
+        assert_eq!(config.shared_memory_bytes(), 0);
     }
 }

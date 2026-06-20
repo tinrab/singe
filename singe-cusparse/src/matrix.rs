@@ -463,7 +463,7 @@ impl<'a> SparseMatrixDescriptor<'a> {
         unsafe {
             try_ffi!(sys::cusparseSpMatGetValues(self.as_raw(), &raw mut values))?;
         }
-        Ok(values.into())
+        Ok(unsafe { DevicePtr::from_raw(values.cast()) })
     }
 
     /// Sets the values pointer of this sparse matrix descriptor.
@@ -804,7 +804,7 @@ impl<'a> DenseMatrixDescriptor<'a> {
         unsafe {
             try_ffi!(sys::cusparseDnMatGetValues(self.as_raw(), &raw mut values))?;
         }
-        Ok(values.into())
+        Ok(unsafe { DevicePtr::from_raw(values.cast()) })
     }
 
     /// Sets the values pointer of this dense matrix descriptor.
@@ -852,7 +852,7 @@ impl<'a> DenseMatrixDescriptor<'a> {
             rows: to_usize(rows, "rows")?,
             cols: to_usize(cols, "cols")?,
             leading_dimension: to_usize(leading_dimension, "leading_dimension")?,
-            values: values.into(),
+            values: unsafe { DevicePtr::from_raw(values.cast()) },
             order: order.into(),
         })
     }

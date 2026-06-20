@@ -1,6 +1,6 @@
 mod common;
 
-use singe_cuda::{graph::Graph as CudaGraph, memory::DeviceMemory};
+use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
     backend::behavior::BackendBehaviorNote,
     backend::pointwise::PointwiseMode,
@@ -120,7 +120,7 @@ fn run() -> Result<()> {
         f16::from_f32(2.0),
     )?;
 
-    let mut main_graph = CudaGraph::create()?;
+    let mut main_graph = ctx.cudnn.cuda_context().create_graph()?;
     let child_node = match compiled.append_to_cuda_graph(
         &ctx.cudnn,
         &bindings,

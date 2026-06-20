@@ -121,6 +121,7 @@ impl Event {
     /// [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and
     /// callback diagnostics such as [`crate::error::Status::NotPermitted`].
     pub fn query(&self) -> Result<bool> {
+        self.ctx.bind()?;
         let error = unsafe { runtime::cudaEventQuery(self.as_raw()) };
         match error {
             runtime::cudaError_t::CUDA_SUCCESS => Ok(true),

@@ -491,15 +491,15 @@ fn batched_gemm_ex<T>(
 
     let a = a
         .iter()
-        .map(|matrix| DevicePtr::from_raw(matrix.memory().as_ptr().cast_mut().cast()))
+        .map(|matrix| unsafe { DevicePtr::from_raw(matrix.memory().as_ptr().cast_mut().cast()) })
         .collect::<Vec<_>>();
     let b = b
         .iter()
-        .map(|matrix| DevicePtr::from_raw(matrix.memory().as_ptr().cast_mut().cast()))
+        .map(|matrix| unsafe { DevicePtr::from_raw(matrix.memory().as_ptr().cast_mut().cast()) })
         .collect::<Vec<_>>();
     let mut c = c
         .iter_mut()
-        .map(|matrix| DevicePtr::from_raw(matrix.memory().as_mut_ptr().cast()))
+        .map(|matrix| unsafe { DevicePtr::from_raw(matrix.memory().as_mut_ptr().cast()) })
         .collect::<Vec<_>>();
 
     level3::gemm_batched_ex(

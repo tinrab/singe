@@ -41,24 +41,23 @@ fn main() -> Result<()> {
     assert_eq!(info.rows, rows);
     assert_eq!(info.columns, cols);
     assert_eq!(info.nnz, nnz);
-    assert_eq!(
-        info.row_start,
+    assert_eq!(info.row_start, unsafe {
         DevicePtr::from_raw(row_offsets.as_mut_ptr().cast())
-    );
-    assert_eq!(
-        info.column_indices,
+    });
+    assert_eq!(info.column_indices, unsafe {
         DevicePtr::from_raw(col_indices.as_mut_ptr().cast())
-    );
-    assert_eq!(info.values, DevicePtr::from_raw(values.as_mut_ptr().cast()));
+    });
+    assert_eq!(info.values, unsafe {
+        DevicePtr::from_raw(values.as_mut_ptr().cast())
+    });
     assert_eq!(info.value_type, DataType::F64);
     assert_eq!(info.matrix_type, MatrixType::Symmetric);
     println!("csr_info matched the original descriptor");
 
     matrix.set_values(&replacement_values)?;
-    assert_eq!(
-        matrix.csr_info()?.values,
+    assert_eq!(matrix.csr_info()?.values, unsafe {
         DevicePtr::from_raw(replacement_values.as_mut_ptr().cast())
-    );
+    });
     println!("set_values replaced the sparse value buffer");
 
     matrix.set_csr_values(
@@ -68,18 +67,15 @@ fn main() -> Result<()> {
         &replacement_values,
     )?;
     let info = matrix.csr_info()?;
-    assert_eq!(
-        info.row_start,
+    assert_eq!(info.row_start, unsafe {
         DevicePtr::from_raw(replacement_row_offsets.as_mut_ptr().cast())
-    );
-    assert_eq!(
-        info.column_indices,
+    });
+    assert_eq!(info.column_indices, unsafe {
         DevicePtr::from_raw(replacement_col_indices.as_mut_ptr().cast())
-    );
-    assert_eq!(
-        info.values,
+    });
+    assert_eq!(info.values, unsafe {
         DevicePtr::from_raw(replacement_values.as_mut_ptr().cast())
-    );
+    });
     assert_eq!(info.nnz, nnz);
     println!("set_csr_pointers replaced the CSR buffers; cuDSS keeps reporting the original nnz");
 

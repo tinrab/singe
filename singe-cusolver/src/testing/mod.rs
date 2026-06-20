@@ -1,8 +1,6 @@
 use std::ops::Deref;
 
-use singe_cuda::{
-    context::Context as CudaContext, device::Device, error::Status, testing::DeviceLock,
-};
+use singe_cuda::{error::Status, testing::DeviceLock};
 
 use crate::{
     context::Context,
@@ -24,9 +22,7 @@ impl Deref for TestContext {
 
 pub fn setup_context() -> Result<TestContext> {
     let device_id: i32 = 0;
-    let lock = singe_cuda::testing::device_lock(device_id)?;
-
-    let cuda_context = CudaContext::create_for_device(Device::new(device_id))?;
+    let (lock, cuda_context) = singe_cuda::testing::bootstrap_for_device(device_id)?;
     let context = Context::create(&cuda_context)?;
 
     Ok(TestContext {

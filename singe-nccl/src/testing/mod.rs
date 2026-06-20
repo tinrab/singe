@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use singe_cuda::{context::Context as CudaContext, stream::Stream, testing::DeviceLock};
+use singe_cuda::{stream::Stream, testing::DeviceLock};
 
 use crate::{communicator::Communicator, error::Result, unique_id};
 
@@ -30,9 +30,7 @@ impl TestContext {
 
 pub fn setup_communicator() -> Result<TestContext> {
     let device_id: i32 = 0;
-    let lock = singe_cuda::testing::device_lock(device_id)?;
-
-    let cuda_context = CudaContext::create()?;
+    let (lock, cuda_context) = singe_cuda::testing::bootstrap_for_device(device_id)?;
     let stream = cuda_context.create_stream()?;
     let communicator = Communicator::create_rank(&cuda_context, 1, unique_id()?, 0)?;
 

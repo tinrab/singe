@@ -56,12 +56,24 @@ pub struct DeviceFunction(driver::CUfunction);
 pub struct DevicePtr(*mut ());
 
 impl HostFunction {
-    pub const fn new(raw: driver::CUhostFn) -> Self {
+    /// Wraps a raw CUDA host callback function pointer.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be a callback function pointer with the ABI and lifetime
+    /// required by CUDA for every operation that uses the returned handle.
+    pub const unsafe fn new(raw: driver::CUhostFn) -> Self {
         Self(raw)
     }
 
-    pub const fn from_raw(raw: driver::CUhostFn) -> Self {
-        Self(raw)
+    /// Wraps a raw CUDA host callback function pointer.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be a callback function pointer with the ABI and lifetime
+    /// required by CUDA for every operation that uses the returned handle.
+    pub const unsafe fn from_raw(raw: driver::CUhostFn) -> Self {
+        unsafe { Self::new(raw) }
     }
 
     pub const fn as_raw(self) -> driver::CUhostFn {
@@ -70,12 +82,26 @@ impl HostFunction {
 }
 
 impl DeviceFunction {
-    pub const fn new(raw: driver::CUfunction) -> Self {
+    /// Wraps a raw CUDA device function handle.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be a valid CUDA function handle whose owning module,
+    /// library, or runtime registration remains loaded for every operation that
+    /// uses the returned handle.
+    pub const unsafe fn new(raw: driver::CUfunction) -> Self {
         Self(raw)
     }
 
-    pub const fn from_raw(raw: driver::CUfunction) -> Self {
-        Self(raw)
+    /// Wraps a raw CUDA device function handle.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be a valid CUDA function handle whose owning module,
+    /// library, or runtime registration remains loaded for every operation that
+    /// uses the returned handle.
+    pub const unsafe fn from_raw(raw: driver::CUfunction) -> Self {
+        unsafe { Self::new(raw) }
     }
 
     pub const fn as_raw(self) -> driver::CUfunction {
@@ -92,12 +118,26 @@ impl DevicePtr {
         Self(ptr::null_mut())
     }
 
-    pub const fn new(raw: *mut ()) -> Self {
+    /// Wraps a raw CUDA device pointer value.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be either null or a pointer value that is valid for the CUDA
+    /// operation it is passed to. This wrapper does not prove allocation
+    /// ownership, size, lifetime, context association, or access permissions.
+    pub const unsafe fn new(raw: *mut ()) -> Self {
         Self(raw)
     }
 
-    pub const fn from_raw(raw: *mut ()) -> Self {
-        Self(raw.cast())
+    /// Wraps a raw CUDA device pointer value.
+    ///
+    /// # Safety
+    ///
+    /// `raw` must be either null or a pointer value that is valid for the CUDA
+    /// operation it is passed to. This wrapper does not prove allocation
+    /// ownership, size, lifetime, context association, or access permissions.
+    pub const unsafe fn from_raw(raw: *mut ()) -> Self {
+        unsafe { Self::new(raw.cast()) }
     }
 
     pub const fn as_raw(self) -> *mut () {
@@ -121,39 +161,15 @@ impl DevicePtr {
     }
 }
 
-impl From<driver::CUhostFn> for HostFunction {
-    fn from(value: driver::CUhostFn) -> Self {
-        Self::new(value)
-    }
-}
-
 impl From<HostFunction> for driver::CUhostFn {
     fn from(value: HostFunction) -> Self {
         value.as_raw()
     }
 }
 
-impl From<driver::CUfunction> for DeviceFunction {
-    fn from(value: driver::CUfunction) -> Self {
-        Self::new(value)
-    }
-}
-
 impl From<DeviceFunction> for driver::CUfunction {
     fn from(value: DeviceFunction) -> Self {
         value.as_raw()
-    }
-}
-
-impl From<*mut ()> for DevicePtr {
-    fn from(value: *mut ()) -> Self {
-        Self::from_raw(value)
-    }
-}
-
-impl From<*mut std::ffi::c_void> for DevicePtr {
-    fn from(value: *mut std::ffi::c_void) -> Self {
-        Self::from_raw(value.cast())
     }
 }
 

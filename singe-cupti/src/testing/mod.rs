@@ -17,8 +17,8 @@ impl TestContext {
 
 /// Creates and binds a CUDA context for CUPTI tests.
 pub fn setup_context() -> Result<TestContext> {
-    let lock = singe_cuda::testing::device_lock(0)?;
-    let context = Context::create()?;
+    let (lock, cuda_context) = singe_cuda::testing::bootstrap()?;
+    let context = Context::from_cuda_context(cuda_context);
     Ok(TestContext {
         context,
         _lock: lock,

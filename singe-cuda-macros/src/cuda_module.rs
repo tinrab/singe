@@ -446,10 +446,12 @@ fn generate_module(
         let ptx_name = &kernel.ptx_name;
         let name = &kernel.rust_name;
         let on_name = format_ident!("{}_on", name);
+        let record_name = format_ident!("{}_record", name);
         let node_name = format_ident!("{}_node", name);
         let set_node_params_name = format_ident!("{}_set_node_params", name);
         let memory_name = format_ident!("{}_with_memory", name);
         let memory_on_name = format_ident!("{}_with_memory_on", name);
+        let memory_record_name = format_ident!("{}_with_memory_record", name);
         let memory_node_name = format_ident!("{}_with_memory_node", name);
         let memory_set_node_params_name = format_ident!("{}_with_memory_set_node_params", name);
         let args = kernel
@@ -492,6 +494,7 @@ fn generate_module(
                 .collect::<Vec<_>>();
             let memory_launch_args = memory_args.clone();
             let memory_on_args = memory_args.clone();
+            let memory_record_args = memory_args.clone();
             let memory_node_args = memory_args.clone();
             let memory_arg_names = kernel
                 .params
@@ -545,13 +548,38 @@ fn generate_module(
                     }
                 }
 
-                /// Adds a graph node using `DeviceMemory` parameters for pointer arguments.
+                /// Records a captured kernel launch using `DeviceMemory` parameters for pointer arguments.
                 ///
                 /// # Safety
                 ///
                 /// The caller must ensure the graph execution only accesses memory within
                 /// the provided allocations and that all referenced device memory remains
-                /// alive until every execution using the node has finished.
+                /// alive until every captured graph execution has finished.
+                pub unsafe fn #memory_record_name(
+                    &self,
+                    scope: &StreamCaptureScope<'_>,
+                    config: &LaunchConfig,
+                    #(#memory_record_args),*
+                ) -> Result<()> {
+                    unsafe {
+                        self.#record_name(
+                            scope,
+                            config,
+                            #(#memory_arg_names),*
+                        )
+                    }
+                }
+
+                /// Adds a graph node using `DeviceMemory` parameters for pointer arguments.
+                ///
+                /// # Safety
+                ///
+                /// CUDA copies each kernel argument value during this call. For
+                /// device-memory arguments, CUDA stores only the device pointer
+                /// address. The caller must ensure the graph execution only
+                /// accesses memory within the provided allocations and that all
+                /// referenced device memory remains alive until every execution
+                /// using the node has finished.
                 pub unsafe fn #memory_node_name(
                     &self,
                     graph: &mut Graph,
@@ -573,9 +601,12 @@ fn generate_module(
                 ///
                 /// # Safety
                 ///
-                /// The caller must ensure the graph execution only accesses memory within
-                /// the provided allocations and that all referenced device memory remains
-                /// alive until every execution using the node has finished.
+                /// CUDA copies each kernel argument value during this call. For
+                /// device-memory arguments, CUDA stores only the device pointer
+                /// address. The caller must ensure the graph execution only
+                /// accesses memory within the provided allocations and that all
+                /// referenced device memory remains alive until every execution
+                /// using the node has finished.
                 pub unsafe fn #memory_set_node_params_name(
                     &self,
                     executable: &mut ExecutableGraph,
@@ -635,13 +666,34 @@ fn generate_module(
                 function.launch_on(config, params, stream)
             }
 
-            /// Adds a graph node with raw CUDA pointer arguments.
+            /// Records a captured kernel launch with raw CUDA pointer arguments.
             ///
             /// # Safety
             ///
             /// The caller must ensure every raw pointer argument is valid for the
-            /// kernel's accesses and remains valid until every graph execution using
-            /// the node has finished.
+            /// kernel's accesses and remains valid until every captured graph
+            /// execution using this launch has finished.
+            pub unsafe fn #record_name(
+                &self,
+                scope: &StreamCaptureScope<'_>,
+                config: &LaunchConfig,
+                #(#launch_args),*
+            ) -> Result<()> {
+                let function = self.module.function(#ptx_name)?;
+                let mut params = KernelParameters::new();
+                #(#launch_arg_names)*
+                scope.record(unsafe { function.launch_operation(config, &mut params) })
+            }
+
+            /// Adds a graph node with raw CUDA pointer arguments.
+            ///
+            /// # Safety
+            ///
+            /// CUDA copies each kernel argument value during this call. For raw
+            /// pointer arguments, CUDA stores only the pointer address. The
+            /// caller must ensure every raw pointer argument is valid for the
+            /// kernel's accesses and remains valid until every graph execution
+            /// using the node has finished.
             pub unsafe fn #node_name(
                 &self,
                 graph: &mut Graph,
@@ -652,16 +704,18 @@ fn generate_module(
                 let function = self.module.function(#ptx_name)?;
                 let mut params = KernelParameters::new();
                 #(#node_arg_names)*
-                function.add_to_graph(graph, dependencies, config, &mut params)
+                unsafe { function.add_to_graph(graph, dependencies, config, &mut params) }
             }
 
             /// Updates graph node parameters with raw CUDA pointer arguments.
             ///
             /// # Safety
             ///
-            /// The caller must ensure every raw pointer argument is valid for the
-            /// kernel's accesses and remains valid until every graph execution using
-            /// the node has finished.
+            /// CUDA copies each kernel argument value during this call. For raw
+            /// pointer arguments, CUDA stores only the pointer address. The
+            /// caller must ensure every raw pointer argument is valid for the
+            /// kernel's accesses and remains valid until every graph execution
+            /// using the node has finished.
             pub unsafe fn #set_node_params_name(
                 &self,
                 executable: &mut ExecutableGraph,
@@ -672,7 +726,7 @@ fn generate_module(
                 let function = self.module.function(#ptx_name)?;
                 let mut params = KernelParameters::new();
                 #(#node_arg_names)*
-                function.set_graph_node_params(executable, node, config, &mut params)
+                unsafe { function.set_graph_node_params(executable, node, config, &mut params) }
             }
 
             #memory_methods
@@ -698,7 +752,7 @@ fn generate_module(
                 memory::DeviceMemory,
                 module::{KernelParameters, LaunchConfig, Module as CudaModule},
                 nvrtc::{CompileOptions, Header, OutputKind, Program, supported_architectures},
-                stream::Stream,
+                stream::{Stream, StreamCaptureScope},
             };
 
             const MODULE_CACHE_KEY_SUFFIX: &str = #cache_key;

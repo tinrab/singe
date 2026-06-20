@@ -82,5 +82,5 @@ pub fn solve(
 
 pub fn ptr_at<T>(memory: &DeviceMemory<T>, offset: usize) -> DevicePtr {
     let ptr = unsafe { memory.as_ptr().add(offset) };
-    DevicePtr::from_raw(ptr.cast_mut().cast())
+    unsafe { DevicePtr::from_raw(ptr.cast_mut().cast()) }
 }

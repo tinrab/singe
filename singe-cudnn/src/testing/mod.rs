@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use singe_cuda::{context::Context as CudaContext, stream::Stream, testing::DeviceLock};
+use singe_cuda::{stream::Stream, testing::DeviceLock};
 
 use crate::{context::Context, error::Result};
 
@@ -26,9 +26,7 @@ impl TestContext {
 
 pub fn setup_context() -> Result<TestContext> {
     let device_id: i32 = 0;
-    let lock = singe_cuda::testing::device_lock(device_id)?;
-
-    let cuda_context = CudaContext::create()?;
+    let (lock, cuda_context) = singe_cuda::testing::bootstrap_for_device(device_id)?;
     let context = Context::create(&cuda_context)?;
     let stream = cuda_context.create_stream()?;
     context.set_stream(Some(&stream))?;

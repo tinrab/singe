@@ -24,6 +24,11 @@ impl Context {
         })
     }
 
+    #[cfg(feature = "testing")]
+    pub(crate) fn from_cuda_context(inner: Arc<singe_cuda::context::Context>) -> Self {
+        Self { inner }
+    }
+
     pub fn bind(&self) -> Result<()> {
         self.inner.bind()?;
         Ok(())

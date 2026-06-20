@@ -18,12 +18,12 @@ fn main() -> Result<()> {
     let b1 = DeviceMemory::from_slice(&[9.0_f64, 11.0, 10.0, 12.0])?;
 
     let a = [
-        DevicePtr::from(a0.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(a1.as_ptr().cast_mut().cast::<()>()),
+        unsafe { DevicePtr::from_raw(a0.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(a1.as_ptr().cast_mut().cast::<()>()) },
     ];
     let mut b = [
-        DevicePtr::from(b0.as_ptr().cast_mut().cast::<()>()),
-        DevicePtr::from(b1.as_ptr().cast_mut().cast::<()>()),
+        unsafe { DevicePtr::from_raw(b0.as_ptr().cast_mut().cast::<()>()) },
+        unsafe { DevicePtr::from_raw(b1.as_ptr().cast_mut().cast::<()>()) },
     ];
 
     dtrsm_batched(

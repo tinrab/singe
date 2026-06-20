@@ -11,13 +11,94 @@ use singe_cuda_sys::{driver, runtime};
 use crate::{
     error::{Error, Result},
     ipc::IpcMemoryHandle,
-    stream::{Stream, StreamScope},
+    stream::{GraphRecordable, Stream, StreamCaptureScope, StreamScope},
     try_ffi,
     types::DevicePtr,
     view::{
         DeviceRepr, DeviceSlice, DeviceSliceMut, DeviceView, DeviceViewMut, ZeroableDeviceRepr,
     },
 };
+
+#[derive(Debug, Clone, Copy)]
+pub struct MemoryCopyOperation<'a, T> {
+    dst: *mut T,
+    src: *const T,
+    count: usize,
+    kind: MemoryCopyKind,
+    _marker: PhantomData<&'a mut [T]>,
+}
+
+impl<'a, T> MemoryCopyOperation<'a, T> {
+    /// Creates a stream-capture-safe memcpy operation from raw pointers.
+    ///
+    /// # Safety
+    ///
+    /// Capturing this operation stores `dst` and `src` pointer addresses in the
+    /// resulting CUDA graph. The caller must ensure both pointers are valid for
+    /// `count` elements whenever a captured graph using this operation is
+    /// launched. If `dst` is mutable memory, it must also remain exclusive for
+    /// the work ordered by those launches.
+    pub const unsafe fn new(
+        dst: *mut T,
+        src: *const T,
+        count: usize,
+        kind: MemoryCopyKind,
+    ) -> Self {
+        Self {
+            dst,
+            src,
+            count,
+            kind,
+            _marker: PhantomData,
+        }
+    }
+}
+
+unsafe impl<T> GraphRecordable for MemoryCopyOperation<'_, T> {
+    type Output = ();
+
+    fn record(self, scope: &StreamCaptureScope<'_>) -> Result<()> {
+        unsafe {
+            DeviceMemory::<T>::copy_async(self.dst, self.src, self.count, self.kind, scope.stream())
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MemorySetOperation<'a, T> {
+    dst: *mut T,
+    value: u8,
+    count: usize,
+    _marker: PhantomData<&'a mut [T]>,
+}
+
+impl<'a, T> MemorySetOperation<'a, T> {
+    /// Creates a stream-capture-safe memset operation from a raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// Capturing this operation stores `dst` in the resulting CUDA graph. The
+    /// caller must ensure `dst` is valid for writes of
+    /// `count * size_of::<T>()` bytes whenever a captured graph using this
+    /// operation is launched, and that it remains exclusive for the work ordered
+    /// by those launches.
+    pub const unsafe fn new(dst: *mut T, value: u8, count: usize) -> Self {
+        Self {
+            dst,
+            value,
+            count,
+            _marker: PhantomData,
+        }
+    }
+}
+
+unsafe impl<T> GraphRecordable for MemorySetOperation<'_, T> {
+    type Output = ();
+
+    fn record(self, scope: &StreamCaptureScope<'_>) -> Result<()> {
+        unsafe { DeviceMemory::<T>::set_async(self.dst, self.value, self.count, scope.stream()) }
+    }
+}
 
 /// CUDA memory copy types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
@@ -241,7 +322,7 @@ impl From<runtime::cudaPointerAttributes> for PointerAttributes {
         Self {
             memory_type: attr.type_.into(),
             device: attr.device,
-            device_pointer: DevicePtr::from(attr.devicePointer),
+            device_pointer: unsafe { DevicePtr::from_raw(attr.devicePointer.cast()) },
             host_pointer: attr.hostPointer.cast(),
         }
     }
@@ -1284,6 +1365,32 @@ impl<T> DeviceMemory<T> {
         }
     }
 
+    /// Returns a capture operation that copies from host memory into this device allocation.
+    ///
+    /// # Safety
+    ///
+    /// Capturing this operation stores the host and device pointer addresses in
+    /// the resulting CUDA graph. The caller must ensure `self` and `host_slice`
+    /// remain valid whenever a captured graph using this operation is launched.
+    /// The destination allocation must remain exclusive for the work ordered by
+    /// those launches.
+    pub unsafe fn copy_from_host_operation<'a>(
+        &'a mut self,
+        host_slice: &'a [T],
+    ) -> Result<MemoryCopyOperation<'a, T>> {
+        if host_slice.len() != self.len() {
+            return Err(Error::InvalidMemoryAccess);
+        }
+        Ok(unsafe {
+            MemoryCopyOperation::new(
+                self.as_mut_ptr(),
+                host_slice.as_ptr(),
+                self.len(),
+                MemoryCopyKind::HostToDevice,
+            )
+        })
+    }
+
     pub fn copy_to_host(&self, host_slice: &mut [T]) -> Result<()> {
         if host_slice.len() != self.length {
             return Err(Error::InvalidMemoryAccess);
@@ -1333,6 +1440,32 @@ impl<T> DeviceMemory<T> {
                 stream,
             )
         }
+    }
+
+    /// Returns a capture operation that copies this allocation into host memory.
+    ///
+    /// # Safety
+    ///
+    /// Capturing this operation stores the device and host pointer addresses in
+    /// the resulting CUDA graph. The caller must ensure `self` and `host_slice`
+    /// remain valid whenever a captured graph using this operation is launched.
+    /// The host destination must remain exclusive for the work ordered by those
+    /// launches.
+    pub unsafe fn copy_to_host_operation<'a>(
+        &'a self,
+        host_slice: &'a mut [T],
+    ) -> Result<MemoryCopyOperation<'a, T>> {
+        if host_slice.len() != self.len() {
+            return Err(Error::InvalidMemoryAccess);
+        }
+        Ok(unsafe {
+            MemoryCopyOperation::new(
+                host_slice.as_mut_ptr(),
+                self.as_ptr(),
+                self.len(),
+                MemoryCopyKind::DeviceToHost,
+            )
+        })
     }
 
     pub fn copy_to_host_vec(&self) -> Result<Vec<T>> {
@@ -1411,6 +1544,32 @@ impl<T> DeviceMemory<T> {
         }
     }
 
+    /// Returns a capture operation that copies from another device allocation into this allocation.
+    ///
+    /// # Safety
+    ///
+    /// Capturing this operation stores both device pointer addresses in the
+    /// resulting CUDA graph. The caller must ensure `self` and `src` remain
+    /// valid whenever a captured graph using this operation is launched. The
+    /// destination allocation must remain exclusive for the work ordered by
+    /// those launches.
+    pub unsafe fn copy_from_device_operation<'a>(
+        &'a mut self,
+        src: &'a Self,
+    ) -> Result<MemoryCopyOperation<'a, T>> {
+        if src.len() != self.len() {
+            return Err(Error::InvalidMemoryAccess);
+        }
+        Ok(unsafe {
+            MemoryCopyOperation::new(
+                self.as_mut_ptr(),
+                src.as_ptr(),
+                self.len(),
+                MemoryCopyKind::DeviceToDevice,
+            )
+        })
+    }
+
     pub fn set_zeroes(&mut self) -> Result<()> {
         if self.length == 0 {
             return Ok(());
@@ -1446,6 +1605,17 @@ impl<T> DeviceMemory<T> {
             return Ok(());
         }
         unsafe { Self::set_async(self.as_mut_ptr(), value, self.len(), stream) }
+    }
+
+    /// Returns a capture operation that fills this device allocation with `value`.
+    ///
+    /// # Safety
+    ///
+    /// Capturing this operation stores this allocation's pointer address in the
+    /// resulting CUDA graph. The caller must ensure `self` remains valid and
+    /// exclusive whenever a captured graph using this operation is launched.
+    pub unsafe fn set_value_operation<'a>(&'a mut self, value: u8) -> MemorySetOperation<'a, T> {
+        unsafe { MemorySetOperation::new(self.as_mut_ptr(), value, self.len()) }
     }
 
     /// Takes a pointer to the base of an existing device memory allocation created with [`DeviceMemory::alloc`] and exports it for use in another process.
@@ -1686,7 +1856,7 @@ impl<T: DeviceRepr> ManagedMemory<T> {
 
     pub fn prefetch_to(&self, location: MemoryLocation, stream: &Stream) -> Result<()> {
         DeviceMemory::<T>::prefetch_async(
-            DevicePtr::from(self.ptr.cast::<()>()),
+            unsafe { DevicePtr::from_raw(self.ptr.cast::<()>()) },
             self.byte_len(),
             location,
             stream,
@@ -1744,18 +1914,14 @@ impl<T: DeviceRepr> Drop for ManagedMemory<T> {
 #[cfg(all(test, feature = "testing"))]
 mod tests {
     use super::*;
-    use crate::{context::Context, testing};
+    use crate::testing;
 
     #[test]
     fn it_works() -> Result<()> {
         unsafe {
             let host_in = [1, 2, 3];
 
-            let device_ptr = match DeviceMemory::alloc(3) {
-                Ok(device_ptr) => device_ptr,
-                Err(error) if testing::is_stub_library(&error) => return Ok(()),
-                Err(error) => return Err(error),
-            };
+            let device_ptr = DeviceMemory::alloc(3)?;
 
             DeviceMemory::copy(
                 device_ptr,
@@ -1779,19 +1945,14 @@ mod tests {
 
     #[test]
     fn test_scoped_async_copy_round_trip() -> Result<()> {
-        let _lock = testing::device_lock(0)?;
-        let ctx = match Context::create() {
-            Ok(ctx) => ctx,
-            Err(error) if testing::is_stub_library(&error) => return Ok(()),
-            Err(error) => return Err(error),
-        };
+        let (_lock, ctx) = testing::bootstrap()?;
         let stream = ctx.create_stream()?;
 
         let host_in = [4_i32, 5, 6];
         let mut device = DeviceMemory::create(host_in.len())?;
         let mut host_out = [0_i32; 3];
 
-        stream.scope(|scope| {
+        stream.sync_scope(|scope| {
             device.copy_from_host_async(&host_in, scope)?;
             device.copy_to_host_async(&mut host_out, scope)
         })?;

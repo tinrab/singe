@@ -120,7 +120,7 @@ impl<'a> SparseVectorDescriptor<'a> {
         unsafe {
             try_ffi!(sys::cusparseSpVecGetValues(self.as_raw(), &raw mut values))?;
         }
-        Ok(values.into())
+        Ok(unsafe { DevicePtr::from_raw(values.cast()) })
     }
 
     /// Sets the values pointer of this sparse vector descriptor.
@@ -169,8 +169,8 @@ impl<'a> SparseVectorDescriptor<'a> {
         Ok(SparseVectorInfo {
             size: to_usize(size, "size")?,
             nonzero_count: to_usize(nnz, "nonzero_count")?,
-            indices: indices.into(),
-            values: values.into(),
+            indices: unsafe { DevicePtr::from_raw(indices.cast()) },
+            values: unsafe { DevicePtr::from_raw(values.cast()) },
             index_type: index_type.into(),
             index_base: index_base.into(),
         })
@@ -286,7 +286,7 @@ impl<'a> DenseVectorDescriptor<'a> {
         unsafe {
             try_ffi!(sys::cusparseDnVecGetValues(self.as_raw(), &raw mut values))?;
         }
-        Ok(values.into())
+        Ok(unsafe { DevicePtr::from_raw(values.cast()) })
     }
 
     /// Sets the values pointer of this dense vector descriptor.
@@ -326,7 +326,7 @@ impl<'a> DenseVectorDescriptor<'a> {
         }
         Ok(DenseVectorInfo {
             size: to_usize(size, "size")?,
-            values: values.into(),
+            values: unsafe { DevicePtr::from_raw(values.cast()) },
         })
     }
 

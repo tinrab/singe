@@ -47,27 +47,27 @@ fn main() -> Result<()> {
     let row_offset_ptrs = DeviceMemory::from_slice(
         &row_offsets
             .each_ref()
-            .map(|memory| DevicePtr::from_raw(memory.as_mut_ptr().cast())),
+            .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let col_index_ptrs = DeviceMemory::from_slice(
         &col_indices
             .each_ref()
-            .map(|memory| DevicePtr::from_raw(memory.as_mut_ptr().cast())),
+            .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let a_value_ptrs = DeviceMemory::from_slice(
         &a_values
             .each_ref()
-            .map(|memory| DevicePtr::from_raw(memory.as_mut_ptr().cast())),
+            .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let b_value_ptrs = DeviceMemory::from_slice(
         &b_values
             .each_ref()
-            .map(|memory| DevicePtr::from_raw(memory.as_mut_ptr().cast())),
+            .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let x_value_ptrs = DeviceMemory::from_slice(
         &x_values
             .each_ref()
-            .map(|memory| DevicePtr::from_raw(memory.as_mut_ptr().cast())),
+            .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let row_offset_table =
         unsafe { DevicePointerTable::<i32>::from_device_memory(&row_offset_ptrs) };

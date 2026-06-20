@@ -1,6 +1,6 @@
 mod common;
 
-use singe_cuda::{graph::Graph as CudaGraph, memory::DeviceMemory};
+use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
     backend::behavior::BackendBehaviorNote,
     backend::tensor::{Shape, TensorSpec},
@@ -205,7 +205,7 @@ fn run() -> Result<()> {
     bindings.set(d_k, &mut d_k_dev)?;
     bindings.set(d_v_out, &mut d_v_dev)?;
 
-    let mut cudnn_graph = CudaGraph::create()?;
+    let mut cudnn_graph = ctx.cudnn.cuda_context().create_graph()?;
     match compiled.populate_cuda_graph(
         &ctx.cudnn,
         &bindings,

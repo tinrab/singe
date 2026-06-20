@@ -194,10 +194,9 @@ impl Context {
         Ok(if stream.is_null() {
             StreamBinding::Default(Arc::clone(self.cuda_context()))
         } else {
-            StreamBinding::Borrowed(BorrowedStream::from_raw(
-                stream,
-                Arc::clone(self.cuda_context()),
-            ))
+            StreamBinding::Borrowed(unsafe {
+                BorrowedStream::from_raw(stream, Arc::clone(self.cuda_context()))
+            })
         })
     }
 

@@ -136,21 +136,25 @@ fn run() -> Result<()> {
 
     let qkv_tensor_host = init_i8_image((b * s * 3 * h * d) as usize);
     let qkv_tensor = DeviceMemory::from_slice(&qkv_tensor_host)?;
-    let q_ptr = DevicePtr::from_raw(qkv_tensor.as_mut_ptr().cast());
-    let k_ptr = DevicePtr::from_raw(
-        q_ptr
-            .as_raw()
-            .cast::<u8>()
-            .wrapping_add((h * d) as usize)
-            .cast(),
-    );
-    let v_ptr = DevicePtr::from_raw(
-        q_ptr
-            .as_raw()
-            .cast::<u8>()
-            .wrapping_add((2 * h * d) as usize)
-            .cast(),
-    );
+    let q_ptr = unsafe { DevicePtr::from_raw(qkv_tensor.as_mut_ptr().cast()) };
+    let k_ptr = unsafe {
+        DevicePtr::from_raw(
+            q_ptr
+                .as_raw()
+                .cast::<u8>()
+                .wrapping_add((h * d) as usize)
+                .cast(),
+        )
+    };
+    let v_ptr = unsafe {
+        DevicePtr::from_raw(
+            q_ptr
+                .as_raw()
+                .cast::<u8>()
+                .wrapping_add((2 * h * d) as usize)
+                .cast(),
+        )
+    };
 
     let mut o_dev = DeviceMemory::<f8e4m3>::zeroes((b * s * h * d) as usize)?;
     let mut descale_q_dev = DeviceMemory::from_slice(&[1.0_f32])?;

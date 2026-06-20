@@ -253,10 +253,18 @@ impl LibraryKernel<'_> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
-        Ok(handle.into())
+        Ok(unsafe { DeviceFunction::from_raw(handle) })
     }
 
-    pub fn add_to_graph<'a, P>(
+    /// Adds this kernel to `graph` as a kernel node.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure every pointer value passed through `params`
+    /// remains valid for every graph instantiation, update, and launch that can
+    /// execute the created node. Mutable pointer arguments must remain
+    /// exclusive for the work ordered by those launches.
+    pub unsafe fn add_to_graph<'a, P>(
         &self,
         graph: &mut Graph,
         dependencies: &[GraphNode],
@@ -269,10 +277,18 @@ impl LibraryKernel<'_> {
         let function = self.function()?;
         let module = self.library.module()?;
         let function = unsafe { KernelFunction::from_raw(function, &module) };
-        function.add_to_graph(graph, dependencies, config, params)
+        unsafe { function.add_to_graph(graph, dependencies, config, params) }
     }
 
-    pub fn set_graph_node_params<'a, P>(
+    /// Updates this kernel's parameters in an executable graph node.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure every pointer value passed through `params`
+    /// remains valid for every future launch that can execute `node`. Mutable
+    /// pointer arguments must remain exclusive for the work ordered by those
+    /// launches.
+    pub unsafe fn set_graph_node_params<'a, P>(
         &self,
         executable: &mut ExecutableGraph,
         node: GraphNode,
@@ -285,7 +301,7 @@ impl LibraryKernel<'_> {
         let function = self.function()?;
         let module = self.library.module()?;
         let function = unsafe { KernelFunction::from_raw(function, &module) };
-        function.set_graph_node_params(executable, node, config, params)
+        unsafe { function.set_graph_node_params(executable, node, config, params) }
     }
 
     pub fn attribute(&self, attribute: FunctionAttribute) -> Result<i32> {

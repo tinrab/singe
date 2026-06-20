@@ -77,7 +77,7 @@ fn main() -> Result<()> {
 
     data.get_device(
         DataParameter::Diagonal,
-        DevicePtr::from_raw(diag.as_mut_ptr().cast()),
+        unsafe { DevicePtr::from_raw(diag.as_mut_ptr().cast()) },
         diag.byte_len(),
     )?;
     let diag = diag.copy_to_host_vec()?;
@@ -89,12 +89,12 @@ fn main() -> Result<()> {
     ) {
         data.get_device(
             DataParameter::ScaleRow,
-            DevicePtr::from_raw(row_scale.as_mut_ptr().cast()),
+            unsafe { DevicePtr::from_raw(row_scale.as_mut_ptr().cast()) },
             row_scale.byte_len(),
         )?;
         data.get_device(
             DataParameter::ScaleColumn,
-            DevicePtr::from_raw(col_scale.as_mut_ptr().cast()),
+            unsafe { DevicePtr::from_raw(col_scale.as_mut_ptr().cast()) },
             col_scale.byte_len(),
         )?;
         println!("row scale: {:?}", row_scale.copy_to_host_vec()?);

@@ -7,4 +7,3 @@ singe-cuda
 ![License](https://img.shields.io/crates/l/singe-cuda.svg)
 
 Safe Rust wrappers for CUDA driver, runtime, NVRTC, NVVM, NVTX, memory, streams, modules, and graphs.
-

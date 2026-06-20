@@ -103,7 +103,7 @@ impl OwnedScalar {
     }
 
     fn device_ptr(&self) -> DevicePtr {
-        DevicePtr::from_raw(self.bytes.as_ptr().cast_mut().cast())
+        unsafe { DevicePtr::from_raw(self.bytes.as_ptr().cast_mut().cast()) }
     }
 }
 
@@ -538,7 +538,7 @@ fn adjusted_alias_ptr(source: DevicePtr, byte_offset: i64) -> Result<DevicePtr> 
         name: "alias byte offset".into(),
     })?;
     let raw = source.as_raw().cast::<u8>();
-    Ok(DevicePtr::from_raw(unsafe { raw.add(byte_offset) }.cast()))
+    Ok(unsafe { DevicePtr::from_raw(raw.add(byte_offset).cast()) })
 }
 
 impl CompiledGraph {
@@ -774,7 +774,7 @@ impl CompiledGraph {
         plan_index: usize,
         runtime_overrides: &RuntimeOverrides,
     ) -> Result<GraphNode> {
-        let mut child_graph = CudaGraph::create()?;
+        let mut child_graph = ctx.cuda_context().create_graph()?;
         self.populate_cuda_graph_at_with_runtime_overrides(
             ctx,
             bindings,
@@ -938,7 +938,7 @@ impl CompiledGraph {
             runtime_overrides,
         )?;
         if let Some(exec) = exec.as_mut() {
-            exec.set_child_graph_node(node, &child_graph)?;
+            exec.set_child_graph_node(node.clone(), &child_graph)?;
         }
         Ok(())
     }

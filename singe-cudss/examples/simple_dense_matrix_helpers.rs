@@ -38,17 +38,18 @@ fn main() -> Result<()> {
     assert_eq!(info.rows, rows);
     assert_eq!(info.columns, cols);
     assert_eq!(info.leading_dim, leading_dim);
-    assert_eq!(info.values, DevicePtr::from_raw(values.as_mut_ptr().cast()));
+    assert_eq!(info.values, unsafe {
+        DevicePtr::from_raw(values.as_mut_ptr().cast())
+    });
     assert_eq!(info.value_type, DataType::F64);
     assert_eq!(info.layout, Layout::ColumnMajor);
     println!("dense_info matched the original descriptor");
 
     matrix.set_values(&replacement_values)?;
     let info = matrix.dense_info()?;
-    assert_eq!(
-        info.values,
+    assert_eq!(info.values, unsafe {
         DevicePtr::from_raw(replacement_values.as_mut_ptr().cast())
-    );
+    });
 
     let copied = replacement_values.copy_to_host_vec()?;
     assert_eq!(copied[1], -4.0);

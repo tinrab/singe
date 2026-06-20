@@ -326,6 +326,10 @@ pub enum Error {
     GraphOperationRequired,
     #[error("graph dependency mismatch")]
     GraphDependencyMismatch,
+    #[error("graph node belongs to a different graph")]
+    GraphNodeMismatch,
+    #[error("graph belongs to a different cuda context")]
+    GraphContextMismatch,
 
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,

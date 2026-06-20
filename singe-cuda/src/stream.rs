@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use crate::error::Status;
 
-use std::{iter, marker::PhantomData, mem::ManuallyDrop, ptr, sync::Arc};
+use std::{iter, marker::PhantomData, mem::ManuallyDrop, panic, ptr, sync::Arc};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_core::impl_enum_conversion;
@@ -12,7 +12,9 @@ use crate::{
     device::Device,
     error::{Error, Result},
     event::Event,
-    graph::{Graph, GraphDependency, GraphEdgeData, GraphNode},
+    graph::{
+        ExecutableGraph, Graph, GraphDependency, GraphEdgeData, GraphInstantiateFlags, GraphNode,
+    },
     try_ffi,
 };
 
@@ -76,8 +78,16 @@ type RustStreamCallbackDyn = Box<dyn FnOnce(Result<()>) + Send + 'static>;
 // Type alias for the pointer type stored in the outer box.
 type BoxedCallbackPtr = *mut RustStreamCallbackDyn;
 
-#[derive(Debug)]
+type RustHostFunctionDyn = Box<dyn FnOnce() + Send + 'static>;
+type BoxedHostFunctionPtr = *mut RustHostFunctionDyn;
+
+#[derive(Debug, Clone)]
 pub struct Stream {
+    inner: Arc<StreamInner>,
+}
+
+#[derive(Debug)]
+struct StreamInner {
     handle: runtime::cudaStream_t,
     ctx: Arc<Context>,
     // TODO: Store device ID? Could be useful for multi-GPU.
@@ -86,7 +96,7 @@ pub struct Stream {
 
 impl PartialEq for Stream {
     fn eq(&self, other: &Self) -> bool {
-        self.handle == other.handle && Arc::ptr_eq(&self.ctx, &other.ctx)
+        self.as_raw() == other.as_raw() && Arc::ptr_eq(&self.inner.ctx, &other.inner.ctx)
     }
 }
 
@@ -96,6 +106,51 @@ impl Eq for Stream {}
 pub struct StreamScope<'scope, 'env> {
     stream: &'scope Stream,
     _env: PhantomData<&'env mut &'env ()>,
+}
+
+#[derive(Debug)]
+pub struct StreamCaptureScope<'scope> {
+    stream: &'scope Stream,
+    _not_send: PhantomData<*const ()>,
+}
+
+/// Operation that may be recorded into a CUDA graph capture scope.
+///
+/// # Safety
+///
+/// Implementors must only enqueue CUDA work that is valid during stream
+/// capture. Every pointer, handle, and side effect captured into the resulting
+/// graph must have its replay safety contract represented by the operation's
+/// type and constructor.
+pub unsafe trait GraphRecordable {
+    type Output;
+
+    fn record(self, scope: &StreamCaptureScope<'_>) -> Result<Self::Output>;
+}
+
+struct ActiveStreamCapture<'stream> {
+    stream: &'stream Stream,
+    finished: bool,
+}
+
+impl ActiveStreamCapture<'_> {
+    fn finish(mut self) -> Result<Graph> {
+        self.finished = true;
+        self.stream.end_capture()
+    }
+
+    fn discard(mut self) {
+        self.finished = true;
+        drop(self.stream.end_capture());
+    }
+}
+
+impl Drop for ActiveStreamCapture<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            drop(self.stream.end_capture());
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -114,6 +169,10 @@ pub enum StreamBinding {
 impl Stream {
     /// Wraps an existing CUDA stream handle and takes ownership of it.
     ///
+    /// Dropping the returned stream may block while synchronizing the stream
+    /// before destruction. Use [`Stream::shutdown`] to surface synchronization
+    /// or destruction errors explicitly.
+    ///
     /// # Safety
     ///
     /// `handle` must be a valid CUDA stream owned by `ctx`, and ownership of
@@ -124,14 +183,21 @@ impl Stream {
             return Err(Error::NullHandle);
         }
 
-        Ok(Self { handle, ctx })
+        Ok(Self {
+            inner: Arc::new(StreamInner { handle, ctx }),
+        })
     }
 
     pub fn to_borrowed(&self) -> BorrowedStream {
-        BorrowedStream::from_raw(self.as_raw(), Arc::clone(&self.ctx))
+        unsafe { BorrowedStream::from_raw(self.as_raw(), Arc::clone(&self.inner.ctx)) }
     }
 
-    pub fn scope<'env, F, R>(&self, f: F) -> Result<R>
+    /// Runs `f` with a stream scope and synchronizes this stream before returning.
+    ///
+    /// Use this for scoped asynchronous operations that borrow host or device
+    /// memory until stream completion. For CUDA graph capture, use
+    /// [`Stream::capture`] or [`Stream::capture_executable`].
+    pub fn sync_scope<'env, F, R>(&self, f: F) -> Result<R>
     where
         F: for<'scope> FnOnce(&'scope StreamScope<'scope, 'env>) -> Result<R>,
     {
@@ -162,8 +228,21 @@ impl Stream {
     /// [`crate::error::Status::NoDevice`] if this call initializes internal runtime state. Callbacks must not
     /// call CUDA functions; see [`Stream::add_callback`].
     pub fn synchronize(&self) -> Result<()> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         unsafe { try_ffi!(runtime::cudaStreamSynchronize(self.as_raw())) }
+    }
+
+    /// Synchronizes this stream, destroys it, and returns any CUDA error.
+    ///
+    /// This is the explicit version of the cleanup normally performed by
+    /// [`Drop`]. It may block while waiting for stream work and callbacks to
+    /// complete. If synchronization fails, destruction is still attempted and
+    /// the synchronization error is returned. If synchronization succeeds but
+    /// destruction fails, the destruction error is returned.
+    pub fn shutdown(self) -> Result<()> {
+        let inner = Arc::try_unwrap(self.inner).map_err(|_| Error::InvalidValue)?;
+        let inner = ManuallyDrop::new(inner);
+        Self::destroy_handle(inner.ctx.as_ref(), inner.handle)
     }
 
     /// Returns `true` if all operations in stream have completed, or `false` if not.
@@ -222,7 +301,7 @@ impl Stream {
     /// [`crate::error::Status::NoDevice`] if this call initializes internal runtime state. Callbacks must not
     /// call CUDA functions; see [`Stream::add_callback`].
     pub fn wait_event_with_flags(&self, event: &Event, flags: u32) -> Result<()> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         unsafe {
             try_ffi!(runtime::cudaStreamWaitEvent(
                 self.as_raw(),
@@ -252,23 +331,38 @@ impl Stream {
     /// this stream, the capture mode is invalid for the current thread state,
     /// or a previous asynchronous launch reports an error.
     pub fn begin_capture(&self, mode: StreamCaptureMode) -> Result<()> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         unsafe {
             try_ffi!(runtime::cudaStreamBeginCapture(self.as_raw(), mode.into()))?;
         }
         Ok(())
     }
 
-    pub fn begin_capture_to_graph(
+    /// Begins stream capture into an existing graph.
+    ///
+    /// # Safety
+    ///
+    /// This low-level API captures into `graph`'s existing CUDA handle. Calling
+    /// [`Stream::end_capture`] after this may return that same raw handle; the
+    /// caller must not wrap it as a second owned [`Graph`]. Prefer
+    /// [`Stream::capture`] unless manually managing capture into an existing
+    /// graph is required.
+    pub unsafe fn begin_capture_to_graph(
         &self,
         graph: &Graph,
         dependencies: &[GraphNode],
         mode: StreamCaptureMode,
     ) -> Result<()> {
-        self.begin_capture_to_graph_with_data(graph, dependencies, &[], mode)
+        unsafe { self.begin_capture_to_graph_with_data(graph, dependencies, &[], mode) }
     }
 
-    pub fn begin_capture_to_graph_with_data(
+    /// Begins stream capture into an existing graph with annotated dependency edges.
+    ///
+    /// # Safety
+    ///
+    /// This has the same ownership restrictions as
+    /// [`Stream::begin_capture_to_graph`].
+    pub unsafe fn begin_capture_to_graph_with_data(
         &self,
         graph: &Graph,
         dependencies: &[GraphNode],
@@ -287,10 +381,13 @@ impl Stream {
                     .copied()
                     .chain(iter::repeat(GraphEdgeData::default())),
             )
-            .map(|(&node, data)| GraphDependency { node, data })
+            .map(|(node, data)| GraphDependency {
+                node: node.clone(),
+                data,
+            })
             .collect();
 
-        self.begin_capture_to_graph_with_dependencies(graph, &dependencies, mode)
+        unsafe { self.begin_capture_to_graph_with_dependencies(graph, &dependencies, mode) }
     }
 
     /// Begin graph capture on stream.
@@ -314,13 +411,21 @@ impl Stream {
     /// this stream, the graph dependencies are invalid, the capture mode is
     /// invalid for the current thread state, or a previous asynchronous launch
     /// reports an error.
-    pub fn begin_capture_to_graph_with_dependencies(
+    /// # Safety
+    ///
+    /// This captures into `graph`'s existing CUDA handle. Calling
+    /// [`Stream::end_capture`] after this may return that same raw handle; the
+    /// caller must not wrap it as a second owned [`Graph`].
+    pub unsafe fn begin_capture_to_graph_with_dependencies(
         &self,
         graph: &Graph,
         dependencies: &[GraphDependency],
         mode: StreamCaptureMode,
     ) -> Result<()> {
-        self.ctx.bind()?;
+        self.check_graph_context(graph)?;
+        self.check_capture_dependency_contexts(dependencies)?;
+        self.check_capture_graph_dependencies(graph, dependencies)?;
+        self.inner.ctx.bind()?;
 
         let dependencies_raw: Vec<_> = dependencies
             .iter()
@@ -359,15 +464,80 @@ impl Stream {
     /// on this stream, the capture has been invalidated, or a previous
     /// asynchronous launch reports an error.
     pub fn end_capture(&self) -> Result<Graph> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         let mut handle = ptr::null_mut();
         unsafe {
             try_ffi!(runtime::cudaStreamEndCapture(
                 self.as_raw(),
                 &raw mut handle
             ))?;
-            Graph::from_raw(handle)
+            Graph::from_raw_in_context(handle, Arc::clone(&self.inner.ctx))
         }
+    }
+
+    /// Captures stream work recorded by `f` into a CUDA graph.
+    ///
+    /// This is the scoped form of [`Stream::begin_capture`] and
+    /// [`Stream::end_capture`]. The capture is always ended before this method
+    /// returns or resumes a panic. If `f` returns an error, this method attempts
+    /// to end capture to restore stream usability, destroys any graph returned
+    /// by CUDA, and returns the closure error.
+    ///
+    /// The scope is intentionally `!Send`, so it cannot be moved to another
+    /// thread while capture is active. Future graph-safe recording helpers can
+    /// be added to [`StreamCaptureScope`] without changing this API shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture cannot begin, if `f` returns an error, or if
+    /// capture cannot be ended successfully.
+    pub fn capture<F>(&self, mode: StreamCaptureMode, f: F) -> Result<Graph>
+    where
+        F: FnOnce(&StreamCaptureScope<'_>) -> Result<()>,
+    {
+        self.begin_capture(mode)?;
+        let capture = ActiveStreamCapture {
+            stream: self,
+            finished: false,
+        };
+
+        let scope = StreamCaptureScope {
+            stream: self,
+            _not_send: PhantomData,
+        };
+
+        let capture_result = panic::catch_unwind(panic::AssertUnwindSafe(|| f(&scope)));
+        match capture_result {
+            Ok(Ok(())) => capture.finish(),
+            Ok(Err(err)) => {
+                capture.discard();
+                Err(err)
+            }
+            Err(payload) => {
+                drop(capture);
+                panic::resume_unwind(payload);
+            }
+        }
+    }
+
+    pub fn capture_executable<F>(&self, mode: StreamCaptureMode, f: F) -> Result<ExecutableGraph>
+    where
+        F: FnOnce(&StreamCaptureScope<'_>) -> Result<()>,
+    {
+        self.capture_executable_with_flags(mode, GraphInstantiateFlags::empty(), f)
+    }
+
+    pub fn capture_executable_with_flags<F>(
+        &self,
+        mode: StreamCaptureMode,
+        flags: GraphInstantiateFlags,
+        f: F,
+    ) -> Result<ExecutableGraph>
+    where
+        F: FnOnce(&StreamCaptureScope<'_>) -> Result<()>,
+    {
+        let graph = self.capture(mode, f)?;
+        graph.instantiate_with_flags(flags)
     }
 
     /// Returns the capture status of this stream.
@@ -390,7 +560,7 @@ impl Stream {
     /// Returns an error if the context cannot be bound, CUDA cannot query the
     /// capture status, or a previous asynchronous launch reports an error.
     pub fn capture_status(&self) -> Result<StreamCaptureStatus> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         let mut status = runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_NONE;
         unsafe {
             try_ffi!(runtime::cudaStreamIsCapturing(
@@ -418,7 +588,7 @@ impl Stream {
     /// capture info, the query would lose non-zero edge data, or a previous
     /// asynchronous launch reports an error.
     pub fn capture_info(&self) -> Result<StreamCaptureInfo> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         let mut status = runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_NONE;
         let mut id = 0;
         unsafe {
@@ -476,7 +646,10 @@ impl Stream {
                     .copied()
                     .chain(iter::repeat(GraphEdgeData::default())),
             )
-            .map(|(&node, data)| GraphDependency { node, data })
+            .map(|(node, data)| GraphDependency {
+                node: node.clone(),
+                data,
+            })
             .collect();
 
         self.update_capture_dependencies_with_dependencies(&dependencies, mode)
@@ -503,7 +676,9 @@ impl Stream {
         dependencies: &[GraphDependency],
         mode: StreamCaptureDependencyUpdate,
     ) -> Result<()> {
-        self.ctx.bind()?;
+        self.check_capture_dependency_contexts(dependencies)?;
+        self.check_active_capture_graph_dependencies(dependencies)?;
+        self.inner.ctx.bind()?;
 
         let mut dependencies_raw: Vec<_> = dependencies
             .iter()
@@ -572,7 +747,7 @@ impl Stream {
     where
         F: FnOnce(Result<()>) + Send + 'static,
     {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
 
         let boxed_dyn_callback: RustStreamCallbackDyn = Box::new(callback);
         let boxed_wrapper: Box<RustStreamCallbackDyn> = Box::new(boxed_dyn_callback);
@@ -601,6 +776,44 @@ impl Stream {
         Ok(())
     }
 
+    /// Enqueues a host function to run after all currently enqueued work in this stream completes.
+    ///
+    /// Unlike [`Stream::add_callback`], CUDA does not call this function if the CUDA context is already in an error state.
+    /// This API is supported during stream capture by CUDA, but the host function still must not call CUDA
+    /// APIs or perform synchronization that depends on outstanding device work.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context cannot be bound, CUDA rejects the host
+    /// function registration, a previous asynchronous launch reports an error,
+    /// or CUDA reports runtime initialization diagnostics.
+    pub fn launch_host_func<F>(&self, function: F) -> Result<()>
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        self.inner.ctx.bind()?;
+
+        let boxed_dyn_function: RustHostFunctionDyn = Box::new(function);
+        let boxed_wrapper: Box<RustHostFunctionDyn> = Box::new(boxed_dyn_function);
+        let user_data_ptr: BoxedHostFunctionPtr = Box::into_raw(boxed_wrapper);
+        let final_user_data = user_data_ptr.cast();
+
+        unsafe {
+            let status = runtime::cudaLaunchHostFunc(
+                self.as_raw(),
+                Some(stream_host_function_trampoline),
+                final_user_data,
+            );
+
+            if status != runtime::cudaError_t::CUDA_SUCCESS {
+                let _leaked_box = Box::from_raw(user_data_ptr);
+                try_ffi!(status)?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Query the flags of a stream.
     /// Returns the stream flags.
     /// See [`Context::create_stream_with_flags`] for a list of valid flags.
@@ -615,7 +828,7 @@ impl Stream {
     /// [`crate::error::Status::NoDevice`] if this call initializes internal runtime state. Callbacks must not
     /// call CUDA functions; see [`Stream::add_callback`].
     pub fn flags(&self) -> Result<StreamFlags> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         let mut flags_raw = 0u32;
         unsafe {
             try_ffi!(runtime::cudaStreamGetFlags(
@@ -637,7 +850,7 @@ impl Stream {
     /// priority, a previous asynchronous launch reports an error, or CUDA
     /// reports runtime initialization diagnostics.
     pub fn priority(&self) -> Result<i32> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         let mut priority = 0i32;
         unsafe {
             try_ffi!(runtime::cudaStreamGetPriority(
@@ -663,7 +876,7 @@ impl Stream {
     /// stream identifier, a previous asynchronous launch reports an error, or
     /// CUDA reports runtime initialization diagnostics.
     pub fn id(&self) -> Result<u64> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         let mut id = 0u64;
         unsafe {
             try_ffi!(runtime::cudaStreamGetId(self.as_raw(), &raw mut id))?;
@@ -679,7 +892,7 @@ impl Stream {
     /// stream device, a previous asynchronous launch reports an error, or CUDA
     /// reports runtime initialization diagnostics.
     pub fn device(&self) -> Result<Device> {
-        self.ctx.bind()?;
+        self.inner.ctx.bind()?;
         let mut device = 0i32;
         unsafe {
             try_ffi!(runtime::cudaStreamGetDevice(self.as_raw(), &raw mut device))?;
@@ -688,11 +901,11 @@ impl Stream {
     }
 
     pub fn context(&self) -> &Context {
-        &self.ctx
+        &self.inner.ctx
     }
 
-    pub const fn as_raw(&self) -> runtime::cudaStream_t {
-        self.handle
+    pub fn as_raw(&self) -> runtime::cudaStream_t {
+        self.inner.handle
     }
 
     /// Consumes the stream and returns the raw CUDA stream handle without
@@ -701,21 +914,103 @@ impl Stream {
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with CUDA.
     pub fn into_raw(self) -> runtime::cudaStream_t {
-        let stream = ManuallyDrop::new(self);
-        stream.handle
+        let inner = Arc::try_unwrap(self.inner)
+            .expect("cannot transfer raw stream handle while cloned stream handles exist");
+        let inner = ManuallyDrop::new(inner);
+        inner.handle
+    }
+
+    fn destroy_handle(ctx: &Context, handle: runtime::cudaStream_t) -> Result<()> {
+        let bind_result = ctx.bind();
+        let sync_result =
+            bind_result.and_then(|()| unsafe { try_ffi!(runtime::cudaStreamSynchronize(handle)) });
+        let destroy_result = unsafe { try_ffi!(runtime::cudaStreamDestroy(handle)) };
+
+        match (sync_result, destroy_result) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(err), _) | (Ok(()), Err(err)) => Err(err),
+        }
     }
 
     // pub fn is_null(&self) -> bool {
-    //     self.handle.is_null()
+    //     self.inner.handle.is_null()
     // }
-
-    // TODO
-    // --- Methods related to Stream Capture (Graphs) ---
-    // Add methods like begin_capture, end_capture, is_capturing if needed
 
     // --- Methods related to Memory Management ---
     // Add methods like malloc_async, free_async, attach_mem_async if needed
     // These would likely take wrappers around device memory pointers.
+
+    fn check_graph_context(&self, graph: &Graph) -> Result<()> {
+        if matches!(graph.context(), Some(ctx) if ctx != self.inner.ctx.as_ref()) {
+            return Err(Error::GraphContextMismatch);
+        }
+        Ok(())
+    }
+
+    fn check_capture_dependency_contexts(&self, dependencies: &[GraphDependency]) -> Result<()> {
+        for dependency in dependencies {
+            if matches!(dependency.node.context(), Some(ctx) if ctx != self.inner.ctx.as_ref()) {
+                return Err(Error::GraphContextMismatch);
+            }
+        }
+        Ok(())
+    }
+
+    fn check_capture_graph_dependencies(
+        &self,
+        graph: &Graph,
+        dependencies: &[GraphDependency],
+    ) -> Result<()> {
+        for dependency in dependencies {
+            graph.check_node(&dependency.node)?;
+        }
+        Ok(())
+    }
+
+    fn check_active_capture_graph_dependencies(
+        &self,
+        dependencies: &[GraphDependency],
+    ) -> Result<()> {
+        if dependencies.is_empty() {
+            return Ok(());
+        }
+
+        self.inner.ctx.bind()?;
+        let mut status = runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_NONE;
+        let mut graph = ptr::null_mut();
+        unsafe {
+            try_ffi!(runtime::cudaStreamGetCaptureInfo(
+                self.as_raw(),
+                &raw mut status,
+                ptr::null_mut(),
+                &raw mut graph,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            ))?;
+        }
+        if StreamCaptureStatus::from(status) != StreamCaptureStatus::Active {
+            return Ok(());
+        }
+        if graph.is_null() {
+            return Err(Error::NullHandle);
+        }
+
+        for dependency in dependencies {
+            if !matches!(dependency.node.graph_raw(), Some(node_graph) if node_graph == graph) {
+                return Err(Error::GraphNodeMismatch);
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn ensure_not_capturing_for_future(&self) -> Result<()> {
+        match self.capture_status()? {
+            StreamCaptureStatus::None => Ok(()),
+            StreamCaptureStatus::Active => Err(Status::StreamCaptureUnsupported.into()),
+            StreamCaptureStatus::Invalidated => Err(Status::StreamCaptureInvalidated.into()),
+        }
+    }
 }
 
 impl<'scope, 'env> StreamScope<'scope, 'env> {
@@ -728,8 +1023,33 @@ impl<'scope, 'env> StreamScope<'scope, 'env> {
     }
 }
 
+impl<'scope> StreamCaptureScope<'scope> {
+    pub const fn stream(&self) -> &'scope Stream {
+        self.stream
+    }
+
+    /// Records a graph-safe operation into this active stream capture.
+    ///
+    /// Only operations implementing [`GraphRecordable`] can be submitted
+    /// through this method. Allocation/free and other capture-unsafe CUDA calls
+    /// should stay outside this trait unless their replay ownership and address
+    /// stability are explicitly modeled.
+    pub fn record<O>(&self, operation: O) -> Result<O::Output>
+    where
+        O: GraphRecordable,
+    {
+        operation.record(self)
+    }
+}
+
 impl BorrowedStream {
-    pub const fn from_raw(handle: runtime::cudaStream_t, ctx: Arc<Context>) -> Self {
+    /// Wraps an existing CUDA stream handle without taking ownership.
+    ///
+    /// # Safety
+    ///
+    /// `handle` must be a valid CUDA stream associated with `ctx`, and it must
+    /// remain valid for every operation using the returned borrowed stream.
+    pub const unsafe fn from_raw(handle: runtime::cudaStream_t, ctx: Arc<Context>) -> Self {
         Self { handle, ctx }
     }
 
@@ -759,7 +1079,7 @@ impl StreamBinding {
         matches!(self, Self::Default(..))
     }
 
-    pub const fn as_raw(&self) -> runtime::cudaStream_t {
+    pub fn as_raw(&self) -> runtime::cudaStream_t {
         match self {
             Self::Default(_) => ptr::null_mut(),
             Self::Borrowed(stream) => stream.as_raw(),
@@ -767,28 +1087,18 @@ impl StreamBinding {
     }
 }
 
-// CUDA streams are ordering handles. Operations take &self and are serialized by
-// CUDA stream semantics rather than mutable Rust state.
+// CUDA streams are ordering handles.
+// Operations take &self and are serialized by CUDA stream semantics rather than mutable Rust state.
+unsafe impl Send for StreamInner {}
+unsafe impl Sync for StreamInner {}
 unsafe impl Send for Stream {}
 unsafe impl Sync for Stream {}
 
-impl Drop for Stream {
+impl Drop for StreamInner {
     fn drop(&mut self) {
-        if let Err(err) = self.ctx.bind() {
+        if let Err(err) = Stream::destroy_handle(self.ctx.as_ref(), self.handle) {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind context before destroying stream: {err}");
-        }
-        unsafe {
-            // Synchronize before destroying to ensure callbacks complete.
-            if let Err(err) = try_ffi!(runtime::cudaStreamSynchronize(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to synchronize stream before destroy: {err}");
-            }
-
-            if let Err(err) = try_ffi!(runtime::cudaStreamDestroy(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy CUDA stream: {err}");
-            }
+            eprintln!("failed to synchronize or destroy CUDA stream: {err}");
         }
     }
 }
@@ -815,6 +1125,17 @@ extern "C" fn stream_callback_trampoline(
     };
 
     callback(result);
+}
+
+extern "C" fn stream_host_function_trampoline(user_data: *mut std::ffi::c_void) {
+    if user_data.is_null() {
+        return;
+    }
+
+    let user_data_ptr = user_data as BoxedHostFunctionPtr;
+    let boxed_function: Box<RustHostFunctionDyn> = unsafe { Box::from_raw(user_data_ptr) };
+    let function: RustHostFunctionDyn = *boxed_function;
+    function();
 }
 
 impl Context {
@@ -932,22 +1253,20 @@ pub fn exchange_capture_mode(mode: StreamCaptureMode) -> Result<StreamCaptureMod
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use std::sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+        thread,
     };
 
     use super::*;
-    use crate::testing;
+    use crate::{event::EventRecordFlags, memory::DeviceMemory, testing};
 
     #[test]
     fn it_works() -> Result<()> {
-        let _lock = testing::device_lock(0)?;
-        let ctx = match Context::create() {
-            Ok(ctx) => ctx,
-            Err(error) if testing::is_stub_library(&error) => return Ok(()),
-            Err(error) => return Err(error),
-        };
+        let (_lock, ctx) = testing::bootstrap()?;
         let stream1 = ctx.create_stream()?;
         let _stream2 = ctx.create_stream_with_flags(StreamFlags::NON_BLOCKING)?;
 
@@ -969,6 +1288,258 @@ mod tests {
 
         assert!(stream1_called.load(Ordering::SeqCst));
 
+        Ok(())
+    }
+
+    #[test]
+    fn event_query_uses_event_context() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let stream = ctx.create_stream()?;
+        let event = ctx.create_event()?;
+
+        event.record(&stream, EventRecordFlags::DEFAULT)?;
+        stream.synchronize()?;
+
+        assert!(event.query()?);
+        Ok(())
+    }
+
+    #[test]
+    fn shutdown_synchronizes_and_destroys_stream() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let stream = ctx.create_stream()?;
+
+        let called = Arc::new(AtomicBool::new(false));
+        stream.add_callback(Box::new({
+            let called = Arc::clone(&called);
+            move |_status| {
+                called.store(true, Ordering::SeqCst);
+            }
+        }))?;
+
+        stream.shutdown()?;
+        assert!(called.load(Ordering::SeqCst));
+        Ok(())
+    }
+
+    #[test]
+    fn launch_host_func_runs_after_stream_work() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let stream = ctx.create_stream()?;
+
+        let called = Arc::new(AtomicBool::new(false));
+        stream.launch_host_func({
+            let called = Arc::clone(&called);
+            move || {
+                called.store(true, Ordering::SeqCst);
+            }
+        })?;
+        stream.synchronize()?;
+
+        assert!(called.load(Ordering::SeqCst));
+        Ok(())
+    }
+
+    #[test]
+    fn scoped_capture_returns_context_associated_graph() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let stream = ctx.create_stream()?;
+
+        let graph = stream.capture(StreamCaptureMode::Relaxed, |scope| {
+            assert_eq!(scope.stream().context(), ctx.as_ref());
+            Ok(())
+        })?;
+
+        assert_eq!(graph.context(), Some(ctx.as_ref()));
+        Ok(())
+    }
+
+    #[test]
+    fn capture_to_graph_rejects_graph_from_different_context() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let other_ctx = Context::create()?;
+
+        let stream = ctx.create_stream()?;
+        let graph = other_ctx.create_graph()?;
+
+        assert!(matches!(
+            unsafe { stream.begin_capture_to_graph(&graph, &[], StreamCaptureMode::Relaxed) },
+            Err(Error::GraphContextMismatch)
+        ));
+        assert_eq!(stream.capture_status()?, StreamCaptureStatus::None);
+        Ok(())
+    }
+
+    #[test]
+    fn capture_to_graph_rejects_node_from_different_graph() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+
+        let stream = ctx.create_stream()?;
+        let graph = ctx.create_graph()?;
+        let mut other_graph = ctx.create_graph()?;
+        let other_node = other_graph.add_empty_node(&[])?;
+
+        assert!(matches!(
+            unsafe {
+                stream.begin_capture_to_graph(&graph, &[other_node], StreamCaptureMode::Relaxed)
+            },
+            Err(Error::GraphNodeMismatch)
+        ));
+        assert_eq!(stream.capture_status()?, StreamCaptureStatus::None);
+        Ok(())
+    }
+
+    #[test]
+    fn capture_to_graph_rejects_unassociated_raw_dependency_node() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+
+        let stream = ctx.create_stream()?;
+        let graph = ctx.create_graph()?;
+        let raw_node = unsafe { GraphNode::from_raw(0x1usize as _) };
+
+        assert!(matches!(
+            unsafe {
+                stream.begin_capture_to_graph(&graph, &[raw_node], StreamCaptureMode::Relaxed)
+            },
+            Err(Error::GraphNodeMismatch)
+        ));
+        assert_eq!(stream.capture_status()?, StreamCaptureStatus::None);
+        Ok(())
+    }
+
+    #[test]
+    fn capture_dependency_update_rejects_node_from_different_context() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let other_ctx = Context::create()?;
+
+        let stream = ctx.create_stream()?;
+        let mut other_graph = other_ctx.create_graph()?;
+        let other_node = other_graph.add_empty_node(&[])?;
+
+        let result = stream.capture(StreamCaptureMode::Relaxed, |_scope| {
+            stream.update_capture_dependencies(&[other_node])
+        });
+
+        assert!(matches!(result, Err(Error::GraphContextMismatch)));
+        assert_eq!(stream.capture_status()?, StreamCaptureStatus::None);
+        Ok(())
+    }
+
+    #[test]
+    fn capture_dependency_update_rejects_node_from_different_graph() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+
+        let stream = ctx.create_stream()?;
+        let mut other_graph = ctx.create_graph()?;
+        let other_node = other_graph.add_empty_node(&[])?;
+
+        stream.begin_capture(StreamCaptureMode::Relaxed)?;
+        assert!(matches!(
+            stream.update_capture_dependencies(&[other_node]),
+            Err(Error::GraphNodeMismatch)
+        ));
+        drop(stream.end_capture());
+        assert_eq!(stream.capture_status()?, StreamCaptureStatus::None);
+        Ok(())
+    }
+
+    #[test]
+    fn capture_dependency_update_rejects_unassociated_raw_node() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+
+        let stream = ctx.create_stream()?;
+        let raw_node = unsafe { GraphNode::from_raw(0x1usize as _) };
+
+        stream.begin_capture(StreamCaptureMode::Relaxed)?;
+        assert!(matches!(
+            stream.update_capture_dependencies(&[raw_node]),
+            Err(Error::GraphNodeMismatch)
+        ));
+        drop(stream.end_capture());
+        assert_eq!(stream.capture_status()?, StreamCaptureStatus::None);
+        Ok(())
+    }
+
+    #[test]
+    fn captures_on_separate_streams_can_overlap() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let stream_a = ctx.create_stream()?;
+        let stream_b = ctx.create_stream()?;
+
+        thread::scope(|scope| {
+            let a = scope.spawn(|| {
+                let graph = stream_a.capture(StreamCaptureMode::Relaxed, |_scope| Ok(()))?;
+                assert_eq!(graph.context(), Some(ctx.as_ref()));
+                Result::<()>::Ok(())
+            });
+            let b = scope.spawn(|| {
+                let graph = stream_b.capture(StreamCaptureMode::Relaxed, |_scope| Ok(()))?;
+                assert_eq!(graph.context(), Some(ctx.as_ref()));
+                Result::<()>::Ok(())
+            });
+
+            a.join().expect("capture thread panicked")?;
+            b.join().expect("capture thread panicked")?;
+            Result::<()>::Ok(())
+        })?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn scoped_capture_error_leaves_stream_usable() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let stream = ctx.create_stream()?;
+
+        let result = stream.capture(StreamCaptureMode::Relaxed, |_scope| {
+            Err(Error::InvalidValue)
+        });
+
+        assert!(matches!(result, Err(Error::InvalidValue)));
+        stream.synchronize()?;
+        Ok(())
+    }
+
+    #[test]
+    fn scoped_capture_panic_leaves_stream_usable() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let stream = ctx.create_stream()?;
+
+        let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+            let _ = stream.capture(StreamCaptureMode::Relaxed, |_scope| -> Result<()> {
+                panic!("capture body panic");
+            });
+        }));
+
+        assert!(result.is_err());
+        stream.synchronize()?;
+        Ok(())
+    }
+
+    #[test]
+    fn scoped_capture_records_memory_operations() -> Result<()> {
+        let (_lock, ctx) = testing::bootstrap()?;
+        let stream = ctx.create_stream()?;
+
+        let input = [1u8, 2, 3, 4];
+        let source = DeviceMemory::from_slice(&input)?;
+        let mut copied = DeviceMemory::<u8>::zeroes(input.len())?;
+        let mut filled = DeviceMemory::<u8>::zeroes(input.len())?;
+
+        let graph = stream.capture(StreamCaptureMode::Relaxed, |scope| {
+            let copy = unsafe { copied.copy_from_device_operation(&source)? };
+            scope.record(copy)?;
+
+            let memset = unsafe { filled.set_value_operation(0xab) };
+            scope.record(memset)
+        })?;
+
+        let executable = graph.instantiate()?;
+        executable.launch(&stream)?;
+        stream.synchronize()?;
+
+        assert_eq!(copied.copy_to_host_vec()?, input);
+        assert_eq!(filled.copy_to_host_vec()?, [0xab; 4]);
         Ok(())
     }
 }

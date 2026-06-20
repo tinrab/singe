@@ -136,7 +136,7 @@ impl<'a, T> DevicePointerTable<'a, T> {
     pub fn host_pointers(buffers: &[&DeviceMemory<T>]) -> Vec<DevicePtr> {
         buffers
             .iter()
-            .map(|memory| DevicePtr::from_raw(memory.as_ptr().cast_mut().cast()))
+            .map(|memory| unsafe { DevicePtr::from_raw(memory.as_ptr().cast_mut().cast()) })
             .collect()
     }
 

@@ -570,7 +570,7 @@ impl<'a> Matrix<'a> {
                 rows,
                 columns,
                 leading_dim,
-                values: DevicePtr::from(values),
+                values: DevicePtr::from_raw(values.cast()),
                 value_type: value_type.into(),
                 layout: layout.into(),
             })
@@ -617,10 +617,10 @@ impl<'a> Matrix<'a> {
                 rows,
                 columns,
                 nnz,
-                row_start: DevicePtr::from(row_start),
-                row_end: DevicePtr::from(row_end),
-                column_indices: DevicePtr::from(col_indices),
-                values: DevicePtr::from(values),
+                row_start: DevicePtr::from_raw(row_start.cast()),
+                row_end: DevicePtr::from_raw(row_end.cast()),
+                column_indices: DevicePtr::from_raw(col_indices.cast()),
+                values: DevicePtr::from_raw(values.cast()),
                 offset_type: offset_type.into(),
                 index_type: index_type.into(),
                 value_type: value_type.into(),
@@ -665,7 +665,7 @@ impl<'a> Matrix<'a> {
                 rows: copy_index_batch(rows, batch_count, index_type, "rows")?,
                 columns: copy_index_batch(columns, batch_count, index_type, "columns")?,
                 leading_dim: copy_index_batch(leading_dim, batch_count, index_type, "leading_dim")?,
-                values: DevicePtr::from(values.cast::<c_void>()),
+                values: DevicePtr::from_raw(values.cast::<c_void>().cast()),
                 index_type,
                 value_type: value_type.into(),
                 layout: layout.into(),
@@ -719,10 +719,10 @@ impl<'a> Matrix<'a> {
                 rows: copy_index_batch(rows, batch_count, index_type, "rows")?,
                 columns: copy_index_batch(columns, batch_count, index_type, "columns")?,
                 nnz: copy_index_batch(nnz, batch_count, index_type, "nnz")?,
-                row_start: DevicePtr::from(row_start.cast::<c_void>()),
-                row_end: DevicePtr::from(row_end.cast::<c_void>()),
-                column_indices: DevicePtr::from(col_indices.cast::<c_void>()),
-                values: DevicePtr::from(values.cast::<c_void>()),
+                row_start: DevicePtr::from_raw(row_start.cast::<c_void>().cast()),
+                row_end: DevicePtr::from_raw(row_end.cast::<c_void>().cast()),
+                column_indices: DevicePtr::from_raw(col_indices.cast::<c_void>().cast()),
+                values: DevicePtr::from_raw(values.cast::<c_void>().cast()),
                 offset_type: offset_type.into(),
                 index_type,
                 value_type: value_type.into(),
@@ -1151,7 +1151,7 @@ fn validate_min_len(name: &str, expected: usize, actual: usize) -> Result<()> {
 }
 
 fn device_ptr<T>(memory: &DeviceMemory<T>) -> DevicePtr {
-    DevicePtr::from_raw(memory.as_ptr().cast_mut().cast())
+    unsafe { DevicePtr::from_raw(memory.as_ptr().cast_mut().cast()) }
 }
 
 unsafe fn copy_i64_batch(ptr: *mut c_void, len: usize) -> Vec<i64> {
