@@ -1655,10 +1655,11 @@ pub enum ActivityAttribute {
     /// The attribute value is a `u8`. The default is disabled.
     EnableDeviceGraphTrace =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_DEVICE_GRAPH_TRACE as _,
-    /// Enables graph-level tracing with multiple subscribers.
+    /// Enables graph-level tracing in multi-subscriber mode.
+    ///
+    /// The attribute value is a `u8`. The default is disabled.
     EnableMultiSubscriberGraphLevelTrace =
-        sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_MULTI_SUBSCRIBER_GRAPH_LEVEL_TRACE
-            as _,
+        sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_MULTI_SUBSCRIBER_GRAPH_TRACE as _,
     /// Selects the thread ID source used in activity records.
     ///
     /// The attribute value is an [`ActivityThreadIdType`]. The default is
@@ -1669,8 +1670,10 @@ pub enum ActivityAttribute {
     /// The attribute value is a CUPTI timestamp callback pointer; null unregisters the callback
     /// and restores CUPTI's default CPU timer.
     TimestampCallback = sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_TIMESTAMP_CALLBACK as _,
-    /// Configures CIG mode for activity collection.
-    CigMode = sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_CIG_MODE as _,
+    /// Configures CUDA in Graphics (CIG) mode for activity collection.
+    ///
+    /// The attribute value is a `u8`.
+    CigMode = sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_CIG_MODE as _,
     /// Reserved integer sentinel from CUPTI.
     DeviceBufferForceInt =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_FORCE_INT as _,
@@ -3634,10 +3637,10 @@ impl_enum_display!(ActivityAttribute, {
     Self::EnableCudaEventDeviceTimestamps => "CUPTI_ACTIVITY_ATTR_ENABLE_CUDA_EVENT_DEVICE_TIMESTAMPS",
     Self::EnableKernelLaunchAttributes => "CUPTI_ACTIVITY_ATTR_ENABLE_KERNEL_LAUNCH_ATTRIBUTES",
     Self::EnableDeviceGraphTrace => "CUPTI_ACTIVITY_ATTR_ENABLE_DEVICE_GRAPH_TRACE",
-    Self::EnableMultiSubscriberGraphLevelTrace => "CUPTI_ACTIVITY_ATTR_ENABLE_MULTI_SUBSCRIBER_GRAPH_LEVEL_TRACE",
+    Self::EnableMultiSubscriberGraphLevelTrace => "CUPTI_ACTIVITY_ATTR_ENABLE_MULTI_SUBSCRIBER_GRAPH_TRACE",
     Self::ThreadIdType => "CUPTI_ACTIVITY_ATTR_THREAD_ID_TYPE",
     Self::TimestampCallback => "CUPTI_ACTIVITY_ATTR_TIMESTAMP_CALLBACK",
-    Self::CigMode => "CUPTI_ACTIVITY_ATTR_CIG_MODE",
+    Self::CigMode => "CUPTI_ACTIVITY_ATTR_ENABLE_CIG_MODE",
     Self::DeviceBufferForceInt => "CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_FORCE_INT",
 });
 

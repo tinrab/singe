@@ -1,6 +1,66 @@
 use serde::{Deserialize, Serialize};
 
-use crate::tensor::TensorId;
+use crate::{
+    error::Result,
+    execution::rng::{RngDescriptor, RngOperation, RngSeed},
+    frontend::{
+        lower::{LoweredOperation, LoweringContext, tensor_at},
+        operation::FrontendOperationTensors,
+    },
+    tensor::TensorId,
+};
+
+/// Frontend random-number-generator operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RandomNumberGeneratorOperation {
+    pub output: TensorId,
+    pub config: RandomNumberGeneratorConfig,
+}
+
+impl RandomNumberGeneratorOperation {
+    pub fn new(output: TensorId, config: RandomNumberGeneratorConfig) -> Self {
+        Self { output, config }
+    }
+}
+
+impl FrontendOperationTensors for RandomNumberGeneratorOperation {
+    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>) {
+        tensors.push(self.output);
+        tensors.extend(self.config.seed_tensor());
+        tensors.extend(self.config.offset());
+    }
+}
+
+impl RandomNumberGeneratorOperation {
+    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
+        let tensors = context.backend_tensors();
+        let descriptor = match self.config.distribution() {
+            RandomNumberDistribution::Bernoulli { probability } => {
+                RngDescriptor::create_bernoulli(*probability)?
+            }
+            RandomNumberDistribution::Uniform { minimum, maximum } => {
+                RngDescriptor::create_uniform(*minimum, *maximum)?
+            }
+            RandomNumberDistribution::Normal {
+                mean,
+                standard_deviation,
+            } => RngDescriptor::create_normal(*mean, *standard_deviation)?,
+        };
+        let seed = match self.config.seed_source() {
+            RandomNumberSeedSource::Host(seed) => RngSeed::Host(*seed),
+            RandomNumberSeedSource::Device(seed) => RngSeed::Device(tensor_at(tensors, *seed)?),
+        };
+        Ok(LoweredOperation::Rng(RngOperation::create(
+            &descriptor,
+            tensor_at(tensors, self.output)?,
+            seed,
+            self.config
+                .offset()
+                .map(|offset| tensor_at(tensors, offset))
+                .transpose()?,
+        )?))
+    }
+}
 
 /// Random number distribution for a frontend RNG operation.
 ///

@@ -35,16 +35,11 @@ fn main() -> Result<()> {
     )?;
 
     let result = c.copy_to_host_vec()?;
-    assert_complex64_close(result[0], Complex64::new(13.70, 0.0));
-    assert_complex64_close(result[1], Complex64::new(0.0, 0.0));
-    assert_complex64_close(result[2], Complex64::new(30.50, 0.48));
-    assert_complex64_close(result[3], Complex64::new(70.34, 0.0));
+    singe_core::assert_complex_close!(result[0], Complex64::new(13.70, 0.0), 1.0e-10);
+    singe_core::assert_complex_close!(result[1], Complex64::new(0.0, 0.0), 1.0e-10);
+    singe_core::assert_complex_close!(result[2], Complex64::new(30.50, 0.48), 1.0e-10);
+    singe_core::assert_complex_close!(result[3], Complex64::new(70.34, 0.0), 1.0e-10);
 
     println!("herk result: {result:?}");
     Ok(())
-}
-
-fn assert_complex64_close(actual: Complex64, expected: Complex64) {
-    assert!((actual.re - expected.re).abs() < 1e-10);
-    assert!((actual.im - expected.im).abs() < 1e-10);
 }

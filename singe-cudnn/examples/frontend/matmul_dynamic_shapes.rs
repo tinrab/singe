@@ -8,7 +8,10 @@ use singe_cudnn::{
     backend::tensor::{Shape, TensorSpec},
     data_type::{DataType, bf16},
     error::Result,
-    frontend::{graph::Graph, operation::HeuristicMode},
+    frontend::{
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::HeuristicMode,
+    },
 };
 
 #[derive(Clone, Copy)]
@@ -84,13 +87,18 @@ fn run() -> Result<()> {
     };
     let kernel_cache = Arc::new(Mutex::new(KernelCache::create()?));
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_compute_data_type(DataType::F32)
-        .with_dynamic_shape()
-        .with_override_shape()
-        .with_name("matmul-dynamic-shapes");
-    graph.set_shared_kernel_cache(Arc::clone(&kernel_cache))?;
+    let mut graph = Graph::with_config(
+        GraphConfig::new()
+            .with_name("matmul-dynamic-shapes")
+            .with_dynamic_shape()
+            .with_override_shape()
+            .with_data_type_policy(
+                DataTypePolicy::new()
+                    .with_io(DataType::BF16)
+                    .with_compute(DataType::F32),
+            ),
+    );
+    graph.attach_shared_kernel_cache(Arc::clone(&kernel_cache))?;
 
     let lhs = graph.tensor(
         TensorSpec::new(DataType::BF16, lhs_shape(base)?)
@@ -109,9 +117,17 @@ fn run() -> Result<()> {
     );
     graph.matmul(lhs, rhs, output, DataType::F32)?;
 
-    graph.set_dynamic_shape_constraints(lhs, [1, 1, base.k], [runtime.batch, runtime.m, base.k])?;
-    graph.set_dynamic_shape_constraints(rhs, [1, base.k, 1], [runtime.batch, base.k, runtime.n])?;
-    graph.set_dynamic_shape_constraints(
+    graph.record_dynamic_shape_constraints(
+        lhs,
+        [1, 1, base.k],
+        [runtime.batch, runtime.m, base.k],
+    )?;
+    graph.record_dynamic_shape_constraints(
+        rhs,
+        [1, base.k, 1],
+        [runtime.batch, base.k, runtime.n],
+    )?;
+    graph.record_dynamic_shape_constraints(
         output,
         [1, 1, 1],
         [runtime.batch, runtime.m, runtime.n],

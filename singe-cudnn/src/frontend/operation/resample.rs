@@ -3,9 +3,130 @@ use serde::{Deserialize, Serialize};
 use crate::{
     data_type::DataType,
     error::{Error, Result},
-    execution::resample::{Fraction, PaddingMode, ResampleMode},
+    execution::resample::{
+        Fraction, PaddingMode, ResampleBackwardOperation as BackendResampleBackwardOperation,
+        ResampleDescriptor, ResampleForwardOperation as BackendResampleForwardOperation,
+        ResampleMode,
+    },
+    frontend::{
+        lower::{LoweredOperation, LoweringContext, optional_tensor_at, tensor_at},
+        operation::FrontendOperationTensors,
+    },
     math::NanPropagation,
+    tensor::{Tensor, TensorId},
 };
+
+/// Frontend resample operation variants.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum ResampleOperation {
+    Forward {
+        input: TensorId,
+        output: TensorId,
+        indices: Option<TensorId>,
+        config: ResampleConfig,
+    },
+    Backward {
+        input: TensorId,
+        output: TensorId,
+        output_gradient: TensorId,
+        input_gradient: TensorId,
+        indices: Option<TensorId>,
+        config: ResampleConfig,
+    },
+}
+
+impl FrontendOperationTensors for ResampleOperation {
+    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>) {
+        match self {
+            Self::Forward {
+                input,
+                output,
+                indices,
+                ..
+            } => {
+                tensors.extend([*input, *output]);
+                tensors.extend(*indices);
+            }
+            Self::Backward {
+                input,
+                output,
+                output_gradient,
+                input_gradient,
+                indices,
+                ..
+            } => {
+                tensors.extend([*input, *output, *output_gradient, *input_gradient]);
+                tensors.extend(*indices);
+            }
+        }
+    }
+}
+
+impl ResampleOperation {
+    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
+        let tensors = context.backend_tensors();
+        match self {
+            Self::Forward {
+                input,
+                output,
+                indices,
+                config,
+            } => {
+                let input = tensor_at(tensors, *input)?;
+                let descriptor = resample_descriptor(input, config)?;
+                Ok(LoweredOperation::Resample(
+                    BackendResampleForwardOperation::create(
+                        &descriptor,
+                        input,
+                        tensor_at(tensors, *output)?,
+                        optional_tensor_at(tensors, *indices)?,
+                    )?,
+                ))
+            }
+            Self::Backward {
+                input,
+                output,
+                output_gradient,
+                input_gradient,
+                indices,
+                config,
+            } => {
+                let input = tensor_at(tensors, *input)?;
+                let descriptor = resample_descriptor(input, config)?;
+                Ok(LoweredOperation::ResampleBackward(
+                    BackendResampleBackwardOperation::create(
+                        &descriptor,
+                        input,
+                        tensor_at(tensors, *output)?,
+                        tensor_at(tensors, *output_gradient)?,
+                        tensor_at(tensors, *input_gradient)?,
+                        optional_tensor_at(tensors, *indices)?,
+                    )?,
+                ))
+            }
+        }
+    }
+}
+
+fn resample_descriptor(input: &Tensor, config: &ResampleConfig) -> Result<ResampleDescriptor> {
+    let spatial_dims = input.rank() as usize - 2;
+    let pre_paddings = config.effective_pre_paddings(spatial_dims)?;
+    let post_paddings = config.effective_post_paddings(spatial_dims)?;
+    let strides = config.effective_strides(spatial_dims)?;
+    let window_dims = config.effective_window_dims(spatial_dims)?;
+
+    ResampleDescriptor::create(
+        config.mode(),
+        config.compute_type(),
+        config.nan_propagation(),
+        config.padding_mode(),
+        &pre_paddings,
+        &post_paddings,
+        &strides,
+        &window_dims,
+    )
+}
 
 /// Attributes for a frontend resampling operation.
 ///

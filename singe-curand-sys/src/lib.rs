@@ -6,14 +6,14 @@
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-#[cfg(feature = "curand_13_2")]
+#[cfg(feature = "curand_13_3")]
 use singe_cuda_sys::{
     library_types::libraryPropertyType,
     runtime::{cudaError_t, cudaStream_t},
 };
 
-#[cfg(feature = "curand_13_2")]
-include!("sys_10402.rs");
+#[cfg(feature = "curand_13_3")]
+include!("sys_10403.rs");
 
 #[cfg(test)]
 mod tests {

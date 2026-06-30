@@ -558,7 +558,6 @@ pub fn compressed_marker_labels_uf_info_u32_c1(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn compressed_marker_labels_uf_contours_generate_geometry_lists_c1(
     stream_context: &StreamContext,
     marker_labels_info_list_dev: &mut DeviceMemory<CompressedMarkerLabelsInfo>,
@@ -653,7 +652,6 @@ pub(crate) fn compressed_marker_labels_uf_contours_generate_geometry_lists_c1(
 
 macro_rules! impl_contours_image_marching_squares_interpolation {
     ($name:ident, $point_ty:ty, $ffi_name:ident) => {
-        #[allow(clippy::too_many_arguments)]
         pub fn $name(
             stream_context: &StreamContext,
             contours_image_dev: &ImageView<'_, u8, C1>,

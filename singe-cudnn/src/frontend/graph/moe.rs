@@ -4,7 +4,10 @@ use crate::{
     execution::advanced::MoeGroupedMatmulMode,
     frontend::{
         graph::Graph,
-        operation::{MoeGroupedMatmulBackwardConfig, MoeGroupedMatmulConfig, Operation},
+        operation::{
+            MoeGroupedMatmulBackwardConfig, MoeGroupedMatmulConfig, MoeGroupedMatmulOperation,
+            Operation,
+        },
         support,
     },
     tensor::{Shape, TensorId, TensorSpec},
@@ -97,13 +100,15 @@ impl Graph {
             "moe grouped matmul output shape",
         )?;
 
-        self.operations.push(Operation::MoeGroupedMatmul {
-            token: inputs.token,
-            weight: inputs.weight,
-            first_token_offset: inputs.first_token_offset,
-            output: tensors.output,
-            config,
-        });
+        self.operations.push(Operation::MoeGroupedMatmul(
+            MoeGroupedMatmulOperation::Forward {
+                token: inputs.token,
+                weight: inputs.weight,
+                first_token_offset: inputs.first_token_offset,
+                output: tensors.output,
+                config,
+            },
+        ));
         Ok(())
     }
 
@@ -145,60 +150,76 @@ impl Graph {
             "moe grouped matmul first token offset data type",
         )?;
         if weight_tensor.shape.dimensions()[1] != token_tensor.shape.dimensions()[2] {
-            return Err(Error::DescriptorMismatch {
+            return Err(Error::ShapeMismatch {
                 name: "moe grouped matmul contracted dim".into(),
+                expected: vec![token_tensor.shape.dimensions()[2]],
+                actual: vec![weight_tensor.shape.dimensions()[1]],
             });
         }
 
-        let output_tokens = match config.mode() {
-            MoeGroupedMatmulMode::None => token_tensor.shape.dimensions()[1],
-            MoeGroupedMatmulMode::Gather => {
-                let token_index = config.token_index().ok_or(Error::DescriptorMismatch {
-                    name: "moe grouped matmul token index".into(),
-                })?;
-                let token_index_tensor = self.tensor_config(token_index)?;
-                self.validate_tensor_data_type(
-                    token_index,
-                    DataType::I32,
-                    "moe grouped matmul token index data type",
-                )?;
-                self.validate_tensor_min_rank(
-                    token_index,
-                    2,
-                    "moe grouped matmul token index rank",
-                )?;
-                token_index_tensor.shape.dimensions()[1]
-            }
-            MoeGroupedMatmulMode::Scatter => {
-                let token_index = config.token_index().ok_or(Error::DescriptorMismatch {
-                    name: "moe grouped matmul token index".into(),
-                })?;
-                self.validate_tensor_data_type(
-                    token_index,
-                    DataType::I32,
-                    "moe grouped matmul token index data type",
-                )?;
-                self.validate_tensor_min_rank(
-                    token_index,
-                    2,
-                    "moe grouped matmul token index rank",
-                )?;
-                token_tensor.shape.dimensions()[1]
-            }
-        };
+        let output_tokens =
+            match config.mode() {
+                MoeGroupedMatmulMode::None => token_tensor.shape.dimensions()[1],
+                MoeGroupedMatmulMode::Gather => {
+                    let token_index = config.token_index().ok_or_else(|| {
+                        Error::FrontendOperationFieldMissing {
+                            operation: "moe grouped matmul".into(),
+                            field: "token_index".into(),
+                        }
+                    })?;
+                    let token_index_tensor = self.tensor_config(token_index)?;
+                    self.validate_tensor_data_type(
+                        token_index,
+                        DataType::I32,
+                        "moe grouped matmul token index data type",
+                    )?;
+                    self.validate_tensor_min_rank(
+                        token_index,
+                        2,
+                        "moe grouped matmul token index rank",
+                    )?;
+                    token_index_tensor.shape.dimensions()[1]
+                }
+                MoeGroupedMatmulMode::Scatter => {
+                    let token_index = config.token_index().ok_or_else(|| {
+                        Error::FrontendOperationFieldMissing {
+                            operation: "moe grouped matmul".into(),
+                            field: "token_index".into(),
+                        }
+                    })?;
+                    self.validate_tensor_data_type(
+                        token_index,
+                        DataType::I32,
+                        "moe grouped matmul token index data type",
+                    )?;
+                    self.validate_tensor_min_rank(
+                        token_index,
+                        2,
+                        "moe grouped matmul token index rank",
+                    )?;
+                    token_tensor.shape.dimensions()[1]
+                }
+            };
 
         if matches!(config.mode(), MoeGroupedMatmulMode::Scatter) {
-            let token_ks = config.token_ks().ok_or(Error::DescriptorMismatch {
-                name: "moe grouped matmul token ks".into(),
-            })?;
+            let token_ks =
+                config
+                    .token_ks()
+                    .ok_or_else(|| Error::FrontendOperationFieldMissing {
+                        operation: "moe grouped matmul".into(),
+                        field: "token_ks".into(),
+                    })?;
             self.validate_tensor_data_type(
                 token_ks,
                 DataType::I32,
                 "moe grouped matmul token ks data type",
             )?;
-            let top_k = config.top_k().ok_or(Error::DescriptorMismatch {
-                name: "moe grouped matmul top_k".into(),
-            })?;
+            let top_k = config
+                .top_k()
+                .ok_or_else(|| Error::FrontendOperationFieldMissing {
+                    operation: "moe grouped matmul".into(),
+                    field: "top_k".into(),
+                })?;
             if top_k <= 0 {
                 check_range!("top_k", false)?;
             }
@@ -215,7 +236,7 @@ impl Graph {
         &self,
         cudnn_version: u64,
     ) -> Result<()> {
-        support::MOE_GROUPED_MATMUL.require_descriptor_match(cudnn_version)
+        support::MOE_GROUPED_MATMUL.require_frontend_feature(cudnn_version)
     }
 
     pub fn moe_grouped_matmul_backward(
@@ -245,13 +266,15 @@ impl Graph {
             expected.dimensions(),
             "moe grouped matmul backward weight gradient shape",
         )?;
-        self.operations.push(Operation::MoeGroupedMatmulBackward {
-            output_gradient: inputs.output_gradient,
-            token: inputs.token,
-            first_token_offset: inputs.first_token_offset,
-            weight_gradient: tensors.weight_gradient,
-            config,
-        });
+        self.operations.push(Operation::MoeGroupedMatmul(
+            MoeGroupedMatmulOperation::Backward {
+                output_gradient: inputs.output_gradient,
+                token: inputs.token,
+                first_token_offset: inputs.first_token_offset,
+                weight_gradient: tensors.weight_gradient,
+                config,
+            },
+        ));
         Ok(())
     }
 
@@ -289,7 +312,7 @@ impl Graph {
         &self,
         cudnn_version: u64,
     ) -> Result<()> {
-        support::MOE_GROUPED_MATMUL_BACKWARD.require_descriptor_match(cudnn_version)
+        support::MOE_GROUPED_MATMUL_BACKWARD.require_frontend_feature(cudnn_version)
     }
 
     fn infer_moe_grouped_matmul_backward_weight_gradient_shape(
@@ -300,14 +323,11 @@ impl Graph {
         let token_tensor = self.tensor_config(inputs.token)?;
         let first_token_offset_tensor = self.tensor_config(inputs.first_token_offset)?;
 
-        if output_gradient_tensor.data_type != token_tensor.data_type {
-            return Err(Error::FrontendTensorDataTypeMismatch {
-                tensor_id: inputs.output_gradient,
-                operation: "moe grouped matmul backward output gradient".into(),
-                expected: token_tensor.data_type,
-                actual: output_gradient_tensor.data_type,
-            });
-        }
+        self.validate_tensor_data_type(
+            inputs.output_gradient,
+            token_tensor.data_type,
+            "moe grouped matmul backward output gradient",
+        )?;
         self.validate_tensor_rank(
             inputs.output_gradient,
             3,
@@ -328,16 +348,16 @@ impl Graph {
         let token_dims = token_tensor.shape.dimensions();
         let output_gradient_dims = output_gradient_tensor.shape.dimensions();
         if output_gradient_dims[1] != token_dims[1] {
-            return Err(Error::FrontendTensorDimensionsMismatch {
-                tensor_id: inputs.output_gradient,
-                operation: "moe grouped matmul backward output gradient shape".into(),
-                expected: vec![
-                    output_gradient_dims[0],
-                    token_dims[1],
-                    output_gradient_dims[2],
-                ],
-                actual: output_gradient_dims.to_vec(),
-            });
+            let expected_output_gradient_dimensions = [
+                output_gradient_dims[0],
+                token_dims[1],
+                output_gradient_dims[2],
+            ];
+            self.validate_tensor_dimensions(
+                inputs.output_gradient,
+                &expected_output_gradient_dimensions,
+                "moe grouped matmul backward output gradient shape",
+            )?;
         }
 
         Shape::contiguous([

@@ -4,7 +4,7 @@ use crate::{
     frontend::{
         graph::Graph,
         infer::infer_batch_norm_channel_shape,
-        operation::{GenStatsConfig, Operation},
+        operation::{GenStatsConfig, GenStatsOperation, Operation},
     },
     tensor::{TensorId, TensorSpec},
 };
@@ -36,16 +36,21 @@ impl Graph {
         let input_tensor = self.tensor_config(input)?.clone();
         let expected = infer_batch_norm_channel_shape(&input_tensor.shape)?;
         let expected_data_type = self.effective_io_data_type(DataType::F32);
-        self.validate_tensor_data_type(sum, expected_data_type, "genstats sum")?;
-        self.validate_tensor_data_type(sq_sum, expected_data_type, "genstats sq_sum")?;
-        self.validate_tensor_dimensions(sum, expected.dimensions(), "genstats sum shape")?;
-        self.validate_tensor_dimensions(sq_sum, expected.dimensions(), "genstats sq_sum shape")?;
-        self.operations.push(Operation::GenStats {
-            input,
-            sum,
-            sq_sum,
-            config,
-        });
+        self.validate_tensors_data_type(
+            [(sum, "genstats sum"), (sq_sum, "genstats sq_sum")],
+            expected_data_type,
+        )?;
+        self.validate_tensors_dimensions(
+            [
+                (sum, "genstats sum shape"),
+                (sq_sum, "genstats sq_sum shape"),
+            ],
+            expected.dimensions(),
+        )?;
+        self.operations
+            .push(Operation::GenStats(GenStatsOperation::new(
+                input, sum, sq_sum, config,
+            )));
         Ok(())
     }
 

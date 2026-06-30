@@ -60,6 +60,57 @@ pub struct Graph {
     pub(crate) runtime: GraphRuntimeState,
 }
 
+/// Static graph construction options.
+///
+/// Runtime-only handles such as shared kernel and plan caches are intentionally
+/// attached to [`Graph`] after construction because they require validation or
+/// process-local ownership.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GraphConfig {
+    pub name: Option<String>,
+    pub sm_count_target: Option<i64>,
+    pub sm_version: Option<i32>,
+    pub dynamic_shape_enabled: bool,
+    pub override_shape_enabled: bool,
+    pub data_type_policy: DataTypePolicy,
+}
+
+impl GraphConfig {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    pub fn with_sm_count_target(mut self, sm_count_target: i64) -> Self {
+        self.sm_count_target = Some(sm_count_target);
+        self
+    }
+
+    pub fn with_sm_version(mut self, sm_version: i32) -> Self {
+        self.sm_version = Some(sm_version);
+        self
+    }
+
+    pub fn with_dynamic_shape(mut self) -> Self {
+        self.dynamic_shape_enabled = true;
+        self
+    }
+
+    pub fn with_override_shape(mut self) -> Self {
+        self.override_shape_enabled = true;
+        self
+    }
+
+    pub fn with_data_type_policy(mut self, policy: DataTypePolicy) -> Self {
+        self.data_type_policy = policy;
+        self
+    }
+}
+
 /// Lowered representation produced while preparing a [`Graph`] for planning.
 pub struct PreparedGraph {
     pub(crate) expanded: Graph,
@@ -84,9 +135,9 @@ pub struct AliasBinding {
 /// Graph-level default data types used by infer-style frontend helpers.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataTypePolicy {
-    pub io: Option<DataType>,
-    pub intermediate: Option<DataType>,
-    pub compute: Option<DataType>,
+    io: Option<DataType>,
+    intermediate: Option<DataType>,
+    compute: Option<DataType>,
 }
 
 impl DataTypePolicy {
@@ -99,14 +150,43 @@ impl DataTypePolicy {
         self
     }
 
+    pub fn io(&self) -> Option<DataType> {
+        self.io
+    }
+
+    pub(crate) fn effective_io(self, default: DataType) -> DataType {
+        self.io.unwrap_or(default)
+    }
+
     pub fn with_intermediate(mut self, data_type: DataType) -> Self {
         self.intermediate = Some(data_type);
         self
     }
 
+    pub fn intermediate(&self) -> Option<DataType> {
+        self.intermediate
+    }
+
+    pub(crate) fn effective_intermediate(self, default: DataType) -> DataType {
+        self.intermediate.unwrap_or(default)
+    }
+
     pub fn with_compute(mut self, data_type: DataType) -> Self {
         self.compute = Some(data_type);
         self
+    }
+
+    pub fn compute(&self) -> Option<DataType> {
+        self.compute
+    }
+
+    pub(crate) fn effective_compute(self, default: DataType) -> DataType {
+        self.compute.unwrap_or(default)
+    }
+
+    pub(crate) fn inherit_compute_policy_from(&mut self, parent: Self) {
+        self.intermediate = parent.intermediate;
+        self.compute = parent.compute;
     }
 }
 

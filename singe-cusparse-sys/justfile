@@ -17,6 +17,7 @@ generate:
         --blocklist-item "^cuda.*" \
         --blocklist-item "^CUDA.*" \
         --blocklist-item "^libraryPropertyType.*" \
+        --blocklist-file ".*[^\w]library_types.h" \
         --allowlist-file ".*[^\w]cusparse.h" \
         --no-doc-comments \
         --no-size_t-is-usize \

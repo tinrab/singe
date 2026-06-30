@@ -6,10 +6,10 @@
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-#[cfg(feature = "nvml_13_2")]
+#[cfg(feature = "nvml_13_3")]
 include!("nvml_sys_13.rs");
 
-#[cfg(feature = "nvml_13_2")]
+#[cfg(feature = "nvml_13_3")]
 pub use self::{
     nvmlDeviceGetComputeRunningProcesses_v3 as nvmlDeviceGetComputeRunningProcesses,
     nvmlDeviceGetGraphicsRunningProcesses_v3 as nvmlDeviceGetGraphicsRunningProcesses,

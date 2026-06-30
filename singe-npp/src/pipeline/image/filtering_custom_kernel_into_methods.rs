@@ -36,7 +36,6 @@ where
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn filter_kernel_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -91,7 +90,6 @@ where
     L: ChannelLayout,
     Self: UnsharpBorderFilterImage<T, L>,
 {
-    #[allow(clippy::too_many_arguments)]
     pub fn filter_unsharp_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

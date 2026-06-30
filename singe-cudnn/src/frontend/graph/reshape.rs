@@ -1,6 +1,10 @@
 use crate::{
     error::Result,
-    frontend::{graph::Graph, operation::Operation},
+    frontend::{
+        graph::Graph,
+        operation::{Operation, TensorOperation},
+        shape::shape_with_nhwc_strides,
+    },
     tensor::{TensorId, TensorSpec},
 };
 
@@ -14,7 +18,11 @@ impl Graph {
             "reshape output",
         )?;
 
-        self.operations.push(Operation::Reshape { input, output });
+        self.operations
+            .push(Operation::Tensor(TensorOperation::Reshape {
+                input,
+                output,
+            }));
         Ok(())
     }
 
@@ -26,7 +34,7 @@ impl Graph {
         let checkpoint = self.mutation_checkpoint();
         let input_tensor = self.tensor_config(input)?.clone();
         let output_data_type = input_tensor.data_type;
-        let output_shape = Self::default_nhwc_shape(output_dimensions.into())?;
+        let output_shape = shape_with_nhwc_strides(output_dimensions)?;
         let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
         if let Err(error) = self.reshape(input, output) {
             self.rollback_to(checkpoint);

@@ -161,6 +161,16 @@ impl CompileConfig {
         &self.exclude_behavior_notes
     }
 
+    pub(crate) fn has_engine_filters(&self) -> bool {
+        self.max_workspace_size.is_some()
+            || self.max_shared_memory_size.is_some()
+            || !self.excluded_engine_name_substrings.is_empty()
+            || !self.include_numerical_notes.is_empty()
+            || !self.exclude_numerical_notes.is_empty()
+            || !self.include_behavior_notes.is_empty()
+            || !self.exclude_behavior_notes.is_empty()
+    }
+
     pub(crate) fn cache_key_json(&self) -> Result<serde_json::Value> {
         let js = serde_json::to_value(self)?;
         Ok(js)

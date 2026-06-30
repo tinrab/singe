@@ -144,7 +144,6 @@ impl ContractionFind {
 }
 
 impl ContractionDescriptor {
-    #[allow(clippy::too_many_arguments)]
     pub fn create(
         context: &Context,
         a: &TensorDescriptor,

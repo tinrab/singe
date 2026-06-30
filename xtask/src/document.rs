@@ -1,10 +1,11 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use syn::{
     Attribute, Field, File, ForeignItemFn, ItemConst, ItemEnum, ItemStatic, ItemStruct, ItemType,
@@ -26,16 +27,22 @@ pub fn document() -> Result<()> {
 fn document_targets(root: &Path) -> Vec<DocumentTarget> {
     vec![
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cublas-13.2-api.json")],
-            rust_path: root.join("singe-cublas-sys/src/sys_130400.rs"),
+            json_paths: vec![root.join("xtask/docs/cublas-13.3-api.json")],
+            rust_path: root.join("singe-cublas-sys/src/sys_130501.rs"),
             scope_path: Some(root.join("singe-cublas-sys/src/lib.rs")),
             scope_module: None,
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cublas-13.2-api.json")],
-            rust_path: root.join("singe-cublas-sys/src/sys_lt_130400.rs"),
+            json_paths: vec![root.join("xtask/docs/cublas-13.3-api.json")],
+            rust_path: root.join("singe-cublas-sys/src/sys_lt_130501.rs"),
             scope_path: Some(root.join("singe-cublas-sys/src/lib.rs")),
             scope_module: Some("lt_bindings"),
+        },
+        DocumentTarget {
+            json_paths: vec![root.join("xtask/docs/cublas-13.3-api.json")],
+            rust_path: root.join("singe-cublas-sys/src/sys_xt_130501.rs"),
+            scope_path: Some(root.join("singe-cublas-sys/src/lib.rs")),
+            scope_module: Some("xt_bindings"),
         },
         DocumentTarget {
             json_paths: vec![root.join("xtask/docs/cutensor-2.6-api.json")],
@@ -63,7 +70,7 @@ fn document_targets(root: &Path) -> Vec<DocumentTarget> {
         },
         DocumentTarget {
             json_paths: vec![root.join("xtask/docs/cusolver-12.2-api.json")],
-            rust_path: root.join("singe-cusolver-sys/src/sys_12200.rs"),
+            rust_path: root.join("singe-cusolver-sys/src/sys_12202.rs"),
             scope_path: Some(root.join("singe-cusolver-sys/src/lib.rs")),
             scope_module: None,
         },
@@ -74,62 +81,68 @@ fn document_targets(root: &Path) -> Vec<DocumentTarget> {
             scope_module: None,
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cusparse-12.7-api.json")],
-            rust_path: root.join("singe-cusparse-sys/src/sys_12710.rs"),
+            json_paths: vec![root.join("xtask/docs/cusparse-12.8-api.json")],
+            rust_path: root.join("singe-cusparse-sys/src/sys_12801.rs"),
             scope_path: Some(root.join("singe-cusparse-sys/src/lib.rs")),
             scope_module: None,
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cufft-13.2-api.json")],
-            rust_path: root.join("singe-cufft-sys/src/sys_12200.rs"),
+            json_paths: vec![root.join("xtask/docs/cufft-13.3-api.json")],
+            rust_path: root.join("singe-cufft-sys/src/sys_12300.rs"),
             scope_path: Some(root.join("singe-cufft-sys/src/lib.rs")),
             scope_module: None,
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/curand-13.2-api.json")],
-            rust_path: root.join("singe-curand-sys/src/sys_10402.rs"),
+            json_paths: vec![root.join("xtask/docs/curand-13.3-api.json")],
+            rust_path: root.join("singe-curand-sys/src/sys_10403.rs"),
             scope_path: Some(root.join("singe-curand-sys/src/lib.rs")),
             scope_module: None,
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cuda-driver-13.2-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/driver_sys_13020.rs"),
+            json_paths: vec![root.join("xtask/docs/cuda-driver-13.3-api.json")],
+            rust_path: root.join("singe-cuda-sys/src/driver_sys_13030.rs"),
             scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
             scope_module: Some("driver"),
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cuda-runtime-13.2-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/driver_types_sys_13020.rs"),
+            json_paths: vec![root.join("xtask/docs/cuda-driver-13.3-api.json")],
+            rust_path: root.join("singe-cuda-sys/src/profiler_sys_13030.rs"),
+            scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
+            scope_module: Some("profiler"),
+        },
+        DocumentTarget {
+            json_paths: vec![root.join("xtask/docs/cuda-runtime-13.3-api.json")],
+            rust_path: root.join("singe-cuda-sys/src/driver_types_sys_13030.rs"),
             scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
             scope_module: Some("runtime"),
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cuda-runtime-13.2-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/runtime_sys_13020.rs"),
+            json_paths: vec![root.join("xtask/docs/cuda-runtime-13.3-api.json")],
+            rust_path: root.join("singe-cuda-sys/src/runtime_sys_13030.rs"),
             scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
             scope_module: Some("runtime"),
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cufile-1.17-api.json")],
-            rust_path: root.join("singe-cufile-sys/src/sys_1170.rs"),
+            json_paths: vec![root.join("xtask/docs/cufile-1.18-api.json")],
+            rust_path: root.join("singe-cufile-sys/src/sys_1180.rs"),
             scope_path: Some(root.join("singe-cufile-sys/src/lib.rs")),
             scope_module: None,
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cupti-13.2-api.json")],
-            rust_path: root.join("singe-cupti-sys/src/cupti_sys_130201.rs"),
+            json_paths: vec![root.join("xtask/docs/cupti-13.3-api.json")],
+            rust_path: root.join("singe-cupti-sys/src/cupti_sys_130300.rs"),
             scope_path: Some(root.join("singe-cupti-sys/src/lib.rs")),
             scope_module: None,
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/nvrtc-13.2.json")],
-            rust_path: root.join("singe-cuda-sys/src/nvrtc_sys_13020.rs"),
+            json_paths: vec![root.join("xtask/docs/nvrtc-13.3.json")],
+            rust_path: root.join("singe-cuda-sys/src/nvrtc_sys_13030.rs"),
             scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
             scope_module: Some("nvrtc"),
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/libnvvm-13.2-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/nvvm_sys_13020.rs"),
+            json_paths: vec![root.join("xtask/docs/libnvvm-13.3-api.json")],
+            rust_path: root.join("singe-cuda-sys/src/nvvm_sys_13030.rs"),
             scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
             scope_module: Some("nvvm"),
         },
@@ -140,7 +153,7 @@ fn document_targets(root: &Path) -> Vec<DocumentTarget> {
             scope_module: Some("nvtx"),
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/nvml-13.2-api.json")],
+            json_paths: vec![root.join("xtask/docs/nvml-13.3-api.json")],
             rust_path: root.join("singe-nvml-sys/src/nvml_sys_13.rs"),
             scope_path: Some(root.join("singe-nvml-sys/src/lib.rs")),
             scope_module: None,
@@ -152,8 +165,8 @@ fn document_targets(root: &Path) -> Vec<DocumentTarget> {
             scope_module: None,
         },
         DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/npp-13.1-api.json")],
-            rust_path: root.join("singe-npp-sys/src/sys_13100.rs"),
+            json_paths: vec![root.join("xtask/docs/npp-13.3-api.json")],
+            rust_path: root.join("singe-npp-sys/src/sys_13102.rs"),
             scope_path: Some(root.join("singe-npp-sys/src/lib.rs")),
             scope_module: None,
         },
@@ -168,6 +181,8 @@ struct DocumentTarget {
 }
 
 fn document_binding_file(target: &DocumentTarget) -> Result<()> {
+    ensure_rust_path_exists(&target.rust_path)?;
+
     let source = fs::read_to_string(&target.rust_path)
         .with_context(|| format!("failed to read {}", target.rust_path.display()))?;
     let docs = load_docs(&target.json_paths)?;
@@ -194,6 +209,17 @@ fn document_binding_file(target: &DocumentTarget) -> Result<()> {
     println!("updated {}", rel(&root, &target.rust_path).display());
 
     Ok(())
+}
+
+fn ensure_rust_path_exists(path: &Path) -> Result<()> {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => Ok(()),
+        Ok(_) => bail!("rust_path is not a file: {}", path.display()),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            bail!("rust_path file does not exist: {}", path.display())
+        }
+        Err(error) => Err(error).with_context(|| format!("failed to inspect {}", path.display())),
+    }
 }
 
 fn load_symbols(

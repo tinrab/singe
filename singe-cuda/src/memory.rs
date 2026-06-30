@@ -1314,6 +1314,10 @@ impl<T> DeviceMemory<T> {
         self.ptr
     }
 
+    pub const fn as_device_ptr(&self) -> DevicePtr {
+        unsafe { DevicePtr::from_raw(self.ptr.cast()) }
+    }
+
     pub fn copy_from_host(&mut self, host_slice: &[T]) -> Result<()> {
         if host_slice.len() != self.length {
             return Err(Error::InvalidMemoryAccess);

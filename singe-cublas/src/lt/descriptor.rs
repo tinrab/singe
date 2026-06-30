@@ -270,6 +270,19 @@ impl MatrixLayout {
         self.attribute(MatrixLayoutAttribute::StridedBatchOffset)
     }
 
+    /// Configures this layout as a strided batch of matrices.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `batch_count` cannot fit in cuBLASLt's 32-bit batch
+    /// count field, or if cuBLASLt rejects one of the batch attributes.
+    pub fn set_strided_batch(&mut self, batch_count: usize, stride: i64) -> Result<()> {
+        let batch_count = to_i32(batch_count, "matrix layout batch count")?;
+        self.set_batch_mode(BatchMode::Strided)?;
+        self.set_batch_count(batch_count)?;
+        self.set_strided_batch_offset(stride)
+    }
+
     /// Sets the plane offset in bytes for 3D matrix layouts.
     ///
     /// # Errors
@@ -477,6 +490,23 @@ impl Drop for MatrixTransformDescriptor {
                 eprintln!("failed to destroy cublasLt matrix transform descriptor: {err}");
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "testing"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn matrix_layout_sets_strided_batch_attributes() -> Result<()> {
+        let mut layout = MatrixLayout::create(DataType::F32, 2, 3, 3)?;
+
+        layout.set_strided_batch(4, 6)?;
+
+        assert_eq!(layout.batch_mode()?, BatchMode::Strided);
+        assert_eq!(layout.batch_count()?, 4);
+        assert_eq!(layout.strided_batch_offset()?, 6);
+        Ok(())
     }
 }
 

@@ -13,19 +13,19 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["driver_13_2", "runtime_13_2", "nvrtc_13_2", "nvvm_13_2", "nvtx_3"]
+default = ["driver_13_3", "runtime_13_3", "nvrtc_13_3", "nvvm_13_3", "nvtx_3"]
 
 driver = []
-driver_13_2 = ["driver"]
+driver_13_3 = ["driver"]
 
 runtime = []
-runtime_13_2 = ["runtime"]
+runtime_13_3 = ["runtime"]
 
 nvrtc = []
-nvrtc_13_2 = ["nvrtc"]
+nvrtc_13_3 = ["nvrtc"]
 
 nvvm = []
-nvvm_13_2 = ["nvvm"]
+nvvm_13_3 = ["nvvm"]
 
 nvtx = []
 nvtx_3 = ["nvtx"]

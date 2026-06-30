@@ -16,6 +16,10 @@ fn link_libraries() {
     }
 
     if emit_dependency_metadata(find_cublas()).is_some() {
-        emit_link_libraries(&["cublas", "cublasLt"]);
+        emit_link_libraries(&["cublas"]);
+
+        if std::env::var_os("CARGO_FEATURE_LT").is_some() {
+            emit_link_libraries(&["cublasLt"]);
+        }
     }
 }

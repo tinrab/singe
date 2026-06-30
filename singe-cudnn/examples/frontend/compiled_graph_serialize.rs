@@ -7,7 +7,7 @@ use singe_cudnn::{
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{ConvolutionConfig, HeuristicMode, PointwiseOperation},
     },
     math::NanPropagation,
@@ -50,11 +50,16 @@ fn build_graph() -> Result<Graph> {
     let r = 3_i64;
     let s = 3_i64;
 
-    let mut graph = Graph::new()
-        .with_name("compiled-serialize-demo")
-        .with_io_data_type(DataType::F16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new()
+            .with_name("compiled-serialize-demo")
+            .with_data_type_policy(
+                DataTypePolicy::new()
+                    .with_io(DataType::F16)
+                    .with_intermediate(DataType::F32)
+                    .with_compute(DataType::F32),
+            ),
+    );
 
     let x = graph.tensor(
         TensorSpec::new(

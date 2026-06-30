@@ -1,0 +1,2284 @@
+{
+  "curandDirectionVectorSet": {
+    "kind": "enum",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g60d34e2eadf8aa70831a695bd0333e44",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g60d34e2eadf8aa70831a695bd0333e44",
+    "doc": "CURAND choice of direction vector set.",
+    "members": {
+      "CURAND_DIRECTION_VECTORS_32_JOEKUO6": {
+        "doc": "Specific set of 32-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions."
+      },
+      "CURAND_SCRAMBLED_DIRECTION_VECTORS_32_JOEKUO6": {
+        "doc": "Specific set of 32-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions, and scrambled."
+      },
+      "CURAND_DIRECTION_VECTORS_64_JOEKUO6": {
+        "doc": "Specific set of 64-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions."
+      },
+      "CURAND_SCRAMBLED_DIRECTION_VECTORS_64_JOEKUO6": {
+        "doc": "Specific set of 64-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions, and scrambled."
+      }
+    },
+    "api": "host",
+    "deprecated": false
+  },
+  "curandOrdering": {
+    "kind": "enum",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g2e3407c5fd20b3c1a3c215d2fcdeef55",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g2e3407c5fd20b3c1a3c215d2fcdeef55",
+    "doc": "CURAND ordering of results in memory.",
+    "members": {
+      "CURAND_ORDERING_PSEUDO_BEST": {
+        "doc": "Best ordering for pseudorandom results."
+      },
+      "CURAND_ORDERING_PSEUDO_DEFAULT": {
+        "doc": "Specific default thread sequence for pseudorandom results, same as [`curandOrdering::CURAND_ORDERING_PSEUDO_BEST`]."
+      },
+      "CURAND_ORDERING_PSEUDO_SEEDED": {
+        "doc": "Specific seeding pattern for fast lower quality pseudorandom results."
+      },
+      "CURAND_ORDERING_PSEUDO_LEGACY": {
+        "doc": "Specific legacy sequence for pseudorandom results, guaranteed to remain the same for all cuRAND release."
+      },
+      "CURAND_ORDERING_PSEUDO_DYNAMIC": {
+        "doc": "Specific ordering adjusted to the device it is being executed on, provides the best performance."
+      },
+      "CURAND_ORDERING_QUASI_DEFAULT": {
+        "doc": "Specific n-dimensional ordering for quasirandom results."
+      }
+    },
+    "api": "host",
+    "deprecated": false
+  },
+  "curandRngType": {
+    "kind": "enum",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db",
+    "doc": "CURAND generator types.",
+    "members": {
+      "CURAND_RNG_PSEUDO_DEFAULT": {
+        "doc": "Default pseudorandom generator."
+      },
+      "CURAND_RNG_PSEUDO_XORWOW": {
+        "doc": "XORWOW pseudorandom generator."
+      },
+      "CURAND_RNG_PSEUDO_MRG32K3A": {
+        "doc": "MRG32k3a pseudorandom generator."
+      },
+      "CURAND_RNG_PSEUDO_MTGP32": {
+        "doc": "Mersenne Twister MTGP32 pseudorandom generator."
+      },
+      "CURAND_RNG_PSEUDO_MT19937": {
+        "doc": "Mersenne Twister MT19937 pseudorandom generator."
+      },
+      "CURAND_RNG_PSEUDO_PHILOX4_32_10": {
+        "doc": "PHILOX-4x32-10 pseudorandom generator."
+      },
+      "CURAND_RNG_QUASI_DEFAULT": {
+        "doc": "Default quasirandom generator."
+      },
+      "CURAND_RNG_QUASI_SOBOL32": {
+        "doc": "Sobol32 quasirandom generator."
+      },
+      "CURAND_RNG_QUASI_SCRAMBLED_SOBOL32": {
+        "doc": "Scrambled Sobol32 quasirandom generator."
+      },
+      "CURAND_RNG_QUASI_SOBOL64": {
+        "doc": "Sobol64 quasirandom generator."
+      },
+      "CURAND_RNG_QUASI_SCRAMBLED_SOBOL64": {
+        "doc": "Scrambled Sobol64 quasirandom generator."
+      }
+    },
+    "api": "host",
+    "deprecated": false
+  },
+  "curandStatus": {
+    "kind": "enum",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gb94a31d5c165858c96b6c18b70644437",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437",
+    "doc": "CURAND function call status types.",
+    "members": {
+      "CURAND_STATUS_SUCCESS": {
+        "doc": "No errors."
+      },
+      "CURAND_STATUS_VERSION_MISMATCH": {
+        "doc": "Header file and linked library version do not match."
+      },
+      "CURAND_STATUS_NOT_INITIALIZED": {
+        "doc": "Generator not initialized."
+      },
+      "CURAND_STATUS_ALLOCATION_FAILED": {
+        "doc": "Memory allocation failed."
+      },
+      "CURAND_STATUS_TYPE_ERROR": {
+        "doc": "Generator is wrong type."
+      },
+      "CURAND_STATUS_OUT_OF_RANGE": {
+        "doc": "Argument out of range."
+      },
+      "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+        "doc": "Length requested is not a multple of dimension."
+      },
+      "CURAND_STATUS_DOUBLE_PRECISION_REQUIRED": {
+        "doc": "GPU does not have double precision required by MRG32k3a."
+      },
+      "CURAND_STATUS_LAUNCH_FAILURE": {
+        "doc": "Kernel launch failure."
+      },
+      "CURAND_STATUS_PREEXISTING_FAILURE": {
+        "doc": "Preexisting failure on library entry."
+      },
+      "CURAND_STATUS_INITIALIZATION_FAILED": {
+        "doc": "Initialization of CUDA failed."
+      },
+      "CURAND_STATUS_ARCH_MISMATCH": {
+        "doc": "Architecture mismatch, GPU does not support requested feature."
+      },
+      "CURAND_STATUS_INTERNAL_ERROR": {
+        "doc": "Internal library error."
+      }
+    },
+    "api": "host",
+    "deprecated": false
+  },
+  "curandCreateGenerator": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g56ff2b3cf7e28849f73a1e22022bcbfd",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g56ff2b3cf7e28849f73a1e22022bcbfd",
+    "signature": "curandStatus_t CURANDAPI curandCreateGenerator(curandGenerator_t* generator, curandRngType_t rng_type)",
+    "parameters": {
+      "generator": {
+        "doc": "Pointer to generator."
+      },
+      "rng_type": {
+        "doc": "Type of generator to create."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_INITIALIZATION_FAILED": {
+          "doc": "if there was a problem setting up the GPU."
+        },
+        "CURAND_STATUS_VERSION_MISMATCH": {
+          "doc": "if the header file version does not match the dynamically linked library version."
+        },
+        "CURAND_STATUS_TYPE_ERROR": {
+          "doc": "if the value for rng_type is invalid."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if generator was created successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Create new random number generator.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandCreateGeneratorHost": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g35b6e9396d5b54b52ba9053496ad4ff4",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g35b6e9396d5b54b52ba9053496ad4ff4",
+    "signature": "curandStatus_t CURANDAPI curandCreateGeneratorHost(curandGenerator_t* generator, curandRngType_t rng_type)",
+    "parameters": {
+      "generator": {
+        "doc": "Pointer to generator."
+      },
+      "rng_type": {
+        "doc": "Type of generator to create."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_INITIALIZATION_FAILED": {
+          "doc": "if there was a problem setting up the GPU."
+        },
+        "CURAND_STATUS_VERSION_MISMATCH": {
+          "doc": "if the header file version does not match the dynamically linked library version."
+        },
+        "CURAND_STATUS_TYPE_ERROR": {
+          "doc": "if the value for rng_type is invalid."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if generator was created successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Create new host CPU random number generator.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandCreatePoissonDistribution": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g83483578a1f9644f7d58d67e75e1fa30",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g83483578a1f9644f7d58d67e75e1fa30",
+    "signature": "curandStatus_t CURANDAPI curandCreatePoissonDistribution(double lambda, curandDiscreteDistribution_t* discrete_distribution)",
+    "parameters": {
+      "lambda": {
+        "doc": "lambda for the Poisson distribution."
+      },
+      "discrete_distribution": {
+        "doc": "pointer to the histogram in device memory."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_DOUBLE_PRECISION_REQUIRED": {
+          "doc": "if the GPU does not support double precision."
+        },
+        "CURAND_STATUS_INITIALIZATION_FAILED": {
+          "doc": "if there was a problem setting up the GPU."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the distribution pointer was null."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_OUT_OF_RANGE": {
+          "doc": "if lambda is non-positive or greater than 400,000."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the histogram was generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Construct the histogram array for a Poisson distribution.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandDestroyDistribution": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g5cebdf1502aff5a5fe46db29aa8cfaeb",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g5cebdf1502aff5a5fe46db29aa8cfaeb",
+    "signature": "curandStatus_t CURANDAPI curandDestroyDistribution(curandDiscreteDistribution_t discrete_distribution)",
+    "parameters": {
+      "discrete_distribution": {
+        "doc": "pointer to device memory where the histogram is stored."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the histogram was never created."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the histogram was destroyed successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Destroy the histogram array for a discrete distribution (e.g. Poisson).",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandDestroyGenerator": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g8d82c56e2b869fef4f9929a775ee18d0",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g8d82c56e2b869fef4f9929a775ee18d0",
+    "signature": "curandStatus_t CURANDAPI curandDestroyGenerator(curandGenerator_t generator)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to destroy."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if generator was destroyed successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Destroy an existing generator.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerate": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gf18b3cbdf0b7d9e2335bada92610adac",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gf18b3cbdf0b7d9e2335bada92610adac",
+    "signature": "curandStatus_t CURANDAPI curandGenerate(curandGenerator_t generator, unsigned int* outputPtr, size_t num)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "num": {
+        "doc": "Number of random 32-bit values to generate."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_TYPE_ERROR": {
+          "doc": "if the generator is a 64 bit quasirandom generator. (use curandGenerateLongLong() with 64 bit quasirandom generators)."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate 32-bit pseudo or quasirandom numbers.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerateLogNormal": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g3569cc960eb1a31357752fc813e21f49",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g3569cc960eb1a31357752fc813e21f49",
+    "signature": "curandStatus_t CURANDAPI curandGenerateLogNormal(curandGenerator_t generator, float* outputPtr, size_t n, float mean, float stddev)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "n": {
+        "doc": "Number of floats to generate."
+      },
+      "mean": {
+        "doc": "Mean of associated normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of associated normal distribution."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension, or is not a multiple of two for pseudorandom generators."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate log-normally distributed floats.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerateLogNormalDouble": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g300c31530c8b461ca89f1e0232a6f05f",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g300c31530c8b461ca89f1e0232a6f05f",
+    "signature": "curandStatus_t CURANDAPI curandGenerateLogNormalDouble(curandGenerator_t generator, double* outputPtr, size_t n, double mean, double stddev)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "n": {
+        "doc": "Number of doubles to generate."
+      },
+      "mean": {
+        "doc": "Mean of normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of normal distribution."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension, or is not a multiple of two for pseudorandom generators."
+        },
+        "CURAND_STATUS_DOUBLE_PRECISION_REQUIRED": {
+          "doc": "if the GPU does not support double precision."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate log-normally distributed doubles.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerateLongLong": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gd8e23d144e88b8e638139db05ff798b3",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gd8e23d144e88b8e638139db05ff798b3",
+    "signature": "curandStatus_t CURANDAPI curandGenerateLongLong(curandGenerator_t generator, unsigned long long* outputPtr, size_t num)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "num": {
+        "doc": "Number of random 64-bit values to generate."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_TYPE_ERROR": {
+          "doc": "if the generator is not a 64 bit quasirandom generator."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate 64-bit quasirandom numbers.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerateNormal": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gb9280e447ef04e1dec4611720bd0eb69",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gb9280e447ef04e1dec4611720bd0eb69",
+    "signature": "curandStatus_t CURANDAPI curandGenerateNormal(curandGenerator_t generator, float* outputPtr, size_t n, float mean, float stddev)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "n": {
+        "doc": "Number of floats to generate."
+      },
+      "mean": {
+        "doc": "Mean of normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of normal distribution."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension, or is not a multiple of two for pseudorandom generators."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate normally distributed doubles.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerateNormalDouble": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g046759ff9b6bf8dafc9eaae04917dc8e",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g046759ff9b6bf8dafc9eaae04917dc8e",
+    "signature": "curandStatus_t CURANDAPI curandGenerateNormalDouble(curandGenerator_t generator, double* outputPtr, size_t n, double mean, double stddev)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "n": {
+        "doc": "Number of doubles to generate."
+      },
+      "mean": {
+        "doc": "Mean of normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of normal distribution."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension, or is not a multiple of two for pseudorandom generators."
+        },
+        "CURAND_STATUS_DOUBLE_PRECISION_REQUIRED": {
+          "doc": "if the GPU does not support double precision."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate normally distributed doubles.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGeneratePoisson": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g425c7c13db4444e6150d159bb1417f05",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g425c7c13db4444e6150d159bb1417f05",
+    "signature": "curandStatus_t CURANDAPI curandGeneratePoisson(curandGenerator_t generator, unsigned int* outputPtr, size_t n, double lambda)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "n": {
+        "doc": "Number of unsigned ints to generate."
+      },
+      "lambda": {
+        "doc": "lambda for the Poisson distribution."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension."
+        },
+        "CURAND_STATUS_DOUBLE_PRECISION_REQUIRED": {
+          "doc": "if the GPU or sm does not support double precision."
+        },
+        "CURAND_STATUS_OUT_OF_RANGE": {
+          "doc": "if lambda is non-positive or greater than 400,000."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate Poisson-distributed unsigned ints.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerateSeeds": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g8a04d1c44aad303089f056dd085d9b12",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g8a04d1c44aad303089f056dd085d9b12",
+    "signature": "curandStatus_t CURANDAPI curandGenerateSeeds(curandGenerator_t generator)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to update."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the seeds were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Setup starting states.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerateUniform": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g5df92a7293dc6b2e61ea481a2069ebc2",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g5df92a7293dc6b2e61ea481a2069ebc2",
+    "signature": "curandStatus_t CURANDAPI curandGenerateUniform(curandGenerator_t generator, float* outputPtr, size_t num)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "num": {
+        "doc": "Number of floats to generate."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate uniformly distributed floats.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGenerateUniformDouble": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gbb08f0268f05c9d87eac2b4a2cf7fc24",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gbb08f0268f05c9d87eac2b4a2cf7fc24",
+    "signature": "curandStatus_t CURANDAPI curandGenerateUniformDouble(curandGenerator_t generator, double* outputPtr, size_t num)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to use."
+      },
+      "outputPtr": {
+        "doc": "Pointer to device memory to store CUDA-generated results, or Pointer to host memory to store CPU-generated results.",
+        "output": true
+      },
+      "num": {
+        "doc": "Number of doubles to generate."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if memory could not be allocated."
+        },
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_PREEXISTING_FAILURE": {
+          "doc": "if there was an existing error from a previous kernel launch."
+        },
+        "CURAND_STATUS_LAUNCH_FAILURE": {
+          "doc": "if the kernel launch failed for any reason."
+        },
+        "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+          "doc": "if the number of output samples is not a multiple of the quasirandom dimension."
+        },
+        "CURAND_STATUS_DOUBLE_PRECISION_REQUIRED": {
+          "doc": "if the GPU does not support double precision."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the results were generated successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Generate uniformly distributed doubles.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGetDirectionVectors32": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g36fcf5198a04ab9621bcdaede091385b",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g36fcf5198a04ab9621bcdaede091385b",
+    "signature": "curandStatus_t CURANDAPI curandGetDirectionVectors32(curandDirectionVectors32_t* vectors, curandDirectionVectorSet_t set)",
+    "parameters": {
+      "vectors": {
+        "doc": "Address of pointer in which to return direction vectors.",
+        "output": true
+      },
+      "set": {
+        "doc": "Which set of direction vectors to use."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_OUT_OF_RANGE": {
+          "doc": "if the choice of set is invalid."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the pointer was set successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Get direction vectors for 32-bit quasirandom number generation.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGetDirectionVectors64": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gf13191d9e79c73f77d87bb3462011cf1",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gf13191d9e79c73f77d87bb3462011cf1",
+    "signature": "curandStatus_t CURANDAPI curandGetDirectionVectors64(curandDirectionVectors64_t* vectors, curandDirectionVectorSet_t set)",
+    "parameters": {
+      "vectors": {
+        "doc": "Address of pointer in which to return direction vectors.",
+        "output": true
+      },
+      "set": {
+        "doc": "Which set of direction vectors to use."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_OUT_OF_RANGE": {
+          "doc": "if the choice of set is invalid."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the pointer was set successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Get direction vectors for 64-bit quasirandom number generation.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGetProperty": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1g5cd01184c25d7982f27b57b5c4cfc7a5",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1g5cd01184c25d7982f27b57b5c4cfc7a5",
+    "signature": "curandStatus_t CURANDAPI curandGetProperty(libraryPropertyType type, int* value)",
+    "parameters": {
+      "type": {
+        "doc": "CUDA library property."
+      },
+      "value": {
+        "doc": "integer value for the requested property."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the property value was successfully returned."
+        },
+        "CURAND_STATUS_OUT_OF_RANGE": {
+          "doc": "if the property type is not recognized."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Return the value of the curand property.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGetScrambleConstants32": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gc461ed26556febb8e6a401b608089b77",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gc461ed26556febb8e6a401b608089b77",
+    "signature": "curandStatus_t CURANDAPI curandGetScrambleConstants32(unsigned int** constants)",
+    "parameters": {
+      "constants": {
+        "doc": "Address of pointer in which to return scramble constants.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the pointer was set successfully."
+        }
+      },
+      "type": "curandStatus",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "doc": "Get scramble constants for 32-bit scrambled Sobol' .",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGetScrambleConstants64": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gcb9e8febfe871bb5c9212d35f93fc9f7",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gcb9e8febfe871bb5c9212d35f93fc9f7",
+    "signature": "curandStatus_t CURANDAPI curandGetScrambleConstants64(unsigned long long** constants)",
+    "parameters": {
+      "constants": {
+        "doc": "Address of pointer in which to return scramble constants.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the pointer was set successfully."
+        }
+      },
+      "type": "curandStatus",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "doc": "Get scramble constants for 64-bit scrambled Sobol' .",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandGetVersion": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1ga8887f51c309a3e3f2541399a774f14d",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1ga8887f51c309a3e3f2541399a774f14d",
+    "signature": "curandStatus_t CURANDAPI curandGetVersion(int* version)",
+    "parameters": {
+      "version": {
+        "doc": "CURAND library version."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if the version number was successfully returned."
+        }
+      },
+      "type": "curandStatus",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "doc": "Return the version number of the library.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandSetGeneratorOffset": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gb21ba987f85486e552797206451b0939",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gb21ba987f85486e552797206451b0939",
+    "signature": "curandStatus_t CURANDAPI curandSetGeneratorOffset(curandGenerator_t generator, unsigned long long offset)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to modify."
+      },
+      "offset": {
+        "doc": "Absolute offset position."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if generator offset was set successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Set the absolute offset of the pseudo or quasirandom number generator.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandSetGeneratorOrdering": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gf1aa05715d726f94002d03237405fc5d",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gf1aa05715d726f94002d03237405fc5d",
+    "signature": "curandStatus_t CURANDAPI curandSetGeneratorOrdering(curandGenerator_t generator, curandOrdering_t order)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to modify."
+      },
+      "order": {
+        "doc": "Ordering of results."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_OUT_OF_RANGE": {
+          "doc": "if the ordering is not valid."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if generator ordering was set successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Set the ordering of results of the pseudo or quasirandom number generator.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandSetPseudoRandomGeneratorSeed": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gbcd2982aa3d53571b8ad12d8188b139b",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gbcd2982aa3d53571b8ad12d8188b139b",
+    "signature": "curandStatus_t CURANDAPI curandSetPseudoRandomGeneratorSeed(curandGenerator_t generator, unsigned long long seed)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to modify."
+      },
+      "seed": {
+        "doc": "Seed value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_TYPE_ERROR": {
+          "doc": "if the generator is not a pseudorandom number generator."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if generator seed was set successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Set the seed value of the pseudo-random number generator.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandSetQuasiRandomGeneratorDimensions": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gd00db3478a788b5823038481495bb6ab",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gd00db3478a788b5823038481495bb6ab",
+    "signature": "curandStatus_t CURANDAPI curandSetQuasiRandomGeneratorDimensions(curandGenerator_t generator, unsigned int num_dimensions)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to modify."
+      },
+      "num_dimensions": {
+        "doc": "Number of dimensions."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_OUT_OF_RANGE": {
+          "doc": "if num_dimensions is not valid."
+        },
+        "CURAND_STATUS_TYPE_ERROR": {
+          "doc": "if the generator is not a quasirandom number generator."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if generator ordering was set successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Set the number of dimensions.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curandSetStream": {
+    "kind": "function",
+    "page": "group__HOST.md",
+    "anchor": "group__HOST_1gc78c8d07c7acea4242e2a62bc41ff1f5",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gc78c8d07c7acea4242e2a62bc41ff1f5",
+    "signature": "curandStatus_t CURANDAPI curandSetStream(curandGenerator_t generator, cudaStream_t stream)",
+    "parameters": {
+      "generator": {
+        "doc": "Generator to modify."
+      },
+      "stream": {
+        "doc": "Stream to use or NULL for null stream."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_NOT_INITIALIZED": {
+          "doc": "if the generator was never created."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "if stream was set successfully."
+        }
+      },
+      "type": "curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Set the current stream for CURAND kernel launches.",
+    "api": "host",
+    "deprecated": false
+  },
+  "curand": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gcdb5bc9413df1cbc13cb5c29df9e5d9c",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gcdb5bc9413df1cbc13cb5c29df9e5d9c",
+        "signature": "__device__ unsigned int curand(curandStateMtgp32_t* state)",
+        "doc": "Return 32-bits of pseudorandomness from a mtgp32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1ge331260057b6ad09e009abeb5dfb4baa",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ge331260057b6ad09e009abeb5dfb4baa",
+        "signature": "__device__ unsigned long long curand(curandStateScrambledSobol64_t* state)",
+        "doc": "Return 64-bits of quasirandomness from a scrambled Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gb11f94a93348a75fa0e38e6fd6175ac6",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gb11f94a93348a75fa0e38e6fd6175ac6",
+        "signature": "__device__ unsigned long long curand(curandStateSobol64_t* state)",
+        "doc": "Return 64-bits of quasirandomness from a Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g447d73fe8eaad612af1d14b9227d69c3",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g447d73fe8eaad612af1d14b9227d69c3",
+        "signature": "__device__ unsigned int curand(curandStateScrambledSobol32_t* state)",
+        "doc": "Return 32-bits of quasirandomness from a scrambled Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g79826755080741c3b01296facc643821",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g79826755080741c3b01296facc643821",
+        "signature": "__device__ unsigned int curand(curandStateSobol32_t* state)",
+        "doc": "Return 32-bits of quasirandomness from a Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g12f3064142cb6f7a8e9a87c6ec71364e",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g12f3064142cb6f7a8e9a87c6ec71364e",
+        "signature": "__device__ unsigned int curand(curandStateMRG32k3a_t* state)",
+        "doc": "Return 32-bits of pseudorandomness from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g7e0af53068dd29417f2e97a3c619cf96",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g7e0af53068dd29417f2e97a3c619cf96",
+        "signature": "__device__ unsigned int curand(curandStatePhilox4_32_10_t* state)",
+        "doc": "Return 32-bits of pseudorandomness from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g0706521ed1d407d0eee808bf2d27a518",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g0706521ed1d407d0eee808bf2d27a518",
+        "signature": "__device__ unsigned int curand(curandStateXORWOW_t* state)",
+        "doc": "Return 32-bits of pseudorandomness from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand4": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1g6d72a9470ae28de4d3e0ae9ff605b0b6",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g6d72a9470ae28de4d3e0ae9ff605b0b6",
+    "signature": "__device__ uint4 curand4(curandStatePhilox4_32_10_t* state)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "doc": "Return tuple of 4 32-bit pseudorandoms from a Philox4_32_10 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curandMakeMTGP32Constants": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1gd65ce530d5480904648fdf6b4ba2fcb9",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gd65ce530d5480904648fdf6b4ba2fcb9",
+    "signature": "__host__ __forceinline__ curandStatus_t curandMakeMTGP32Constants(const mtgp32_params_fast_t params[], mtgp32_kernel_params_t* p)",
+    "parameters": {
+      "params": {
+        "doc": "Pointer to an array of type mtgp32_params_fast_t in host memory."
+      },
+      "p": {
+        "doc": "pointer to a structure of type mtgp32_kernel_params_t in device memory."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if host memory could not be allocated."
+        },
+        "CURAND_STATUS_INITIALIZATION_FAILED": {
+          "doc": "if the copy to device memory failed."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "otherwise."
+        }
+      },
+      "type": "__host__ __forceinline__ curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Set up constant parameters for the mtgp32 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curandMakeMTGP32KernelState": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1g2d977a17c05439b938bc570ee1335313",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g2d977a17c05439b938bc570ee1335313",
+    "signature": "__host__ __forceinline__ curandStatus_t CURANDAPI curandMakeMTGP32KernelState(curandStateMtgp32_t* s, mtgp32_params_fast_t params[], mtgp32_kernel_params_t* k, int n, unsigned long long seed)",
+    "parameters": {
+      "s": {
+        "doc": "pointer to an array of states in device memory."
+      },
+      "params": {
+        "doc": "Pointer to an array of type mtgp32_params_fast_t in host memory."
+      },
+      "k": {
+        "doc": "pointer to a structure of type mtgp32_kernel_params_t in device memory."
+      },
+      "n": {
+        "doc": "number of parameter sets/states to initialize."
+      },
+      "seed": {
+        "doc": "seed value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CURAND_STATUS_ALLOCATION_FAILED": {
+          "doc": "if host memory state could not be allocated."
+        },
+        "CURAND_STATUS_INITIALIZATION_FAILED": {
+          "doc": "if the copy to device memory failed."
+        },
+        "CURAND_STATUS_SUCCESS": {
+          "doc": "otherwise."
+        }
+      },
+      "type": "__host__ __forceinline__ curandStatus_t",
+      "kind": "value_set",
+      "deprecated": false
+    },
+    "doc": "Set up initial states for the mtgp32 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_init": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1ga43570b2c8546f1902ccd8c96f20d464",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ga43570b2c8546f1902ccd8c96f20d464",
+        "signature": "__device__ void curand_init(curandDirectionVectors64_t direction_vectors, unsigned long long scramble_c, unsigned long long offset, curandStateScrambledSobol64_t* state)",
+        "doc": "Initialize Scrambled Sobol64 state."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g0e154f3d1b9f0d3afe127436e3946e5c",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g0e154f3d1b9f0d3afe127436e3946e5c",
+        "signature": "__device__ void curand_init(curandDirectionVectors64_t direction_vectors, unsigned long long offset, curandStateSobol64_t* state)",
+        "doc": "Initialize Sobol64 state."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g1e571f649d404adda4fa6f447a1cc409",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g1e571f649d404adda4fa6f447a1cc409",
+        "signature": "__device__ void curand_init(curandDirectionVectors32_t direction_vectors, unsigned int scramble_c, unsigned int offset, curandStateScrambledSobol32_t* state)",
+        "doc": "Initialize Scrambled Sobol32 state."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g878fb518d94942f22987e1b642847819",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g878fb518d94942f22987e1b642847819",
+        "signature": "__device__ void curand_init(curandDirectionVectors32_t direction_vectors, unsigned int offset, curandStateSobol32_t* state)",
+        "doc": "Initialize Sobol32 state."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g840dfa67a07d858183f4dd314e633eb8",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g840dfa67a07d858183f4dd314e633eb8",
+        "signature": "__device__ void curand_init(unsigned long long seed, unsigned long long subsequence, unsigned long long offset, curandStateMRG32k3a_t* state)",
+        "doc": "Initialize MRG32k3a state."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1ga613d37dacbc50494f2f859ef0d378b8",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ga613d37dacbc50494f2f859ef0d378b8",
+        "signature": "__device__ void curand_init(unsigned long long seed, unsigned long long subsequence, unsigned long long offset, curandStatePhilox4_32_10_t* state)",
+        "doc": "Initialize Philox4_32_10 state."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g50ffb42b31744f27be26d98c1f30d51d",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g50ffb42b31744f27be26d98c1f30d51d",
+        "signature": "__device__ void curand_init(unsigned long long seed, unsigned long long subsequence, unsigned long long offset, curandStateXORWOW_t* state)",
+        "doc": "Initialize XORWOW state."
+      }
+    ],
+    "parameters": {
+      "seed": {
+        "doc": "Arbitrary bits to use as a seed."
+      },
+      "subsequence": {
+        "doc": "Subsequence to start at."
+      },
+      "offset": {
+        "doc": "Absolute offset into sequence."
+      },
+      "state": {
+        "doc": "Pointer to state to initialize."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_log_normal": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g21697f8f8341178fc6de6ed1416d85f9",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g21697f8f8341178fc6de6ed1416d85f9",
+        "signature": "__device__ float curand_log_normal(curandStateScrambledSobol64_t* state, float mean, float stddev)",
+        "doc": "Return a log-normally distributed float from a scrambled Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g13f85bd30c3e3025b04f6080e0c49bb1",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g13f85bd30c3e3025b04f6080e0c49bb1",
+        "signature": "__device__ float curand_log_normal(curandStateSobol64_t* state, float mean, float stddev)",
+        "doc": "Return a log-normally distributed float from a Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1ga46bdf5fce0ac0822d29a98d96414779",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ga46bdf5fce0ac0822d29a98d96414779",
+        "signature": "__device__ float curand_log_normal(curandStateScrambledSobol32_t* state, float mean, float stddev)",
+        "doc": "Return a log-normally distributed float from a scrambled Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gb6d336e2774cce73f4546495adead153",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gb6d336e2774cce73f4546495adead153",
+        "signature": "__device__ float curand_log_normal(curandStateSobol32_t* state, float mean, float stddev)",
+        "doc": "Return a log-normally distributed float from a Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1geef7e3413c9c7348f046a80faa97973f",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1geef7e3413c9c7348f046a80faa97973f",
+        "signature": "__device__ float curand_log_normal(curandStateMtgp32_t* state, float mean, float stddev)",
+        "doc": "Return a log-normally distributed float from an MTGP32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g1d9ce0e580b9403ebf67072828dc8f2f",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g1d9ce0e580b9403ebf67072828dc8f2f",
+        "signature": "__device__ float curand_log_normal(curandStateMRG32k3a_t* state, float mean, float stddev)",
+        "doc": "Return a log-normally distributed float from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g58dcc645db51d85b52b746d586a3a51b",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g58dcc645db51d85b52b746d586a3a51b",
+        "signature": "__device__ float curand_log_normal(curandStatePhilox4_32_10_t* state, float mean, float stddev)",
+        "doc": "Return a log-normally distributed float from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gc4591781c94334ce7cc764aeb76de843",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gc4591781c94334ce7cc764aeb76de843",
+        "signature": "__device__ float curand_log_normal(curandStateXORWOW_t* state, float mean, float stddev)",
+        "doc": "Return a log-normally distributed float from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "mean": {
+        "doc": "Mean of the related normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of the related normal distribution."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_log_normal2": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1ge5fa66214241203ddf866688f452270d",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ge5fa66214241203ddf866688f452270d",
+        "signature": "__device__ float2 curand_log_normal2(curandStateMRG32k3a_t* state, float mean, float stddev)",
+        "doc": "Return two normally distributed floats from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gbe5983d0c2cc8ced56c4ba3c860be561",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gbe5983d0c2cc8ced56c4ba3c860be561",
+        "signature": "__device__ float2 curand_log_normal2(curandStatePhilox4_32_10_t* state, float mean, float stddev)",
+        "doc": "Return two normally distributed floats from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gafde38fffc39a6fe254045251a43e126",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gafde38fffc39a6fe254045251a43e126",
+        "signature": "__device__ float2 curand_log_normal2(curandStateXORWOW_t* state, float mean, float stddev)",
+        "doc": "Return two normally distributed floats from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "mean": {
+        "doc": "Mean of the related normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of the related normal distribution."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_log_normal2_double": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g2e8e37a76bd2ad6b0e5fc453f08672b6",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g2e8e37a76bd2ad6b0e5fc453f08672b6",
+        "signature": "__device__ double2 curand_log_normal2_double(curandStateMRG32k3a_t* state, double mean, double stddev)",
+        "doc": "Return two log-normally distributed doubles from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g66b6ee0802d55299df45410b55a7b025",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g66b6ee0802d55299df45410b55a7b025",
+        "signature": "__device__ double2 curand_log_normal2_double(curandStatePhilox4_32_10_t* state, double mean, double stddev)",
+        "doc": "Return two log-normally distributed doubles from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g8afa10dfd5ffd513f41b8553bb182d2c",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g8afa10dfd5ffd513f41b8553bb182d2c",
+        "signature": "__device__ double2 curand_log_normal2_double(curandStateXORWOW_t* state, double mean, double stddev)",
+        "doc": "Return two log-normally distributed doubles from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "mean": {
+        "doc": "Mean of the related normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of the related normal distribution."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_log_normal4": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1g3d9c7b306d693d79551d5903fa220d71",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g3d9c7b306d693d79551d5903fa220d71",
+    "signature": "__device__ float4 curand_log_normal4(curandStatePhilox4_32_10_t* state, float mean, float stddev)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "mean": {
+        "doc": "Mean of the related normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of the related normal distribution."
+      }
+    },
+    "doc": "Return four normally distributed floats from an Philox4_32_10 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_log_normal_double": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gc3fedf961b49b12fdc5927a68542c045",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gc3fedf961b49b12fdc5927a68542c045",
+        "signature": "__device__ double curand_log_normal_double(curandStateScrambledSobol64_t* state, double mean, double stddev)",
+        "doc": "Return a log-normally distributed double from a scrambled Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gcc3b4a26762710729913b31e291898e7",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gcc3b4a26762710729913b31e291898e7",
+        "signature": "__device__ double curand_log_normal_double(curandStateSobol64_t* state, double mean, double stddev)",
+        "doc": "Return a log-normally distributed double from a Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g9c0a21aebfd195725b58d2053d2a9849",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g9c0a21aebfd195725b58d2053d2a9849",
+        "signature": "__device__ double curand_log_normal_double(curandStateScrambledSobol32_t* state, double mean, double stddev)",
+        "doc": "Return a log-normally distributed double from a scrambled Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g3a1894b376cfcf5de66e4bc28cbc7cbd",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g3a1894b376cfcf5de66e4bc28cbc7cbd",
+        "signature": "__device__ double curand_log_normal_double(curandStateSobol32_t* state, double mean, double stddev)",
+        "doc": "Return a log-normally distributed double from a Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1ge9e21d039c66eb8bafd7eb103dfd7feb",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ge9e21d039c66eb8bafd7eb103dfd7feb",
+        "signature": "__device__ double curand_log_normal_double(curandStateMtgp32_t* state, double mean, double stddev)",
+        "doc": "Return a log-normally distributed double from an MTGP32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g741e48496af62c3ef0000e7a3d96c748",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g741e48496af62c3ef0000e7a3d96c748",
+        "signature": "__device__ __NV_SILENCE_DEPRECATION_END double curand_log_normal_double(curandStateMRG32k3a_t* state, double mean, double stddev)",
+        "doc": "Return a log-normally distributed double from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gea12b8325e9e23c1e419553b04996b0b",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gea12b8325e9e23c1e419553b04996b0b",
+        "signature": "__device__ double curand_log_normal_double(curandStatePhilox4_32_10_t* state, double mean, double stddev)",
+        "doc": "Return a log-normally distributed double from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g0229f8270325f74379e92611215acc26",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g0229f8270325f74379e92611215acc26",
+        "signature": "__device__ double curand_log_normal_double(curandStateXORWOW_t* state, double mean, double stddev)",
+        "doc": "Return a log-normally distributed double from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "mean": {
+        "doc": "Mean of the related normal distribution."
+      },
+      "stddev": {
+        "doc": "Standard deviation of the related normal distribution."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_mtgp32_single": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1g6aaa1274e934a2f22a3bd282f0220342",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g6aaa1274e934a2f22a3bd282f0220342",
+    "signature": "__device__ float curand_mtgp32_single(curandStateMtgp32_t* state)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "doc": "Return a uniformly distributed float from a mtgp32 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_mtgp32_single_specific": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1gfd2786b439dfb14ba9d2a9fb95aa6b93",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gfd2786b439dfb14ba9d2a9fb95aa6b93",
+    "signature": "__device__ float curand_mtgp32_single_specific(curandStateMtgp32_t* state, unsigned char index, unsigned char n)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "index": {
+        "doc": "Index (0..255) of the position within the state to draw from and update."
+      },
+      "n": {
+        "doc": "The total number of postions in this state that are being updated by this invocation."
+      }
+    },
+    "doc": "Return a uniformly distributed float from a specific position in a mtgp32 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_mtgp32_specific": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1geac65f4de48f3af5663f9da6cd1871af",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1geac65f4de48f3af5663f9da6cd1871af",
+    "signature": "__device__ unsigned int curand_mtgp32_specific(curandStateMtgp32_t* state, unsigned char index, unsigned char n)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "index": {
+        "doc": "Index (0..255) of the position within the state to draw from and update."
+      },
+      "n": {
+        "doc": "The total number of postions in this state that are being updated by this invocation."
+      }
+    },
+    "doc": "Return 32-bits of pseudorandomness from a specific position in a mtgp32 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_normal": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g8df94e48605f5ae4c0d114f370b3e7a1",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g8df94e48605f5ae4c0d114f370b3e7a1",
+        "signature": "__device__ float curand_normal(curandStateScrambledSobol64_t* state)",
+        "doc": "Return a normally distributed float from a scrambled Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g56e15c862573473dc84ee6f0582a8a3d",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g56e15c862573473dc84ee6f0582a8a3d",
+        "signature": "__device__ float curand_normal(curandStateSobol64_t* state)",
+        "doc": "Return a normally distributed float from a Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gf85b4fa06fce35b93ee711c4b33fb767",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gf85b4fa06fce35b93ee711c4b33fb767",
+        "signature": "__device__ float curand_normal(curandStateScrambledSobol32_t* state)",
+        "doc": "Return a normally distributed float from a scrambled Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g82da8fe5261db5a007d2e2a1fcdca1e6",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g82da8fe5261db5a007d2e2a1fcdca1e6",
+        "signature": "__device__ float curand_normal(curandStateSobol32_t* state)",
+        "doc": "Return a normally distributed float from a Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g8299e2de0ba9bfa59b5a7336c200c62f",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g8299e2de0ba9bfa59b5a7336c200c62f",
+        "signature": "__device__ float curand_normal(curandStateMtgp32_t* state)",
+        "doc": "Return a normally distributed float from a MTGP32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g24f839d02a7f2b416462bd49aab78d09",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g24f839d02a7f2b416462bd49aab78d09",
+        "signature": "__device__ float curand_normal(curandStateMRG32k3a_t* state)",
+        "doc": "Return a normally distributed float from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g6c68a330a7582618195dce2b1b5326b6",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g6c68a330a7582618195dce2b1b5326b6",
+        "signature": "__device__ float curand_normal(curandStatePhilox4_32_10_t* state)",
+        "doc": "Return a normally distributed float from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g19f3c1b1cd61200c377c118f301c3361",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g19f3c1b1cd61200c377c118f301c3361",
+        "signature": "__device__ __NV_SILENCE_DEPRECATION_END float curand_normal(curandStateXORWOW_t* state)",
+        "doc": "Return a normally distributed float from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_normal2": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gb9eacf88eb5654adbb112399112d3bca",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gb9eacf88eb5654adbb112399112d3bca",
+        "signature": "__device__ float2 curand_normal2(curandStateMRG32k3a_t* state)",
+        "doc": "Return two normally distributed floats from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g36887b39163576243c77725f58d1ec99",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g36887b39163576243c77725f58d1ec99",
+        "signature": "__device__ float2 curand_normal2(curandStatePhilox4_32_10_t* state)",
+        "doc": "Return two normally distributed floats from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g054d0adf09a7c7f6736b1198055a00b2",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g054d0adf09a7c7f6736b1198055a00b2",
+        "signature": "__device__ float2 curand_normal2(curandStateXORWOW_t* state)",
+        "doc": "Return two normally distributed floats from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_normal2_double": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g0a78001068d8c0358a7b5cf9237b491c",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g0a78001068d8c0358a7b5cf9237b491c",
+        "signature": "__device__ __NV_SILENCE_DEPRECATION_END double2 curand_normal2_double(curandStateMRG32k3a_t* state)",
+        "doc": "Return two normally distributed doubles from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g7d04424a3e5e7d3876f0de04d2dc5e7e",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g7d04424a3e5e7d3876f0de04d2dc5e7e",
+        "signature": "__device__ double2 curand_normal2_double(curandStatePhilox4_32_10_t* state)",
+        "doc": "Return two normally distributed doubles from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g2d9627a06004c26ad9853dae9e9ecbe1",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g2d9627a06004c26ad9853dae9e9ecbe1",
+        "signature": "__device__ double2 curand_normal2_double(curandStateXORWOW_t* state)",
+        "doc": "Return two normally distributed doubles from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_normal4": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1g05b64c103e5154474a273c176cfe4952",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g05b64c103e5154474a273c176cfe4952",
+    "signature": "__device__ float4 curand_normal4(curandStatePhilox4_32_10_t* state)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "doc": "Return four normally distributed floats from an Philox4_32_10 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_normal_double": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g5a632bf569c927c15f55c30e21988c80",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g5a632bf569c927c15f55c30e21988c80",
+        "signature": "__device__ double curand_normal_double(curandStateScrambledSobol64_t* state)",
+        "doc": "Return a normally distributed double from a scrambled Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gecd7ec7be06f34878f1bb72fa427631d",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gecd7ec7be06f34878f1bb72fa427631d",
+        "signature": "__device__ double curand_normal_double(curandStateSobol64_t* state)",
+        "doc": "Return a normally distributed double from a Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g0f69b07830fc2b47833de5d3815d566d",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g0f69b07830fc2b47833de5d3815d566d",
+        "signature": "__device__ double curand_normal_double(curandStateScrambledSobol32_t* state)",
+        "doc": "Return a normally distributed double from a scrambled Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g73540a582fc645bb393e11a814572edd",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g73540a582fc645bb393e11a814572edd",
+        "signature": "__device__ double curand_normal_double(curandStateSobol32_t* state)",
+        "doc": "Return a normally distributed double from an Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gf3e5473e4c589f2d5fde98d91ffe54fa",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gf3e5473e4c589f2d5fde98d91ffe54fa",
+        "signature": "__device__ double curand_normal_double(curandStateMtgp32_t* state)",
+        "doc": "Return a normally distributed double from an MTGP32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gd6eb014823e054007645a2079b9f85db",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gd6eb014823e054007645a2079b9f85db",
+        "signature": "__device__ double curand_normal_double(curandStateMRG32k3a_t* state)",
+        "doc": "Return a normally distributed double from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g1fb0b607f5d574d4976aeb6556fb4471",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g1fb0b607f5d574d4976aeb6556fb4471",
+        "signature": "__device__ double curand_normal_double(curandStatePhilox4_32_10_t* state)",
+        "doc": "Return a normally distributed double from an Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g08860138de0d6903f40d0928d4e90f83",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g08860138de0d6903f40d0928d4e90f83",
+        "signature": "__device__ double curand_normal_double(curandStateXORWOW_t* state)",
+        "doc": "Return a normally distributed double from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_poisson": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g7259f6750885e245932bbdec4bd7565b",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g7259f6750885e245932bbdec4bd7565b",
+        "signature": "__device__ unsigned int curand_poisson(curandStateScrambledSobol64_t* state, double lambda)",
+        "doc": "Return a Poisson-distributed unsigned int from a scrambled Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g6ba9444f6fa1c11d7dfaa0d101d9ef2e",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g6ba9444f6fa1c11d7dfaa0d101d9ef2e",
+        "signature": "__device__ unsigned int curand_poisson(curandStateSobol64_t* state, double lambda)",
+        "doc": "Return a Poisson-distributed unsigned int from a Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g4f6dede33bde6ffdfb2266aa7dd61cf0",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g4f6dede33bde6ffdfb2266aa7dd61cf0",
+        "signature": "__device__ unsigned int curand_poisson(curandStateScrambledSobol32_t* state, double lambda)",
+        "doc": "Return a Poisson-distributed unsigned int from a scrambled Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g1a2965db73a0b8786d86e99e54d717a0",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g1a2965db73a0b8786d86e99e54d717a0",
+        "signature": "__device__ unsigned int curand_poisson(curandStateSobol32_t* state, double lambda)",
+        "doc": "Return a Poisson-distributed unsigned int from a Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gca762b89c8477a54725862010c871fc7",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gca762b89c8477a54725862010c871fc7",
+        "signature": "__device__ unsigned int curand_poisson(curandStateMtgp32_t* state, double lambda)",
+        "doc": "Return a Poisson-distributed unsigned int from a MTGP32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g306e24eb42d4448fee03bcaa071540fa",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g306e24eb42d4448fee03bcaa071540fa",
+        "signature": "__device__ unsigned int curand_poisson(curandStateMRG32k3a_t* state, double lambda)",
+        "doc": "Return a Poisson-distributed unsigned int from a MRG32k3A generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gb4475c206f69575cfa61e21c578b7254",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gb4475c206f69575cfa61e21c578b7254",
+        "signature": "__device__ unsigned int curand_poisson(curandStatePhilox4_32_10_t* state, double lambda)",
+        "doc": "Return a Poisson-distributed unsigned int from a Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g5b04dd828ef2b92d49ce110002650e52",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g5b04dd828ef2b92d49ce110002650e52",
+        "signature": "__device__ unsigned int curand_poisson(curandStateXORWOW_t* state, double lambda)",
+        "doc": "Return a Poisson-distributed unsigned int from a XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "lambda": {
+        "doc": "Lambda of the Poisson distribution."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_poisson4": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1ga567fa4327f78660ee4da33d308b7a6a",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ga567fa4327f78660ee4da33d308b7a6a",
+    "signature": "__device__ uint4 curand_poisson4(curandStatePhilox4_32_10_t* state, double lambda)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      },
+      "lambda": {
+        "doc": "Lambda of the Poisson distribution."
+      }
+    },
+    "doc": "Return four Poisson-distributed unsigned ints from a Philox4_32_10 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_uniform": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gf1ba3a7a4a53b2bee1d7c1c7b837c00d",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gf1ba3a7a4a53b2bee1d7c1c7b837c00d",
+        "signature": "__device__ float curand_uniform(curandStateScrambledSobol64_t* state)",
+        "doc": "Return a uniformly distributed float from a scrambled Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g8b4503890025c929c8fc3d0314b97ec2",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g8b4503890025c929c8fc3d0314b97ec2",
+        "signature": "__device__ float curand_uniform(curandStateSobol64_t* state)",
+        "doc": "Return a uniformly distributed float from a Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g382e9516c8359da7df1833ab3737838e",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g382e9516c8359da7df1833ab3737838e",
+        "signature": "__device__ float curand_uniform(curandStateScrambledSobol32_t* state)",
+        "doc": "Return a uniformly distributed float from a scrambled Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g20dbe87723f823dc7d1e021cfb7d425e",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g20dbe87723f823dc7d1e021cfb7d425e",
+        "signature": "__device__ float curand_uniform(curandStateSobol32_t* state)",
+        "doc": "Return a uniformly distributed float from a Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1ge1f021f21e8806cfaef2dfb068bd15e6",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ge1f021f21e8806cfaef2dfb068bd15e6",
+        "signature": "__device__ float curand_uniform(curandStateMtgp32_t* state)",
+        "doc": "Return a uniformly distributed float from a MTGP32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g0b90ab0dce818c4b5d3c4493c84b1f1f",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g0b90ab0dce818c4b5d3c4493c84b1f1f",
+        "signature": "__device__ __NV_SILENCE_DEPRECATION_END float curand_uniform(curandStatePhilox4_32_10_t* state)",
+        "doc": "Return a uniformly distributed float from a Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gf46e1daf93ccff34bd2c055f0c812220",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gf46e1daf93ccff34bd2c055f0c812220",
+        "signature": "__device__ float curand_uniform(curandStateMRG32k3a_t* state)",
+        "doc": "Return a uniformly distributed float from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gb23a1a4d5a80ce858b227e01e4e9e6e0",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gb23a1a4d5a80ce858b227e01e4e9e6e0",
+        "signature": "__device__ float curand_uniform(curandStateXORWOW_t* state)",
+        "doc": "Return a uniformly distributed float from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_uniform2_double": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1g58a3260db89f0955a13ef7569e0e542f",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g58a3260db89f0955a13ef7569e0e542f",
+    "signature": "__device__ double2 curand_uniform2_double(curandStatePhilox4_32_10_t* state)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "doc": "Return a uniformly distributed tuple of 2 doubles from an Philox4_32_10 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_uniform4": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1ge214aeb22edf5f523258487f6a8ae78b",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ge214aeb22edf5f523258487f6a8ae78b",
+    "signature": "__device__ float4 curand_uniform4(curandStatePhilox4_32_10_t* state)",
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "doc": "Return a uniformly distributed tuple of 4 floats from a Philox4_32_10 generator.",
+    "api": "device",
+    "deprecated": false
+  },
+  "curand_uniform_double": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1ge84f641b66a766f7ccbd626057e426b3",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1ge84f641b66a766f7ccbd626057e426b3",
+        "signature": "__device__ double curand_uniform_double(curandStateScrambledSobol64_t* state)",
+        "doc": "Return a uniformly distributed double from a scrambled Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g88306edc93418a7fa8e3cc9057cc022c",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g88306edc93418a7fa8e3cc9057cc022c",
+        "signature": "__device__ double curand_uniform_double(curandStateSobol64_t* state)",
+        "doc": "Return a uniformly distributed double from a Sobol64 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g93c8afbc3e04d6e300eadc7a6d2dad91",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g93c8afbc3e04d6e300eadc7a6d2dad91",
+        "signature": "__device__ double curand_uniform_double(curandStateScrambledSobol32_t* state)",
+        "doc": "Return a uniformly distributed double from a scrambled Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g909bcb198ae648a88a7857e00aae8554",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g909bcb198ae648a88a7857e00aae8554",
+        "signature": "__device__ double curand_uniform_double(curandStateSobol32_t* state)",
+        "doc": "Return a uniformly distributed double from a Sobol32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g2acc7c5529a961c8e92870fe60e4768b",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g2acc7c5529a961c8e92870fe60e4768b",
+        "signature": "__device__ double curand_uniform_double(curandStatePhilox4_32_10_t* state)",
+        "doc": "Return a uniformly distributed double from a Philox4_32_10 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g93916166a11d60eefa7ca40b6ea0e622",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g93916166a11d60eefa7ca40b6ea0e622",
+        "signature": "__device__ double curand_uniform_double(curandStateMtgp32_t* state)",
+        "doc": "Return a uniformly distributed double from a MTGP32 generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g5607bef613d54b453a85808d2c751c66",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g5607bef613d54b453a85808d2c751c66",
+        "signature": "__device__ double curand_uniform_double(curandStateMRG32k3a_t* state)",
+        "doc": "Return a uniformly distributed double from an MRG32k3a generator."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g050092af4c1b79e3e313c02a9fcfdfd2",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g050092af4c1b79e3e313c02a9fcfdfd2",
+        "signature": "__device__ double curand_uniform_double(curandStateXORWOW_t* state)",
+        "doc": "Return a uniformly distributed double from an XORWOW generator."
+      }
+    ],
+    "parameters": {
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "skipahead": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g9b0acf557bc47e4fb44df26f7a72a2ff",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g9b0acf557bc47e4fb44df26f7a72a2ff",
+        "signature": "__device__ CURAND_STD::enable_if < CURAND_STD::is_same < curandStateSobol64_t* > ::type skipahead(unsigned long long n, T state)[inline]",
+        "doc": "Update Sobol64 state to skip n elements."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gac2633a02f24b67c913e11e709cebc02",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gac2633a02f24b67c913e11e709cebc02",
+        "signature": "__device__ CURAND_STD::enable_if < CURAND_STD::is_same < curandStateSobol32_t* > ::type skipahead(unsigned int n, T state)[inline]",
+        "doc": "Update Sobol32 state to skip n elements."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g4b911c6074532a58fa1dad430f22877f",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g4b911c6074532a58fa1dad430f22877f",
+        "signature": "__device__ void skipahead(unsigned long long n, curandStateMRG32k3a_t* state)",
+        "doc": "Update MRG32k3a state to skip n elements."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gb77017d0dc7777042a675e3bf3760f08",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gb77017d0dc7777042a675e3bf3760f08",
+        "signature": "__device__ void skipahead(unsigned long long n, curandStatePhilox4_32_10_t* state)",
+        "doc": "Update Philox4_32_10 state to skip n elements."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g90bc1fc5a589fec9948a699e6d5d712c",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g90bc1fc5a589fec9948a699e6d5d712c",
+        "signature": "__device__ void skipahead(unsigned long long n, curandStateXORWOW_t* state)",
+        "doc": "Update XORWOW state to skip n elements."
+      }
+    ],
+    "parameters": {
+      "n": {
+        "doc": "Number of elements to skip."
+      },
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "skipahead_sequence": {
+    "kind": "function",
+    "overloads": [
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1gaf419e82c8cd41d69c8d06fe02ceeab4",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1gaf419e82c8cd41d69c8d06fe02ceeab4",
+        "signature": "__device__ void skipahead_sequence(unsigned long long n, curandStateMRG32k3a_t* state)",
+        "doc": "Update MRG32k3a state to skip ahead n sequences."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g6153ad452d136004a8f371996e0ce39d",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g6153ad452d136004a8f371996e0ce39d",
+        "signature": "__device__ void skipahead_sequence(unsigned long long n, curandStatePhilox4_32_10_t* state)",
+        "doc": "Update Philox4_32_10 state to skip ahead n subsequences."
+      },
+      {
+        "page": "group__DEVICE.md",
+        "anchor": "group__DEVICE_1g96c8285fb8e6d4184d067c59bfaceab5",
+        "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g96c8285fb8e6d4184d067c59bfaceab5",
+        "signature": "__device__ void skipahead_sequence(unsigned long long n, curandStateXORWOW_t* state)",
+        "doc": "Update XORWOW state to skip ahead n subsequences."
+      }
+    ],
+    "parameters": {
+      "n": {
+        "doc": "Number of subsequences to skip."
+      },
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "api": "device",
+    "deprecated": false
+  },
+  "skipahead_subsequence": {
+    "kind": "function",
+    "page": "group__DEVICE.md",
+    "anchor": "group__DEVICE_1g1626fe8c38fce56350a8090879ec72ae",
+    "uri": "https://docs.nvidia.com/cuda/curand/group__DEVICE.html#group__DEVICE_1g1626fe8c38fce56350a8090879ec72ae",
+    "signature": "__device__ void skipahead_subsequence(unsigned long long n, curandStateMRG32k3a_t* state)",
+    "parameters": {
+      "n": {
+        "doc": "Number of subsequences to skip."
+      },
+      "state": {
+        "doc": "Pointer to state to update."
+      }
+    },
+    "doc": "Update MRG32k3a state to skip ahead n subsequences.",
+    "api": "device",
+    "deprecated": false
+  }
+}

@@ -1,6 +1,237 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{data_type::DataType, execution::advanced::MoeGroupedMatmulMode, tensor::TensorId};
+use crate::{
+    data_type::DataType,
+    error::{Error, Result},
+    execution::advanced::{
+        MatmulDescriptor, MatmulOperation as BackendMatmulOperation, MoeGroupedMatmulMode,
+        MoeGroupedMatmulOperation as BackendMoeGroupedMatmulOperation, PagedCacheLoadOperation,
+    },
+    frontend::{
+        lower::{LoweredOperation, LoweringContext, LoweringOutput, tensor_at},
+        operation::FrontendOperationTensors,
+    },
+    tensor::TensorId,
+};
+
+/// Frontend paged-cache load operation.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PagedCacheLoadSpec {
+    pub container: TensorId,
+    pub output: TensorId,
+    pub sequence: TensorId,
+    pub page_table: TensorId,
+}
+
+impl PagedCacheLoadSpec {
+    pub fn new(
+        container: TensorId,
+        output: TensorId,
+        sequence: TensorId,
+        page_table: TensorId,
+    ) -> Self {
+        Self {
+            container,
+            output,
+            sequence,
+            page_table,
+        }
+    }
+}
+
+impl FrontendOperationTensors for PagedCacheLoadSpec {
+    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>) {
+        tensors.extend([self.container, self.output, self.sequence, self.page_table]);
+    }
+}
+
+impl PagedCacheLoadSpec {
+    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
+        let tensors = context.backend_tensors();
+        Ok(LoweredOperation::PagedCacheLoad(
+            PagedCacheLoadOperation::create(
+                tensor_at(tensors, self.container)?,
+                tensor_at(tensors, self.output)?,
+                tensor_at(tensors, self.sequence)?,
+                tensor_at(tensors, self.page_table)?,
+            )?,
+        ))
+    }
+}
+
+/// Frontend MoE grouped matmul operation variants.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum MoeGroupedMatmulOperation {
+    Forward {
+        token: TensorId,
+        weight: TensorId,
+        first_token_offset: TensorId,
+        output: TensorId,
+        config: MoeGroupedMatmulConfig,
+    },
+    Backward {
+        output_gradient: TensorId,
+        token: TensorId,
+        first_token_offset: TensorId,
+        weight_gradient: TensorId,
+        config: MoeGroupedMatmulBackwardConfig,
+    },
+}
+
+impl FrontendOperationTensors for MoeGroupedMatmulOperation {
+    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>) {
+        match self {
+            Self::Forward {
+                token,
+                weight,
+                first_token_offset,
+                output,
+                config,
+            } => {
+                tensors.extend([*token, *weight, *first_token_offset, *output]);
+                tensors.extend(config.token_index());
+                tensors.extend(config.token_ks());
+            }
+            Self::Backward {
+                output_gradient,
+                token,
+                first_token_offset,
+                weight_gradient,
+                ..
+            } => {
+                tensors.extend([
+                    *output_gradient,
+                    *token,
+                    *first_token_offset,
+                    *weight_gradient,
+                ]);
+            }
+        }
+    }
+}
+
+impl MoeGroupedMatmulOperation {
+    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
+        let tensors = context.backend_tensors();
+        match self {
+            Self::Forward {
+                token,
+                weight,
+                first_token_offset,
+                output,
+                config,
+            } => Ok(LoweredOperation::MoeGroupedMatmul(
+                BackendMoeGroupedMatmulOperation::create(
+                    config.mode(),
+                    config.compute_type(),
+                    tensor_at(tensors, *token)?,
+                    tensor_at(tensors, *weight)?,
+                    tensor_at(tensors, *first_token_offset)?,
+                    tensor_at(tensors, *output)?,
+                    config
+                        .token_index()
+                        .map(|tensor| tensor_at(tensors, tensor))
+                        .transpose()?,
+                    config
+                        .token_ks()
+                        .map(|tensor| tensor_at(tensors, tensor))
+                        .transpose()?,
+                    config.top_k(),
+                )?,
+            )),
+            Self::Backward { .. } => Err(Error::FrontendFeatureUnavailable {
+                feature: "moe grouped matmul backward".into(),
+                reason: "singe-cudnn is built against cuDNN 9.21 bindings, but the native backend descriptor requires cuDNN 9.22 bindings".into(),
+            }),
+        }
+    }
+}
+
+/// Frontend matmul operation variants.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum MatmulOperation {
+    Matmul {
+        a: TensorId,
+        b: TensorId,
+        c: TensorId,
+        config: MatmulConfig,
+    },
+    Fp8 {
+        a: TensorId,
+        b: TensorId,
+        descale_a: TensorId,
+        descale_b: TensorId,
+        scale_c: TensorId,
+        c: TensorId,
+        absolute_max_c: TensorId,
+        config: MatmulFp8Config,
+    },
+}
+
+impl FrontendOperationTensors for MatmulOperation {
+    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>) {
+        match self {
+            Self::Matmul { a, b, c, config } => {
+                tensors.extend([*a, *b, *c]);
+                tensors.extend(config.m_override());
+                tensors.extend(config.k_override());
+            }
+            Self::Fp8 {
+                a,
+                b,
+                descale_a,
+                descale_b,
+                scale_c,
+                c,
+                absolute_max_c,
+                config,
+            } => {
+                tensors.extend([
+                    *a,
+                    *b,
+                    *descale_a,
+                    *descale_b,
+                    *scale_c,
+                    *c,
+                    *absolute_max_c,
+                ]);
+                tensors.extend(config.m_override());
+                tensors.extend(config.k_override());
+            }
+        }
+    }
+}
+
+impl MatmulOperation {
+    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweringOutput> {
+        let tensors = context.backend_tensors();
+        match self {
+            Self::Matmul { a, b, c, config } => {
+                let descriptor = MatmulDescriptor::create(config.compute_type())?;
+                Ok(LoweringOutput::Operation(LoweredOperation::Matmul(
+                    BackendMatmulOperation::create_with_overrides(
+                        &descriptor,
+                        tensor_at(tensors, *a)?,
+                        tensor_at(tensors, *b)?,
+                        tensor_at(tensors, *c)?,
+                        config
+                            .m_override()
+                            .map(|tensor| tensor_at(tensors, tensor))
+                            .transpose()?,
+                        None,
+                        config
+                            .k_override()
+                            .map(|tensor| tensor_at(tensors, tensor))
+                            .transpose()?,
+                    )?,
+                )))
+            }
+            Self::Fp8 { .. } => Ok(LoweringOutput::Expanded),
+        }
+    }
+}
 
 /// Attributes for a cuDNN frontend matmul operation.
 ///
@@ -30,28 +261,13 @@ impl MatmulConfig {
         self
     }
 
-    pub fn clear_name(mut self) -> Self {
-        self.name = None;
-        self
-    }
-
     pub fn with_m_override(mut self, m_override: TensorId) -> Self {
         self.m_override = Some(m_override);
         self
     }
 
-    pub fn clear_m_override(mut self) -> Self {
-        self.m_override = None;
-        self
-    }
-
     pub fn with_k_override(mut self, k_override: TensorId) -> Self {
         self.k_override = Some(k_override);
-        self
-    }
-
-    pub fn clear_k_override(mut self) -> Self {
-        self.k_override = None;
         self
     }
 
@@ -97,11 +313,6 @@ impl MatmulFp8Config {
 
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
-        self
-    }
-
-    pub fn clear_name(mut self) -> Self {
-        self.name = None;
         self
     }
 

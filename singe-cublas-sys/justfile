@@ -95,6 +95,44 @@ generate:
             -I {{cuda_path}}/include \
         > ./src/sys_lt_${CUBLAS_VERSION}.rs
 
+    cublas_xt_num_enums=(
+        "cublasXtPinnedMemMode_t"
+        "cublasXtOpType_t"
+        "cublasXtBlasOp_t"
+    )
+    cublas_xt_enum_args=$(for enum in "${cublas_xt_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{cuda_path}}/include/cublasXt.h \
+        $cublas_xt_enum_args \
+        --allowlist-item "^cublasXt.*" \
+        --allowlist-item "^CUBLASXT.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --blocklist-item "^cublasStatus_t$" \
+        --blocklist-item "^cublasOperation_t$" \
+        --blocklist-item "^cublasFillMode_t$" \
+        --blocklist-item "^cublasSideMode_t$" \
+        --blocklist-item "^cublasDiagType_t$" \
+        --blocklist-item "^cuComplex$" \
+        --blocklist-item "^cuDoubleComplex$" \
+        --blocklist-item "^cuFloatComplex$" \
+        --blocklist-item "^float2$" \
+        --blocklist-item "^double2$" \
+        --allowlist-file ".*[^\w]cublasXt.h" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{cuda_path}}/include \
+        > ./src/sys_xt_${CUBLAS_VERSION}.rs
+
 clean:
     rm -rf ./dist
     rm -f ./src/sys_*.rs

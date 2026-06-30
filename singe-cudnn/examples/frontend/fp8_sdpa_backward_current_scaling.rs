@@ -7,8 +7,10 @@ use singe_cudnn::{
     error::Result,
     frontend::{
         composite::sdpa::SdpaFp8BackwardInputs,
-        graph::Graph,
-        operation::{AttentionBackwardConfig, HeuristicMode},
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionBackwardConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+        },
     },
     version,
 };
@@ -41,10 +43,14 @@ fn run() -> Result<()> {
     let s = 512_i64;
     let d = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F8E4M3)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F8E4M3)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let qkvo_dims = vec![b, h, s, d];
     let qkv_strides = vec![s * 3 * h * d, d, 3 * h * d, 1];
@@ -114,15 +120,17 @@ fn run() -> Result<()> {
         DataType::BF16,
         DataType::BF16,
         DataType::BF16,
-        AttentionBackwardConfig::new(DataType::F32).with_causal_mask(),
+        AttentionBackwardConfig::new(DataType::F32).with_score_config(
+            AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::CausalTopLeft),
+        ),
     )?;
-    let d_q = outputs.query_gradient;
-    let d_k = outputs.key_gradient;
-    let d_v = outputs.value_gradient;
-    let absolute_max_d_q = outputs.absolute_max_query_gradient;
-    let absolute_max_d_k = outputs.absolute_max_key_gradient;
-    let absolute_max_d_v = outputs.absolute_max_value_gradient;
-    let absolute_max_d_p = outputs.absolute_max_probability_gradient;
+    let d_q = outputs.query_gradient();
+    let d_k = outputs.key_gradient();
+    let d_v = outputs.value_gradient();
+    let absolute_max_d_q = outputs.absolute_max_query_gradient();
+    let absolute_max_d_k = outputs.absolute_max_key_gradient();
+    let absolute_max_d_v = outputs.absolute_max_value_gradient();
+    let absolute_max_d_p = outputs.absolute_max_probability_gradient();
 
     for output in [
         d_q,

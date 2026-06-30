@@ -1,9 +1,6 @@
 mod forward;
 mod support;
 
-#[cfg(all(test, feature = "testing"))]
-mod tests;
-
 use std::collections::BTreeMap;
 
 use crate::{frontend::graph::Graph, tensor::TensorId};
@@ -26,13 +23,21 @@ pub struct SdpaOutputTensors {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdpaOutputs {
-    pub output: TensorId,
-    pub stats: Option<TensorId>,
+    output: TensorId,
+    stats: Option<TensorId>,
 }
 
 impl SdpaOutputs {
     pub fn new(output: TensorId, stats: Option<TensorId>) -> Self {
         Self { output, stats }
+    }
+
+    pub fn output(self) -> TensorId {
+        self.output
+    }
+
+    pub fn stats(self) -> Option<TensorId> {
+        self.stats
     }
 }
 
@@ -116,10 +121,10 @@ pub struct SdpaBackwardGradientTensors {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdpaBackwardOutputs {
-    pub query_gradient: TensorId,
-    pub key_gradient: TensorId,
-    pub value_gradient: TensorId,
-    pub bias_gradient: Option<TensorId>,
+    query_gradient: TensorId,
+    key_gradient: TensorId,
+    value_gradient: TensorId,
+    bias_gradient: Option<TensorId>,
 }
 
 impl From<SdpaBackwardAuxOutputs> for SdpaBackwardOutputs {
@@ -130,6 +135,24 @@ impl From<SdpaBackwardAuxOutputs> for SdpaBackwardOutputs {
             value_gradient: value.value_gradient,
             bias_gradient: value.bias_gradient,
         }
+    }
+}
+
+impl SdpaBackwardOutputs {
+    pub fn query_gradient(self) -> TensorId {
+        self.query_gradient
+    }
+
+    pub fn key_gradient(self) -> TensorId {
+        self.key_gradient
+    }
+
+    pub fn value_gradient(self) -> TensorId {
+        self.value_gradient
+    }
+
+    pub fn bias_gradient(self) -> Option<TensorId> {
+        self.bias_gradient
     }
 }
 
@@ -164,7 +187,6 @@ pub struct SdpaFp8Inputs {
 }
 
 impl SdpaFp8Inputs {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         query: TensorId,
         key: TensorId,
@@ -251,9 +273,9 @@ pub struct SdpaMxfp8OutputTensors {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdpaMxfp8AuxOutputs {
-    pub output: TensorId,
-    pub stats: Option<TensorId>,
-    pub absolute_max_output: Option<TensorId>,
+    output: TensorId,
+    stats: Option<TensorId>,
+    absolute_max_output: Option<TensorId>,
 }
 
 impl SdpaMxfp8AuxOutputs {
@@ -267,6 +289,18 @@ impl SdpaMxfp8AuxOutputs {
             stats,
             absolute_max_output,
         }
+    }
+
+    pub fn output(self) -> TensorId {
+        self.output
+    }
+
+    pub fn stats(self) -> Option<TensorId> {
+        self.stats
+    }
+
+    pub fn absolute_max_output(self) -> Option<TensorId> {
+        self.absolute_max_output
     }
 }
 
@@ -304,7 +338,6 @@ pub struct SdpaFp8BackwardInputs {
 }
 
 impl SdpaFp8BackwardInputs {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         query: TensorId,
         key: TensorId,
@@ -363,7 +396,6 @@ pub struct SdpaFp8BackwardGradientTensors {
 }
 
 impl SdpaFp8BackwardGradientTensors {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         query_gradient: TensorId,
         key_gradient: TensorId,
@@ -414,7 +446,6 @@ pub struct SdpaMxfp8BackwardInputs {
 }
 
 impl SdpaMxfp8BackwardInputs {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         query: TensorId,
         query_transposed: TensorId,
@@ -490,11 +521,11 @@ impl SdpaMxfp8BackwardGradientTensors {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdpaAuxOutputs {
-    pub output: TensorId,
-    pub stats: Option<TensorId>,
-    pub logit_max: Option<TensorId>,
-    pub score_sum_exp: Option<TensorId>,
-    pub rng_dump: Option<TensorId>,
+    output: TensorId,
+    stats: Option<TensorId>,
+    logit_max: Option<TensorId>,
+    score_sum_exp: Option<TensorId>,
+    rng_dump: Option<TensorId>,
 }
 
 impl SdpaAuxOutputs {
@@ -523,16 +554,44 @@ impl SdpaAuxOutputs {
             rng_dump,
         }
     }
+
+    pub fn output(self) -> TensorId {
+        self.output
+    }
+
+    pub fn stats(self) -> Option<TensorId> {
+        self.stats
+    }
+
+    pub fn logit_max(self) -> Option<TensorId> {
+        self.logit_max
+    }
+
+    pub fn score_sum_exp(self) -> Option<TensorId> {
+        self.score_sum_exp
+    }
+
+    pub fn rng_dump(self) -> Option<TensorId> {
+        self.rng_dump
+    }
+
+    pub fn absolute_max_scores(self) -> Option<TensorId> {
+        self.logit_max
+    }
+
+    pub fn absolute_max_output(self) -> Option<TensorId> {
+        self.score_sum_exp
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdpaBackwardAuxOutputs {
-    pub query_gradient: TensorId,
-    pub key_gradient: TensorId,
-    pub value_gradient: TensorId,
-    pub bias_gradient: Option<TensorId>,
-    pub rng_dump: Option<TensorId>,
-    pub sink_token_gradient: Option<TensorId>,
+    query_gradient: TensorId,
+    key_gradient: TensorId,
+    value_gradient: TensorId,
+    bias_gradient: Option<TensorId>,
+    rng_dump: Option<TensorId>,
+    sink_token_gradient: Option<TensorId>,
 }
 
 impl SdpaBackwardAuxOutputs {
@@ -553,29 +612,53 @@ impl SdpaBackwardAuxOutputs {
             sink_token_gradient,
         }
     }
+
+    pub fn query_gradient(self) -> TensorId {
+        self.query_gradient
+    }
+
+    pub fn key_gradient(self) -> TensorId {
+        self.key_gradient
+    }
+
+    pub fn value_gradient(self) -> TensorId {
+        self.value_gradient
+    }
+
+    pub fn bias_gradient(self) -> Option<TensorId> {
+        self.bias_gradient
+    }
+
+    pub fn rng_dump(self) -> Option<TensorId> {
+        self.rng_dump
+    }
+
+    pub fn sink_token_gradient(self) -> Option<TensorId> {
+        self.sink_token_gradient
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdpaFp8BackwardAuxOutputs {
-    pub query_gradient: TensorId,
-    pub key_gradient: TensorId,
-    pub value_gradient: TensorId,
-    pub sink_token_gradient: Option<TensorId>,
-    pub absolute_max_query_gradient: TensorId,
-    pub absolute_max_key_gradient: TensorId,
-    pub absolute_max_value_gradient: TensorId,
-    pub absolute_max_probability_gradient: TensorId,
+    query_gradient: TensorId,
+    key_gradient: TensorId,
+    value_gradient: TensorId,
+    sink_token_gradient: Option<TensorId>,
+    absolute_max_query_gradient: TensorId,
+    absolute_max_key_gradient: TensorId,
+    absolute_max_value_gradient: TensorId,
+    absolute_max_probability_gradient: TensorId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdpaFp8BackwardOutputs {
-    pub query_gradient: TensorId,
-    pub key_gradient: TensorId,
-    pub value_gradient: TensorId,
-    pub absolute_max_query_gradient: TensorId,
-    pub absolute_max_key_gradient: TensorId,
-    pub absolute_max_value_gradient: TensorId,
-    pub absolute_max_probability_gradient: TensorId,
+    query_gradient: TensorId,
+    key_gradient: TensorId,
+    value_gradient: TensorId,
+    absolute_max_query_gradient: TensorId,
+    absolute_max_key_gradient: TensorId,
+    absolute_max_value_gradient: TensorId,
+    absolute_max_probability_gradient: TensorId,
 }
 
 impl From<SdpaFp8BackwardAuxOutputs> for SdpaFp8BackwardOutputs {
@@ -592,8 +675,37 @@ impl From<SdpaFp8BackwardAuxOutputs> for SdpaFp8BackwardOutputs {
     }
 }
 
+impl SdpaFp8BackwardOutputs {
+    pub fn query_gradient(self) -> TensorId {
+        self.query_gradient
+    }
+
+    pub fn key_gradient(self) -> TensorId {
+        self.key_gradient
+    }
+
+    pub fn value_gradient(self) -> TensorId {
+        self.value_gradient
+    }
+
+    pub fn absolute_max_query_gradient(self) -> TensorId {
+        self.absolute_max_query_gradient
+    }
+
+    pub fn absolute_max_key_gradient(self) -> TensorId {
+        self.absolute_max_key_gradient
+    }
+
+    pub fn absolute_max_value_gradient(self) -> TensorId {
+        self.absolute_max_value_gradient
+    }
+
+    pub fn absolute_max_probability_gradient(self) -> TensorId {
+        self.absolute_max_probability_gradient
+    }
+}
+
 impl SdpaFp8BackwardAuxOutputs {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         query_gradient: TensorId,
         key_gradient: TensorId,
@@ -615,16 +727,48 @@ impl SdpaFp8BackwardAuxOutputs {
             absolute_max_probability_gradient,
         }
     }
+
+    pub fn query_gradient(self) -> TensorId {
+        self.query_gradient
+    }
+
+    pub fn key_gradient(self) -> TensorId {
+        self.key_gradient
+    }
+
+    pub fn value_gradient(self) -> TensorId {
+        self.value_gradient
+    }
+
+    pub fn sink_token_gradient(self) -> Option<TensorId> {
+        self.sink_token_gradient
+    }
+
+    pub fn absolute_max_query_gradient(self) -> TensorId {
+        self.absolute_max_query_gradient
+    }
+
+    pub fn absolute_max_key_gradient(self) -> TensorId {
+        self.absolute_max_key_gradient
+    }
+
+    pub fn absolute_max_value_gradient(self) -> TensorId {
+        self.absolute_max_value_gradient
+    }
+
+    pub fn absolute_max_probability_gradient(self) -> TensorId {
+        self.absolute_max_probability_gradient
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SdpaMxfp8BackwardOutputs {
-    pub query_gradient: TensorId,
-    pub key_gradient: TensorId,
-    pub value_gradient: TensorId,
-    pub absolute_max_query_gradient: TensorId,
-    pub absolute_max_key_gradient: TensorId,
-    pub absolute_max_value_gradient: TensorId,
+    query_gradient: TensorId,
+    key_gradient: TensorId,
+    value_gradient: TensorId,
+    absolute_max_query_gradient: TensorId,
+    absolute_max_key_gradient: TensorId,
+    absolute_max_value_gradient: TensorId,
 }
 
 impl SdpaMxfp8BackwardOutputs {
@@ -644,6 +788,30 @@ impl SdpaMxfp8BackwardOutputs {
             absolute_max_key_gradient,
             absolute_max_value_gradient,
         }
+    }
+
+    pub fn query_gradient(self) -> TensorId {
+        self.query_gradient
+    }
+
+    pub fn key_gradient(self) -> TensorId {
+        self.key_gradient
+    }
+
+    pub fn value_gradient(self) -> TensorId {
+        self.value_gradient
+    }
+
+    pub fn absolute_max_query_gradient(self) -> TensorId {
+        self.absolute_max_query_gradient
+    }
+
+    pub fn absolute_max_key_gradient(self) -> TensorId {
+        self.absolute_max_key_gradient
+    }
+
+    pub fn absolute_max_value_gradient(self) -> TensorId {
+        self.absolute_max_value_gradient
     }
 }
 

@@ -1,10 +1,17 @@
-use std::{cmp::Ordering, mem};
+use std::mem;
 
 use crate::{
     convolution::ConvolutionMode,
     error::{Error, Result},
     execution::resample::Fraction,
-    frontend::operation::{ConvolutionConfig, ReductionAxes, ResampleConfig},
+    frontend::{
+        operation::{ConvolutionConfig, ReductionAxes, ResampleConfig},
+        shape::{
+            contiguous_strides, shape_with_nhwc_strides, shape_with_strides,
+            strides_preserving_packed_axis, strides_preserving_stride_order,
+        },
+        support,
+    },
     tensor::Shape,
     utility::{check_range, to_i64, to_usize},
 };
@@ -13,14 +20,12 @@ fn checked_value<T>(value: Option<T>, name: &str) -> Result<T> {
     value.ok_or_else(|| Error::OutOfRange { name: name.into() })
 }
 
-fn checked_contiguous_strides(dimensions: &[i64]) -> Result<Vec<i64>> {
-    let mut strides = vec![0_i64; dimensions.len()];
-    let mut stride = 1_i64;
-    for (index, dimension) in dimensions.iter().enumerate().rev() {
-        strides[index] = stride;
-        stride = checked_value(stride.checked_mul(*dimension), "tensor strides")?;
+fn shape_rank_mismatch(name: &str, expected: usize, actual: usize) -> Error {
+    Error::LengthMismatch {
+        name: name.into(),
+        expected,
+        actual,
     }
-    Ok(strides)
 }
 
 pub(crate) fn infer_binary_pointwise_output(lhs: &Shape, rhs: &Shape) -> Result<Shape> {
@@ -64,40 +69,10 @@ pub(crate) fn infer_binary_pointwise_output(lhs: &Shape, rhs: &Shape) -> Result<
     } else if rhs_matches {
         rhs.strides().to_vec()
     } else {
-        checked_contiguous_strides(&dimensions)?
+        contiguous_strides(&dimensions, "tensor strides")?
     };
 
-    Shape::contiguous(dimensions)?.with_strides(strides)
-}
-
-fn nhwc_strides(dimensions: &[i64]) -> Result<Vec<i64>> {
-    if dimensions.len() < 2 {
-        return checked_contiguous_strides(dimensions);
-    }
-
-    let mut stride_order = vec![0_usize; dimensions.len()];
-    let mut order = 0_usize;
-    stride_order[1] = order;
-    order += 1;
-    for index in (2..dimensions.len()).rev() {
-        stride_order[index] = order;
-        order += 1;
-    }
-    stride_order[0] = order;
-
-    let mut order_to_index = vec![0_usize; stride_order.len()];
-    for (index, order) in stride_order.iter().copied().enumerate() {
-        order_to_index[order] = index;
-    }
-
-    let mut strides = vec![0_i64; dimensions.len()];
-    let mut stride = 1_i64;
-    for index in order_to_index {
-        strides[index] = stride;
-        stride = checked_value(stride.checked_mul(dimensions[index]), "tensor strides")?;
-    }
-
-    Ok(strides)
+    shape_with_strides(dimensions, strides)
 }
 
 pub(crate) fn reduce_last_axis(shape: &Shape) -> Result<Shape> {
@@ -125,7 +100,7 @@ pub(crate) fn infer_reduction_output(input: &Shape, axes: ReductionAxes) -> Resu
             if dimensions.is_empty() || strides.is_empty() {
                 return Err(Error::InvalidDataShape);
             }
-            Shape::contiguous(mem::take(&mut dimensions))?.with_strides(mem::take(&mut strides))
+            shape_with_strides(mem::take(&mut dimensions), mem::take(&mut strides))
         }
     }
 }
@@ -142,9 +117,11 @@ pub(crate) fn infer_concat_output(inputs: &[&Shape], axis: i64) -> Result<Shape>
     let mut axis_sum = 0_i64;
     for input in inputs {
         if input.dimensions().len() != first.dimensions().len() {
-            return Err(Error::DescriptorMismatch {
-                name: "concat ranks".into(),
-            });
+            return Err(shape_rank_mismatch(
+                support::CONCAT_RANKS,
+                first.dimensions().len(),
+                input.dimensions().len(),
+            ));
         }
         for (index, (&lhs, &rhs)) in first
             .dimensions()
@@ -153,8 +130,10 @@ pub(crate) fn infer_concat_output(inputs: &[&Shape], axis: i64) -> Result<Shape>
             .enumerate()
         {
             if index != axis && lhs != rhs {
-                return Err(Error::DescriptorMismatch {
-                    name: "concat shape".into(),
+                return Err(Error::ShapeMismatch {
+                    name: support::CONCAT_SHAPE.into(),
+                    expected: first.dimensions().to_vec(),
+                    actual: input.dimensions().to_vec(),
                 });
             }
         }
@@ -208,7 +187,7 @@ pub(crate) fn infer_strided_slice_output(
         )?);
     }
 
-    Shape::contiguous(dimensions)?.with_strides(strides)
+    shape_with_strides(dimensions, strides)
 }
 
 pub(crate) fn infer_transpose_output(input: &Shape, permutation: &[i64]) -> Result<Shape> {
@@ -231,8 +210,8 @@ pub(crate) fn infer_transpose_output(input: &Shape, permutation: &[i64]) -> Resu
         )?;
         let index = to_usize(dimension_index, "transpose permutation")?;
         if seen[index] {
-            return Err(Error::DescriptorMismatch {
-                name: "transpose permutation".into(),
+            return Err(Error::OutOfRange {
+                name: support::TRANSPOSE_PERMUTATION.into(),
             });
         }
         seen[index] = true;
@@ -240,7 +219,7 @@ pub(crate) fn infer_transpose_output(input: &Shape, permutation: &[i64]) -> Resu
         strides.push(input.strides()[index]);
     }
 
-    Shape::contiguous(dimensions)?.with_strides(strides)
+    shape_with_strides(dimensions, strides)
 }
 
 pub(crate) fn slice_byte_offset(
@@ -260,9 +239,11 @@ pub(crate) fn slice_byte_offset(
 
 pub(crate) fn infer_resample_output(input: &Shape, config: &ResampleConfig) -> Result<Shape> {
     if input.dimensions().len() < 3 {
-        return Err(Error::DescriptorMismatch {
-            name: "resample rank".into(),
-        });
+        return Err(shape_rank_mismatch(
+            support::RESAMPLE_RANK,
+            3,
+            input.dimensions().len(),
+        ));
     }
 
     let dims = input.dimensions();
@@ -358,10 +339,19 @@ fn validate_convolution_spatial_dims(
     filter: &Shape,
     config: &ConvolutionConfig,
 ) -> Result<usize> {
-    if input.dimensions().len() < 3 || input.dimensions().len() != filter.dimensions().len() {
-        return Err(Error::DescriptorMismatch {
-            name: "convolution rank".into(),
-        });
+    if input.dimensions().len() < 3 {
+        return Err(shape_rank_mismatch(
+            support::CONVOLUTION_RANK,
+            3,
+            input.dimensions().len(),
+        ));
+    }
+    if input.dimensions().len() != filter.dimensions().len() {
+        return Err(shape_rank_mismatch(
+            support::CONVOLUTION_RANK,
+            input.dimensions().len(),
+            filter.dimensions().len(),
+        ));
     }
 
     let spatial_dims = input.dimensions().len() - 2;
@@ -404,8 +394,10 @@ pub(crate) fn infer_convolution_forward_output(
         "convolution channels",
     )?;
     if input_dims[1] != grouped_input_channels {
-        return Err(Error::DescriptorMismatch {
-            name: "convolution channels".into(),
+        return Err(Error::ShapeMismatch {
+            name: support::CONVOLUTION_CHANNELS.into(),
+            expected: vec![grouped_input_channels],
+            actual: vec![input_dims[1]],
         });
     }
 
@@ -439,8 +431,10 @@ pub(crate) fn infer_convolution_backward_data_output(
     let dy_dims = output_gradient.dimensions();
 
     if dy_dims[1] != filter_dims[0] {
-        return Err(Error::DescriptorMismatch {
+        return Err(Error::ShapeMismatch {
             name: "convolution backward data channels".into(),
+            expected: vec![filter_dims[0]],
+            actual: vec![dy_dims[1]],
         });
     }
 
@@ -480,9 +474,11 @@ pub(crate) fn infer_convolution_backward_filter_output(
     if input.dimensions().len() != output_gradient.dimensions().len()
         || input.dimensions().len() < 3
     {
-        return Err(Error::DescriptorMismatch {
-            name: "convolution backward filter rank".into(),
-        });
+        return Err(shape_rank_mismatch(
+            "convolution backward filter rank",
+            input.dimensions().len().max(3),
+            output_gradient.dimensions().len(),
+        ));
     }
 
     let spatial_dims = input.dimensions().len() - 2;
@@ -504,13 +500,17 @@ pub(crate) fn infer_convolution_backward_filter_output(
     let input_dims = input.dimensions();
     let dy_dims = output_gradient.dimensions();
     if input_dims[0] != dy_dims[0] {
-        return Err(Error::DescriptorMismatch {
+        return Err(Error::ShapeMismatch {
             name: "convolution backward filter batch".into(),
+            expected: vec![input_dims[0]],
+            actual: vec![dy_dims[0]],
         });
     }
     if input_dims[1] % to_i64(config.group_count(), "convolution group_count")? != 0 {
-        return Err(Error::DescriptorMismatch {
+        return Err(Error::ShapeMismatch {
             name: "convolution backward filter channels".into(),
+            expected: vec![to_i64(config.group_count(), "convolution group_count")?],
+            actual: vec![input_dims[1]],
         });
     }
 
@@ -524,8 +524,10 @@ pub(crate) fn infer_convolution_backward_filter_output(
             input_dims[index + 2] + config.pre_paddings()[index] + config.post_paddings()[index]
                 - ((dy_dims[index + 2] - 1) * stride + 1);
         if dilation <= 0 || numerator < 0 || numerator % dilation != 0 {
-            return Err(Error::DescriptorMismatch {
+            return Err(Error::ShapeMismatch {
                 name: "convolution backward filter shape".into(),
+                expected: input_dims.to_vec(),
+                actual: dy_dims.to_vec(),
             });
         }
         output.push(numerator / dilation + 1);
@@ -544,9 +546,15 @@ pub(crate) fn infer_paged_cache_output(
         || sequence.dimensions().len() != 4
         || page_table.dimensions().len() != 4
     {
-        return Err(Error::DescriptorMismatch {
-            name: "paged cache load rank".into(),
-        });
+        return Err(shape_rank_mismatch(
+            support::PAGED_CACHE_LOAD_RANK,
+            4,
+            container
+                .dimensions()
+                .len()
+                .min(sequence.dimensions().len())
+                .min(page_table.dimensions().len()),
+        ));
     }
 
     let container_dims = container.dimensions();
@@ -555,13 +563,17 @@ pub(crate) fn infer_paged_cache_output(
 
     if sequence_dims[0] != page_table_dims[0] || page_table_dims[1] != 1 || page_table_dims[3] != 1
     {
-        return Err(Error::DescriptorMismatch {
-            name: "paged cache load shape".into(),
+        return Err(Error::ShapeMismatch {
+            name: support::PAGED_CACHE_LOAD_SHAPE.into(),
+            expected: sequence_dims.to_vec(),
+            actual: page_table_dims.to_vec(),
         });
     }
     if sequence_dims[1] != 1 || sequence_dims[2] != 1 || sequence_dims[3] != 1 {
-        return Err(Error::DescriptorMismatch {
+        return Err(Error::ShapeMismatch {
             name: "paged cache load sequence shape".into(),
+            expected: vec![sequence_dims[0], 1, 1, 1],
+            actual: sequence_dims.to_vec(),
         });
     }
 
@@ -573,66 +585,18 @@ pub(crate) fn infer_paged_cache_output(
     let sequence_length = blocks * block_size;
 
     if transposed {
-        Shape::contiguous([batch, heads, hidden, sequence_length])?.with_strides(vec![
-            heads * hidden * sequence_length,
-            hidden * sequence_length,
-            1,
-            hidden,
-        ])
+        shape_with_strides(
+            [batch, heads, hidden, sequence_length],
+            vec![
+                heads * hidden * sequence_length,
+                hidden * sequence_length,
+                1,
+                hidden,
+            ],
+        )
     } else {
         Shape::contiguous([batch, heads, sequence_length, hidden])
     }
-}
-
-fn infer_strides_preserving_packed_axis(
-    input: &Shape,
-    dimensions: &[i64],
-    axis: i64,
-) -> Result<Vec<i64>> {
-    let rank = to_i64(input.dimensions().len(), "rank")?;
-    let axis = if axis < 0 { rank + axis } else { axis };
-    check_range!("axis", axis >= 0 && axis < rank)?;
-    let axis = to_usize(axis, "axis")?;
-
-    let mut indices = (0..input.strides().len()).collect::<Vec<_>>();
-    indices.sort_by(|&left, &right| {
-        let left_stride = input.strides()[left];
-        let right_stride = input.strides()[right];
-        if left_stride == right_stride {
-            let left_dim = input.dimensions()[left];
-            let right_dim = input.dimensions()[right];
-            return if left_dim == 1 || right_dim != 1 {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            };
-        }
-        left_stride.cmp(&right_stride)
-    });
-
-    let rotation = indices
-        .iter()
-        .position(|&index| index == axis)
-        .ok_or(Error::InvalidDataShape)?;
-    indices.rotate_left(rotation);
-
-    let mut stride_order = vec![0_usize; input.strides().len()];
-    for (order, index) in indices.into_iter().enumerate() {
-        stride_order[index] = order;
-    }
-
-    let mut strides = vec![0_i64; dimensions.len()];
-    let mut order_to_index = vec![0_usize; stride_order.len()];
-    for (index, order) in stride_order.iter().copied().enumerate() {
-        order_to_index[order] = index;
-    }
-    let mut stride = 1_i64;
-    for &index in &order_to_index {
-        strides[index] = stride;
-        stride = checked_value(stride.checked_mul(dimensions[index]), "block scale shape")?;
-    }
-
-    Ok(strides)
 }
 
 pub(crate) fn infer_block_scale_quantize_output_shape(
@@ -642,11 +606,11 @@ pub(crate) fn infer_block_scale_quantize_output_shape(
 ) -> Result<Shape> {
     let dimensions = input.dimensions().to_vec();
     let strides = if transposed {
-        infer_strides_preserving_packed_axis(input, &dimensions, axis)?
+        strides_preserving_packed_axis(input, &dimensions, axis, "block scale shape")?
     } else {
         input.strides().to_vec()
     };
-    Shape::contiguous(dimensions)?.with_strides(strides)
+    shape_with_strides(dimensions, strides)
 }
 
 pub(crate) fn infer_block_scale_shape_with_layout(
@@ -667,42 +631,12 @@ pub(crate) fn infer_block_scale_shape_with_layout(
     *dimension = (*dimension + block_size - 1) / block_size;
 
     let strides = if transposed {
-        infer_strides_preserving_packed_axis(input, &dimensions, axis)?
+        strides_preserving_packed_axis(input, &dimensions, axis, "block scale shape")?
     } else {
-        let mut stride_order = vec![0_usize; input.strides().len()];
-        let mut indices = (0..input.strides().len()).collect::<Vec<_>>();
-        indices.sort_by(|&left, &right| {
-            let left_stride = input.strides()[left];
-            let right_stride = input.strides()[right];
-            if left_stride == right_stride {
-                let left_dim = input.dimensions()[left];
-                let right_dim = input.dimensions()[right];
-                return if left_dim == 1 || right_dim != 1 {
-                    Ordering::Less
-                } else {
-                    Ordering::Greater
-                };
-            }
-            left_stride.cmp(&right_stride)
-        });
-        for (order, index) in indices.into_iter().enumerate() {
-            stride_order[index] = order;
-        }
-
-        let mut strides = vec![0_i64; dimensions.len()];
-        let mut order_to_index = vec![0_usize; stride_order.len()];
-        for (index, order) in stride_order.iter().copied().enumerate() {
-            order_to_index[order] = index;
-        }
-        let mut stride = 1_i64;
-        for &index in &order_to_index {
-            strides[index] = stride;
-            stride = checked_value(stride.checked_mul(dimensions[index]), "block scale shape")?;
-        }
-        strides
+        strides_preserving_stride_order(input, &dimensions, "block scale shape")?
     };
 
-    Shape::contiguous(dimensions)?.with_strides(strides)
+    shape_with_strides(dimensions, strides)
 }
 
 pub(crate) fn infer_block_scale_dequantize_shape(
@@ -719,9 +653,11 @@ pub(crate) fn infer_block_scale_dequantize_shape(
     let rank = dimensions.len();
     let block_rank = block_sizes.len();
     if block_rank > rank {
-        return Err(Error::DescriptorMismatch {
-            name: "block scale rank".into(),
-        });
+        return Err(shape_rank_mismatch(
+            support::BLOCK_SCALE_RANK,
+            rank,
+            block_rank,
+        ));
     }
     let start = rank - block_rank;
     for (offset, block_size) in block_sizes.iter().copied().enumerate() {
@@ -731,38 +667,9 @@ pub(crate) fn infer_block_scale_dequantize_shape(
         dimensions[index] = (dimensions[index] + block - 1) / block;
     }
 
-    let mut stride_order = vec![0_usize; input.strides().len()];
-    let mut indices = (0..input.strides().len()).collect::<Vec<_>>();
-    indices.sort_by(|&left, &right| {
-        let left_stride = input.strides()[left];
-        let right_stride = input.strides()[right];
-        if left_stride == right_stride {
-            let left_dim = input.dimensions()[left];
-            let right_dim = input.dimensions()[right];
-            return if left_dim == 1 || right_dim != 1 {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            };
-        }
-        left_stride.cmp(&right_stride)
-    });
-    for (order, index) in indices.into_iter().enumerate() {
-        stride_order[index] = order;
-    }
+    let strides = strides_preserving_stride_order(input, &dimensions, "block scale shape")?;
 
-    let mut strides = vec![0_i64; dimensions.len()];
-    let mut order_to_index = vec![0_usize; stride_order.len()];
-    for (index, order) in stride_order.iter().copied().enumerate() {
-        order_to_index[order] = index;
-    }
-    let mut stride = 1_i64;
-    for &index in &order_to_index {
-        strides[index] = stride;
-        stride = checked_value(stride.checked_mul(dimensions[index]), "block scale shape")?;
-    }
-
-    Shape::contiguous(dimensions)?.with_strides(strides)
+    shape_with_strides(dimensions, strides)
 }
 
 pub(crate) fn infer_layer_norm_scale_bias_shape(input: &Shape) -> Result<Shape> {
@@ -805,9 +712,11 @@ pub(crate) fn infer_adaptive_layer_norm_scale_bias_shape(input: &Shape) -> Resul
 
 pub(crate) fn infer_layer_norm_stats_shape(input: &Shape, scale: &Shape) -> Result<Shape> {
     if input.dimensions().len() != scale.dimensions().len() {
-        return Err(Error::DescriptorMismatch {
-            name: "layer norm rank".into(),
-        });
+        return Err(shape_rank_mismatch(
+            support::LAYER_NORM_RANK,
+            input.dimensions().len(),
+            scale.dimensions().len(),
+        ));
     }
 
     let mut dimensions = input.dimensions().to_vec();
@@ -844,7 +753,7 @@ pub(crate) fn infer_instance_norm_scale_bias_shape(input: &Shape) -> Result<Shap
         }
     }
 
-    Shape::contiguous(dimensions.clone())?.with_strides(nhwc_strides(&dimensions)?)
+    shape_with_nhwc_strides(dimensions)
 }
 
 pub(crate) fn infer_instance_norm_stats_shape(input: &Shape) -> Result<Shape> {
@@ -857,7 +766,7 @@ pub(crate) fn infer_instance_norm_stats_shape(input: &Shape) -> Result<Shape> {
         *dimension = 1;
     }
 
-    Shape::contiguous(dimensions.clone())?.with_strides(nhwc_strides(&dimensions)?)
+    shape_with_nhwc_strides(dimensions)
 }
 
 pub(crate) fn infer_batch_norm_channel_shape(input: &Shape) -> Result<Shape> {
@@ -866,9 +775,11 @@ pub(crate) fn infer_batch_norm_channel_shape(input: &Shape) -> Result<Shape> {
 
 pub(crate) fn infer_sdpa_scores_shape(q: &Shape, k: &Shape) -> Result<Shape> {
     if q.dimensions().len() != 4 || k.dimensions().len() != 4 {
-        return Err(Error::DescriptorMismatch {
-            name: "sdpa rank".into(),
-        });
+        return Err(shape_rank_mismatch(
+            support::SDPA_RANK,
+            4,
+            q.dimensions().len().min(k.dimensions().len()),
+        ));
     }
 
     let q_dims = q.dimensions();
@@ -896,9 +807,11 @@ pub(crate) fn infer_sdpa_scores_shape(q: &Shape, k: &Shape) -> Result<Shape> {
 
 pub(crate) fn infer_sdpa_output_shape(scores: &Shape, v: &Shape) -> Result<Shape> {
     if scores.dimensions().len() != 4 || v.dimensions().len() != 4 {
-        return Err(Error::DescriptorMismatch {
-            name: "sdpa rank".into(),
-        });
+        return Err(shape_rank_mismatch(
+            support::SDPA_RANK,
+            4,
+            scores.dimensions().len().min(v.dimensions().len()),
+        ));
     }
 
     let scores_dims = scores.dimensions();

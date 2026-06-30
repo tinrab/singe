@@ -1,17 +1,20 @@
-//! Safe cuBLAS and cuBLASLt wrappers for dense GPU linear algebra.
+//! Safe cuBLAS wrappers for dense GPU linear algebra.
 //!
-//! This crate provides BLAS level routines, cuBLAS context management, cuBLASLt
-//! matmul descriptors, algorithm selection, layouts, preferences, epilogues, and
-//! execution helpers over the raw `singe-cublas-sys` bindings.
+//! This crate provides BLAS level routines and cuBLAS context management over the raw `singe-cublas-sys` bindings.
+//! Enable the `lt` feature for cuBLASLt APIs and the `xt` feature for cuBLASXt APIs.
 
 pub mod blas;
 pub mod context;
 pub mod error;
 pub mod gemm;
-pub mod lt;
 pub mod memory;
 pub mod scalar;
 pub mod types;
+
+#[cfg(feature = "lt")]
+pub mod lt;
+#[cfg(feature = "xt")]
+pub mod xt;
 
 pub(crate) mod utility;
 

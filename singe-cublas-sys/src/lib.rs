@@ -1,4 +1,4 @@
-//! Raw FFI bindings for cuBLAS and cuBLASLt.
+//! Raw FFI bindings for cuBLAS, cuBLASLt, and cuBLASXt.
 //!
 //! Prefer the safe `singe-cublas` crate unless direct NVIDIA ABI access is required.
 
@@ -6,7 +6,7 @@
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-#[cfg(feature = "cublas_13_4")]
+#[cfg(feature = "cublas_13_5")]
 use singe_cuda_sys::{
     library_types::{
         cudaDataType, cudaDataType_t, cudaEmulationMantissaControl,
@@ -15,10 +15,10 @@ use singe_cuda_sys::{
     runtime::cudaStream_t,
 };
 
-#[cfg(feature = "cublas_13_4")]
-include!("sys_130400.rs");
+#[cfg(feature = "cublas_13_5")]
+include!("sys_130501.rs");
 
-#[cfg(feature = "cublas_13_4")]
+#[cfg(all(feature = "cublas_13_5", feature = "lt"))]
 mod lt_bindings {
     use super::{
         cublasComputeType_t, cublasSetWorkspace_v2, cublasStatus_t, cudaDataType, cudaDataType_t,
@@ -26,13 +26,27 @@ mod lt_bindings {
     };
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    include!("sys_lt_130400.rs");
+    include!("sys_lt_130501.rs");
 }
 
-#[cfg(feature = "cublas_13_4")]
+#[cfg(all(feature = "cublas_13_5", feature = "lt"))]
 pub use self::lt_bindings::*;
 
-#[cfg(feature = "cublas_13_4")]
+#[cfg(all(feature = "cublas_13_5", feature = "xt"))]
+mod xt_bindings {
+    use super::{
+        cuComplex, cuDoubleComplex, cublasDiagType_t, cublasFillMode_t, cublasOperation_t,
+        cublasSideMode_t, cublasStatus_t,
+    };
+    use num_enum::{IntoPrimitive, TryFromPrimitive};
+
+    include!("sys_xt_130501.rs");
+}
+
+#[cfg(all(feature = "cublas_13_5", feature = "xt"))]
+pub use self::xt_bindings::*;
+
+#[cfg(feature = "cublas_13_5")]
 pub use self::{
     cublasCreate_v2 as cublasCreate, cublasDestroy_v2 as cublasDestroy,
     cublasGetPointerMode_v2 as cublasGetPointerMode, cublasGetStream_v2 as cublasGetStream,
@@ -46,7 +60,7 @@ mod tests {
 
     use super::*;
 
-    #[cfg(feature = "cublas_13_4")]
+    #[cfg(feature = "cublas_13_5")]
     #[test]
     fn it_works() {
         let mut version = 0;

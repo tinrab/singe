@@ -1,7 +1,7 @@
 [package]
 name = "singe-cublas"
-description = "Safe Rust wrappers for the NVIDIA cuBLAS dense linear algebra library (with cuBLASLt)."
-version = "0.1.0-alpha.6"
+description = "Safe Rust wrappers for the NVIDIA cuBLAS dense linear algebra library (with cuBLASLt, cuBLASXt)."
+version = "0.1.0-alpha.7"
 edition.workspace = true
 repository.workspace = true
 keywords = ["cuda", "nvidia", "cublas", "blas", "cublaslt"]
@@ -13,15 +13,17 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cublas_13_4"]
+default = ["cublas_13_5"]
 
-cublas_13_4 = [
-    "singe-cublas-sys/cublas_13_4",
-    "singe-cuda/runtime_13_2",
-    "singe-cuda-sys/runtime_13_2",
+cublas_13_5 = [
+    "singe-cublas-sys/cublas_13_5",
+    "singe-cuda/runtime_13_3",
+    "singe-cuda-sys/runtime_13_3",
 ]
 
 testing = ["singe-cuda/testing"]
+lt = ["cublas_13_5", "singe-cublas-sys/lt"]
+xt = ["cublas_13_5", "singe-cublas-sys/xt"]
 
 [dependencies]
 singe-core.workspace = true
@@ -36,82 +38,107 @@ bitflags.workspace = true
 [[example]]
 name = "lt_epilogue"
 path = "examples/lt/lt_epilogue.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_sgemm"
 path = "examples/lt/lt_sgemm.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_dgemm_preset_algo"
 path = "examples/lt/lt_dgemm_preset_algo.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_dgemm_emulated"
 path = "examples/lt/lt_dgemm_emulated.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_hshgemm_strided_batch_simple"
 path = "examples/lt/lt_hshgemm_strided_batch_simple.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_hshgemm_pointer_array_batch_simple"
 path = "examples/lt/lt_hshgemm_pointer_array_batch_simple.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_planar_complex"
 path = "examples/lt/lt_planar_complex.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_igemm_tensor"
 path = "examples/lt/lt_igemm_tensor.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_fp8_matmul"
 path = "examples/lt/lt_fp8_matmul.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_blk128x128_fp8_matmul"
 path = "examples/lt/lt_blk128x128_fp8_matmul.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_mxfp8_matmul"
 path = "examples/lt/lt_mxfp8_matmul.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_nvfp4_matmul"
 path = "examples/lt/lt_nvfp4_matmul.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_hshgemm_grouped_simple"
 path = "examples/lt/lt_hshgemm_grouped_simple.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_fp8gemm_grouped_simple"
 path = "examples/lt/lt_fp8gemm_grouped_simple.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_blk128x128_fp8gemm_grouped_simple"
 path = "examples/lt/lt_blk128x128_fp8gemm_grouped_simple.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_mxfp8gemm_grouped_simple"
 path = "examples/lt/lt_mxfp8gemm_grouped_simple.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_nvfp4gemm_grouped_simple"
 path = "examples/lt/lt_nvfp4gemm_grouped_simple.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_sgemm_simple_auto_tuning"
 path = "examples/lt/lt_sgemm_simple_auto_tuning.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_sgemm_custom_find"
 path = "examples/lt/lt_sgemm_custom_find.rs"
+required-features = ["lt"]
 
 [[example]]
 name = "lt_fp8_custom_find"
 path = "examples/lt/lt_fp8_custom_find.rs"
+required-features = ["lt"]
+
+[[example]]
+name = "xt_sgemm"
+path = "examples/xt/xt_sgemm.rs"
+required-features = ["xt"]
 
 # CUDA Library cuBLAS sample ports
 [[example]]

@@ -13,9 +13,9 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["curand_13_2"]
+default = ["curand_13_3"]
 
-curand_13_2 = ["singe-cuda/runtime_13_2", "singe-curand-sys/curand_13_2"]
+curand_13_3 = ["singe-cuda/runtime_13_3", "singe-curand-sys/curand_13_3"]
 
 testing = ["singe-cuda/testing"]
 

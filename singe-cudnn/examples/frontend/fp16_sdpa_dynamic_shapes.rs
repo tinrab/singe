@@ -9,9 +9,12 @@ use singe_cudnn::{
     data_type::{DataType, bf16},
     error::{Error, Result, Status},
     frontend::{
-        composite::sdpa::{SdpaInputs, SdpaOutputs},
-        graph::Graph,
-        operation::{AttentionConfig, HeuristicMode},
+        composite::sdpa::SdpaInputs,
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+            SdpaAuxOutputRequest,
+        },
     },
 };
 
@@ -53,13 +56,18 @@ fn run() -> Result<()> {
     let d_v = 128_i64;
     let kernel_cache = Arc::new(Mutex::new(KernelCache::create()?));
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32)
-        .with_dynamic_shape()
-        .with_override_shape();
-    graph.set_shared_kernel_cache(Arc::clone(&kernel_cache))?;
+    let mut graph = Graph::with_config(
+        GraphConfig::new()
+            .with_dynamic_shape()
+            .with_override_shape()
+            .with_data_type_policy(
+                DataTypePolicy::new()
+                    .with_io(DataType::BF16)
+                    .with_intermediate(DataType::F32)
+                    .with_compute(DataType::F32),
+            ),
+    );
+    graph.attach_shared_kernel_cache(Arc::clone(&kernel_cache))?;
 
     let q = graph.tensor(
         TensorSpec::new(
@@ -113,7 +121,7 @@ fn run() -> Result<()> {
     );
     let scale = graph.tensor(TensorSpec::scalar_f32(0.123)?);
 
-    let SdpaOutputs { output: o, stats } = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto_infer(
         SdpaInputs {
             query: q,
             key: k,
@@ -121,10 +129,16 @@ fn run() -> Result<()> {
             scale: scale,
         },
         AttentionConfig::new(DataType::F32)
-            .with_stats()
-            .with_causal_mask()
-            .with_padding_mask(sequence_length_query, sequence_length_key_value),
+            .with_aux_outputs(SdpaAuxOutputRequest::stats_only())
+            .with_score_config(AttentionScoreConfig::new().with_mask_mode(
+                AttentionMaskMode::CausalTopLeftWithPadding {
+                    sequence_length_query: sequence_length_query,
+                    sequence_length_key_value: sequence_length_key_value,
+                },
+            )),
     )?;
+    let o = outputs.output();
+    let stats = outputs.stats();
 
     graph.replace_tensor(
         o,
@@ -149,17 +163,21 @@ fn run() -> Result<()> {
         .with_id(1005);
     graph.replace_tensor(stats, stats_tensor)?;
 
-    graph.set_dynamic_shape_constraints(q, [1, h_q, s_q, d_qk], [override_b, h_q, s_q, d_qk])?;
-    graph.set_dynamic_shape_constraints(k, [1, h_k, s_kv, d_qk], [override_b, h_k, s_kv, d_qk])?;
-    graph.set_dynamic_shape_constraints(v, [1, h_v, s_kv, d_v], [override_b, h_v, s_kv, d_v])?;
-    graph.set_dynamic_shape_constraints(o, [1, h_q, s_q, d_v], [override_b, h_q, s_q, d_v])?;
-    graph.set_dynamic_shape_constraints(stats, [1, h_q, s_q, 1], [override_b, h_q, s_q, 1])?;
-    graph.set_dynamic_shape_constraints(
+    graph.record_dynamic_shape_constraints(q, [1, h_q, s_q, d_qk], [override_b, h_q, s_q, d_qk])?;
+    graph.record_dynamic_shape_constraints(
+        k,
+        [1, h_k, s_kv, d_qk],
+        [override_b, h_k, s_kv, d_qk],
+    )?;
+    graph.record_dynamic_shape_constraints(v, [1, h_v, s_kv, d_v], [override_b, h_v, s_kv, d_v])?;
+    graph.record_dynamic_shape_constraints(o, [1, h_q, s_q, d_v], [override_b, h_q, s_q, d_v])?;
+    graph.record_dynamic_shape_constraints(stats, [1, h_q, s_q, 1], [override_b, h_q, s_q, 1])?;
+    graph.record_dynamic_shape_constraints(
         sequence_length_query,
         [1, 1, 1, 1],
         [override_b, 1, 1, 1],
     )?;
-    graph.set_dynamic_shape_constraints(
+    graph.record_dynamic_shape_constraints(
         sequence_length_key_value,
         [1, 1, 1, 1],
         [override_b, 1, 1, 1],

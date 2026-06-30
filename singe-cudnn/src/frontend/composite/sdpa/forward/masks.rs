@@ -4,11 +4,16 @@ use crate::{
     frontend::{
         composite::sdpa::{
             SdpaAuxOutputs, SdpaInputs, SdpaOutputTensors, SdpaOutputs,
-            support::{sdpa_mask_scalar, sdpa_scalar_tensor},
+            support::{
+                SDPA_BOTTOM_RIGHT_SEQ_LEN_DATA_TYPE, SDPA_LOGIT_MAX,
+                SDPA_PADDING_MASK_SEQ_LEN_DATA_TYPE, SDPA_SCORE_SUM_EXP, SDPA_STATS,
+                sdpa_mask_scalar, sdpa_scalar_tensor,
+            },
         },
         graph::Graph,
         infer::*,
         operation::*,
+        shape::transpose_last_two_shape,
     },
     math::NanPropagation,
     pointwise::PointwiseMode,
@@ -23,6 +28,12 @@ pub(in crate::frontend::composite::sdpa) struct PreparedAttentionKv {
     pub value: TensorId,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SdpaScoreIndices {
+    row: TensorId,
+    col: TensorId,
+}
+
 impl PreparedAttentionKv {
     pub fn new(key: TensorId, value: TensorId) -> Self {
         Self { key, value }
@@ -30,6 +41,88 @@ impl PreparedAttentionKv {
 }
 
 impl Graph {
+    fn sdpa_score_indices(
+        &mut self,
+        scores: TensorId,
+        index_shape: &Shape,
+        row_nan_propagation: NanPropagation,
+        col_nan_propagation: NanPropagation,
+    ) -> SdpaScoreIndices {
+        let row = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
+        let col = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
+        self.pointwise(PointwiseOperation::Unary {
+            mode: PointwiseMode::GenIndex,
+            input: scores,
+            output: row,
+            compute_type: DataType::F32,
+            nan_propagation: row_nan_propagation,
+            alpha1: 1.0,
+            axis: Some(2),
+        });
+        self.pointwise(PointwiseOperation::Unary {
+            mode: PointwiseMode::GenIndex,
+            input: scores,
+            output: col,
+            compute_type: DataType::F32,
+            nan_propagation: col_nan_propagation,
+            alpha1: 1.0,
+            axis: Some(3),
+        });
+        SdpaScoreIndices { row, col }
+    }
+
+    pub(in crate::frontend::composite::sdpa) fn sdpa_requested_aux_output_tensors(
+        &mut self,
+        output: TensorId,
+        request: SdpaSoftmaxAuxOutputRequest,
+        data_type: DataType,
+        shape: &Shape,
+    ) -> SdpaOutputTensors {
+        let stats = request
+            .stats()
+            .then(|| self.tensor(TensorSpec::new(data_type, shape.clone())));
+        let logit_max = request
+            .logit_max()
+            .then(|| self.tensor(TensorSpec::new(data_type, shape.clone())));
+        let score_sum_exp = request
+            .score_sum_exp()
+            .then(|| self.tensor(TensorSpec::new(data_type, shape.clone())));
+        SdpaOutputTensors {
+            output,
+            stats,
+            logit_max,
+            score_sum_exp,
+        }
+    }
+
+    fn require_sdpa_requested_aux_outputs(
+        request: SdpaSoftmaxAuxOutputRequest,
+        outputs: SdpaOutputTensors,
+    ) -> Result<()> {
+        if request.stats() != outputs.stats.is_some() {
+            return Err(Error::FrontendSdpaAuxOutputRequestMismatch {
+                output: SDPA_STATS.into(),
+                requested: request.stats(),
+                provided: outputs.stats.is_some(),
+            });
+        }
+        if request.logit_max() != outputs.logit_max.is_some() {
+            return Err(Error::FrontendSdpaAuxOutputRequestMismatch {
+                output: SDPA_LOGIT_MAX.into(),
+                requested: request.logit_max(),
+                provided: outputs.logit_max.is_some(),
+            });
+        }
+        if request.score_sum_exp() != outputs.score_sum_exp.is_some() {
+            return Err(Error::FrontendSdpaAuxOutputRequestMismatch {
+                output: SDPA_SCORE_SUM_EXP.into(),
+                requested: request.score_sum_exp(),
+                provided: outputs.score_sum_exp.is_some(),
+            });
+        }
+        Ok(())
+    }
+
     pub(in crate::frontend::composite::sdpa) fn transpose_last_two(
         &mut self,
         input: TensorId,
@@ -38,22 +131,8 @@ impl Graph {
         if input_tensor.is_virtual {
             return self.transpose_last_two_reshape(input);
         }
-        let mut dimensions = input_tensor.shape.dimensions().to_vec();
-        let mut strides = input_tensor.shape.strides().to_vec();
-        let rank = dimensions.len();
-        if rank < 2 {
-            return Err(Error::InvalidDataShape);
-        }
-        dimensions.swap(rank - 2, rank - 1);
-        strides.swap(rank - 2, rank - 1);
-        let output = self.alias_tensor(
-            input,
-            TensorSpec::new(
-                input_tensor.data_type,
-                Shape::contiguous(dimensions)?.with_strides(strides)?,
-            ),
-            0,
-        )?;
+        let shape = transpose_last_two_shape(&input_tensor.shape)?;
+        let output = self.alias_tensor(input, TensorSpec::new(input_tensor.data_type, shape), 0)?;
         Ok(output)
     }
 
@@ -62,21 +141,8 @@ impl Graph {
         input: TensorId,
     ) -> Result<TensorId> {
         let input_tensor = self.tensor_config(input)?.clone();
-        let mut dimensions = input_tensor.shape.dimensions().to_vec();
-        let mut strides = input_tensor.shape.strides().to_vec();
-        let rank = dimensions.len();
-        if rank < 2 {
-            return Err(Error::InvalidDataShape);
-        }
-        dimensions.swap(rank - 2, rank - 1);
-        strides.swap(rank - 2, rank - 1);
-        let output = self.tensor(
-            TensorSpec::new(
-                input_tensor.data_type,
-                Shape::contiguous(dimensions)?.with_strides(strides)?,
-            )
-            .virtual_tensor(),
-        );
+        let shape = transpose_last_two_shape(&input_tensor.shape)?;
+        let output = self.tensor(TensorSpec::new(input_tensor.data_type, shape).virtual_tensor());
         self.reshape(input, output)?;
         Ok(output)
     }
@@ -87,23 +153,24 @@ impl Graph {
         v: TensorId,
         config: AttentionConfig,
     ) -> Result<PreparedAttentionKv> {
-        let max_sequence_length_key_value = config.max_sequence_length_key_value();
-        let k_loaded = if let Some(cache) = config.paged_k() {
+        let paged = config.paged();
+        let max_sequence_length_key_value = paged.max_sequence_length_key_value();
+        let k_loaded = if let Some(cache) = paged.k() {
             self.paged_cache_load_attention_infer(
                 k,
-                cache.sequence,
-                cache.page_table,
+                cache.sequence(),
+                cache.page_table(),
                 true,
                 max_sequence_length_key_value,
             )?
         } else {
             self.transpose_last_two(k)?
         };
-        let v_loaded = if let Some(cache) = config.paged_v() {
+        let v_loaded = if let Some(cache) = paged.v() {
             self.paged_cache_load_attention_infer(
                 v,
-                cache.sequence,
-                cache.page_table,
+                cache.sequence(),
+                cache.page_table(),
                 false,
                 max_sequence_length_key_value,
             )?
@@ -126,9 +193,11 @@ impl Graph {
         if let Some(max_sequence_length_key_value) = max_sequence_length_key_value {
             let loaded_tensor = self.tensor_config(loaded)?.clone();
             let sequence_axis = if transposed { 3 } else { 2 };
-            if max_sequence_length_key_value > loaded_tensor.shape.dimensions()[sequence_axis] {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa max_sequence_length_key_value".into(),
+            let available = loaded_tensor.shape.dimensions()[sequence_axis];
+            if max_sequence_length_key_value > available {
+                return Err(Error::FrontendSdpaMaxSequenceLengthExceedsCache {
+                    requested: max_sequence_length_key_value,
+                    available,
                 });
             }
             let mut slices = loaded_tensor
@@ -222,26 +291,12 @@ impl Graph {
         lower_bandwidth: i64,
         upper_bandwidth: Option<i64>,
     ) -> Result<TensorId> {
-        let row = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        let col = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: row,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            axis: Some(2),
-        });
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: col,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            axis: Some(3),
-        });
+        let SdpaScoreIndices { row, col } = self.sdpa_score_indices(
+            scores,
+            index_shape,
+            NanPropagation::NotPropagate,
+            NanPropagation::NotPropagate,
+        );
 
         let left_compare_rhs = if lower_bandwidth == 0 {
             col
@@ -305,38 +360,19 @@ impl Graph {
         sequence_length_key_value: TensorId,
     ) -> Result<TensorId> {
         let scores_tensor = self.tensor_config(scores)?.clone();
-        let seq_len_q_tensor = self.tensor_config(sequence_length_query)?.clone();
-        let seq_len_kv_tensor = self.tensor_config(sequence_length_key_value)?.clone();
-
-        if seq_len_q_tensor.data_type != DataType::I32
-            || seq_len_kv_tensor.data_type != DataType::I32
-        {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa padding mask seq len data type".into(),
-            });
-        }
+        self.validate_sdpa_sequence_length_data_types(
+            sequence_length_query,
+            sequence_length_key_value,
+            SDPA_PADDING_MASK_SEQ_LEN_DATA_TYPE,
+        )?;
 
         let index_shape = scores_tensor.shape.clone();
-        let row = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        let col = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: row,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            axis: Some(2),
-        });
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: col,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            axis: Some(3),
-        });
+        let SdpaScoreIndices { row, col } = self.sdpa_score_indices(
+            scores,
+            &index_shape,
+            NanPropagation::NotPropagate,
+            NanPropagation::Propagate,
+        );
 
         let row_mask =
             self.tensor(TensorSpec::new(DataType::U8, index_shape.clone()).virtual_tensor());
@@ -401,38 +437,19 @@ impl Graph {
         sequence_length_key_value: TensorId,
     ) -> Result<TensorId> {
         let scores_tensor = self.tensor_config(scores)?.clone();
-        let seq_len_q_tensor = self.tensor_config(sequence_length_query)?.clone();
-        let seq_len_kv_tensor = self.tensor_config(sequence_length_key_value)?.clone();
-
-        if seq_len_q_tensor.data_type != DataType::I32
-            || seq_len_kv_tensor.data_type != DataType::I32
-        {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa padding mask seq len data type".into(),
-            });
-        }
+        self.validate_sdpa_sequence_length_data_types(
+            sequence_length_query,
+            sequence_length_key_value,
+            SDPA_PADDING_MASK_SEQ_LEN_DATA_TYPE,
+        )?;
 
         let index_shape = scores_tensor.shape.clone();
-        let row = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        let col = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: row,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            axis: Some(2),
-        });
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: col,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            axis: Some(3),
-        });
+        let SdpaScoreIndices { row, col } = self.sdpa_score_indices(
+            scores,
+            &index_shape,
+            NanPropagation::NotPropagate,
+            NanPropagation::Propagate,
+        );
 
         let row_valid =
             self.tensor(TensorSpec::new(DataType::Boolean, index_shape.clone()).virtual_tensor());
@@ -496,38 +513,19 @@ impl Graph {
         sequence_length_key_value: TensorId,
     ) -> Result<TensorId> {
         let scores_tensor = self.tensor_config(scores)?.clone();
-        let seq_len_q_tensor = self.tensor_config(sequence_length_query)?.clone();
-        let seq_len_kv_tensor = self.tensor_config(sequence_length_key_value)?.clone();
-
-        if seq_len_q_tensor.data_type != DataType::I32
-            || seq_len_kv_tensor.data_type != DataType::I32
-        {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa bottom right seq len data type".into(),
-            });
-        }
+        self.validate_sdpa_sequence_length_data_types(
+            sequence_length_query,
+            sequence_length_key_value,
+            SDPA_BOTTOM_RIGHT_SEQ_LEN_DATA_TYPE,
+        )?;
 
         let index_shape = scores_tensor.shape.clone();
-        let row = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        let col = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: row,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            axis: Some(2),
-        });
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: col,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            axis: Some(3),
-        });
+        let SdpaScoreIndices { row, col } = self.sdpa_score_indices(
+            scores,
+            &index_shape,
+            NanPropagation::Propagate,
+            NanPropagation::Propagate,
+        );
 
         let shifted_row = self.pointwise_binary_virtual_infer_as(
             row,
@@ -587,26 +585,12 @@ impl Graph {
         let scores_tensor = self.tensor_config(scores)?.clone();
         let index_shape = scores_tensor.shape.clone();
 
-        let row = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        let col = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: row,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            axis: Some(2),
-        });
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: scores,
-            output: col,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            axis: Some(3),
-        });
+        let SdpaScoreIndices { row, col } = self.sdpa_score_indices(
+            scores,
+            &index_shape,
+            NanPropagation::Propagate,
+            NanPropagation::Propagate,
+        );
 
         let relative_position =
             self.pointwise_binary_infer(col, row, PointwiseMode::Sub, DataType::I32)?;
@@ -678,7 +662,7 @@ impl Graph {
             value: v,
             scale,
         } = inputs;
-        if config.has_causal_mask() || config.has_causal_bottom_right() {
+        if !matches!(config.mask(), SdpaFusedMaskMode::None) {
             return self.sdpa_with_aux(inputs, outputs, config);
         }
         self.sdpa_direct(
@@ -714,40 +698,21 @@ impl Graph {
             value: v,
             scale,
         } = inputs;
-        if config.has_stats() != outputs.stats.is_some() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa stats".into(),
-            });
-        }
-        if config.has_logit_max() != outputs.logit_max.is_some() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa logit max".into(),
-            });
-        }
-        if config.has_score_sum_exp() != outputs.score_sum_exp.is_some() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa score sum exp".into(),
-            });
-        }
+        Self::require_sdpa_requested_aux_outputs(config.aux_outputs().softmax(), outputs)?;
 
-        let modifiers = if config.has_causal_bottom_right() {
-            SdpaScoreModifiers::new().with_causal_bottom_right(
-                config
-                    .sequence_length_query()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa bottom right seq len".into(),
-                    })?,
-                config
-                    .sequence_length_key_value()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa bottom right seq len".into(),
-                    })?,
-            )
-        } else if config.has_causal_mask() {
-            let causal_mask = self.sdpa_causal_mask_infer(q, k)?;
-            SdpaScoreModifiers::new().with_additive_mask(causal_mask)
-        } else {
-            SdpaScoreModifiers::new()
+        let modifiers = match config.mask() {
+            SdpaFusedMaskMode::None => SdpaScoreModifiers::new(),
+            SdpaFusedMaskMode::CausalTopLeft => {
+                let causal_mask = self.sdpa_causal_mask_infer(q, k)?;
+                SdpaScoreModifiers::new().with_additive_mask(causal_mask)
+            }
+            SdpaFusedMaskMode::CausalBottomRight {
+                sequence_length_query,
+                sequence_length_key_value,
+            } => SdpaScoreModifiers::new().with_mask_mode(AttentionMaskMode::CausalBottomRight {
+                sequence_length_query,
+                sequence_length_key_value,
+            }),
         };
         let scale = self.sdpa_effective_scale(scale, config.attention_scale())?;
 
@@ -789,42 +754,21 @@ impl Graph {
         let output_shape = infer_sdpa_output_shape(&scores_shape, &v_tensor.shape)?;
         let output = self.tensor(TensorSpec::new(q_tensor.data_type, output_shape));
         let aux_data_type = self.sdpa_aux_data_type();
+        let aux_shape = reduce_last_axis(&q_tensor.shape)?;
+        let outputs = self.sdpa_requested_aux_output_tensors(
+            output,
+            config.aux_outputs().softmax(),
+            aux_data_type,
+            &aux_shape,
+        );
 
-        let stats = if config.has_stats() {
-            let stats_shape = reduce_last_axis(&q_tensor.shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, stats_shape)))
-        } else {
-            None
-        };
-        let logit_max = if config.has_logit_max() {
-            let stats_shape = reduce_last_axis(&q_tensor.shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, stats_shape)))
-        } else {
-            None
-        };
-        let score_sum_exp = if config.has_score_sum_exp() {
-            let stats_shape = reduce_last_axis(&q_tensor.shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, stats_shape)))
-        } else {
-            None
-        };
-
-        self.sdpa_with_aux(
-            inputs,
-            SdpaOutputTensors {
-                output,
-                stats,
-                logit_max,
-                score_sum_exp,
-            },
-            config,
-        )?;
+        self.sdpa_with_aux(inputs, outputs, config)?;
 
         Ok(SdpaAuxOutputs::with_aux(
             output,
-            stats,
-            logit_max,
-            score_sum_exp,
+            outputs.stats,
+            outputs.logit_max,
+            outputs.score_sum_exp,
             None,
         ))
     }
@@ -870,34 +814,19 @@ impl Graph {
         let output_shape = infer_sdpa_output_shape(&scores_shape, &v_tensor.shape)?;
         let output = self.tensor(TensorSpec::new(q_tensor.data_type, output_shape));
         let aux_data_type = self.sdpa_aux_data_type();
-
-        let stats = if config.fused().has_stats() {
-            let stats_shape = reduce_last_axis(&scores_shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, stats_shape)))
-        } else {
-            None
-        };
-        let logit_max = if config.fused().has_logit_max() {
-            let aux_shape = reduce_last_axis(&scores_shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, aux_shape)))
-        } else {
-            None
-        };
-        let score_sum_exp = if config.fused().has_score_sum_exp() {
-            let aux_shape = reduce_last_axis(&scores_shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, aux_shape)))
-        } else {
-            None
-        };
+        let aux_shape = reduce_last_axis(&scores_shape)?;
+        let outputs = self.sdpa_requested_aux_output_tensors(
+            output,
+            config.fused().aux_outputs().softmax(),
+            aux_data_type,
+            &aux_shape,
+        );
         let rng_dump = if let Some(dropout) = config.dropout() {
-            let rng_config = self.attention_dropout_random_number_generator_config(
-                dropout.probability(),
-                dropout.seed_source(),
+            Some(self.attention_dropout_random_number_generator_dump(
+                dropout,
                 config.dropout_offset(),
-            )?;
-            let rng_dump = self.tensor(TensorSpec::new(DataType::F32, scores_shape.clone()));
-            self.random_number_generator(rng_dump, rng_config)?;
-            Some(rng_dump)
+                &scores_shape,
+            )?)
         } else {
             None
         };
@@ -906,9 +835,7 @@ impl Graph {
                 q_tensor.data_type,
                 1.0 / (1.0 - dropout.probability()),
             )?);
-            let rng_dump = rng_dump.ok_or_else(|| Error::DescriptorMismatch {
-                name: "sdpa rng dump".into(),
-            })?;
+            let rng_dump = rng_dump.ok_or(Error::FrontendSdpaRngDumpOutputMissing)?;
             config.modifiers().with_dropout(rng_dump, dropout_scale)
         } else {
             *config.modifiers()
@@ -920,9 +847,9 @@ impl Graph {
             v,
             scale,
             output,
-            stats,
-            logit_max,
-            score_sum_exp,
+            outputs.stats,
+            outputs.logit_max,
+            outputs.score_sum_exp,
             modifiers,
             config.score_subgraph(),
             *config.softmax(),
@@ -930,9 +857,9 @@ impl Graph {
 
         Ok(SdpaAuxOutputs::with_aux(
             output,
-            stats,
-            logit_max,
-            score_sum_exp,
+            outputs.stats,
+            outputs.logit_max,
+            outputs.score_sum_exp,
             rng_dump,
         ))
     }

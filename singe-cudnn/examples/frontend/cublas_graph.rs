@@ -9,7 +9,7 @@ use singe_cudnn::{
     data_type::DataType,
     error::{Error, Result, Status},
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{HeuristicMode, PointwiseOperation},
     },
     math::NanPropagation,
@@ -24,11 +24,16 @@ fn run() -> Result<()> {
     let cublas = map_cublas(CublasContext::create(ctx.cudnn.cuda_context()))?;
     map_cublas(cublas.set_stream(Some(&ctx.stream)))?;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F32)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32)
-        .with_name("cublas-then-cudnn");
+    let mut graph = Graph::with_config(
+        GraphConfig::new()
+            .with_name("cublas-then-cudnn")
+            .with_data_type_policy(
+                DataTypePolicy::new()
+                    .with_io(DataType::F32)
+                    .with_intermediate(DataType::F32)
+                    .with_compute(DataType::F32),
+            ),
+    );
 
     let x =
         graph.tensor(TensorSpec::new(DataType::F32, Shape::contiguous([1, 2, 2])?).with_id(1000));

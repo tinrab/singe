@@ -1487,7 +1487,11 @@ fn bytes_to_string(mut bytes: Vec<u8>) -> String {
 mod tests {
     use super::*;
     use crate::{
-        device::Device, error::Result, memory::DeviceMemory, module::LaunchConfig, testing,
+        device::Device,
+        error::{Error, Result},
+        memory::DeviceMemory,
+        module::LaunchConfig,
+        testing,
     };
 
     fn current_device_sm_architecture() -> Result<GpuArchitecture> {
@@ -1506,6 +1510,22 @@ mod tests {
             (12, 1) => GpuArchitecture::Sm121,
             (major, minor) => panic!("unsupported device architecture sm_{major}{minor}"),
         })
+    }
+
+    fn compile_or_skip(result: Result<()>) -> bool {
+        match result {
+            Ok(()) => true,
+            Err(Error::Nvrtc {
+                code: Status::BuiltinOperationFailure,
+                ..
+            }) => {
+                eprintln!(
+                    "warning: skipping NVRTC compile-dependent test because NVRTC builtins are unavailable"
+                );
+                false
+            }
+            Err(error) => panic!("NVRTC compilation failed: {error:?}"),
+        }
     }
 
     #[test]
@@ -1574,7 +1594,9 @@ mod tests {
         let options = CompileOptions::new()
             .gpu_architecture(GpuArchitecture::Compute80)
             .generate_line_info(true);
-        program.compile_with_options(&options).unwrap();
+        if !compile_or_skip(program.compile_with_options(&options)) {
+            return;
+        }
 
         let ptx = program.ptx_string().unwrap();
         assert!(ptx.contains(".visible .entry saxpy"));
@@ -1592,9 +1614,9 @@ mod tests {
         .with_name("noop.cu");
         let options = CompileOptions::new().gpu_architecture(GpuArchitecture::Compute80);
 
-        program
-            .compile_with_options_and_cancel_flag(&options, &cancel)
-            .unwrap();
+        if !compile_or_skip(program.compile_with_options_and_cancel_flag(&options, &cancel)) {
+            return;
+        }
         assert!(program.ptx_string().unwrap().contains("noop"));
     }
 
@@ -1621,7 +1643,9 @@ mod tests {
         .with_name("saxpy_module.cu");
         let architecture = current_device_sm_architecture().unwrap();
         let options = CompileOptions::new().gpu_architecture(architecture);
-        program.compile_with_options(&options).unwrap();
+        if !compile_or_skip(program.compile_with_options(&options)) {
+            return;
+        }
 
         let module = ctx.load_nvrtc_module(&program, OutputKind::Cubin).unwrap();
         assert!(module.function("saxpy").is_ok());
@@ -1638,7 +1662,9 @@ mod tests {
         .with_name("noop_module_jit.cu");
         let architecture = current_device_sm_architecture().unwrap();
         let options = CompileOptions::new().gpu_architecture(architecture);
-        program.compile_with_options(&options).unwrap();
+        if !compile_or_skip(program.compile_with_options(&options)) {
+            return;
+        }
 
         let mut info_log = [0u8; 1024];
         let mut error_log = [0u8; 1024];
@@ -1677,7 +1703,9 @@ mod tests {
         .with_name("scale_add.cu");
         let architecture = current_device_sm_architecture().unwrap();
         let compile_options = CompileOptions::new().gpu_architecture(architecture);
-        program.compile_with_options(&compile_options).unwrap();
+        if !compile_or_skip(program.compile_with_options(&compile_options)) {
+            return;
+        }
 
         let module = ctx.load_nvrtc_module(&program, OutputKind::Cubin).unwrap();
         let function = module.function("scale_add").unwrap();
@@ -1709,7 +1737,9 @@ mod tests {
         .with_name("noop_library.cu");
         let architecture = current_device_sm_architecture().unwrap();
         let options = CompileOptions::new().gpu_architecture(architecture);
-        program.compile_with_options(&options).unwrap();
+        if !compile_or_skip(program.compile_with_options(&options)) {
+            return;
+        }
 
         let library = ctx.load_nvrtc_library(&program, OutputKind::Cubin).unwrap();
         assert!(library.kernel_count().unwrap() >= 1);
@@ -1724,7 +1754,9 @@ mod tests {
         )
         .with_name("noop_lto.cu");
         let options = CompileOptions::new().dlink_time_optimization(true);
-        program.compile_with_options(&options).unwrap();
+        if !compile_or_skip(program.compile_with_options(&options)) {
+            return;
+        }
 
         let artifact = program.artifact(OutputKind::LtoIr).unwrap();
         assert!(!artifact.image().as_bytes().is_empty());
@@ -1741,7 +1773,9 @@ mod tests {
         )
         .with_name("noop_optix.cu");
         let options = CompileOptions::new().optix_ir(true);
-        program.compile_with_options(&options).unwrap();
+        if !compile_or_skip(program.compile_with_options(&options)) {
+            return;
+        }
 
         let artifact = program.artifact(OutputKind::OptixIr).unwrap();
         assert!(!artifact.image().as_bytes().is_empty());
@@ -1758,7 +1792,9 @@ mod tests {
         )
         .with_name("noop_cubin.cu");
         let options = CompileOptions::new().gpu_architecture(GpuArchitecture::Compute80);
-        program.compile_with_options(&options).unwrap();
+        if !compile_or_skip(program.compile_with_options(&options)) {
+            return;
+        }
 
         assert!(program.artifact(OutputKind::Cubin).is_err());
     }

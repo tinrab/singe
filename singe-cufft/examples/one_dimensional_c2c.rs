@@ -37,14 +37,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // by an inverse transform returns the original data scaled by fft_size.
     let output = device_data.copy_to_host_vec()?;
     for (actual, expected) in output.iter().zip(input.iter()) {
-        assert_complex_close(*actual, *expected * fft_size as f32);
+        singe_core::assert_complex_close!(*actual, *expected * fft_size as f32, 1.0e-3);
     }
 
     println!("1d c2c round trip result: {output:?}");
     Ok(())
-}
-
-fn assert_complex_close(actual: Complex32, expected: Complex32) {
-    assert!((actual.re - expected.re).abs() < 1e-3);
-    assert!((actual.im - expected.im).abs() < 1e-3);
 }

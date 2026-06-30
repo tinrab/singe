@@ -1,5 +1,92 @@
 use std::collections::BTreeMap;
 
+macro_rules! impl_engine_config_filter_methods {
+    () => {
+        pub fn filter(
+            mut self,
+            filter: crate::frontend::plan::metadata::EngineConfigFilter<'_>,
+        ) -> crate::error::Result<Self> {
+            self.apply_filter(filter);
+            Ok(self)
+        }
+
+        pub fn deselect_workspace_greater_than(
+            mut self,
+            max_workspace_size: usize,
+        ) -> crate::error::Result<Self> {
+            let filter = crate::frontend::plan::metadata::EngineConfigFilter::new()
+                .with_max_workspace_size(max_workspace_size);
+            self.apply_filter(filter);
+            Ok(self)
+        }
+
+        pub fn deselect_shared_memory_greater_than(
+            mut self,
+            max_shared_memory_size: usize,
+        ) -> crate::error::Result<Self> {
+            let filter = crate::frontend::plan::metadata::EngineConfigFilter::new()
+                .with_max_shared_memory_size(max_shared_memory_size);
+            self.apply_filter(filter);
+            Ok(self)
+        }
+
+        pub fn deselect_engines(
+            mut self,
+            blocked_name_substrings: impl Into<Vec<String>>,
+        ) -> crate::error::Result<Self> {
+            let blocked_name_substrings = blocked_name_substrings.into();
+            let filter = crate::frontend::plan::metadata::EngineConfigFilter::new()
+                .with_excluded_engine_name_substrings(&blocked_name_substrings);
+            self.apply_filter(filter);
+            Ok(self)
+        }
+
+        pub fn require_numerical_notes(
+            mut self,
+            required_notes: impl Into<Vec<crate::behavior::BackendNumericalNote>>,
+        ) -> crate::error::Result<Self> {
+            let required_notes = required_notes.into();
+            let filter = crate::frontend::plan::metadata::EngineConfigFilter::new()
+                .with_included_numerical_notes(&required_notes);
+            self.apply_filter(filter);
+            Ok(self)
+        }
+
+        pub fn exclude_numerical_notes(
+            mut self,
+            excluded_notes: impl Into<Vec<crate::behavior::BackendNumericalNote>>,
+        ) -> crate::error::Result<Self> {
+            let excluded_notes = excluded_notes.into();
+            let filter = crate::frontend::plan::metadata::EngineConfigFilter::new()
+                .with_excluded_numerical_notes(&excluded_notes);
+            self.apply_filter(filter);
+            Ok(self)
+        }
+
+        pub fn require_behavior_notes(
+            mut self,
+            required_notes: impl Into<Vec<crate::behavior::BackendBehaviorNote>>,
+        ) -> crate::error::Result<Self> {
+            let required_notes = required_notes.into();
+            let filter = crate::frontend::plan::metadata::EngineConfigFilter::new()
+                .with_included_behavior_notes(&required_notes);
+            self.apply_filter(filter);
+            Ok(self)
+        }
+
+        pub fn exclude_behavior_notes(
+            mut self,
+            excluded_notes: impl Into<Vec<crate::behavior::BackendBehaviorNote>>,
+        ) -> crate::error::Result<Self> {
+            let excluded_notes = excluded_notes.into();
+            let filter = crate::frontend::plan::metadata::EngineConfigFilter::new()
+                .with_excluded_behavior_notes(&excluded_notes);
+            self.apply_filter(filter);
+            Ok(self)
+        }
+    };
+}
+
 mod bindings;
 mod build;
 mod built;
@@ -19,6 +106,7 @@ pub use self::{
         AliasTensorBinding, AutotuneConfig, AutotuneResult, BuildPlanPolicy, PlanSupport,
         PlanTiming, RequiredTensor,
     },
+    metadata::EngineConfigFilter,
 };
 pub(crate) use self::{config::BindingReplacement, metadata::EngineConfigMetadata};
 
@@ -34,7 +122,7 @@ use crate::{
     frontend::{
         graph::{Graph, TensorRecord},
         operation::CompileConfig,
-        plan::built::{BuiltPlanCandidates, BuiltPlanEntry},
+        plan::built::BuiltPlanCandidates,
     },
     scalar::ScalarValue,
     tensor::TensorId,
@@ -166,85 +254,11 @@ impl PlanCandidates {
         self.engine_metadata = kept_metadata;
     }
 
-    pub fn deselect_workspace_greater_than(mut self, max_workspace_size: usize) -> Result<Self> {
-        self.retain_engine_configs(|metadata| metadata.workspace_size <= max_workspace_size);
-        Ok(self)
+    pub(crate) fn apply_filter(&mut self, filter: EngineConfigFilter<'_>) {
+        self.retain_engine_configs(|metadata| filter.accepts(metadata));
     }
 
-    pub fn deselect_shared_memory_greater_than(
-        mut self,
-        max_shared_memory_size: usize,
-    ) -> Result<Self> {
-        self.retain_engine_configs(|metadata| {
-            metadata.shared_memory_size <= max_shared_memory_size
-        });
-        Ok(self)
-    }
-
-    pub fn deselect_engines(
-        mut self,
-        blocked_name_substrings: impl Into<Vec<String>>,
-    ) -> Result<Self> {
-        let blocked_name_substrings = blocked_name_substrings.into();
-        self.retain_engine_configs(|metadata| {
-            !blocked_name_substrings
-                .iter()
-                .any(|blocked_name| metadata.name.contains(blocked_name))
-        });
-        Ok(self)
-    }
-
-    pub fn require_numerical_notes(
-        mut self,
-        required_notes: impl Into<Vec<BackendNumericalNote>>,
-    ) -> Result<Self> {
-        let required_notes = required_notes.into();
-        self.retain_engine_configs(|metadata| {
-            required_notes
-                .iter()
-                .all(|note| metadata.numerical_notes.contains(note))
-        });
-        Ok(self)
-    }
-
-    pub fn exclude_numerical_notes(
-        mut self,
-        excluded_notes: impl Into<Vec<BackendNumericalNote>>,
-    ) -> Result<Self> {
-        let excluded_notes = excluded_notes.into();
-        self.retain_engine_configs(|metadata| {
-            !excluded_notes
-                .iter()
-                .any(|note| metadata.numerical_notes.contains(note))
-        });
-        Ok(self)
-    }
-
-    pub fn require_behavior_notes(
-        mut self,
-        required_notes: impl Into<Vec<BackendBehaviorNote>>,
-    ) -> Result<Self> {
-        let required_notes = required_notes.into();
-        self.retain_engine_configs(|metadata| {
-            required_notes
-                .iter()
-                .all(|note| metadata.behavior_notes.contains(note))
-        });
-        Ok(self)
-    }
-
-    pub fn exclude_behavior_notes(
-        mut self,
-        excluded_notes: impl Into<Vec<BackendBehaviorNote>>,
-    ) -> Result<Self> {
-        let excluded_notes = excluded_notes.into();
-        self.retain_engine_configs(|metadata| {
-            !excluded_notes
-                .iter()
-                .any(|note| metadata.behavior_notes.contains(note))
-        });
-        Ok(self)
-    }
+    impl_engine_config_filter_methods!();
 
     pub fn name_at(&self, plan_index: usize) -> Result<String> {
         let engine_name = &self.engine_metadata_at(plan_index)?.name;
@@ -339,53 +353,36 @@ impl PlanCandidates {
         }
         let device_properties = self.graph.resolved_device_properties()?;
 
+        let candidates = self
+            .engine_configs
+            .into_iter()
+            .zip(self.engine_metadata)
+            .collect::<Vec<_>>();
+
         let entries = match config.build_policy() {
-            BuildPlanPolicy::FirstSupported => {
-                let (engine_configs, execution_plans) = build_execution_plan_choice(
+            BuildPlanPolicy::FirstSupported => build_execution_plan_choice(
+                ctx,
+                &self.operation_graph,
+                self.graph.kernel_cache_enabled(),
+                self.graph.kernel_cache_json(),
+                self.graph.runtime_kernel_cache(),
+                device_properties.as_deref(),
+                candidates,
+                config,
+            )?,
+            BuildPlanPolicy::FirstSupportedParallel { window_size } => {
+                build_execution_plan_choice_parallel_window(
                     ctx,
                     &self.operation_graph,
                     self.graph.kernel_cache_enabled(),
                     self.graph.kernel_cache_json(),
                     self.graph.runtime_kernel_cache(),
+                    self.graph.device_properties_json(),
                     device_properties.as_deref(),
-                    self.engine_configs,
+                    candidates,
                     config,
-                )?;
-                engine_configs
-                    .into_iter()
-                    .zip(execution_plans)
-                    .map(|(engine_config, execution_plan)| BuiltPlanEntry {
-                        engine_config,
-                        execution_plan: Some(execution_plan),
-                        build_error: None,
-                        support_error: None,
-                    })
-                    .collect()
-            }
-            BuildPlanPolicy::FirstSupportedParallel { window_size } => {
-                let (engine_configs, execution_plans) =
-                    build_execution_plan_choice_parallel_window(
-                        ctx,
-                        &self.operation_graph,
-                        self.graph.kernel_cache_enabled(),
-                        self.graph.kernel_cache_json(),
-                        self.graph.runtime_kernel_cache(),
-                        self.graph.device_properties_json(),
-                        device_properties.as_deref(),
-                        self.engine_configs,
-                        config,
-                        window_size,
-                    )?;
-                engine_configs
-                    .into_iter()
-                    .zip(execution_plans)
-                    .map(|(engine_config, execution_plan)| BuiltPlanEntry {
-                        engine_config,
-                        execution_plan: Some(execution_plan),
-                        build_error: None,
-                        support_error: None,
-                    })
-                    .collect()
+                    window_size,
+                )?
             }
             BuildPlanPolicy::AllSupported => build_execution_plan_entries(
                 ctx,
@@ -394,7 +391,7 @@ impl PlanCandidates {
                 self.graph.kernel_cache_json(),
                 self.graph.runtime_kernel_cache(),
                 device_properties.as_deref(),
-                self.engine_configs,
+                candidates,
                 config,
             )?,
         };

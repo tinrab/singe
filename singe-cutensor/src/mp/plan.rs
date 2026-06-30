@@ -48,7 +48,6 @@ pub struct Workspace {
 }
 
 impl<'comm> OperationDescriptor<'comm> {
-    #[allow(clippy::too_many_arguments)]
     pub fn create_contraction(
         context: &Context<'comm>,
         a: &TensorDescriptor<'comm>,
@@ -356,7 +355,6 @@ impl<'comm> Plan<'comm> {
     /// for the duration of the launched operation, and `d`, `device_workspace`,
     /// and `host_workspace` must be writable according to the plan's workspace
     /// requirements.
-    #[allow(clippy::too_many_arguments)]
     pub unsafe fn contract_raw(
         &self,
         alpha: *const (),

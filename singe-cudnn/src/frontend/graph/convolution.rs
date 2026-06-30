@@ -7,7 +7,8 @@ use crate::{
             infer_convolution_backward_data_output, infer_convolution_backward_filter_output,
             infer_convolution_forward_output,
         },
-        operation::{ConvolutionConfig, Operation},
+        operation::{ConvolutionConfig, ConvolutionOperation, Operation},
+        shape::shape_with_nhwc_strides,
     },
     tensor::{Shape, TensorId, TensorSpec},
     utility::check_range,
@@ -36,7 +37,12 @@ impl Graph {
         )?;
         self.validate_tensor_dimensions(y, expected.dimensions(), "convolution output shape")?;
         self.operations
-            .push(Operation::ConvolutionForward { x, w, y, config });
+            .push(Operation::Convolution(ConvolutionOperation::Forward {
+                x,
+                w,
+                y,
+                config,
+            }));
         Ok(())
     }
 
@@ -53,7 +59,7 @@ impl Graph {
         let output_data_type = self.effective_io_data_type(x_tensor.data_type);
         let output_shape =
             infer_convolution_forward_output(&x_tensor.shape, &w_tensor.shape, &config)?;
-        let output_shape = Self::default_nhwc_shape(output_shape.dimensions().to_vec())?;
+        let output_shape = shape_with_nhwc_strides(output_shape.dimensions().to_vec())?;
         let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
         self.convolution_forward(x, w, output, config)?;
         Ok(output)
@@ -87,7 +93,12 @@ impl Graph {
             "convolution backward data output shape",
         )?;
         self.operations
-            .push(Operation::ConvolutionBackwardData { w, dy, dx, config });
+            .push(Operation::Convolution(ConvolutionOperation::BackwardData {
+                w,
+                dy,
+                dx,
+                config,
+            }));
         Ok(())
     }
 
@@ -105,7 +116,7 @@ impl Graph {
         let output_data_type = self.effective_io_data_type(dy_tensor.data_type);
         let output_shape =
             infer_convolution_backward_data_output(&w_tensor.shape, &dy_tensor.shape, &config)?;
-        let output_shape = Self::default_nhwc_shape(output_shape.dimensions().to_vec())?;
+        let output_shape = shape_with_nhwc_strides(output_shape.dimensions().to_vec())?;
         let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
         self.convolution_dgrad(w, dy, output, config)?;
         Ok(output)
@@ -138,8 +149,9 @@ impl Graph {
             expected.dimensions(),
             "convolution backward filter output shape",
         )?;
-        self.operations
-            .push(Operation::ConvolutionBackwardFilter { x, dy, dw, config });
+        self.operations.push(Operation::Convolution(
+            ConvolutionOperation::BackwardFilter { x, dy, dw, config },
+        ));
         Ok(())
     }
 
@@ -157,7 +169,7 @@ impl Graph {
         let output_data_type = self.effective_io_data_type(x_tensor.data_type);
         let output_shape =
             infer_convolution_backward_filter_output(&x_tensor.shape, &dy_tensor.shape, &config)?;
-        let output_shape = Self::default_nhwc_shape(output_shape.dimensions().to_vec())?;
+        let output_shape = shape_with_nhwc_strides(output_shape.dimensions().to_vec())?;
         let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
         self.convolution_wgrad(x, dy, output, config)?;
         Ok(output)

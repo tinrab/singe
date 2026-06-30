@@ -3,7 +3,9 @@ use crate::{
     error::{Error, Result},
     frontend::{
         graph::Graph,
-        operation::{Operation, RandomNumberGeneratorConfig},
+        operation::{Operation, RandomNumberGeneratorConfig, RandomNumberGeneratorOperation},
+        shape::shape_with_nhwc_strides,
+        support,
     },
     tensor::{Shape, TensorId, TensorSpec},
 };
@@ -20,26 +22,29 @@ impl Graph {
             "rng output",
         )?;
         if let Some(seed) = config.seed_tensor() {
-            self.validate_tensor_data_type(seed, DataType::I64, "rng seed")?;
-            self.validate_random_number_generator_scalar_tensor(seed, "rng seed")?;
+            self.validate_random_number_generator_scalar_tensor(
+                seed,
+                DataType::I64,
+                support::RNG_SEED,
+            )?;
             if config.offset().is_none() {
-                return Err(Error::DescriptorMismatch {
-                    name: "rng offset".into(),
-                });
+                return Err(Error::FrontendRandomNumberGeneratorSeedOffsetMismatch);
             }
         }
         if config.offset().is_some() && config.seed_tensor().is_none() && config.seed().is_none() {
-            return Err(Error::DescriptorMismatch {
-                name: "rng offset".into(),
-            });
+            return Err(Error::FrontendRandomNumberGeneratorSeedOffsetMismatch);
         }
         if let Some(offset) = config.offset() {
-            self.validate_tensor_data_type(offset, DataType::I64, "rng offset")?;
-            self.validate_random_number_generator_scalar_tensor(offset, "rng offset")?;
+            self.validate_random_number_generator_scalar_tensor(
+                offset,
+                DataType::I64,
+                support::RNG_OFFSET,
+            )?;
         }
 
-        self.operations
-            .push(Operation::RandomNumberGenerator { output, config });
+        self.operations.push(Operation::RandomNumberGenerator(
+            RandomNumberGeneratorOperation::new(output, config),
+        ));
         Ok(())
     }
 
@@ -63,32 +68,23 @@ impl Graph {
         dimensions: impl Into<Vec<i64>>,
         config: RandomNumberGeneratorConfig,
     ) -> Result<TensorId> {
-        let shape = Self::default_nhwc_shape(dimensions.into())?;
+        let shape = shape_with_nhwc_strides(dimensions)?;
         self.random_number_generator_infer(shape, config)
     }
 
     fn validate_random_number_generator_scalar_tensor(
         &self,
         tensor: TensorId,
+        data_type: DataType,
         operation: &str,
     ) -> Result<()> {
+        self.validate_tensor_data_type(tensor, data_type, operation)?;
+
         let shape = &self.tensor_config(tensor)?.shape;
-        if !shape.dimensions().iter().all(|dimension| *dimension == 1) {
-            return Err(Error::FrontendTensorDimensionsMismatch {
-                tensor_id: tensor,
-                operation: operation.into(),
-                expected: vec![1; shape.dimensions().len()],
-                actual: shape.dimensions().to_vec(),
-            });
-        }
-        if !shape.strides().iter().all(|stride| *stride == 1) {
-            return Err(Error::FrontendTensorStridesMismatch {
-                tensor_id: tensor,
-                operation: operation.into(),
-                expected: vec![1; shape.strides().len()],
-                actual: shape.strides().to_vec(),
-            });
-        }
-        Ok(())
+        let expected_dimensions = vec![1; shape.dimensions().len()];
+        self.validate_tensor_dimensions(tensor, &expected_dimensions, operation)?;
+
+        let expected_strides = vec![1; shape.strides().len()];
+        self.validate_tensor_strides(tensor, &expected_strides, operation)
     }
 }

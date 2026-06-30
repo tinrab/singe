@@ -14,6 +14,7 @@ use crate::{
     frontend::{
         graph::{RuntimeShapeConstraints, TensorRecord},
         plan::{BindingReplacement, CompiledGraph},
+        shape::shape_with_strides,
     },
     scalar::ScalarValue,
     tensor::{Shape, TensorId},
@@ -31,7 +32,7 @@ pub type BindingMap = HashMap<TensorId, DevicePtr>;
 pub struct Bindings<'a> {
     tensors: Option<&'a BTreeMap<TensorId, TensorRecord>>,
     map: BindingMap,
-    scalar_storage: HashMap<TensorId, Box<OwnedScalar>>,
+    scalar_storage: HashMap<TensorId, Box<ScalarBindingStorage>>,
     ordered_ids: Vec<TensorId>,
     ordered_pointers: Vec<Option<DevicePtr>>,
 }
@@ -58,51 +59,36 @@ pub struct RuntimeOverrideBuilder<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C, align(16))]
-struct OwnedScalar {
+struct ScalarBindingStorage {
     bytes: [u8; 8],
 }
 
-impl OwnedScalar {
+impl ScalarBindingStorage {
     fn from_scalar_value(value: ScalarValue) -> Self {
         match value {
-            ScalarValue::I32(value) => Self {
-                bytes: {
-                    let mut bytes = [0_u8; 8];
-                    bytes[..4].copy_from_slice(&value.to_ne_bytes());
-                    bytes
-                },
-            },
+            ScalarValue::I32(value) => Self::from_prefix_bytes(&value.to_ne_bytes()),
             ScalarValue::I64(value) => Self {
                 bytes: value.to_ne_bytes(),
             },
-            ScalarValue::F32(value) => Self {
-                bytes: {
-                    let mut bytes = [0_u8; 8];
-                    bytes[..4].copy_from_slice(&value.to_ne_bytes());
-                    bytes
-                },
-            },
-            ScalarValue::F16(value) | ScalarValue::Bf16(value) => Self {
-                bytes: {
-                    let mut bytes = [0_u8; 8];
-                    bytes[..2].copy_from_slice(&value.to_ne_bytes());
-                    bytes
-                },
-            },
+            ScalarValue::F32(value) => Self::from_prefix_bytes(&value.to_ne_bytes()),
+            ScalarValue::F16(value) | ScalarValue::Bf16(value) => {
+                Self::from_prefix_bytes(&value.to_ne_bytes())
+            }
             ScalarValue::F8E4M3(value)
             | ScalarValue::F8E5M2(value)
             | ScalarValue::F8UE8M0(value)
-            | ScalarValue::F4E2M1(value) => Self {
-                bytes: {
-                    let mut bytes = [0_u8; 8];
-                    bytes[0] = value;
-                    bytes
-                },
-            },
+            | ScalarValue::F4E2M1(value) => Self::from_prefix_bytes(&[value]),
         }
     }
 
+    fn from_prefix_bytes(prefix: &[u8]) -> Self {
+        let mut bytes = [0_u8; 8];
+        bytes[..prefix.len()].copy_from_slice(prefix);
+        Self { bytes }
+    }
+
     fn device_ptr(&self) -> DevicePtr {
+        // cuDNN by-value tensor bindings expect a pointer to host-owned scalar bytes.
         unsafe { DevicePtr::from_raw(self.bytes.as_ptr().cast_mut().cast()) }
     }
 }
@@ -197,7 +183,7 @@ impl<'a> Bindings<'a> {
 
     pub fn set_scalar_id(&mut self, id: impl Into<TensorId>, scalar: ScalarValue) -> &mut Self {
         let id: TensorId = id.into();
-        let scalar = Box::new(OwnedScalar::from_scalar_value(scalar));
+        let scalar = Box::new(ScalarBindingStorage::from_scalar_value(scalar));
         let ptr = scalar.device_ptr();
         self.scalar_storage.insert(id, scalar);
         self.map.insert(id, ptr);
@@ -240,9 +226,9 @@ impl<'a> Bindings<'a> {
         scalar: ScalarValue,
     ) -> Result<&mut Self> {
         let id: TensorId = id.into();
-        let tensors = self.tensors.ok_or(Error::DescriptorMismatch {
-            name: "graph-aware bindings".into(),
-        })?;
+        let tensors = self
+            .tensors
+            .ok_or(Error::FrontendGraphAwareBindingsRequired)?;
         let record = tensors.get(&id).ok_or(Error::FrontendTensorNotFound(id))?;
         if scalar.data_type() != record.tensor.data_type {
             return Err(Error::FrontendScalarTypeMismatch {
@@ -432,7 +418,7 @@ fn validate_runtime_override<'a>(
             actual: shape.len(),
         });
     }
-    Shape::contiguous(shape)?.with_strides(strides.to_vec())?;
+    shape_with_strides(shape.to_vec(), strides.to_vec())?;
     if let Some(constraints) = constraints.and_then(|constraints| constraints.get(&tensor_id))
         && !constraints.contains(shape)
     {
@@ -467,7 +453,28 @@ pub(crate) fn materialize_bindings_with_replacements(
     bindings: &Bindings<'_>,
     binding_ids: Option<&[TensorId]>,
 ) -> Result<Vec<(TensorId, DevicePtr)>> {
-    let mut pointer_map = bindings.map.clone();
+    let pointer_map = materialized_pointer_map(&bindings.map, binding_replacements)?;
+    let materialized_ids = materialized_binding_ids(
+        binding_ids.unwrap_or(&bindings.ordered_ids),
+        binding_replacements,
+    );
+    materialized_ids
+        .iter()
+        .map(|id| {
+            pointer_map
+                .get(id)
+                .copied()
+                .map(|ptr| (*id, ptr))
+                .ok_or(Error::FrontendTensorNotBound(*id))
+        })
+        .collect()
+}
+
+fn materialized_pointer_map(
+    bindings: &BindingMap,
+    binding_replacements: &[BindingReplacement],
+) -> Result<BindingMap> {
+    let mut pointer_map = bindings.clone();
     for replacement in binding_replacements {
         let source = pointer_map.get(&replacement.source_id).copied().ok_or(
             Error::FrontendBindingReplacementSourceNotBound {
@@ -479,58 +486,27 @@ pub(crate) fn materialize_bindings_with_replacements(
         let adjusted = adjusted_alias_ptr(source, replacement.byte_offset)?;
         pointer_map.insert(replacement.target_id, adjusted);
     }
-    match binding_ids {
-        Some(binding_ids) => {
-            let mut materialized_ids = binding_ids.to_vec();
-            for replacement in binding_replacements {
-                if let Some(index) = materialized_ids
-                    .iter()
-                    .position(|id| *id == replacement.source_id)
-                {
-                    materialized_ids[index] = replacement.target_id;
-                } else if !materialized_ids.contains(&replacement.target_id) {
-                    materialized_ids.push(replacement.target_id);
-                }
-            }
-            materialized_ids.sort_unstable();
-            materialized_ids.dedup();
-            materialized_ids
-                .iter()
-                .map(|id| {
-                    pointer_map
-                        .get(id)
-                        .copied()
-                        .map(|ptr| (*id, ptr))
-                        .ok_or(Error::FrontendTensorNotBound(*id))
-                })
-                .collect()
-        }
-        None => {
-            let mut materialized_ids = bindings.ordered_ids.clone();
-            for replacement in binding_replacements {
-                if let Some(index) = materialized_ids
-                    .iter()
-                    .position(|id| *id == replacement.source_id)
-                {
-                    materialized_ids[index] = replacement.target_id;
-                } else if !materialized_ids.contains(&replacement.target_id) {
-                    materialized_ids.push(replacement.target_id);
-                }
-            }
-            materialized_ids.sort_unstable();
-            materialized_ids.dedup();
-            materialized_ids
-                .iter()
-                .map(|id| {
-                    pointer_map
-                        .get(id)
-                        .copied()
-                        .map(|ptr| (*id, ptr))
-                        .ok_or(Error::FrontendTensorNotBound(*id))
-                })
-                .collect()
+    Ok(pointer_map)
+}
+
+fn materialized_binding_ids(
+    base_ids: &[TensorId],
+    binding_replacements: &[BindingReplacement],
+) -> Vec<TensorId> {
+    let mut materialized_ids = base_ids.to_vec();
+    for replacement in binding_replacements {
+        if let Some(index) = materialized_ids
+            .iter()
+            .position(|id| *id == replacement.source_id)
+        {
+            materialized_ids[index] = replacement.target_id;
+        } else if !materialized_ids.contains(&replacement.target_id) {
+            materialized_ids.push(replacement.target_id);
         }
     }
+    materialized_ids.sort_unstable();
+    materialized_ids.dedup();
+    materialized_ids
 }
 
 fn adjusted_alias_ptr(source: DevicePtr, byte_offset: i64) -> Result<DevicePtr> {

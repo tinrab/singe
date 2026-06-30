@@ -5,9 +5,10 @@ use crate::{
         graph::Graph,
         infer::infer_reduction_output,
         operation::{
-            Operation, PointwiseOperation, ReductionAxes, ReductionConfig, ReductionOperation,
-            SoftmaxOperationConfig,
+            AttentionPrimitiveOperation, Operation, PointwiseOperation, ReductionAxes,
+            ReductionConfig, ReductionOperation, SoftmaxOperationConfig,
         },
+        shape::shape_with_nhwc_strides,
         support,
     },
     math::NanPropagation,
@@ -30,23 +31,12 @@ impl Graph {
         config: SoftmaxOperationConfig,
     ) -> Result<()> {
         let x_tensor = self.tensor_config(x)?.clone();
-        let y_tensor = self.tensor_config(y)?.clone();
-        if x_tensor.data_type != y_tensor.data_type {
-            return Err(Error::FrontendTensorDataTypeMismatch {
-                tensor_id: y,
-                operation: "softmax output".into(),
-                expected: x_tensor.data_type,
-                actual: y_tensor.data_type,
-            });
-        }
-        if x_tensor.shape.dimensions() != y_tensor.shape.dimensions() {
-            return Err(Error::FrontendTensorDimensionsMismatch {
-                tensor_id: y,
-                operation: "softmax output".into(),
-                expected: x_tensor.shape.dimensions().to_vec(),
-                actual: y_tensor.shape.dimensions().to_vec(),
-            });
-        }
+        self.validate_tensor_data_type_and_dimensions(
+            y,
+            x_tensor.data_type,
+            x_tensor.shape.dimensions(),
+            "softmax output",
+        )?;
 
         let reduction_shape = infer_reduction_output(&x_tensor.shape, ReductionAxes::Last)?;
         let reduction_data_type = self.effective_compute_data_type(DataType::F32);
@@ -78,14 +68,16 @@ impl Graph {
             self.validate_softmax_sink_tensor(sink, x, &x_tensor.shape, reduction_data_type)?;
         }
 
-        self.operations.push(Operation::Softmax {
-            x,
-            y,
-            stats: config.stats(),
-            max: config.max(),
-            sum_exp: config.sum_exp(),
-            sink: config.sink(),
-        });
+        self.operations.push(Operation::AttentionPrimitive(
+            AttentionPrimitiveOperation::Softmax {
+                x,
+                y,
+                stats: config.stats(),
+                max: config.max(),
+                sum_exp: config.sum_exp(),
+                sink: config.sink(),
+            },
+        ));
         Ok(())
     }
 
@@ -131,7 +123,7 @@ impl Graph {
         self.validate_reduction_support_surface_for_version(version()?.raw(), config)?;
         let input_tensor = self.tensor_config(input)?.clone();
         let output_shape = infer_reduction_output(&input_tensor.shape, config.axes())?;
-        let output_shape = Self::default_nhwc_shape(output_shape.dimensions().to_vec())?;
+        let output_shape = shape_with_nhwc_strides(output_shape.dimensions().to_vec())?;
         let output_data_type = self.effective_io_data_type(input_tensor.data_type);
         let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
         self.reduction(ReductionOperation::Reduce {
@@ -158,9 +150,7 @@ impl Graph {
             (None, None, None) | (Some(_), None, None) | (None, Some(_), Some(_))
         );
         if !has_legacy_supported_outputs {
-            return Err(Error::DescriptorMismatch {
-                name: "softmax legacy outputs".into(),
-            });
+            return Err(Error::FrontendSoftmaxLegacyOutputsUnsupported);
         }
 
         let x_tensor = self.tensor_config(x)?.clone();
@@ -356,24 +346,12 @@ impl Graph {
         expected_data_type: DataType,
         name: &str,
     ) -> Result<()> {
-        let tensor = self.tensor_config(tensor_ref)?.clone();
-        if tensor.data_type != expected_data_type {
-            return Err(Error::FrontendTensorDataTypeMismatch {
-                tensor_id: tensor_ref,
-                operation: name.into(),
-                expected: expected_data_type,
-                actual: tensor.data_type,
-            });
-        }
-        if tensor.shape.dimensions() != expected_shape.dimensions() {
-            return Err(Error::FrontendTensorDimensionsMismatch {
-                tensor_id: tensor_ref,
-                operation: name.into(),
-                expected: expected_shape.dimensions().to_vec(),
-                actual: tensor.shape.dimensions().to_vec(),
-            });
-        }
-        Ok(())
+        self.validate_tensor_data_type_and_dimensions(
+            tensor_ref,
+            expected_data_type,
+            expected_shape.dimensions(),
+            name,
+        )
     }
 
     fn validate_softmax_sink_tensor(
@@ -383,27 +361,15 @@ impl Graph {
         input_shape: &Shape,
         expected_data_type: DataType,
     ) -> Result<()> {
-        let tensor = self.tensor_config(tensor_ref)?.clone();
         let input_dims = input_shape.dimensions();
         self.validate_tensor_rank(input, 4, "softmax sink input")?;
         let expected_shape = Shape::contiguous([1, input_dims[1], 1, 1])?;
-        if tensor.data_type != expected_data_type {
-            return Err(Error::FrontendTensorDataTypeMismatch {
-                tensor_id: tensor_ref,
-                operation: "softmax sink".into(),
-                expected: expected_data_type,
-                actual: tensor.data_type,
-            });
-        }
-        if tensor.shape.dimensions() != expected_shape.dimensions() {
-            return Err(Error::FrontendTensorDimensionsMismatch {
-                tensor_id: tensor_ref,
-                operation: "softmax sink".into(),
-                expected: expected_shape.dimensions().to_vec(),
-                actual: tensor.shape.dimensions().to_vec(),
-            });
-        }
-        Ok(())
+        self.validate_tensor_data_type_and_dimensions(
+            tensor_ref,
+            expected_data_type,
+            expected_shape.dimensions(),
+            "softmax sink",
+        )
     }
 
     pub(crate) fn validate_reduction_support_surface_for_version(

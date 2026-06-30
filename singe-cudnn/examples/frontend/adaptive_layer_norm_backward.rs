@@ -6,7 +6,7 @@ use singe_cudnn::{
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{AdaptiveLayerNormalizationBackwardConfig, HeuristicMode},
     },
 };
@@ -45,9 +45,13 @@ fn run() -> Result<()> {
     let s = 1024;
     let d = 128;
 
-    let mut graph = Graph::new()
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let x =
         graph.tensor(TensorSpec::new(DataType::F16, Shape::contiguous([b, s, d])?).with_name("X"));

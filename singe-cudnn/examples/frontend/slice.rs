@@ -7,7 +7,7 @@ use singe_cudnn::{
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{HeuristicMode, PointwiseOperation},
     },
     math::NanPropagation,
@@ -38,10 +38,15 @@ fn build_graph() -> Result<Graph> {
     let n = 32_i64;
     let k = 64_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_compute_data_type(DataType::F32)
-        .with_name("slice-gemm");
+    let mut graph = Graph::with_config(
+        GraphConfig::new()
+            .with_name("slice-gemm")
+            .with_data_type_policy(
+                DataTypePolicy::new()
+                    .with_io(DataType::F16)
+                    .with_compute(DataType::F32),
+            ),
+    );
 
     let a = graph.tensor(
         TensorSpec::new(

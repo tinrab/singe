@@ -1,7 +1,11 @@
 #![cfg(feature = "testing")]
 
 use singe_cuda::{
-    cuda_module, error::Error, memory::DeviceMemory, module::LaunchConfig,
+    cuda_module,
+    error::{Error, Result},
+    memory::DeviceMemory,
+    module::LaunchConfig,
+    nvrtc::Status as NvrtcStatus,
     stream::StreamCaptureMode,
 };
 
@@ -124,6 +128,20 @@ cuda_module! {
     }
 }
 
+fn create_module_or_skip<T>(result: Result<T>) -> Option<T> {
+    match result {
+        Ok(module) => Some(module),
+        Err(Error::Nvrtc {
+            code: NvrtcStatus::BuiltinOperationFailure,
+            ..
+        }) => {
+            eprintln!("warning: skipping CUDA module test because NVRTC builtins are unavailable");
+            None
+        }
+        Err(error) => panic!("CUDA module creation failed: {error:?}"),
+    }
+}
+
 #[test]
 fn launches_kernel_from_generated_module() {
     let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
@@ -136,7 +154,9 @@ fn launches_kernel_from_generated_module() {
     let input_device = DeviceMemory::from_slice(&input).unwrap();
     let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
 
-    let module = scale_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
     unsafe {
         module
@@ -164,7 +184,9 @@ fn launches_cxx_linkage_kernel_from_generated_module() {
 
     let mut values_device = DeviceMemory::from_slice(&input).unwrap();
 
-    let module = cxx_linkage_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(cxx_linkage_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
     unsafe {
         module
@@ -190,7 +212,9 @@ fn launches_kernel_with_scalar_alias_parameters() {
     let input_device = DeviceMemory::from_slice(&input).unwrap();
     let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
 
-    let module = alias_scalar_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(alias_scalar_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
     unsafe {
         module
@@ -216,7 +240,9 @@ fn launches_raw_pointer_kernel_from_generated_module() {
     let input_device = DeviceMemory::from_slice(&input).unwrap();
     let output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
 
-    let module = scale_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
     unsafe {
         module
@@ -252,7 +278,9 @@ fn launches_kernel_on_stream_from_generated_module() {
     let input_device = DeviceMemory::from_slice(&input).unwrap();
     let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
 
-    let module = scale_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
     unsafe {
         module
@@ -290,7 +318,9 @@ fn updates_kernel_node_params_from_generated_module() {
     let input_device = DeviceMemory::from_slice(&input).unwrap();
     let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
 
-    let module = scale_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
     let mut graph = ctx.create_graph().unwrap();
     let node = unsafe {
@@ -389,7 +419,9 @@ fn graph_kernel_node_copies_borrowed_scalar_arguments() {
     let input_device = DeviceMemory::from_slice(&input).unwrap();
     let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
 
-    let module = scale_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let function = module.raw().function("scale_add").unwrap();
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
     let mut params = singe_cuda::module::KernelParameters::new();
@@ -437,7 +469,9 @@ fn records_kernel_operation_during_capture() {
     let input_device = DeviceMemory::from_slice(&input).unwrap();
     let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
 
-    let module = scale_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
 
     let executable = stream
@@ -478,7 +512,9 @@ fn adds_kernel_node_from_generated_module() {
     let input_device = DeviceMemory::from_slice(&input).unwrap();
     let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
 
-    let module = scale_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
     let mut graph = ctx.create_graph().unwrap();
     unsafe {
@@ -515,7 +551,9 @@ fn launches_kernel_with_headers() {
     let length = values.len() as i32;
     let mut values_device = DeviceMemory::from_slice(&values).unwrap();
 
-    let module = header_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(header_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(values.len(), 128);
     unsafe {
         module
@@ -535,7 +573,9 @@ fn exports_selected_kernel_with_renamed_method() {
     let length = values.len() as i32;
     let mut values_device = DeviceMemory::from_slice(&values).unwrap();
 
-    let module = exported_kernel::Module::create(&ctx).unwrap();
+    let Some(module) = create_module_or_skip(exported_kernel::Module::create(&ctx)) else {
+        return;
+    };
     let config = LaunchConfig::for_1d_grid(values.len(), 128);
     unsafe {
         module

@@ -461,11 +461,4 @@ impl CompiledGraph {
     pub(crate) fn cuda_graph_binding_ids(&self) -> Vec<TensorId> {
         self.binding_template_ids.clone()
     }
-
-    #[cfg(all(test, feature = "testing"))]
-    pub(crate) fn tensor_record(&self, tensor: TensorId) -> Result<&TensorRecord> {
-        self.tensors
-            .get(&tensor)
-            .ok_or(Error::FrontendTensorNotFound(tensor))
-    }
 }

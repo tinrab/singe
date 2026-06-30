@@ -1,7 +1,12 @@
 use crate::{
     data_type::DataType,
     error::{Error, Result},
-    frontend::{graph::Graph, infer::infer_paged_cache_output, operation::Operation, support},
+    frontend::{
+        graph::Graph,
+        infer::infer_paged_cache_output,
+        operation::{Operation, PagedCacheLoadSpec},
+        support,
+    },
     tensor::{TensorId, TensorSpec},
     version,
 };
@@ -82,20 +87,18 @@ impl Graph {
         if page_table_tensor.ragged_offset.is_none()
             && required_block_table_size != block_table_size
         {
-            return Err(Error::FrontendTensorDimensionsMismatch {
-                tensor_id: page_table,
-                operation: "paged cache load page table shape".into(),
-                expected: vec![batch, 1, required_block_table_size, 1],
-                actual: page_table_tensor.shape.dimensions().to_vec(),
-            });
+            let expected_page_table_dimensions = [batch, 1, required_block_table_size, 1];
+            self.validate_tensor_dimensions(
+                page_table,
+                &expected_page_table_dimensions,
+                "paged cache load page table shape",
+            )?;
         }
 
-        self.operations.push(Operation::PagedCacheLoad {
-            container,
-            output,
-            sequence,
-            page_table,
-        });
+        self.operations
+            .push(Operation::PagedCacheLoad(PagedCacheLoadSpec::new(
+                container, output, sequence, page_table,
+            )));
         Ok(())
     }
 
@@ -129,6 +132,6 @@ impl Graph {
         &self,
         cudnn_version: u64,
     ) -> Result<()> {
-        support::PAGED_CACHE_LOAD.require_descriptor_match(cudnn_version)
+        support::PAGED_CACHE_LOAD.require_frontend_feature(cudnn_version)
     }
 }

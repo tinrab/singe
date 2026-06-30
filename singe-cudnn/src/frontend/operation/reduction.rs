@@ -1,6 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{data_type::DataType, reduction::ReduceTensorOperator, tensor::TensorId};
+use crate::{
+    data_type::DataType,
+    error::Result,
+    execution::reduction::{ReductionDescriptor, ReductionOperation as BackendReductionOperation},
+    frontend::{
+        lower::{LoweredOperation, LoweringContext, tensor_at},
+        operation::FrontendOperationTensors,
+    },
+    reduction::ReduceTensorOperator,
+    tensor::TensorId,
+};
 
 /// Frontend reduction operation.
 ///
@@ -17,6 +27,41 @@ pub enum ReductionOperation {
         compute_type: DataType,
         is_deterministic: bool,
     },
+}
+
+impl FrontendOperationTensors for ReductionOperation {
+    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>) {
+        match self {
+            Self::Reduce { input, output, .. } => {
+                tensors.extend([*input, *output]);
+            }
+        }
+    }
+}
+
+impl ReductionOperation {
+    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
+        let tensors = context.backend_tensors();
+        match self {
+            Self::Reduce {
+                op,
+                input,
+                output,
+                compute_type,
+                is_deterministic,
+            } => {
+                let descriptor =
+                    ReductionDescriptor::create(*op, *compute_type, *is_deterministic)?;
+                Ok(LoweredOperation::Reduction(
+                    BackendReductionOperation::create(
+                        &descriptor,
+                        tensor_at(tensors, *input)?,
+                        tensor_at(tensors, *output)?,
+                    )?,
+                ))
+            }
+        }
+    }
 }
 
 /// Reduction axes selected by this Rust frontend helper.
@@ -58,11 +103,6 @@ impl ReductionConfig {
 
     pub fn with_deterministic(mut self) -> Self {
         self.is_deterministic = true;
-        self
-    }
-
-    pub fn without_deterministic(mut self) -> Self {
-        self.is_deterministic = false;
         self
     }
 

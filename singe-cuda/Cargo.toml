@@ -13,15 +13,15 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["macros", "driver_13_2", "runtime_13_2", "nvrtc_13_2", "nvvm_13_2", "nvtx_3"]
+default = ["macros", "driver_13_3", "runtime_13_3", "nvrtc_13_3", "nvvm_13_3", "nvtx_3"]
 
-driver_13_2 = ["singe-cuda-sys/driver_13_2"]
+driver_13_3 = ["singe-cuda-sys/driver_13_3"]
 
-runtime_13_2 = ["singe-cuda-sys/runtime_13_2"]
+runtime_13_3 = ["singe-cuda-sys/runtime_13_3"]
 
-nvrtc_13_2 = ["singe-cuda-sys/nvrtc_13_2"]
+nvrtc_13_3 = ["singe-cuda-sys/nvrtc_13_3"]
 
-nvvm_13_2 = ["singe-cuda-sys/nvvm_13_2"]
+nvvm_13_3 = ["singe-cuda-sys/nvvm_13_3"]
 
 nvtx_3 = ["singe-cuda-sys/nvtx_3"]
 

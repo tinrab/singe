@@ -7,9 +7,9 @@ use singe_cudnn::{
     data_type::{DataType, bf16},
     error::{Error, Result, Status},
     frontend::{
-        composite::sdpa::{SdpaInputs, SdpaOutputs},
-        graph::Graph,
-        operation::{AttentionConfig, HeuristicMode},
+        composite::sdpa::SdpaInputs,
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{AttentionConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode},
     },
     version,
 };
@@ -51,10 +51,14 @@ fn run() -> Result<()> {
     let tile_m = 128_i64;
     let tile_n = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::BF16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(
         TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_qk])?).with_id(1001),
@@ -82,15 +86,19 @@ fn run() -> Result<()> {
         .with_id(1009),
     );
 
-    let SdpaOutputs { output: o, stats } = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto_infer(
         SdpaInputs {
             query: q,
             key: k,
             value: v,
             scale: scale,
         },
-        AttentionConfig::new(DataType::F32).with_block_mask(block_mask),
+        AttentionConfig::new(DataType::F32).with_score_config(
+            AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::Block(block_mask)),
+        ),
     )?;
+    let o = outputs.output();
+    let stats = outputs.stats();
 
     graph.replace_tensor(
         o,

@@ -2,7 +2,6 @@ use std::{
     borrow::Borrow,
     fmt::{self, Display, Formatter},
     marker::PhantomData,
-    num::ParseIntError,
     ptr,
     str::FromStr,
     sync::atomic::{AtomicI64, Ordering},
@@ -135,7 +134,12 @@ pub struct Tensor {
 
 impl TensorId {
     pub const fn new(value: i64) -> Self {
+        assert!(value >= 0, "tensor id must be non-negative");
         Self(value)
+    }
+
+    pub const fn try_new(value: i64) -> Option<Self> {
+        if value >= 0 { Some(Self(value)) } else { None }
     }
 
     pub fn generate() -> Self {
@@ -213,10 +217,11 @@ impl Display for BackendTensorUid {
 }
 
 impl FromStr for TensorId {
-    type Err = ParseIntError;
+    type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
+        let value = s.parse::<i64>().map_err(|error| error.to_string())?;
+        Self::try_new(value).ok_or_else(|| "tensor id must be non-negative".into())
     }
 }
 
@@ -234,7 +239,9 @@ impl<'de> Deserialize<'de> for TensorId {
     where
         D: Deserializer<'de>,
     {
-        Ok(Self(serde_helpers::as_string::deserialize(deserializer)?))
+        let value = serde_helpers::as_string::deserialize(deserializer)?;
+        Self::try_new(value)
+            .ok_or_else(|| serde::de::Error::custom("tensor id must be non-negative"))
     }
 }
 

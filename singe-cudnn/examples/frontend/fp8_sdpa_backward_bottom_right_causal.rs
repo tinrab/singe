@@ -7,8 +7,10 @@ use singe_cudnn::{
     error::{Error, Result, Status},
     frontend::{
         composite::sdpa::SdpaFp8BackwardInputs,
-        graph::Graph,
-        operation::{AttentionBackwardConfig, HeuristicMode},
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionBackwardConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+        },
     },
     version,
 };
@@ -42,10 +44,14 @@ fn run() -> Result<()> {
     let s_kv = 128_i64;
     let d = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F8E4M3)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F8E4M3)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(TensorSpec::new(
         DataType::F8E4M3,
@@ -116,8 +122,12 @@ fn run() -> Result<()> {
             scale_d_v,
             scale_d_p,
         ),
-        AttentionBackwardConfig::new(DataType::F32)
-            .with_causal_bottom_right(sequence_length_query, sequence_length_key_value),
+        AttentionBackwardConfig::new(DataType::F32).with_score_config(
+            AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::CausalBottomRight {
+                sequence_length_query,
+                sequence_length_key_value,
+            }),
+        ),
     ) {
         Ok(outputs) => outputs,
         Err(error) => {
@@ -138,13 +148,13 @@ fn run() -> Result<()> {
             return Err(error);
         }
     };
-    let d_q = outputs.query_gradient;
-    let d_k = outputs.key_gradient;
-    let d_v = outputs.value_gradient;
-    let absolute_max_d_q = outputs.absolute_max_query_gradient;
-    let absolute_max_d_k = outputs.absolute_max_key_gradient;
-    let absolute_max_d_v = outputs.absolute_max_value_gradient;
-    let absolute_max_d_p = outputs.absolute_max_probability_gradient;
+    let d_q = outputs.query_gradient();
+    let d_k = outputs.key_gradient();
+    let d_v = outputs.value_gradient();
+    let absolute_max_d_q = outputs.absolute_max_query_gradient();
+    let absolute_max_d_k = outputs.absolute_max_key_gradient();
+    let absolute_max_d_v = outputs.absolute_max_value_gradient();
+    let absolute_max_d_p = outputs.absolute_max_probability_gradient();
 
     for output in [
         d_q,

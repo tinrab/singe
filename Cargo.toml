@@ -45,8 +45,8 @@ include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*"]
 
 [workspace.dependencies]
 singe-core = { path = "singe-core", version = "0.1.0-alpha.6" }
-singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.6" }
-singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.6" }
+singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.7" }
+singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.7" }
 singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.8" }
 singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.8" }
 singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0-alpha.7" }
@@ -71,8 +71,8 @@ singe-cutensor = { path = "singe-cutensor", version = "0.1.0-alpha.6" }
 singe-cutensor-sys = { path = "singe-cutensor-sys", version = "0.1.0-alpha.6" }
 singe-nccl = { path = "singe-nccl", version = "0.1.0-alpha.7" }
 singe-nccl-sys = { path = "singe-nccl-sys", version = "0.1.0-alpha.6" }
-singe-npp = { path = "singe-npp", version = "0.1.0-alpha.8" }
-singe-npp-sys = { path = "singe-npp-sys", version = "0.1.0-alpha.6" }
+singe-npp = { path = "singe-npp", version = "0.1.0-alpha.9" }
+singe-npp-sys = { path = "singe-npp-sys", version = "0.1.0-alpha.7" }
 singe-nvml = { path = "singe-nvml", version = "0.1.0-alpha.8" }
 singe-nvml-sys = { path = "singe-nvml-sys", version = "0.1.0-alpha.6" }
 singe-onnx = { path = "singe-onnx", version = "0.1.0-alpha.6" }
@@ -89,29 +89,33 @@ rand = "0.10.1"
 anyhow = "1.0.102"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
+tokenizers = "0.22.1"
 glob = "0.3.3"
 regex = "1.12.4"
 prost = "0.14.4"
 nom = "8.0.0"
-bomboni_core = "0.3.1"
-bomboni_serde = "0.3.1"
-bomboni_proto = "0.3.1"
-bomboni_prost = "0.3.1"
-bomboni_request = "0.3.1"
+image = "0.25.10"
+bomboni_core = "0.4.0"
+bomboni_serde = "0.4.0"
+bomboni_proto = "0.4.0"
+bomboni_prost = "0.4.0"
+bomboni_request = "0.4.0"
+cutile = "0.2.0"
+cutile-compiler = "0.2.0"
 
 pretty_assertions = "1.4.1"
 bindgen = "0.72.1"
-cc = "1.2.63"
+cc = "1.2.65"
 proc-macro2 = "1.0.106"
-quote = "1.0.45"
-syn = "2.0.117"
+quote = "1.0.46"
+syn = "2.0.118"
 prost-build = "0.14.4"
 prettyplease = "0.2.37"
 sha2 = "0.11.0"
 hex = "0.4.3"
 tree-sitter = "0.26.9"
 tree-sitter-c = "0.24.2"
-tokio = "1.48.0"
+tokio = "1.52.3"
 
 [profile.dev]
 opt-level = 1

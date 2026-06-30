@@ -15,7 +15,7 @@ rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 [features]
 default = ["nccl_2_28"]
 
-nccl_2_28 = ["singe-nccl-sys/nccl_2_28", "singe-cuda/runtime_13_2", "singe-cuda-sys/runtime_13_2"]
+nccl_2_28 = ["singe-nccl-sys/nccl_2_28", "singe-cuda/runtime_13_3", "singe-cuda-sys/runtime_13_3"]
 
 testing = ["singe-cuda/testing"]
 

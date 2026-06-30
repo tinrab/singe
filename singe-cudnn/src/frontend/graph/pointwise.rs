@@ -7,6 +7,7 @@ use crate::{
         graph::Graph,
         infer::infer_binary_pointwise_output,
         operation::{Operation, PointwiseOperation},
+        shape::unit_shape_like,
     },
     math::NanPropagation,
     pointwise::PointwiseMode,
@@ -229,8 +230,8 @@ impl Graph {
                 continue;
             }
 
-            let expanded_shape = Shape::contiguous(vec![1; target_rank as usize])?
-                .with_strides(vec![1; target_rank as usize])?;
+            let target_shape = Shape::contiguous(vec![1; target_rank as usize])?;
+            let expanded_shape = unit_shape_like(&target_shape)?;
             self.replace_tensor(tensor_index, tensor.with_shape(expanded_shape))?;
         }
 

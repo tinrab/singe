@@ -8,7 +8,7 @@ use singe_cudnn::{
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{ConvolutionConfig, HeuristicMode, PointwiseOperation},
     },
     math::NanPropagation,
@@ -53,12 +53,17 @@ fn create_conv_relu_forward_graph(
     shape: ConvShape,
     kernel_cache: Arc<Mutex<KernelCache>>,
 ) -> Result<(Graph, TensorId, TensorId, TensorId)> {
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_compute_data_type(DataType::F32)
-        .with_dynamic_shape()
-        .with_name("conv-dynamic-shape-benchmark");
-    graph.set_shared_kernel_cache(kernel_cache)?;
+    let mut graph = Graph::with_config(
+        GraphConfig::new()
+            .with_name("conv-dynamic-shape-benchmark")
+            .with_dynamic_shape()
+            .with_data_type_policy(
+                DataTypePolicy::new()
+                    .with_io(DataType::F16)
+                    .with_compute(DataType::F32),
+            ),
+    );
+    graph.attach_shared_kernel_cache(kernel_cache)?;
 
     let x = graph.tensor(
         TensorSpec::new(

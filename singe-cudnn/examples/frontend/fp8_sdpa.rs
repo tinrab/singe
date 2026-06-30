@@ -12,8 +12,8 @@ use singe_cudnn::{
     error::Result,
     frontend::{
         composite::sdpa::SdpaFp8Inputs,
-        graph::Graph,
-        operation::{HeuristicMode, SdpaConfig},
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{HeuristicMode, SdpaAuxOutputRequest, SdpaConfig, SdpaFusedMaskMode},
     },
     version,
 };
@@ -53,10 +53,14 @@ fn run() -> Result<()> {
     let generate_stats = false;
     let attention_scale = 0.123_f32;
 
-    let mut mha_graph = Graph::new()
-        .with_io_data_type(DataType::F8E4M3)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut mha_graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F8E4M3)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let qkvo_dims = vec![b, h, s, d];
     let qkv_strides = vec![s * 3 * h * d, d, 3 * h * d, 1];
@@ -84,11 +88,10 @@ fn run() -> Result<()> {
     let mut sdpa_fp8_options = SdpaConfig::new()
         .with_name("sdpa_fp8")
         .with_attention_scale(attention_scale)
-        .with_absolute_max_s()
-        .with_absolute_max_o()
-        .with_causal_mask();
+        .with_aux_outputs(SdpaAuxOutputRequest::fp8_amax())
+        .with_mask(SdpaFusedMaskMode::CausalTopLeft);
     if generate_stats {
-        sdpa_fp8_options = sdpa_fp8_options.with_stats();
+        sdpa_fp8_options = sdpa_fp8_options.with_aux_outputs(SdpaAuxOutputRequest::stats_only());
     }
 
     let outputs = mha_graph.sdpa_fp8_infer(
@@ -97,10 +100,10 @@ fn run() -> Result<()> {
         ),
         &sdpa_fp8_options,
     )?;
-    let o = outputs.output;
-    let stats = outputs.stats;
-    let absolute_max_s = outputs.logit_max;
-    let absolute_max_o = outputs.score_sum_exp;
+    let o = outputs.output();
+    let stats = outputs.stats();
+    let absolute_max_s = outputs.logit_max();
+    let absolute_max_o = outputs.score_sum_exp();
     let mut o_tensor = mha_graph.tensor_config(o)?.clone();
     o_tensor = o_tensor
         .output_tensor()

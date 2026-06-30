@@ -6,7 +6,7 @@ use singe_cudnn::{
     data_type::{DataType, bf16, f8e4m3},
     error::Result,
     frontend::{
-        graph::{Graph, MatmulFp8Inputs},
+        graph::{DataTypePolicy, Graph, GraphConfig, MatmulFp8Inputs},
         operation::HeuristicMode,
     },
 };
@@ -23,10 +23,14 @@ fn run() -> Result<()> {
     let n = 64_i64;
     let k = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::BF16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let a = graph.tensor(named_tensor(
         "A",

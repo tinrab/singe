@@ -7,11 +7,24 @@ use singe_cudnn::{
     error::{Error, Result},
     frontend::{
         composite::sdpa::SdpaFp8BackwardInputs,
-        graph::Graph,
-        operation::{AttentionBackwardConfig, HeuristicMode},
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionBackwardConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+        },
     },
     version,
 };
+
+fn is_d_k_shape_mismatch(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::DescriptorMismatch { name } if name == "sdpa backward d_k shape"
+    ) || matches!(
+        error,
+        Error::FrontendTensorDimensionsMismatch { operation, .. }
+            if operation == "sdpa backward d_k shape"
+    )
+}
 
 fn run() -> Result<()> {
     let ctx = common::ExampleContext::create()?;
@@ -34,10 +47,14 @@ fn run() -> Result<()> {
     let s = 512_i64;
     let d = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F8E4M3)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F8E4M3)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let qkv_dims = vec![b, h, s, d];
     let qkv_strides = vec![s * 3 * h * d, d, 3 * h * d, 1];
@@ -106,14 +123,13 @@ fn run() -> Result<()> {
             scale_d_v,
             scale_d_p,
         ),
-        AttentionBackwardConfig::new(DataType::F32).with_causal_mask(),
+        AttentionBackwardConfig::new(DataType::F32).with_score_config(
+            AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::CausalTopLeft),
+        ),
     ) {
         Ok(outputs) => outputs,
         Err(error) => {
-            if matches!(
-                error,
-                Error::DescriptorMismatch { ref name } if name == "sdpa backward d_k shape"
-            ) {
+            if is_d_k_shape_mismatch(&error) {
                 println!(
                     "frontend_fp8_sdpa_backward: skipped, backend shape mismatch on this configuration"
                 );
@@ -122,13 +138,13 @@ fn run() -> Result<()> {
             return Err(error);
         }
     };
-    let d_q = outputs.query_gradient;
-    let d_k = outputs.key_gradient;
-    let d_v = outputs.value_gradient;
-    let absolute_max_d_q = outputs.absolute_max_query_gradient;
-    let absolute_max_d_k = outputs.absolute_max_key_gradient;
-    let absolute_max_d_v = outputs.absolute_max_value_gradient;
-    let absolute_max_d_p = outputs.absolute_max_probability_gradient;
+    let d_q = outputs.query_gradient();
+    let d_k = outputs.key_gradient();
+    let d_v = outputs.value_gradient();
+    let absolute_max_d_q = outputs.absolute_max_query_gradient();
+    let absolute_max_d_k = outputs.absolute_max_key_gradient();
+    let absolute_max_d_v = outputs.absolute_max_value_gradient();
+    let absolute_max_d_p = outputs.absolute_max_probability_gradient();
 
     for (output, shape, strides) in [
         (d_q, qkv_dims.clone(), qkv_strides.clone()),
@@ -152,10 +168,7 @@ fn run() -> Result<()> {
     }
 
     if let Err(error) = graph.compile(&ctx.cudnn, &[HeuristicMode::A]) {
-        if matches!(
-            error,
-            Error::DescriptorMismatch { ref name } if name == "sdpa backward d_k shape"
-        ) {
+        if is_d_k_shape_mismatch(&error) {
             println!(
                 "frontend_fp8_sdpa_backward: skipped, backend shape mismatch on this configuration"
             );

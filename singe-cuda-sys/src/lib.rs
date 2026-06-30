@@ -8,10 +8,10 @@
 pub mod driver {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    #[cfg(feature = "driver_13_2")]
-    include!("driver_sys_13020.rs");
+    #[cfg(feature = "driver_13_3")]
+    include!("driver_sys_13030.rs");
 
-    #[cfg(feature = "driver_13_2")]
+    #[cfg(feature = "driver_13_3")]
     pub use self::{
         cuArray3DCreate_v2 as cuArray3DCreate, cuArray3DGetDescriptor_v2 as cuArray3DGetDescriptor,
         cuArrayCreate_v2 as cuArrayCreate, cuArrayGetDescriptor_v2 as cuArrayGetDescriptor,
@@ -68,31 +68,31 @@ pub mod driver {
 
 #[cfg(feature = "driver")]
 pub mod profiler {
-    #[cfg(feature = "driver_13_2")]
-    include!("profiler_sys_13020.rs");
+    #[cfg(feature = "driver_13_3")]
+    include!("profiler_sys_13030.rs");
 }
 
 pub mod library_types {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    #[cfg(feature = "runtime_13_2")]
-    include!("library_types_sys_13020.rs");
+    #[cfg(feature = "runtime_13_3")]
+    include!("library_types_sys_13030.rs");
 }
 
 #[cfg(feature = "nvrtc")]
 pub mod nvrtc {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    #[cfg(feature = "nvrtc_13_2")]
-    include!("nvrtc_sys_13020.rs");
+    #[cfg(feature = "nvrtc_13_3")]
+    include!("nvrtc_sys_13030.rs");
 }
 
 #[cfg(feature = "nvvm")]
 pub mod nvvm {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    #[cfg(feature = "nvvm_13_2")]
-    include!("nvvm_sys_13020.rs");
+    #[cfg(feature = "nvvm_13_3")]
+    include!("nvvm_sys_13030.rs");
 }
 
 #[cfg(feature = "nvtx")]
@@ -108,7 +108,7 @@ pub mod runtime {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     // These types have type definitions in `driver_types.h`.
-    #[cfg(feature = "driver_13_2")]
+    #[cfg(feature = "driver_13_3")]
     #[rustfmt::skip]
     pub use crate::driver::{
         // --- Core handles & pointers ---
@@ -144,7 +144,7 @@ pub mod runtime {
 
     // These types are defined both in `driver_types.h` and `cuda.h` and might not be interchangeable.
     // Types of different layouts should not be imported here.
-    #[cfg(feature = "driver_13_2")]
+    #[cfg(feature = "driver_13_3")]
     #[rustfmt::skip]
     pub use crate::driver::{
         // --- Core Handles & Pointers ---
@@ -208,11 +208,12 @@ pub mod runtime {
 
     pub type cudaArray_const_t = *const crate::driver::CUarray;
     pub type cudaMipmappedArray_const_t = *const crate::driver::CUmipmappedArray_st;
+    pub type cudaGraphRecaptureStatus = cudaStreamCaptureStatus;
 
-    #[cfg(feature = "runtime_13_2")]
-    include!("driver_types_sys_13020.rs");
-    #[cfg(feature = "runtime_13_2")]
-    include!("runtime_sys_13020.rs");
+    #[cfg(feature = "runtime_13_3")]
+    include!("driver_types_sys_13030.rs");
+    #[cfg(feature = "runtime_13_3")]
+    include!("runtime_sys_13030.rs");
 }
 
 #[cfg(test)]

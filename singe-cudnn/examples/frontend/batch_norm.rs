@@ -8,7 +8,7 @@ use singe_cudnn::{
     data_type::f16 as half_f16,
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{
             BatchNormalizationConfig, BatchNormalizationRunningStats, CompileConfig, HeuristicMode,
             PointwiseOperation,
@@ -62,10 +62,14 @@ fn run() -> Result<()> {
     let h = 16;
     let w = 16;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let x = graph.tensor(
         TensorSpec::new(

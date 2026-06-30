@@ -46,7 +46,6 @@ impl<'a> CompressedMarkerLabels<'a> {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn info_into(
         &self,
         marker_labels_info_list: &mut DeviceMemory<CompressedMarkerLabelsInfo>,
@@ -75,7 +74,6 @@ impl<'a> CompressedMarkerLabels<'a> {
         Ok(contours_totals)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn generate_contour_geometry_lists_into(
         &self,
         marker_labels_info_list_dev: &mut DeviceMemory<CompressedMarkerLabelsInfo>,

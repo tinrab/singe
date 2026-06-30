@@ -1,7 +1,7 @@
 [package]
 name = "singe-cublas-sys"
 description = "Low-level FFI bindings for the NVIDIA cuBLAS dense linear algebra library."
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 edition.workspace = true
 repository.workspace = true
 license-file = "../LICENSE"
@@ -13,9 +13,11 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cublas_13_4"]
+default = ["cublas_13_5"]
 
-cublas_13_4 = ["singe-cuda-sys/runtime_13_2"]
+cublas_13_5 = ["singe-cuda-sys/runtime_13_3"]
+lt = ["cublas_13_5"]
+xt = ["cublas_13_5"]
 
 [dependencies]
 singe-cuda-sys.workspace = true

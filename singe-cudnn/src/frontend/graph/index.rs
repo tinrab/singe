@@ -9,7 +9,11 @@ use crate::{
             infer_concat_output, infer_strided_slice_output, infer_transpose_output,
             slice_byte_offset,
         },
-        operation::{ConcatInPlaceMode, DiagonalBandMaskConfig, Operation, PointwiseOperation},
+        operation::{
+            AttentionPrimitiveOperation, ConcatInPlaceMode, DiagonalBandMaskConfig, Operation,
+            PointwiseOperation, TensorOperation,
+        },
+        shape::shape_preserving_stride_order,
         support,
     },
     math::NanPropagation,
@@ -47,41 +51,31 @@ impl Graph {
     ) -> Result<()> {
         let slice_strides = slice_strides.into();
         let input_tensor = self.tensor_config(input)?.clone();
-        let output_tensor = self.tensor_config(output)?.clone();
-        if input_tensor.data_type != output_tensor.data_type {
-            return Err(Error::FrontendTensorDataTypeMismatch {
-                tensor_id: output,
-                operation: "slice output".into(),
-                expected: input_tensor.data_type,
-                actual: output_tensor.data_type,
-            });
-        }
         let slice_bounds = Self::slice_bounds(slices);
         let effective_strides = Self::effective_slice_strides(slice_bounds.len(), &slice_strides);
         let expected_output =
             infer_strided_slice_output(&input_tensor.shape, &slice_bounds, &effective_strides)?;
-        if output_tensor.shape.dimensions() != expected_output.dimensions() {
-            return Err(Error::FrontendTensorDimensionsMismatch {
-                tensor_id: output,
-                operation: "slice output".into(),
-                expected: expected_output.dimensions().to_vec(),
-                actual: output_tensor.shape.dimensions().to_vec(),
-            });
-        }
+        self.validate_tensor_data_type_and_dimensions(
+            output,
+            input_tensor.data_type,
+            expected_output.dimensions(),
+            "slice output",
+        )?;
 
         let byte_offset = slice_byte_offset(
             &input_tensor.shape,
             &slice_bounds,
             input_tensor.data_type.size(),
         )?;
-        self.operations.push(Operation::Slice {
-            input,
-            output,
-            starts: slice_bounds.iter().map(|(start, _)| *start).collect(),
-            limits: slice_bounds.iter().map(|(_, limit)| *limit).collect(),
-            strides: effective_strides,
-            byte_offset,
-        });
+        self.operations
+            .push(Operation::Tensor(TensorOperation::Slice {
+                input,
+                output,
+                starts: slice_bounds.iter().map(|(start, _)| *start).collect(),
+                limits: slice_bounds.iter().map(|(_, limit)| *limit).collect(),
+                strides: effective_strides,
+                byte_offset,
+            }));
 
         Ok(())
     }
@@ -140,38 +134,21 @@ impl Graph {
     ) -> Result<()> {
         let permutation = permutation.into();
         let input_tensor = self.tensor_config(input)?.clone();
-        let output_tensor = self.tensor_config(output)?.clone();
-        if input_tensor.data_type != output_tensor.data_type {
-            return Err(Error::FrontendTensorDataTypeMismatch {
-                tensor_id: output,
-                operation: "transpose output".into(),
-                expected: input_tensor.data_type,
-                actual: output_tensor.data_type,
-            });
-        }
         let expected_output = infer_transpose_output(&input_tensor.shape, &permutation)?;
-        if output_tensor.shape.dimensions() != expected_output.dimensions() {
-            return Err(Error::FrontendTensorDimensionsMismatch {
-                tensor_id: output,
-                operation: "transpose output".into(),
-                expected: expected_output.dimensions().to_vec(),
-                actual: output_tensor.shape.dimensions().to_vec(),
-            });
-        }
-        if output_tensor.shape.strides() != expected_output.strides() {
-            return Err(Error::FrontendTensorStridesMismatch {
-                tensor_id: output,
-                operation: "transpose output".into(),
-                expected: expected_output.strides().to_vec(),
-                actual: output_tensor.shape.strides().to_vec(),
-            });
-        }
-
-        self.operations.push(Operation::Transpose {
-            input,
+        self.validate_tensor_data_type_and_dimensions(
             output,
-            permutation,
-        });
+            input_tensor.data_type,
+            expected_output.dimensions(),
+            "transpose output",
+        )?;
+        self.validate_tensor_strides(output, expected_output.strides(), "transpose output")?;
+
+        self.operations
+            .push(Operation::Tensor(TensorOperation::Transpose {
+                input,
+                output,
+                permutation,
+            }));
         Ok(())
     }
 
@@ -216,9 +193,7 @@ impl Graph {
         )?;
         self.validate_tensor_element_count(b, 1, "diagonal band mask b shape")?;
         if config.left_bound().is_some() && config.shift_right_bound().is_some() {
-            return Err(Error::DescriptorMismatch {
-                name: "diagonal band mask bounds".into(),
-            });
+            return Err(Error::FrontendDiagonalBandMaskBoundsConflict);
         }
         if let Some(sequence_length_query) = config.sequence_length_query() {
             self.validate_tensor_data_type(
@@ -259,16 +234,18 @@ impl Graph {
             )?;
         }
 
-        self.operations.push(Operation::DiagonalBandMask {
-            x,
-            b,
-            y,
-            comparison_mode: config.comparison_mode(),
-            sequence_length_query: config.sequence_length_query(),
-            sequence_length_key_value: config.sequence_length_key_value(),
-            left_bound: config.left_bound(),
-            shift_right_bound: config.shift_right_bound(),
-        });
+        self.operations.push(Operation::AttentionPrimitive(
+            AttentionPrimitiveOperation::DiagonalBandMask {
+                x,
+                b,
+                y,
+                comparison_mode: config.comparison_mode(),
+                sequence_length_query: config.sequence_length_query(),
+                sequence_length_key_value: config.sequence_length_key_value(),
+                left_bound: config.left_bound(),
+                shift_right_bound: config.shift_right_bound(),
+            },
+        ));
         Ok(())
     }
 
@@ -309,12 +286,13 @@ impl Graph {
         self.validate_concat_support_surface_for_version(version()?.raw())?;
         let in_place = ConcatInPlaceMode::from_index(inplace_index);
         self.validate_concat(inputs, output, axis, in_place)?;
-        self.operations.push(Operation::Concat {
-            inputs: inputs.to_vec(),
-            output,
-            axis,
-            in_place,
-        });
+        self.operations
+            .push(Operation::Tensor(TensorOperation::Concat {
+                inputs: inputs.to_vec(),
+                output,
+                axis,
+                in_place,
+            }));
         Ok(())
     }
 
@@ -337,7 +315,7 @@ impl Graph {
         let output_data_type = self.effective_io_data_type(input_tensors[0].data_type);
         let output_dimensions = infer_concat_output(&shapes, axis)?.dimensions().to_vec();
         let output_shape =
-            Self::shape_preserving_input_format(&input_tensors[0].shape, output_dimensions)?;
+            shape_preserving_stride_order(&input_tensors[0].shape, output_dimensions)?;
         let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
         if let Err(error) = self.concat(inputs, output, axis, None) {
             self.rollback_to(checkpoint);
@@ -519,7 +497,7 @@ impl Graph {
         &self,
         cudnn_version: u64,
     ) -> Result<()> {
-        support::CONCAT.require_descriptor_match(cudnn_version)
+        support::CONCAT.require_frontend_feature(cudnn_version)
     }
 
     fn validate_concat(
@@ -533,7 +511,7 @@ impl Graph {
             .iter()
             .map(|tensor| self.tensor_config(*tensor))
             .collect::<Result<Vec<_>>>()?;
-        Self::validate_concat_input_dimensions(inputs, &input_tensors, axis)?;
+        self.validate_concat_input_dimensions(inputs, &input_tensors, axis)?;
         let expected_output = infer_concat_output(
             &input_tensors
                 .iter()
@@ -557,6 +535,7 @@ impl Graph {
     }
 
     fn validate_concat_input_dimensions(
+        &self,
         inputs: &[TensorId],
         input_tensors: &[&TensorSpec],
         axis: i64,
@@ -570,12 +549,7 @@ impl Graph {
         for (&input, input_tensor) in inputs.iter().zip(input_tensors) {
             let actual = input_tensor.shape.dimensions();
             if actual.len() != rank {
-                return Err(Error::FrontendTensorDimensionsMismatch {
-                    tensor_id: input,
-                    operation: "concat input rank".into(),
-                    expected: first_dimensions.to_vec(),
-                    actual: actual.to_vec(),
-                });
+                self.validate_tensor_dimensions(input, first_dimensions, "concat input rank")?;
             }
             let mut expected = actual.to_vec();
             for (index, expected_dimension) in expected.iter_mut().enumerate() {
@@ -589,12 +563,7 @@ impl Graph {
                 .enumerate()
                 .any(|(index, (actual, expected))| index != axis && actual != expected)
             {
-                return Err(Error::FrontendTensorDimensionsMismatch {
-                    tensor_id: input,
-                    operation: "concat input shape".into(),
-                    expected,
-                    actual: actual.to_vec(),
-                });
+                self.validate_tensor_dimensions(input, &expected, "concat input shape")?;
             }
         }
         Ok(())

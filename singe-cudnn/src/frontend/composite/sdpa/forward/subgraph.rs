@@ -4,10 +4,14 @@ use crate::{
     data_type::DataType,
     error::{Error, Result},
     frontend::{
-        composite::sdpa::{UnifiedSdpaSubgraph, support::sdpa_mask_scalar},
+        composite::sdpa::{
+            UnifiedSdpaSubgraph,
+            support::{SDPA_SCORE_SUBGRAPH, sdpa_mask_scalar},
+        },
         graph::{AliasBinding, Graph},
         infer::*,
         operation::*,
+        support::CUDNN_8_9_0_2,
     },
     math::NanPropagation,
     pointwise::PointwiseMode,
@@ -49,12 +53,14 @@ impl Graph {
         cudnn_version: u64,
         config: AttentionConfig,
     ) -> AttentionConfig {
-        if cudnn_version > 8902
+        if cudnn_version > CUDNN_8_9_0_2
             && config
                 .dropout()
                 .is_some_and(|dropout| dropout.probability() == 0.0)
         {
-            config.clear_dropout_probability().clear_dropout_offset()
+            let modifiers = *config.modifiers();
+            let score_subgraph = config.score_subgraph().cloned();
+            config.with_score_config(AttentionScoreConfig::from_parts(modifiers, score_subgraph))
         } else {
             config
         }
@@ -76,15 +82,29 @@ impl Graph {
                 rng_config
             }
             AttentionDropoutSeedSource::Device(seed) => {
-                let offset = offset.ok_or(Error::DescriptorMismatch {
-                    name: "sdpa dropout offset".into(),
-                })?;
+                let offset = offset.ok_or(Error::FrontendSdpaDropoutSeedRequiresOffset)?;
                 RandomNumberGeneratorConfig::bernoulli(probability, 0)
                     .with_seed_tensor(seed, offset)
             }
         };
 
         Ok(rng_config)
+    }
+
+    pub(in crate::frontend::composite::sdpa) fn attention_dropout_random_number_generator_dump(
+        &mut self,
+        dropout: AttentionDropoutConfig,
+        offset: Option<TensorId>,
+        scores_shape: &Shape,
+    ) -> Result<TensorId> {
+        let rng_config = self.attention_dropout_random_number_generator_config(
+            dropout.probability(),
+            dropout.seed_source(),
+            offset,
+        )?;
+        let rng_dump = self.tensor(TensorSpec::new(DataType::F32, scores_shape.clone()));
+        self.random_number_generator(rng_dump, rng_config)?;
+        Ok(rng_dump)
     }
 
     pub(in crate::frontend::composite::sdpa) fn clone_tensor_into_subgraph(
@@ -123,12 +143,9 @@ impl Graph {
         let q_tensor = self.tensor_config(q)?.clone();
         let k_tensor = self.tensor_config(k)?.clone();
         let effective_k_shape = if let Some(page_table_k) = config.page_table_k() {
-            let sequence_length_key_value =
-                config
-                    .sequence_length_key_value()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa paged seq lens".into(),
-                    })?;
+            let sequence_length_key_value = config
+                .sequence_length_key_value()
+                .ok_or(Error::FrontendSdpaPagedAttentionRequiresSequenceLengths)?;
             let seq_len_kv_tensor = self.tensor_config(sequence_length_key_value)?.clone();
             let page_table_k_tensor = self.tensor_config(page_table_k)?.clone();
             infer_paged_cache_output(
@@ -140,20 +157,15 @@ impl Graph {
         } else {
             k_tensor.shape.clone()
         };
-        let has_subgraph_modifiers = score_modifiers.bias.is_some()
-            || score_modifiers.alibi_slopes.is_some()
-            || score_modifiers.additive_mask.is_some()
-            || score_modifiers.causal_mask
-            || score_modifiers.causal_bottom_right
-            || score_modifiers.sliding_window.is_some();
-        if !has_subgraph_modifiers && score_subgraph.is_none() {
+        if !score_modifiers.has_pre_softmax_subgraph_modifier() && score_subgraph.is_none() {
             return Ok(None);
         }
 
         let mut subgraph = Graph::new();
         subgraph.sm_version = self.sm_version;
-        subgraph.data_type_policy.intermediate = self.data_type_policy.intermediate;
-        subgraph.data_type_policy.compute = self.data_type_policy.compute;
+        subgraph
+            .data_type_policy
+            .inherit_compute_policy_from(self.data_type_policy);
         subgraph.dynamic_shape_enabled = self.dynamic_shape_enabled;
         subgraph.override_shape_enabled = self.override_shape_enabled;
 
@@ -163,7 +175,7 @@ impl Graph {
         );
         let mut output = input;
 
-        if let Some(bias) = score_modifiers.bias {
+        if let Some(bias) = score_modifiers.bias() {
             let score_subgraph_captures_bias = score_subgraph
                 .is_some_and(|score_subgraph| score_subgraph.graph().tensor_config(bias).is_ok());
             let bias = self.clone_tensor_into_subgraph(&mut subgraph, &mut cloned_tensors, bias)?;
@@ -176,7 +188,7 @@ impl Graph {
                 )?;
             }
         }
-        if let Some(alibi_slopes) = score_modifiers.alibi_slopes {
+        if let Some(alibi_slopes) = score_modifiers.alibi_slopes() {
             let alibi_slopes =
                 self.clone_tensor_into_subgraph(&mut subgraph, &mut cloned_tensors, alibi_slopes)?;
             let alibi_bias = subgraph.alibi_bias(output, alibi_slopes)?;
@@ -187,7 +199,7 @@ impl Graph {
                 DataType::F32,
             )?;
         }
-        if let Some(additive_mask) = score_modifiers.additive_mask {
+        if let Some(additive_mask) = score_modifiers.additive_mask() {
             let additive_mask =
                 self.clone_tensor_into_subgraph(&mut subgraph, &mut cloned_tensors, additive_mask)?;
             output = subgraph.pointwise_binary_infer(
@@ -198,11 +210,10 @@ impl Graph {
             )?;
         }
         if let Some(score_subgraph) = score_subgraph {
-            self.validate_score_subgraph(score_subgraph, &scores_shape, "sdpa score subgraph")?;
-            output =
-                subgraph.import_score_subgraph(score_subgraph, output, "sdpa score subgraph")?;
+            self.validate_score_subgraph(score_subgraph, &scores_shape, SDPA_SCORE_SUBGRAPH)?;
+            output = subgraph.import_score_subgraph(score_subgraph, output, SDPA_SCORE_SUBGRAPH)?;
         }
-        if score_modifiers.causal_mask {
+        if score_modifiers.causal_mask() {
             let output_tensor = subgraph.tensor_config(output)?.clone();
             let masked = subgraph.tensor(
                 TensorSpec::new(output_tensor.data_type, output_tensor.shape.clone())
@@ -220,7 +231,7 @@ impl Graph {
             )?;
             output = masked;
         }
-        if let Some((left_window, right_window)) = score_modifiers.sliding_window {
+        if let Some((left_window, right_window)) = score_modifiers.sliding_window() {
             let sliding_mask =
                 subgraph.diagonal_band_mask_composite(output, left_window, Some(right_window))?;
             output = subgraph.pointwise_binary_infer(
@@ -230,23 +241,20 @@ impl Graph {
                 DataType::F32,
             )?;
         }
-        if score_modifiers.causal_bottom_right {
-            let sequence_length_query = score_modifiers
-                .sequence_length_query
-                .ok_or(Error::DescriptorMismatch {
-                    name: "sdpa bottom right seq len".into(),
-                })
-                .and_then(|tensor| {
-                    self.clone_tensor_into_subgraph(&mut subgraph, &mut cloned_tensors, tensor)
-                })?;
-            let sequence_length_key_value = score_modifiers
-                .sequence_length_key_value
-                .ok_or(Error::DescriptorMismatch {
-                    name: "sdpa bottom right seq len".into(),
-                })
-                .and_then(|tensor| {
-                    self.clone_tensor_into_subgraph(&mut subgraph, &mut cloned_tensors, tensor)
-                })?;
+        if score_modifiers.causal_bottom_right() {
+            let (sequence_length_query, sequence_length_key_value) = score_modifiers
+                .sequence_lengths()
+                .ok_or(Error::FrontendSdpaCausalBottomRightRequiresSequenceLengths)?;
+            let sequence_length_query = self.clone_tensor_into_subgraph(
+                &mut subgraph,
+                &mut cloned_tensors,
+                sequence_length_query,
+            )?;
+            let sequence_length_key_value = self.clone_tensor_into_subgraph(
+                &mut subgraph,
+                &mut cloned_tensors,
+                sequence_length_key_value,
+            )?;
             let mask = subgraph.causal_bottom_right_mask(
                 output,
                 sequence_length_query,
@@ -301,21 +309,23 @@ impl Graph {
             |tensor| Self::remap_score_subgraph_optional_tensor(tensor_map, tensor, error_name);
 
         match operation {
-            Operation::Matmul { a, b, c, config } => Ok(Operation::Matmul {
-                a: remap(*a)?,
-                b: remap(*b)?,
-                c: remap(*c)?,
-                config: {
-                    let mut config = config.clone();
-                    if let Some(m_override) = remap_optional(config.m_override())? {
-                        config = config.with_m_override(m_override);
-                    }
-                    if let Some(k_override) = remap_optional(config.k_override())? {
-                        config = config.with_k_override(k_override);
-                    }
-                    config
-                },
-            }),
+            Operation::Matmul(MatmulOperation::Matmul { a, b, c, config }) => {
+                Ok(Operation::Matmul(MatmulOperation::Matmul {
+                    a: remap(*a)?,
+                    b: remap(*b)?,
+                    c: remap(*c)?,
+                    config: {
+                        let mut config = config.clone();
+                        if let Some(m_override) = remap_optional(config.m_override())? {
+                            config = config.with_m_override(m_override);
+                        }
+                        if let Some(k_override) = remap_optional(config.k_override())? {
+                            config = config.with_k_override(k_override);
+                        }
+                        config
+                    },
+                }))
+            }
             Operation::Pointwise(pointwise) => Ok(Operation::Pointwise(match pointwise {
                 PointwiseOperation::Unary {
                     mode,
@@ -409,40 +419,42 @@ impl Graph {
                     is_deterministic: *is_deterministic,
                 },
             })),
-            Operation::Reshape { input, output } => Ok(Operation::Reshape {
-                input: remap(*input)?,
-                output: remap(*output)?,
-            }),
-            Operation::Slice {
+            Operation::Tensor(TensorOperation::Reshape { input, output }) => {
+                Ok(Operation::Tensor(TensorOperation::Reshape {
+                    input: remap(*input)?,
+                    output: remap(*output)?,
+                }))
+            }
+            Operation::Tensor(TensorOperation::Slice {
                 input,
                 output,
                 starts,
                 limits,
                 strides,
                 byte_offset,
-            } => Ok(Operation::Slice {
+            }) => Ok(Operation::Tensor(TensorOperation::Slice {
                 input: remap(*input)?,
                 output: remap(*output)?,
                 starts: starts.clone(),
                 limits: limits.clone(),
                 strides: strides.clone(),
                 byte_offset: *byte_offset,
-            }),
-            Operation::Transpose {
+            })),
+            Operation::Tensor(TensorOperation::Transpose {
                 input,
                 output,
                 permutation,
-            } => Ok(Operation::Transpose {
+            }) => Ok(Operation::Tensor(TensorOperation::Transpose {
                 input: remap(*input)?,
                 output: remap(*output)?,
                 permutation: permutation.clone(),
-            }),
-            Operation::Concat {
+            })),
+            Operation::Tensor(TensorOperation::Concat {
                 inputs,
                 output,
                 axis,
                 in_place,
-            } => Ok(Operation::Concat {
+            }) => Ok(Operation::Tensor(TensorOperation::Concat {
                 inputs: inputs
                     .iter()
                     .copied()
@@ -451,8 +463,8 @@ impl Graph {
                 output: remap(*output)?,
                 axis: *axis,
                 in_place: *in_place,
-            }),
-            Operation::DiagonalBandMask {
+            })),
+            Operation::AttentionPrimitive(AttentionPrimitiveOperation::DiagonalBandMask {
                 x,
                 b,
                 y,
@@ -461,31 +473,35 @@ impl Graph {
                 sequence_length_key_value,
                 left_bound,
                 shift_right_bound,
-            } => Ok(Operation::DiagonalBandMask {
-                x: remap(*x)?,
-                b: remap(*b)?,
-                y: remap(*y)?,
-                comparison_mode: *comparison_mode,
-                sequence_length_query: remap_optional(*sequence_length_query)?,
-                sequence_length_key_value: remap_optional(*sequence_length_key_value)?,
-                left_bound: remap_optional(*left_bound)?,
-                shift_right_bound: remap_optional(*shift_right_bound)?,
-            }),
-            Operation::Softmax {
+            }) => Ok(Operation::AttentionPrimitive(
+                AttentionPrimitiveOperation::DiagonalBandMask {
+                    x: remap(*x)?,
+                    b: remap(*b)?,
+                    y: remap(*y)?,
+                    comparison_mode: *comparison_mode,
+                    sequence_length_query: remap_optional(*sequence_length_query)?,
+                    sequence_length_key_value: remap_optional(*sequence_length_key_value)?,
+                    left_bound: remap_optional(*left_bound)?,
+                    shift_right_bound: remap_optional(*shift_right_bound)?,
+                },
+            )),
+            Operation::AttentionPrimitive(AttentionPrimitiveOperation::Softmax {
                 x,
                 y,
                 stats,
                 max,
                 sum_exp,
                 sink,
-            } => Ok(Operation::Softmax {
-                x: remap(*x)?,
-                y: remap(*y)?,
-                stats: remap_optional(*stats)?,
-                max: remap_optional(*max)?,
-                sum_exp: remap_optional(*sum_exp)?,
-                sink: remap_optional(*sink)?,
-            }),
+            }) => Ok(Operation::AttentionPrimitive(
+                AttentionPrimitiveOperation::Softmax {
+                    x: remap(*x)?,
+                    y: remap(*y)?,
+                    stats: remap_optional(*stats)?,
+                    max: remap_optional(*max)?,
+                    sum_exp: remap_optional(*sum_exp)?,
+                    sink: remap_optional(*sink)?,
+                },
+            )),
             _ => Err(Error::FrontendCompile(format!(
                 "{error_name} contains unsupported operation"
             ))),
@@ -573,10 +589,19 @@ impl Graph {
     ) -> Result<()> {
         let scale_tensor = self.tensor_config(scale)?;
         if scale_tensor.data_type != DataType::F8E8M0 {
-            return Err(Error::DescriptorMismatch { name: name.into() });
+            return Err(Error::FrontendTensorDataTypeMismatch {
+                tensor_id: scale,
+                operation: name.into(),
+                expected: DataType::F8E8M0,
+                actual: scale_tensor.data_type,
+            });
         }
         if scale_tensor.reordering != Some(BackendTensorReordering::F8_128x4) {
-            return Err(Error::DescriptorMismatch { name: name.into() });
+            return Err(Error::FrontendTensorLayoutMismatch {
+                tensor_id: scale,
+                operation: name.into(),
+                reason: "expected f8 128x4 reordering".into(),
+            });
         }
 
         Ok(())
@@ -591,7 +616,10 @@ impl Graph {
         let attn_scale_value = self
             .tensor_config(attention_scale)?
             .scalar_value
-            .ok_or(Error::DescriptorMismatch { name: name.into() })?;
+            .ok_or_else(|| Error::FrontendSdpaScalarValueRequired {
+                tensor_id: attention_scale,
+                operation: name.into(),
+            })?;
         Ok(self.tensor(
             TensorSpec::new(compute_type, Shape::contiguous([1, 1, 1, 1])?)
                 .with_scalar_value(attn_scale_value)?,

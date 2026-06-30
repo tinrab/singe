@@ -1,0 +1,1232 @@
+{
+  "cuFileDriverOpen": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufiledriveropen",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufiledriveropen",
+    "signature": "CUfileError_t cuFileDriverOpen();",
+    "doc": "Opens the Driver session to support GDS IO operations.\n\n* This API opens the session with the NVFS kernel driver to communicate from userspace to kernel space and calls\n  the GDS driver to set up the resources required to support GDS IO operations.\n* The API checks whether the current platform supports GDS and initializes the cuFile library.\n* This API loads the cuFile settings from a JSON configuration file in `/etc/cufile.JSON`.\n\n  If the JSON configuration file does not exist, the API loads the default library settings. To modify this default\n  config file, administrative privileges are needed. The administrator can modify it to grant cuFile access to the\n  specified devices and mount paths and also tune IO parameters (in KB, 4K aligned) that are based on the type of\n  workload. Refer to the [default config file](https://docs.nvidia.com/gpudirect-storage/configuration-guide/index.html#gds-parameters)\n  (`/etc/cufile.json`) for more information.",
+    "deprecated": false,
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful open, or if the driver is already open."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` on a failure to open the driver."
+        },
+        "CU_FILE_PERMISSION_DENIED": {
+          "doc": "`CU_FILE_PERMISSION_DENIED` on a failure to open.\n\n  This can happen when the character device (`/dev/nvidia_fs[0-15]`) is restricted to certain users by an administrator,\n  for example, admin, where `/dev` is not exposed with read permissions in the container."
+        },
+        "CU_FILE_DRIVER_VERSION_MISMATCH": {
+          "doc": "`CU_FILE_DRIVER_VERSION_MISMATCH`, when there is a mismatch between the cuFile library and its kernel driver."
+        },
+        "CU_FILE_CUDA_DRIVER_ERROR": {
+          "doc": "`CU_FILE_CUDA_DRIVER_ERROR` if the CUDA driver failed to initialize. `CU_FILE_PLATFORM_NOT_SUPPORTED` if the\n  current platform is not supported by GDS."
+        },
+        "CU_FILE_NVFS_SETUP_ERROR": {
+          "doc": "`CU_FILE_NVFS_SETUP_ERROR` for a cuFile-specific internal error."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileDriverClose": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufiledriverclose",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufiledriverclose",
+    "signature": "CUfileError_t cuFileDriverClose();",
+    "doc": "Closes the driver session and frees any associated resources for GDS.\n* This happens implicitly upon process exit.\n* The driver can be reopened once it is closed.\n\n* Close the GDS session and any associated memory resources. If there are buffers registered by using\n  `cuFileBufRegister`, which are not unregistered, a `cuFileDriverClose` implicitly unregisters those\n  buffers. Any in-flight IO when `cuFileDriverClose` is in-progress will receive an error.",
+    "deprecated": false,
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful close."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` on failure."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileDriverGetProperties": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufiledrivergetproperties",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufiledrivergetproperties",
+    "signature": "CUfileError_t cuFileDriverGetProperties(cuFileDrvProps_t * props);",
+    "doc": "The `cuFileDrvProps_t` structure can be queried with `cuFileDriverGetProperties` and selectively\nmodified with `cuFileDriverSetProperties`. The structure is self-describing, and its fields are\nconsistent with the major and minor API version parameters.\n\n* Gets the Driver session properties for GDS functionality.\n\nThis API is used to get current GDS properties and nvidia-fs driver properties and functionality, such as\nsupport for SCSI, NVMe, and NVMe-OF.\n\nThis API is used to get the current `nvidia-fs` drivers-specific properties such as the following:\n\n* `major_version`: the cuFile major version\n* `minor_version`: the cuFile minor version\n* `props.nvfs.dstatusflags`, which are bit flags that indicate support for the following driver features:\n\n  + `CU_FILE_EXASCALER_SUPPORTED`, a bit to check whether the DDN EXAScaler parallel filesystem solutions\n(based on the Lustre filesystem) client supports GDS.\n  + `CU_FILE_WEKAFS_SUPPORTED`, a bit to check whether WekaFS supports GDS.\n* `Props.nvfs.dcontrolflags`, which are bit flags that indicate the current activation for driver features:\n\n  + `CU_FILE_USE_POLL_MODE`, when bit is set, IO uses polling mode.\n  + `CU_FILE_ALLOW_COMPAT_MODE`, if the value is 1 compatible mode is set.\n  > Otherwise, the compatible mode is disabled.\n* `Props.fflags`, which are bit flags that indicate whether the following library features are supported:\n\n  + `CU_FILE_STREAMS_SUPPORTED`, an attribute that checks whether CUDA-streams are supported.\n  + `CU_FILE_DYN_ROUTING_SUPPORTED`, an attribute that checks whether dynamic routing feature is supported.\n* `Props.nvfs.poll_thresh_size`, a maximum IO size, in KB and must be 4K-aligned, that is used for the POLLING mode.\n* `Props.nvfs.max_direct_io_size`, a maximum GDS IO size, in KB and must be 4K-aligned, that is requested by the nvidia-fs\n  driver to the underlying filesystem.\n* `Props.max_device_cache_size`, a maximum GPU buffer space per device, in KB and must be 4K-aligned. Used internally,\n  for example, to handle unaligned IO and optimal IO path routing. This value might be rounded down to the nearest GPU page size.\n* `Props.max_device_pinned_mem_size`, a maximum buffer space, in KB and must be 4K-aligned, that is pinned and\n  mapped to the GPU BAR space. This might be rounded down to the nearest GPU page size.\n* `Props.per_buffer_cache_size`, a GPU bounce buffer size, in KB, used for internal pools.",
+    "deprecated": false,
+    "parameters": {
+      "props": {
+        "doc": "Pointer to the cuFile Driver properties."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful completion."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` on failure."
+        },
+        "CU_FILE_DRIVER_VERSION_MISMATCH": {
+          "doc": "`CU_FILE_DRIVER_VERSION_MISMATCH` on a driver version mismatch."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if input is invalid."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileDriverSetPollMode": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufiledriversetpollmode-bool-poll-size-t-poll-threshold-size",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufiledriversetpollmode-bool-poll-size-t-poll-threshold-size",
+    "signature": "CUfileError_t cuFileDriverSetPollMode(bool poll, size_t poll_threshold_size);",
+    "doc": "`cuFileDriverSetPollMode(bool poll, size_t poll_threshold_size)` API\n\n* Sets whether the Read/Write APIs use polling to complete IO operations. If poll mode is enabled, an IO\n  size less than or equal to the threshold value is used for polling.\n* The `poll_threshold_size` must be 4K aligned.\n\nThis API is used in conjunction with `cuFileGetDriverProperties`. This API is used to set whether the\nlibrary should use polling and the maximum IO threshold size less than or equal to which it will poll.\n\nThis API overrides the default value that may be set through the JSON configuration file using the\nconfig keys `properties.poll_mode` and `properties.poll_max_size_kb` for the current process.\n\nRefer to the following for more information:\n\n`cuFileDriverGetProperties`.",
+    "deprecated": false,
+    "parameters": {
+      "poll": {
+        "doc": "Boolean to indicate whether to use the poll mode."
+      },
+      "poll_threshold_size": {
+        "doc": "IO size to use for POLLING mode in KB. The default value is 4KB."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful completion."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` on failure to load the driver."
+        },
+        "CU_FILE_DRIVER_UNSUPPORTED_LIMIT": {
+          "doc": "`CU_FILE_DRIVER_UNSUPPORTED_LIMIT` on failure to set with valid threshold size."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileDriverSetMaxDirectIOSize": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufiledriversetmaxdirectiosize-size-t-max-direct-io-size",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufiledriversetmaxdirectiosize-size-t-max-direct-io-size",
+    "signature": "CUfileError_t cuFileDriverSetMaxDirectIOSize(size_t max_direct_io_size);",
+    "doc": "Sets the max IO size, in KB.\n\n  This parameter is used by the nvidia-fs driver as the maximum IO chunk size in which IO is issued to the\n  underlying filesystem. In compatible mode, this is the maximum IO chunk size that the library uses to issue POSIX read/writes.\n* The max direct IO size must be 4K aligned.\n\nThis API is used with `cuFileGetDriverProperties` and is used to set the maximum direct IO size used by\nthe library to specify the nvidia-fs kernel driver the maximum chunk size in which the latter can issue\nIO to the underlying filesystem. In compatible mode, this is the maximum IO chunk size which the library\nuses for issuing POSIX read/writes. This parameter is dependent on the underlying GPU hardware and system memory.\n\nThis API overrides the default value that might be set through the JSON configuration file by using the\n`properties.max_direct_io_size_kb` config key for the current process.\n\nRefer to the following for more information:\n\n* `cuFileDriverGetProperties`.",
+    "deprecated": false,
+    "parameters": {
+      "max_direct_io_size": {
+        "doc": "The maximum allowed direct IO size in KB. The default value is 16384KB. This is because typically\nparallel-file systems perform better with bulk read/writes."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on successful completion."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` on failure to load the driver."
+        },
+        "CU_FILE_DRIVER_UNSUPPORTED_LIMIT": {
+          "doc": "`CU_FILE_DRIVER_UNSUPPORTED_LIMIT` on failure to set with valid size."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileDriverSetMaxPinnedMemSize": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufiledriversetmaxpinnedmemsize-size-t-max-pinned-memory-size",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufiledriversetmaxpinnedmemsize-size-t-max-pinned-memory-size",
+    "signature": "CUfileError_t cuFileDriverSetMaxPinnedMemSize(size_t max_pinned_mem_size);",
+    "doc": "Sets the maximum GPU buffer space, in KB, that is pinned and mapped. This value might be rounded down to the nearest GPU page size.\n* The max pinned size must be 4K aligned.\n* The default value corresponds to the maximum `PinnedMemory` or the physical memory size of the device.\n* This API overrides the default value that may be set by the `properties.max_device_pinned_mem_size_kb` JSON config key for the current process.\n\nThis API is used with `cuFileGetDriverProperties` and is used to set an upper limit on the maximum size of\nGPU memory that can be pinned and mapped and is dependent on the underlying GPU hardware and system memory.\nThis API is related to `cuFileBufRegister`, which is used to register GPU device memory. See\n`cuFileDriverGetProperties` for more information.",
+    "deprecated": false,
+    "parameters": {
+      "max_pinned_memory_size": {
+        "doc": "The maximum buffer space, in KB, that is pinned and mapped to the GPU BAR space.\nThis value might be rounded down to the nearest GPU page size.\nThe maximum limit may be set to UINT64_MAX, which is equivalent to no enforced limit. It may be set to\nsomething smaller than the size of the GPU\u2019s physical memory."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on successful completion."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` on failure to load driver."
+        },
+        "CU_FILE_DRIVER_UNSUPPORTED_LIMIT": {
+          "doc": "`CU_FILE_DRIVER_UNSUPPORTED_LIMIT` on failure to set with valid size."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileGetVersion": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetversion-int-version",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetversion-int-version",
+    "signature": "CUfileError_t cuFileGetVersion(int * version);",
+    "doc": "Retrieves the cuFile library version.\n* The version is returned as (1000 \\* major + 10 \\* minor).\n* For example, cuFile 1.7.0 would be represented by 1070.\n\nThis API is used to obtain the current version of the cuFile library. It may be useful sometimes for an\napplication to expect based on the version if any specific GDS feature is present or not.",
+    "deprecated": false,
+    "parameters": {
+      "version": {
+        "doc": "Output argument which would contain the version number in the above format upon successful completion."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on successful completion."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if the version parameter is null."
+        },
+        "CU_FILE_DRIVER_VERSION_READ_ERROR": {
+          "doc": "`CU_FILE_DRIVER_VERSION_READ_ERROR` if the version is not available."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileSetParameterSizeT": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilesetparameter",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilesetparameter",
+    "signature": "CUfileError_t cuFileSetParameterSizeT(CUFileSizeTConfigParameter_t param, size_t value);",
+    "doc": "Allows setting of cuFile configuration parameters in a program.\n* Based on the parameter type, the corresponding API can be chosen.\n* Should be called before the driver opens and the values take effect after the driver is opened.\n* If the same parameter is set multiple times, only the last parameter is kept and used.\n* Parameter precedence (highest to lowest) is:\n  `cuFileSetParameter*()` (if set), then environment variable (if exists and set),\n  then `cufile.json`.\n\nThese APIs are used to set configuration parameters in a programmatic way as\nopposed to relying on the JSON file or environment variables.",
+    "deprecated": false,
+    "parameters": {
+      "param": {
+        "doc": "The parameter to set, based on parameter type."
+      },
+      "value / desc_str": {
+        "doc": "The source of the parameter value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if the input parameter is invalid."
+        },
+        "CU_FILE_DRIVER_ALREADY_OPEN": {
+          "doc": "`CU_FILE_DRIVER_ALREADY_OPEN` if the driver is already open."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileSetParameterBool": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilesetparameter",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilesetparameter",
+    "signature": "CUfileError_t cuFileSetParameterBool(CUFileBoolConfigParameter_t param, bool value);",
+    "doc": "Allows setting of cuFile configuration parameters in a program.\n* Based on the parameter type, the corresponding API can be chosen.\n* Should be called before the driver opens and the values take effect after the driver is opened.\n* If the same parameter is set multiple times, only the last parameter is kept and used.\n* Parameter precedence (highest to lowest) is:\n  `cuFileSetParameter*()` (if set), then environment variable (if exists and set),\n  then `cufile.json`.\n\nThese APIs are used to set configuration parameters in a programmatic way as\nopposed to relying on the JSON file or environment variables.",
+    "deprecated": false,
+    "parameters": {
+      "param": {
+        "doc": "The parameter to set, based on parameter type."
+      },
+      "value / desc_str": {
+        "doc": "The source of the parameter value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if the input parameter is invalid."
+        },
+        "CU_FILE_DRIVER_ALREADY_OPEN": {
+          "doc": "`CU_FILE_DRIVER_ALREADY_OPEN` if the driver is already open."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileSetParameterString": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilesetparameter",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilesetparameter",
+    "signature": "CUfileError_t cuFileSetParameterString(CUFileStringConfigParameter_t param, const char * desc_str);",
+    "doc": "Allows setting of cuFile configuration parameters in a program.\n* Based on the parameter type, the corresponding API can be chosen.\n* Should be called before the driver opens and the values take effect after the driver is opened.\n* If the same parameter is set multiple times, only the last parameter is kept and used.\n* Parameter precedence (highest to lowest) is:\n  `cuFileSetParameter*()` (if set), then environment variable (if exists and set),\n  then `cufile.json`.\n\nThese APIs are used to set configuration parameters in a programmatic way as\nopposed to relying on the JSON file or environment variables.",
+    "deprecated": false,
+    "parameters": {
+      "param": {
+        "doc": "The parameter to set, based on parameter type."
+      },
+      "value / desc_str": {
+        "doc": "The source of the parameter value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if the input parameter is invalid."
+        },
+        "CU_FILE_DRIVER_ALREADY_OPEN": {
+          "doc": "`CU_FILE_DRIVER_ALREADY_OPEN` if the driver is already open."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileGetParameterSizeT": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetparameter",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetparameter",
+    "signature": "CUfileError_t cuFileGetParameterSizeT(CUFileSizeTConfigParameter_t param, size_t * value);",
+    "doc": "Fetch cuFile configuration parameters in a program.\n* Based on the parameter type, the corresponding API can be chosen.\n* If the driver is open, `cuFileGetParameter*()` returns the current runtime\n  value for the given parameter.\n* If the driver is not opened yet, `cuFileGetParameter*()` returns the\n  currently staged value for that parameter. Staged parameter values are\n  cleared when the driver is opened.\n\nThese APIs are used to fetch configuration parameters in a programmatic way as\nopposed to reading the JSON file or environment variables.",
+    "deprecated": false,
+    "parameters": {
+      "param": {
+        "doc": "The parameter to get."
+      },
+      "value / desc_str": {
+        "doc": "The location where the value will be stored."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if the input parameter is invalid."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileGetParameterBool": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetparameter",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetparameter",
+    "signature": "CUfileError_t cuFileGetParameterBool(CUFileBoolConfigParameter_t param, bool * value);",
+    "doc": "Fetch cuFile configuration parameters in a program.\n* Based on the parameter type, the corresponding API can be chosen.\n* If the driver is open, `cuFileGetParameter*()` returns the current runtime\n  value for the given parameter.\n* If the driver is not opened yet, `cuFileGetParameter*()` returns the\n  currently staged value for that parameter. Staged parameter values are\n  cleared when the driver is opened.\n\nThese APIs are used to fetch configuration parameters in a programmatic way as\nopposed to reading the JSON file or environment variables.",
+    "deprecated": false,
+    "parameters": {
+      "param": {
+        "doc": "The parameter to get."
+      },
+      "value / desc_str": {
+        "doc": "The location where the value will be stored."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if the input parameter is invalid."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileGetParameterString": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetparameter",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetparameter",
+    "signature": "CUfileError_t cuFileGetParameterString(CUFileStringConfigParameter_t param, char * desc_str, int len);",
+    "doc": "Fetch cuFile configuration parameters in a program.\n* Based on the parameter type, the corresponding API can be chosen.\n* If the driver is open, `cuFileGetParameter*()` returns the current runtime\n  value for the given parameter.\n* If the driver is not opened yet, `cuFileGetParameter*()` returns the\n  currently staged value for that parameter. Staged parameter values are\n  cleared when the driver is opened.\n\nThese APIs are used to fetch configuration parameters in a programmatic way as\nopposed to reading the JSON file or environment variables.",
+    "deprecated": false,
+    "parameters": {
+      "param": {
+        "doc": "The parameter to get."
+      },
+      "value / desc_str": {
+        "doc": "The location where the value will be stored."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if the input parameter is invalid."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileGetParameterMinMaxValue": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetparameterminmaxvalue",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetparameterminmaxvalue",
+    "signature": "CUfileError_t cuFileGetParameterMinMaxValue(CUFileSizeTConfigParameter_t param, size_t * min_value, size_t * max_value);",
+    "doc": "Get both the minimum and maximum settable values for a given `size_t`\n  parameter in a single call.\n\nThis API is used to get the range a certain `size_t` parameter supports. This\ncan help applications decide what values they can assign to certain parameters.",
+    "deprecated": false,
+    "parameters": {
+      "param": {
+        "doc": "`CUFileSizeTConfigParameter_t` configuration parameter."
+      },
+      "min_value": {
+        "doc": "Pointer to store the minimum value.",
+        "output": true
+      },
+      "max_value": {
+        "doc": "Pointer to store the maximum value.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if `min_value` or `max_value` is `NULL`."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileGetBARSizeInKB": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetbarsizeinkb",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetbarsizeinkb",
+    "signature": "CUfileError_t cuFileGetBARSizeInKB(int gpuIndex, size_t * barSize);",
+    "doc": "Get the BAR size for a specific GPU in KB.\n\nThis API is used to get the BAR size of the GPU passed in as a parameter.",
+    "deprecated": false,
+    "parameters": {
+      "gpuIndex": {
+        "doc": "GPU index to query."
+      },
+      "barSize": {
+        "doc": "Pointer to store the BAR size in KB.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` if the driver is not initialized."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` on invalid input."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileSetParameterPosixPoolSlabArray": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilesetparameterposixpoolslabarray",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilesetparameterposixpoolslabarray",
+    "signature": "CUfileError_t cuFileSetParameterPosixPoolSlabArray(const size_t * size_values, const size_t * count_values, int len);",
+    "doc": "Sets POSIX pool slabs for compat mode I/O.\n* `size_values` and `count_values` parameters are treated as a pair.\n* Should be set before `cuFileDriverOpen()` is called.\n\nThis API is used to set a POSIX pool array. The application can set it based on\nthe I/O sizes it is going to be issuing and hence reduce memory fragmentation.",
+    "deprecated": false,
+    "parameters": {
+      "size_values": {
+        "doc": "Array of slab sizes in KB."
+      },
+      "count_values": {
+        "doc": "Array of slab counts."
+      },
+      "len": {
+        "doc": "Length of both arrays (must be the same)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if inputs are invalid."
+        },
+        "CU_FILE_DRIVER_ALREADY_OPEN": {
+          "doc": "`CU_FILE_DRIVER_ALREADY_OPEN` if the driver is already open."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileGetParameterPosixPoolSlabArray": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetparameterposixpoolslabarray",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetparameterposixpoolslabarray",
+    "signature": "CUfileError_t cuFileGetParameterPosixPoolSlabArray(size_t * size_values, size_t * count_values, int len);",
+    "doc": "Get POSIX pool slab array.\n* `size_values` and `count_values` parameters are returned as a pair.\n\nThis API is used to query values of a POSIX pool array.",
+    "deprecated": false,
+    "parameters": {
+      "size_values": {
+        "doc": "Buffer to receive slab sizes in KB."
+      },
+      "count_values": {
+        "doc": "Buffer to receive slab counts."
+      },
+      "len": {
+        "doc": "Buffer size (must match the actual parameter length)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if inputs are invalid."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileDriverSetP2PFlags": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufiledriversetp2pflags",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufiledriversetp2pflags",
+    "signature": "CUfileError_t cuFileDriverSetP2PFlags(CUfileDriverStatusFlags_t status_flag, CUfileP2PFlags_t p2p_flags);",
+    "doc": "Sets the P2P flags for a specific filesystem or block device.\n* The `p2p_flags` parameter should be a bitmask of the desired P2P\n  capabilities.\n* On `x86_64` platforms: only `CU_FILE_P2P_FLAG_PCI_P2PDMA` is allowed.\n* On `AARCH64` platforms: only `CU_FILE_P2P_FLAG_C2C` is allowed.\n* `CU_FILE_P2P_FLAG_NVFS` and `CU_FILE_P2P_FLAG_DMABUF` are not allowed to\n  be set via this API (they are managed internally by the driver).\n\nThis API sets the P2P flags for a specific filesystem or block device.\nCurrently, based on the platform, only `CU_FILE_P2P_FLAG_PCI_P2PDMA` or\n`CU_FILE_P2P_FLAG_C2C` is allowed. If these flags are set, then the I/O will\nbe attempted via P2PDMA mode (if the system supports it) instead of traditional\nNVFS mode.",
+    "deprecated": false,
+    "parameters": {
+      "status_flag": {
+        "doc": "The filesystem/device status flag (for example,\n`CU_FILE_LUSTRE_SUPPORTED`, `CU_FILE_NVME_SUPPORTED`, etc.)."
+      },
+      "p2p_flags": {
+        "doc": "The P2P flags bitmask to set."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` if the cuFile driver is not initialized."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if `status_flag` is invalid."
+        },
+        "CU_FILE_P2P_FLAG_NOT_SUPPORTED": {
+          "doc": "`CU_FILE_P2P_FLAG_NOT_SUPPORTED` if `p2p_flags` contains flags not\n  supported on the current platform."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileDriverGetP2PFlags": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufiledrivergetp2pflags",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufiledrivergetp2pflags",
+    "signature": "CUfileError_t cuFileDriverGetP2PFlags(CUfileDriverStatusFlags_t status_flag, CUfileP2PFlags_t * p2p_flags);",
+    "doc": "Gets the P2P flags for a specific filesystem or block device.\n\nThis API is used to query what P2P modes are supported by cuFile for a certain\nfilesystem or block device.",
+    "deprecated": false,
+    "parameters": {
+      "status_flag": {
+        "doc": "The filesystem/device status flag (for example,\n`CU_FILE_LUSTRE_SUPPORTED`)."
+      },
+      "p2p_flags": {
+        "doc": "Pointer to store the P2P flags.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` if the cuFile driver is not initialized."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if `p2p_flags` is `NULL`."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileHandleRegister": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilehandleregister",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilehandleregister",
+    "signature": "CUfileError_t cuFileHandleRegister(CUFileHandle_t * fh, CUfileDescr_t * descr);",
+    "doc": "Register an open file.\n* `cuFileHandleRegister` is required and performs extra checking that is memoized to provide increased\n  performance on later cuFile operations.\n* This API is OS agnostic.\n\n> Note\n>\n> CUDA toolkit 12.2 (GDS version 1.7.x) supports non O_DIRECT open flags as well as O_DIRECT. Application\n> is allowed to open a file in non O_DIRECT mode in compat mode and also with nvidia-fs.ko installed. In the latter case, an O_DIRECT path between GPU and Storage will be used if such a path exists.\n\n* Given a file-descriptor will populate and return the `CUfileHandle_t` needed for issuing IO with cuFile APIs.\n* A return value of anything other than CU_FILE_SUCCESS leaves fh in an undefined state but has no other side effects.\n* By default this API accepts whether the file descriptor is opened with O_DIRECT mode or non O_DIRECT mode.\n\nRefer to the following for more information:\n\n* `cuFileRead`\n* `cuFileWrite`\n* `cuFileReadAsync`\n* `cuFileWriteAsync`\n* `cuFileHandleDeregister`.",
+    "deprecated": false,
+    "parameters": {
+      "fh": {
+        "doc": "Valid pointer to the OS-neutral cuFile handle structure supplied by the user but populated and maintained\nby the cuFile runtime."
+      },
+      "desc": {
+        "doc": "Valid pointer to the OS-neutral file descriptor supplied by the user carrying details regarding the\nfile to be opened such as `fd` for Linux-based files."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on successful completion."
+        },
+        "CU_FILE_DRIVER_NOT_INITIALIZED": {
+          "doc": "`CU_FILE_DRIVER_NOT_INITIALIZED` on failure to load the driver."
+        },
+        "CU_FILE_IO_NOT_SUPPORTED": {
+          "doc": "`CU_FILE_IO_NOT_SUPPORTED`, if the filesystem is not supported."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` if there are null or bad API arguments."
+        },
+        "CU_FILE_INVALID_FILE_OPEN_FLAG": {
+          "doc": "`CU_FILE_INVALID_FILE_OPEN_FLAG`, if the file is opened with unsupported modes such as no `O_APPEND`,\n  :   `O_NOCTTY`, `O_NONBLOCK`, `O_DIRECTORY`, `O_NOFOLLOW`, `O_NOATIME`, and `O_TMPFILE`."
+        },
+        "CU_FILE_INVALID_FILE_TYPE": {
+          "doc": "`CU_FILE_INVALID_FILE_TYPE`, if the file path is not valid, not a regular file, not a symbolic link,\n  or not a device file."
+        },
+        "CU_FILE_HANDLE_ALREADY_REGISTERED": {
+          "doc": "`CU_FILE_HANDLE_ALREADY_REGISTERED` if the file is already registered using the same file-descriptor."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileHandleDeregister": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilehandlederegister",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilehandlederegister",
+    "signature": "CUfileError_t cuFileHandleDeregister(CUFileHandle_t * fh);",
+    "doc": "The API is used to release resources that are claimed by `cuFileHandleRegister`.\n\n  This API should be invoked only after the application ensures there are no outstanding IO operations\n  with the handle. If `cuFileHandleDeregister` is called while IO on the file is in progress might\n  result in undefined behavior.\n* The user is still expected to close the file descriptor outside the cuFile subsystem after calling\n  this API using `close` system call.\n\n  Closing a file handle without calling `cuFileHandleDeregister` does not release the resources that\n  are held in the cuFile library. If this API is not called, the cuFile subsystem releases the\n  resources lazily or when the application exits.\n\nRefer to the following for more information:\n\n* `cuFileRead`\n* `cuFileWrite`\n* `cuFileHandleRegister`.",
+    "deprecated": false,
+    "parameters": {
+      "fh": {
+        "doc": "The file handle obtained from `cuFileHandleRegister`."
+      }
+    }
+  },
+  "cuFileRead": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufileread",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufileread",
+    "signature": "ssize_t cuFileRead(CUfileHandle_t fh, void * bufPtr_base, size_t size, off_t file_offset, off_t bufPtr_offset);",
+    "doc": "Reads specified bytes from the file descriptor into the device memory or the host memory.\n\nThis API reads the data from a specified file handle at a specified offset and size bytes into the GPU memory by\nusing GDS functionality or into the host memory based on the type of memory pointer. The API works correctly for\nunaligned offsets and any data size, although the performance might not match the performance of aligned reads.\nThis is a synchronous call and blocks until the IO is complete.\n\nNote\n\nFor the `bufPtr_offset`, if data will be read starting exactly from the `bufPtr_base` that is registered\nwith `cuFileBufRegister`, `bufPtr_offset` should be set to 0. To read starting from an offset in the\nregistered buffer range, the relative offset should be specified in the `bufPtr_offset,` and the `bufPtr_base`\nmust remain set to the base address that was used in the `cuFileBufRegister` call.\n\nSee the following for more information:\n\n* `cuFileWrite`\n* `cuFileReadAsync`\n* `cuFileWriteAsync`.",
+    "deprecated": false,
+    "parameters": {
+      "fh": {
+        "doc": "File descriptor for the file."
+      },
+      "bufPtr_base": {
+        "doc": "Base address of buffer in device memory or host memory. For registered buffers, `bufPtr_base` must\nremain set to the base address used in the `cuFileBufRegister` call."
+      },
+      "size": {
+        "doc": "Size in bytes to read."
+      },
+      "file_offset": {
+        "doc": "Offset in the file to read from."
+      },
+      "bufPtr_offset": {
+        "doc": "Offset relative to the `bufPtr_base` pointer to read into. This parameter should be used only with registered buffers."
+      }
+    }
+  },
+  "cuFileWrite": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilewrite",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilewrite",
+    "signature": "ssize_t cuFileWrite(CUfileHandle_t fh, const void * bufPtr_base, size_t size, off_t file_offset, off_t bufPtr_offset);",
+    "doc": "Writes specified bytes from the device memory into the file descriptor using GDS.\n\nThis API writes the data from the GPU memory or the host memory to a file specified by the file handle\nat a specified offset and size bytes by using GDS functionality. The API works correctly for unaligned\noffset and data sizes, although the performance is not on-par with aligned writes.This is a synchronous\ncall and will block until the IO is complete.\n\nNote\n\nGDS functionality modified the standard file system metadata in SysMem. However, GDS functionality\ndoes not take any special responsibility for writing that metadata back to permanent storage. The\ndata is not guaranteed to be present after a system crash unless the application uses an explicit\n`fsync(2)` call. If the file is opened with an `O_SYNC` flag, the metadata will be written to\nthe disk before the call is complete.\n\nRefer to the note in `cuFileRead` for more information about `bufPtr_offset:`.\n\nRefer to the following for more information:\n\n* `cuFileWrite`\n* `cuFileReadAsync`\n* `cuFileWriteAsync`.",
+    "deprecated": false,
+    "parameters": {
+      "fh": {
+        "doc": "File descriptor for the file."
+      },
+      "bufPtr_base": {
+        "doc": "Base address of buffer in device memory or host memory. For registered buffers, `bufPtr_base` must\nremain set to the base address used in the `cuFileBufRegister` call."
+      },
+      "size": {
+        "doc": "Size in bytes to which to write."
+      },
+      "file_offset": {
+        "doc": "Offset in the file to which to write."
+      },
+      "bufPtr_offset": {
+        "doc": "Offset relative to the `bufPtr_base` pointer from which to write. This parameter should be used only with registered buffers."
+      }
+    }
+  },
+  "cuFileBufRegister": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilebufregister",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilebufregister",
+    "signature": "CUfileError_t cuFileBufRegister(const void * bufPtr_base, size_t size, int flags);",
+    "doc": "Based on the memory type, this API registers existing `cuMemAlloc`\u2019d (pinned) memory for GDS IO\n  operations or host memory for IO operations.\n\nBased on the memory type, this API either registers the specified GPU address or host memory address and size\nfor use with the `cuFileRead` and `cuFileWrite` operations. The user must call `cuFileBufDeregister` to\nrelease the pinned memory mappings for GPU memory if needed.\n\nSee the following for more information:\n\n* `cuFileBufDeregister`.",
+    "deprecated": false,
+    "parameters": {
+      "bufPtr_base": {
+        "doc": "Address of device pointer. `cuFileRead` and `cuFileWrite` **must** use this `bufPtr_base` as the base address."
+      },
+      "size": {
+        "doc": "Size in bytes from the start of memory to map."
+      },
+      "flags": {
+        "doc": "Reserved for future use; must be 0."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful registration."
+        },
+        "CU_FILE_NVFS_DRIVER_ERROR": {
+          "doc": "`CU_FILE_NVFS_DRIVER_ERROR` if the nvidia-fs driver cannot handle the request."
+        },
+        "CU_FILE_INVALID_VALUE": {
+          "doc": "`CU_FILE_INVALID_VALUE` on a failure."
+        },
+        "CU_FILE_CUDA_DRIVER_ERROR": {
+          "doc": "`CU_FILE_CUDA_DRIVER_ERROR` on CUDA-specific errors. CUresult code can be obtained using `CU_FILE_CUDA_ERR` (err)."
+        },
+        "CU_FILE_MEMORY_ALREADY_REGISTERED": {
+          "doc": "`CU_FILE_MEMORY_ALREADY_REGISTERED`, if memory is already registered."
+        },
+        "CU_FILE_INTERNAL_ERROR": {
+          "doc": "`CU_FILE_INTERNAL_ERROR`, an internal library-specific error."
+        },
+        "CU_FILE_CUDA_MEMORY_TYPE_INVALID": {
+          "doc": "`CU_FILE_CUDA_MEMORY_TYPE_INVALID`, for device memory that is not allocated via `cudaMalloc` or `cuMemAlloc`."
+        },
+        "CU_FILE_CUDA_POINTER_RANGE_ERROR": {
+          "doc": "`CU_FILE_CUDA_POINTER_RANGE_ERROR`, if the size exceeds the bounds of the allocated memory."
+        },
+        "CU_FILE_INVALID_MAPPING_SIZE": {
+          "doc": "`CU_FILE_INVALID_MAPPING_SIZE`, if the size exceeds the GPU resource limits."
+        },
+        "CU_FILE_GPU_MEMORY_PINNING_FAILED": {
+          "doc": "`CU_FILE_GPU_MEMORY_PINNING_FAILED`, if not enough pinned memory is available."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileBufDeregister": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilebufderegister",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilebufderegister",
+    "signature": "CUfileError_t cuFileBufDeregister(const void * bufPtr_base);",
+    "doc": "Based on the memory type, this API either deregisters CUDA memory or the host memory registered using\n  the `cuFileBufRegister` API.\n\nThis API deregisters memory mappings that were registered by `cuFileBufRegister`. Refer to `cuFileBufRegister` for more information.",
+    "deprecated": false,
+    "parameters": {
+      "bufPtr_base": {
+        "doc": "Address of device pointer to release the mappings that were provided to `cuFileBufRegister`."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful deregistration."
+        },
+        "CU_FILE_MEMORY_NOT_REGISTERED": {
+          "doc": "`CU_FILE_MEMORY_NOT_REGISTERED`, if `bufPtr_base` was not registered."
+        },
+        "CU_FILE_ERROR_INVALID_VALUE": {
+          "doc": "`CU_FILE_ERROR_INVALID_VALUE` on failure to find the registration for the specified memory."
+        },
+        "CU_FILE_INTERNAL_ERROR": {
+          "doc": "`CU_FILE_INTERNAL_ERROR`, an internal library-specific error."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileStreamRegister": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilestreamregister",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilestreamregister",
+    "signature": "CUfileError_t cuFileStreamRegister(CUStream_t stream, unsigned flags);",
+    "doc": "Defines the input behavior for stream I/O APIs.\n\nThis optional API registers the stream with the cuFile subsystem.\n\nThis API will allocate resources to handle stream operations for cuFile.\n\nThe API will synchronize on the stream before allocating resources.\n\nThe stream pointer is expected to be a valid pointer.",
+    "deprecated": false,
+    "parameters": {
+      "stream": {
+        "doc": "CUDA stream in which to enqueue the operation. If NULL, make this operation in the default CUDA stream."
+      },
+      "flags": {
+        "doc": "The following are valid values."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful submission."
+        },
+        "CU_FILE_ERROR_INVALID_VALUE": {
+          "doc": "`CU_FILE_ERROR_INVALID_VALUE` on a invalid stream specification."
+        },
+        "CU_FILE_DRIVER_ERROR": {
+          "doc": "`CU_FILE_DRIVER_ERROR` if the NVIDIA-fs driver cannot handle the request."
+        },
+        "CU_FILE_PLATFORM_NOT_SUPPORTED": {
+          "doc": "`CU_FILE_PLATFORM_NOT_SUPPORTED` on unsupported platforms."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileStreamDeregister": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilestreamderegister",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilestreamderegister",
+    "signature": "CUfileError_t cuFileStreamDeregister(CUStream_t stream);",
+    "doc": "This optional API deregisters the stream with the cuFile subsystem.\n\nThis API will free allocated cuFile resources associated with the stream.\n\nThe API will synchronize on the stream before releasing resources.\n\nThe stream pointer is expected to be a valid pointer.\n\nThe stream will be automatically deregistered as part of `cuFileDriverClose`.",
+    "deprecated": false,
+    "parameters": {
+      "stream": {
+        "doc": "CUDA stream in which to enqueue the operation. If NULL, make this operation in the default CUDA stream."
+      },
+      "flags": {
+        "doc": "Reserved for future use."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful submission."
+        },
+        "CU_FILE_ERROR_INVALID_VALUE": {
+          "doc": "`CU_FILE_ERROR_INVALID_VALUE` on a invalid stream specification."
+        },
+        "CU_FILE_PLATFORM_NOT_SUPPORTED": {
+          "doc": "`CU_FILE_PLATFORM_NOT_SUPPORTED` on unsupported platforms."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileReadAsync": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilereadasync",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilereadasync",
+    "signature": "CUfileError_t cuFileReadAsync(CUFileHandle_t fh, void * bufPtr_base, size_t * size_p, off_t * file_offset_p, off_t * bufPtr_offset_p, int * bytes_read_p, CUstream stream);",
+    "doc": "Enqueues a read operation for the specified bytes from the cuFile handle into the device memory\n  by using GDS functionality or to the host memory based on the type of memory pointer.\n* If non-NULL, the action is ordered in the stream.\n* The current context of the caller is assumed.\n\n* This API reads the data from the specified file handle at the specified offset and size bytes\n  into the GPU memory using GDS functionality.\n\n  This is an asynchronous call and enqueues the operation into the specified CUDA stream and will not block\n  the host thread for IO completion. The operation can be waited upon using `cuStreamSynchronize(stream)`.\n* The `bytes_read_p` memory should be allocated with `cuMemHostAlloc/malloc/mmap` or registered with `cuMemHostRegister`.\n\n  The pointer to access that memory from the device can be obtained by using `cuMemHostGetDevicePointer`.\n* Operations that are enqueued with cuFile Stream APIs are FIFO ordered with respect to other work on the\n  stream and must be completed before continuing to the next action in the stream.\n* Unless otherwise specified through `cuFileStreamRegister` API, file offset, buffer offset or size parameter\n  will not be evaluated until execution time. In these scenarios, size parameters should be set to the maximum\n  possible I/O size at the time of submission and can be set to the actual size prior to the stream I/O execution.\n\nRefer to the following for more information:\n\n* `cuFileRead`\n* `cuFileWrite`\n* `cuFileWriteAsync`.",
+    "deprecated": false,
+    "parameters": {
+      "fh": {
+        "doc": "The cuFile handle for the file."
+      },
+      "bufPtr_base": {
+        "doc": "The base address of the buffer in the memory into which to read.\n* The buffer can be allocated using either `cudaMemory`, `cudaMallocHost`, `malloc`, or `mmap`.\n* For registered buffers, `bufPtr_base` must remain set to the base address used in `cuFileBufRegister` call."
+      },
+      "size_p": {
+        "doc": "Pointer to size in bytes to read. If the exact size is not known at the time of I/O submission, then yo\nmust set it to the maximum possible I/O size for that stream I/O."
+      },
+      "file_offset_p": {
+        "doc": "Pointer to offset in the file from which to read. Unless otherwise set using `cuFileStreamRegister`\nAPI, this value will not be evaluated until execution time."
+      },
+      "bufPtr_offset_p": {
+        "doc": "Pointer to the offset relative to the `bufPtr_base` pointer from which to write. Unless otherwise set\nusing `cuFileStreamRegister` API, this value will not be evaluated until execution time.",
+        "output": true
+      },
+      "bytes_read_p": {
+        "doc": "Pointer to the bytes read from the specified filehandle. This pointer should be a non NULL value and\n`*bytes_read_p` set to 0. After successful execution of the operation in the stream, the value\n`*bytes_read_p` will contain either:\n\n* The number of bytes successfully read.\n* -1 on IO errors.\n* All other errors return a negative integer value of the `CUfileOpError` enum value."
+      },
+      "stream": {
+        "doc": "CUDA stream in which to enqueue the operation.\n* If NULL, make this operation synchronous."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful submission."
+        },
+        "CU_FILE_DRIVER_ERROR": {
+          "doc": "`CU_FILE_DRIVER_ERROR`, if the nvidia-fs driver cannot handle the request."
+        },
+        "CU_FILE_ERROR_INVALID_VALUE": {
+          "doc": "`CU_FILE_ERROR_INVALID_VALUE` on an input failure."
+        },
+        "CU_FILE_CUDA_ERROR": {
+          "doc": "`CU_FILE_CUDA_ERROR` on CUDA-specific errors.\n\n  CUresult code can be obtained by using `CU_FILE_CUDA_ERR(err)`."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileWriteAsync": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilewriteasync",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilewriteasync",
+    "signature": "CUfileError_t cuFileWriteAsync(CUFileHandle_t fh, void * bufPtr_base, size_t * size_p, off_t file_offset_p, off_t bufPtr_offset_p, int * bytes_written_p, CUstream_t stream);",
+    "doc": "Queues Write operation for the specified bytes from the device memory into the cuFile handle by using GDS.\n\n* This API writes the data from the GPU memory to a file specified by the file handle at a specified offset and\n  size bytes by using GDS functionality. This is an asynchronous call and enqueues the operation into the specified\n  CUDA stream and will not block the host thread for IO completion. The operation can be waited upon by using `cuStreamSynchronize(stream)`.\n* The `bytes_written` pointer should be allocated with `cuMemHostAlloc` or registered with `cuMemHostRegister`,\n  and the pointer to access that memory from the device can be obtained by using `cuMemHostGetDevicePointer`.\n* Operations that are enqueued with cuFile Stream APIs are FIFO ordered with respect to other work on the stream and\n  must be completed before continuing to the next action in the stream.\n* Unless otherwise specified through `cuFileStreamRegister` API, file offset, buffer offset or size parameter will\n  not be evaluated until execution time. In these scenarios, size parameters should be set to the maximum possible\n  I/O size at the time of submission and can be set to the actual size prior to the stream I/O execution.\n\nSee the following for more information:\n\n* `cuFileRead`\n* `cuFileWrite`\n* `cuFileReadAsync`.",
+    "deprecated": false,
+    "parameters": {
+      "fh": {
+        "doc": "The cuFile handle for the file."
+      },
+      "bufPtr_base": {
+        "doc": "The base address of the buffer in the memory from which to write. The buffer can be allocated using either\n`cudaMemory/cudaMallocHost/malloc/mmap`. For registered buffers, `bufPtr_base` must remain set to\nthe base address used in the `cuFileBufRegister` call."
+      },
+      "size_p": {
+        "doc": "Pointer to the size in bytes to write. If the exact size is not known at the time of I/O submission,\nthen you must set it to the maximum possible I/O size for that stream I/O.",
+        "output": true
+      },
+      "file_offset_p": {
+        "doc": "Pointer to the offset in the file from which to write. Unless otherwise set using `cuFileStreamRegister`\nAPI, this value will not be evaluated until execution time.",
+        "output": true
+      },
+      "bufPtr_offset_p": {
+        "doc": "Pointer to the offset relative to the `bufPtr_base` pointer from which to write. Unless otherwise set\nusing cuFileStreamRegister API, this value will not be evaluated until execution time.",
+        "output": true
+      },
+      "bytes_written_p": {
+        "doc": "Pointer to the bytes written to the specified filehandle.This pointer should be a non NULL value and\n`*bytes_written_p` set to 0. After successful execution of the operation in the stream, the value\n`*bytes_written_p` will contain either: * The number of bytes successfully written.\n* -1 on IO errors.\n* All other errors will return a negative integer value of the `CUfileOpError` enum value.",
+        "output": true
+      },
+      "stream": {
+        "doc": "The CUDA stream to enqueue the operation."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on a successful submission."
+        },
+        "CU_FILE_DRIVER_ERROR": {
+          "doc": "`CU_FILE_DRIVER_ERROR`, if the nvidia-fs driver cannot handle the request."
+        },
+        "CU_FILE_ERROR_INVALID_VALUE": {
+          "doc": "`CU_FILE_ERROR_INVALID_VALUE` on an input failure."
+        },
+        "CU_FILE_CUDA_ERROR": {
+          "doc": "`CU_FILE_CUDA_ERROR` on CUDA-specific errors.\n\n  The CUresult code can be obtained by using `CU_FILE_CUDA_ERR(err)`."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileBatchIOSetUp": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilebatchiosetup",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilebatchiosetup",
+    "signature": "CUfileError_t cuFileBatchIOSetUp(CUfileBatchHandle_t * batch_idp, int max_nr);",
+    "doc": "This interface should be the first call in the sequence of batch I/O operation. This takes the maximum\nnumber of batch entries the caller intends to use and returns a `CUFileBatchHandle_t` which should\nbe used by the caller for subsequent batch I/O calls.\n\nRefer to the following for more information:\n\n* `cuFileRead`\n* `cuFileWrite`\n* `cuFileReadAsync`\n* `cuFileWriteAsync`\n* `cuFileBatchIOGetStatus`\n* `cuFileBatchIOCancel`\n* `cuFileBatchIODestroy`.",
+    "deprecated": false,
+    "parameters": {
+      "max_nr": {
+        "doc": "(Input) The maximum number of events this batch will hold.\n\nNote\n\nThe number should be between 1 - `properties.io_batch_size`."
+      },
+      "batch_idp": {
+        "doc": "(Output) Will be used in subsequent batch IO calls."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INTERNAL_ERROR": {
+          "doc": "`CU_FILE_INTERNAL_ERROR` on on any failures."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileBatchIOSubmit": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilebatchiosubmit",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilebatchiosubmit",
+    "signature": "CUfileError_t cuFileBatchIOSubmit(CUfileBatchHandle_t batch_idp, unsigned nr, CUfileIOParams_t * iocbp, unsigned int flags);",
+    "doc": "This API will need to be used to submit a read/write operation on an array of GPU/CPU data pointers from\n  their respective file handle, offset, and size bytes.\n\n  Based on the type of memory pointer, the data is transferred to/from the GPU memory by using GDS or the\n  data is transferred to/from the CPU memory.\n\n  + This is an asynchronous call and will enqueue the operation on a `batch_id` provided by the `cuFileIOSetup`\nAPI. The operation can be monitored when using this `batch_id` through `cuFileBatchIOGetStatus`.\n  + The operation can be canceled by calling `cuFileBatchIOCancel` or destroyed by `cuFileBatchIODestroy`.\n* The entries in the `CUfileIOParams_t` array describe individual IOs.\n\n  The bytes transacted field is valid only when the status indicates a completion.\n* Operations that are enqueued with cuFile Batch APIs are FIFO ordered with respect to other work on the stream and\n  must be completed before continuing to the next action in the stream. Operations in each batch might be reordered with respect to each other.\n* The status field of individual IO operations via `CUfileIOParams_t` entries will have undefined values before\n  the entire batch is complete. This definition is subject to change.\n\nRefer to the following for more information:\n\n* `cuFileRead`\n* `cuFileWrite`\n* `cuFileReadAsync`\n* `cuFileWriteAsync`\n* `cuFileBatchIOGetStatus`\n* `cuFileBatchIOCancel`\n* `cuFileBatchIODestroy`.",
+    "deprecated": false,
+    "parameters": {
+      "batch_idp": {
+        "doc": "The address of the output parameter for the newly created batch ID, which was obtained from a `cuFileBatchSetup` call."
+      },
+      "nr": {
+        "doc": "The number of requests for the batch request.\n* The value must be greater than 0 and less than or equal to `max_nr` specified in `cuFileBatchIOSetup`."
+      },
+      "iocbp": {
+        "doc": "The pointer contains the `CUfileIOParams_t` array structures of the length `nr` array."
+      },
+      "flags": {
+        "doc": "Reserved for future use. Should be set to 0."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_INTERNAL_ERROR": {
+          "doc": "`CU_FILE_INTERNAL_ERROR` on any failures."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileBatchIOGetStatus": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilebatchiogetstatus",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilebatchiogetstatus",
+    "signature": "CUfileError_t cuFileBatchIOGetStatus(CUfileBatchHandle_t batch_idp, unsigned min_nr, unsigned * nr, CUfileIOEvents_t * iocbp, struct timespec * timeout);",
+    "doc": "This is a batch API to monitor the status of batch IO operations by using the `batch_id` that was returned by\n  `cuFileBatchIOSubmit`. The operation will be canceled automatically if `cuFileBatchIOCancel` is called and the\n  status will reflect `CU_FILE_CANCELED` for all canceled IO operations.\n* The status of each member of the batch is queried, which would not be possible with one `CUEvent`. The status\n  field of individual IO operations via `CUfileIOParams_t` entries will have undefined values before the entire\n  batch is completed. This definition is subject to change.\n\nRefer to the following for more information:\n\n* `cuFileBatchIOSubmit`\n* `cuFileBatchIODestroy`.",
+    "deprecated": false,
+    "parameters": {
+      "batch_idp": {
+        "doc": "Obtained during setup."
+      },
+      "min_nr": {
+        "doc": "The minimum number of IO entries for which status is requested. The `min_nr` should be greater\nthan or equal to zero and less than or equal to `*nr`."
+      },
+      "nr": {
+        "doc": "This is a pointer to max requested IO entries to poll for completion and is used as an Input/Output\nparameter. As an input `*nr` must be set to pass the maximum number of IO requests to poll for.\nAs an output, `*nr` returns the number of completed I/Os."
+      },
+      "iocbp": {
+        "doc": "`CUFileIOEvents_t` array containing the status of completed I/Os in that batch."
+      },
+      "timeout": {
+        "doc": "This parameter is used to specify the amount of time to wait for in this API, even if the minimum\nnumber of requests have not completed. If the timeout hits, it is possible that the number of\nreturned IOs can be less than `min_nr`."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success.\n\n  The success here refers to the completion of the API. Individual IO status and error can be obtained\n  by examining the returned status and error in the array iocbp."
+        },
+        "CU_FILE_ERROR_INVALID_VALUE": {
+          "doc": "`CU_FILE_ERROR_INVALID_VALUE` for an invalid batch ID."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileBatchIOCancel": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilebatchiocancel",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilebatchiocancel",
+    "signature": "CUfileError_t cuFileBatchIOCancel(CUfileBatchHandle_t batch_idp);",
+    "doc": "This is a batch API to cancel an ongoing IO batch operation by using the `batch_id` that was returned\n  by `cuFileBatchIOSubmit`. This API tries to cancel an individual IO operation in the batch if\n  possible and provides no guarantee about canceling an ongoing operation.\n\nRefer to the following for more information:\n\n* `cuFileBatchIOGetStatus`\n* `cuFileBatchIOSubmit`\n* `cuFileBatchIODestroy`.",
+    "deprecated": false,
+    "parameters": {
+      "batch_idp": {
+        "doc": "The batch ID to cancel."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CU_FILE_SUCCESS": {
+          "doc": "`CU_FILE_SUCCESS` on success."
+        },
+        "CU_FILE_ERROR_INVALID_VALUE": {
+          "doc": "`CU_FILE_ERROR_INVALID_VALUE` on any failures."
+        }
+      },
+      "type": "CUfileError_t",
+      "kind": "value_set",
+      "deprecated": false
+    }
+  },
+  "cuFileBatchIODestroy": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilebatchiodestroy",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilebatchiodestroy",
+    "signature": "void cuFileBatchIODestroy(CUfileBatchHandle_t batch_idp);",
+    "doc": "This is a batch API that destroys a batch context and the resources that are allocated with `cuFileBatchIOSetup`.\n\nRefer to the following for more information:\n\n* `cuFileBatchIOGetStatus`\n* `cuFileBatchIOSubmit`\n* `cuFileBatchIOCancel`.",
+    "deprecated": false,
+    "parameters": {
+      "batch_idp": {
+        "doc": "The batch handle to be destroyed."
+      }
+    }
+  },
+  "cuFileSetStatsLevel": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilesetstatslevel",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilesetstatslevel",
+    "signature": "CUfileError_t cuFileSetStatsLevel(int level);",
+    "doc": "Set the level of statistics collection for cuFile operations. This overrides\nthe `cufile.json` settings for stats. Higher stats levels may impact\nperformance. Level 0 disables statistics collection. Changes to stats level\ntake effect for future operations. Must be called before\n`cuFileStatsStart()` to take effect.",
+    "deprecated": false,
+    "parameters": {
+      "level": {
+        "doc": "Statistics level (0 = disabled, 1 = basic, 2 = detailed, 3 = verbose)."
+      }
+    }
+  },
+  "cuFileGetStatsLevel": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetstatslevel",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetstatslevel",
+    "signature": "CUfileError_t cuFileGetStatsLevel(int * level);",
+    "doc": "Get the current level of statistics collection for cuFile operations. Returns\nthe currently configured stats level (0\u20133) in the provided pointer.",
+    "deprecated": false,
+    "parameters": {
+      "level": {
+        "doc": "Pointer to store the current statistics level.",
+        "output": true
+      }
+    }
+  },
+  "cuFileStatsStart": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilestatsstart",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilestatsstart",
+    "signature": "CUfileError_t cuFileStatsStart(void);",
+    "doc": "Start collecting cuFile statistics. The statistics level must be set with a\nlevel greater than 0 before calling this function. Statistics counters begin\naccumulating from this point and can be stopped and restarted without resetting\ncounters unless `cuFileStatsReset()` is called.",
+    "deprecated": false
+  },
+  "cuFileStatsStop": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilestatsstop",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilestatsstop",
+    "signature": "CUfileError_t cuFileStatsStop(void);",
+    "doc": "Stop collecting cuFile statistics. Accumulated statistics remain available for\nquerying until reset or driver close. Statistics counters are preserved and can\nstill be queried. Collection can be restarted with `cuFileStatsStart()` to\ncontinue accumulating. Use `cuFileStatsReset()` to clear all counters.",
+    "deprecated": false
+  },
+  "cuFileStatsReset": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilestatsreset",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilestatsreset",
+    "signature": "CUfileError_t cuFileStatsReset(void);",
+    "doc": "Reset all cuFile statistics counters to zero. This clears all accumulated\nstatistics data across all levels. Can be called while statistics collection is\nactive or stopped. Useful for measuring statistics over specific time periods\nor operation sets.",
+    "deprecated": false
+  },
+  "cuFileGetStatsL1": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetstatsl1",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetstatsl1",
+    "signature": "CUfileError_t cuFileGetStatsL1(CUfileStatsLevel1_t * stats);",
+    "doc": "Get Level 1 cuFile statistics. Level 1 provides basic I/O and operation\ncounters including read and write operations, bytes transferred, bandwidth,\nlatency, and batch operation statistics.",
+    "deprecated": false,
+    "parameters": {
+      "stats": {
+        "doc": "Pointer to `CUfileStatsLevel1_t` structure to be filled."
+      }
+    }
+  },
+  "cuFileGetStatsL2": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetstatsl2",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetstatsl2",
+    "signature": "CUfileError_t cuFileGetStatsL2(CUfileStatsLevel2_t * stats);",
+    "doc": "Get Level 2 cuFile statistics. Level 2 includes all Level 1 statistics plus\nsize histograms for read and write operations. The histograms track the\ndistribution of I/O operation sizes, useful for analyzing I/O size patterns and\noptimization.",
+    "deprecated": false,
+    "parameters": {
+      "stats": {
+        "doc": "Pointer to `CUfileStatsLevel2_t` structure to be filled."
+      }
+    }
+  },
+  "cuFileGetStatsL3": {
+    "kind": "function",
+    "page": "index.md",
+    "anchor": "cufilegetstatsl3",
+    "uri": "https://docs.nvidia.com/gpudirect-storage/api-reference-guide/index.html#cufilegetstatsl3",
+    "signature": "CUfileError_t cuFileGetStatsL3(CUfileStatsLevel3_t * stats);",
+    "doc": "Get Level 3 cuFile statistics. Level 3 includes all Level 2 statistics plus\nper-GPU breakdown of operations, bandwidth, utilization, and buffer\nregistration statistics. This level provides detailed analysis of which GPUs\nare being used, how operations are distributed across GPUs, and the type of I/O\npath used (P2P, NVFS, or POSIX). The per-GPU breakdown includes operation\ncounts, bandwidth metrics, utilization percentages, and buffer registration\nstatistics. This level has the highest performance overhead but provides the\nmost detailed insights for performance analysis and debugging.",
+    "deprecated": false,
+    "parameters": {
+      "stats": {
+        "doc": "Pointer to `CUfileStatsLevel3_t` structure to be filled."
+      }
+    }
+  }
+}

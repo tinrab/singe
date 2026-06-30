@@ -1,4 +1,5 @@
-TEST_FEATURES := "testing,cuda_13_2"
+TEST_FEATURES := "testing,cuda_13_3"
+export RUSTFLAGS := "-Awarnings"
 export CUDNN_LOGLEVEL_DBG := "0"
 export CUDNN_LOGDEST_DBG := "stdout"
 
@@ -64,6 +65,42 @@ generate:
     (cd ./singe-nvml-sys && just generate)
     (cd ./singe-cusparse-sys && just generate)
     (cd ./singe-npp-sys && just generate)
+
+    docs_dir="./cuda-docs-scraper/docs"
+    target_dir="./xtask/docs"
+
+    cp $docs_dir/cublas/v13.3.0/cublas-api.json $target_dir/cublas-13.3-api.json
+
+    cp $docs_dir/cuda-driver-api/v13.3.0/cuda-driver-api.json $target_dir/cuda-driver-13.3-api.json
+    cp $docs_dir/cuda-runtime-api/v13.3.0/cuda-runtime-api.json $target_dir/cuda-runtime-13.3-api.json
+    cp $docs_dir/nvtx/v3/nvtx-api.json $target_dir/nvtx-3-api.json
+    cp $docs_dir/nvrtc/v13.3.0/nvrtc-api.json $target_dir/nvrtc-13.3.json
+    cp $docs_dir/libnvvm/v13.3.0/libnvvm-api.json $target_dir/libnvvm-13.3-api.json
+
+    cp $docs_dir/cudnn/v9.22.0/cudnn-api.json $target_dir/cudnn-9.22-api.json
+
+    cp $docs_dir/cudss/v0.8.0/cudss-api.json $target_dir/cudss-0.8-api.json
+
+    cp $docs_dir/cufft/v13.3.0/cufft-api.json $target_dir/cufft-13.3-api.json
+
+    cp $docs_dir/cufile/v1.18/cufile-api.json $target_dir/cufile-1.18-api.json
+
+    cp $docs_dir/cupti/v2026.2.0/cupti-api.json $target_dir/cupti-13.3-api.json
+
+    cp $docs_dir/nvml/v13.3.0/nvml-api.json $target_dir/nvml-13.3-api.json
+
+    cp $docs_dir/curand/v13.3.0/curand-api.json $target_dir/curand-13.3-api.json
+
+    cp $docs_dir/cusolver/v13.3.0/cusolver-api.json $target_dir/cusolver-12.2-api.json
+    cp $docs_dir/cusparse/v13.3.0/cusparse-api.json $target_dir/cusparse-12.8-api.json
+
+    cp $docs_dir/cutensor/v2.6.0/cutensor-api.json $target_dir/cutensor-2.6-api.json
+
+    cp $docs_dir/nccl/v2.28.7/nccl-api.json $target_dir/nccl-2.28-api.json
+
+    cp $docs_dir/npp/v13.3.0/npp-api.json $target_dir/npp-13.3-api.json
+
+    cp $docs_dir/ptx/v9.3/instruction-set.json $target_dir/ptx-9.3-instructions.json
 
     cargo xtask gen-ptx-instructions
     cargo xtask document

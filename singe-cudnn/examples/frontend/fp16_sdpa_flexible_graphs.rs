@@ -7,9 +7,12 @@ use singe_cudnn::{
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        composite::sdpa::{SdpaInputs, SdpaOutputs},
-        graph::Graph,
-        operation::{AttentionConfig, HeuristicMode, PointwiseOperation, SdpaScoreSubgraph},
+        composite::sdpa::SdpaInputs,
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionConfig, AttentionScoreConfig, HeuristicMode, PointwiseOperation,
+            SdpaAuxOutputRequest, SdpaScoreSubgraph,
+        },
     },
     math::NanPropagation,
 };
@@ -33,10 +36,14 @@ fn run() -> Result<()> {
     let d_qk = 128_i64;
     let d_v = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(
         TensorSpec::new(
@@ -161,7 +168,7 @@ fn run() -> Result<()> {
         alpha2: 1.0,
     });
 
-    let SdpaOutputs { output: o, stats } = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto_infer(
         SdpaInputs {
             query: q,
             key: k,
@@ -169,14 +176,19 @@ fn run() -> Result<()> {
             scale: scale,
         },
         AttentionConfig::new(DataType::F32)
-            .with_stats()
-            .with_bias(bias)
-            .with_score_subgraph(SdpaScoreSubgraph::new(
-                score_subgraph,
-                score_input,
-                score_output,
-            )),
+            .with_aux_outputs(SdpaAuxOutputRequest::stats_only())
+            .with_score_config(
+                AttentionScoreConfig::new()
+                    .with_bias(bias)
+                    .with_score_subgraph(SdpaScoreSubgraph::new(
+                        score_subgraph,
+                        score_input,
+                        score_output,
+                    )),
+            ),
     )?;
+    let o = outputs.output();
+    let stats = outputs.stats();
 
     graph.replace_tensor(
         o,

@@ -7,7 +7,7 @@ use singe_cudnn::{
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{HeuristicMode, LayerNormalizationBackwardConfig, LayerNormalizationConfig},
     },
     math::NanPropagation,
@@ -54,10 +54,14 @@ fn zero_centered_scale(graph: &mut Graph) -> Result<(TensorId, TensorId)> {
 }
 
 fn run_training(ctx: &common::ExampleContext) -> Result<()> {
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let x = graph.tensor(TensorSpec::new(DataType::F16, hidden_layout()?));
     let (scale_zero_centered, scale) = zero_centered_scale(&mut graph)?;
@@ -104,10 +108,14 @@ fn run_training(ctx: &common::ExampleContext) -> Result<()> {
 
 #[allow(dead_code)]
 fn run_inference(ctx: &common::ExampleContext) -> Result<()> {
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let x = graph.tensor(TensorSpec::new(DataType::F16, hidden_layout()?));
     let (scale_zero_centered, scale) = zero_centered_scale(&mut graph)?;
@@ -158,10 +166,14 @@ fn run_inference(ctx: &common::ExampleContext) -> Result<()> {
 
 #[allow(dead_code)]
 fn run_backward(ctx: &common::ExampleContext) -> Result<()> {
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let x = graph.tensor(TensorSpec::new(DataType::F16, hidden_layout()?));
     let dy = graph.tensor(TensorSpec::new(DataType::F16, hidden_layout()?));

@@ -6,7 +6,7 @@ use singe_cudnn::{
     data_type::DataType,
     error::{Error, Result},
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{BlockScaleDequantizeConfig, HeuristicMode},
     },
 };
@@ -49,9 +49,13 @@ fn packed_len(element_count: i64, data_type: DataType) -> Result<usize> {
 }
 
 fn run_case(ctx: &common::ExampleContext, index: usize, case: TestCase) -> Result<()> {
-    let mut graph = Graph::new()
-        .with_intermediate_data_type(case.after_dequant_datatype_a)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_intermediate(case.after_dequant_datatype_a)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let tensor_a = graph.tensor(named_tensor(
         "tensor_a",

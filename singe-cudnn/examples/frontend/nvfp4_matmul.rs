@@ -6,7 +6,7 @@ use singe_cudnn::{
     data_type::{DataType, f4e2m1, f8e4m3, f16},
     error::{Error, Result},
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{BlockScaleDequantizeConfig, CompileConfig, HeuristicMode, MatmulConfig},
         plan::BuildPlanPolicy,
     },
@@ -100,9 +100,13 @@ fn run() -> Result<()> {
 
     let mut tensor_d_gpu = DeviceMemory::<f16>::zeroes(packed_len(b * m * n, datatype_d)?)?;
 
-    let mut graph = Graph::new()
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let tensor_a = graph.tensor(
         TensorSpec::new(

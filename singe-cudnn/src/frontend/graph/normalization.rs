@@ -14,8 +14,8 @@ use crate::{
             BatchNormalizationBackwardConfig, BatchNormalizationConfig,
             BatchNormalizationFinalizeConfig, BatchNormalizationInferenceConfig, DbnWeightConfig,
             InstanceNormalizationBackwardConfig, InstanceNormalizationConfig,
-            LayerNormalizationBackwardConfig, LayerNormalizationConfig, Operation,
-            RmsNormalizationBackwardConfig, RmsNormalizationConfig,
+            LayerNormalizationBackwardConfig, LayerNormalizationConfig, NormalizationOperation,
+            Operation, RmsNormalizationBackwardConfig, RmsNormalizationConfig,
         },
         support,
     },
@@ -302,35 +302,37 @@ impl Graph {
         let mean_tensor = self.tensor_config(mean)?.clone();
         let expected_parameter_data_type = mean_tensor.data_type;
 
-        for (tensor, name) in [
-            (inv_variance, "batch norm inference inv variance data type"),
-            (scale, "batch norm inference scale data type"),
-            (bias, "batch norm inference bias data type"),
-            (config.epsilon(), "batch norm inference epsilon data type"),
-        ] {
-            self.validate_tensor_data_type(tensor, expected_parameter_data_type, name)?;
-        }
+        self.validate_tensors_data_type(
+            [
+                (inv_variance, "batch norm inference inv variance data type"),
+                (scale, "batch norm inference scale data type"),
+                (bias, "batch norm inference bias data type"),
+                (config.epsilon(), "batch norm inference epsilon data type"),
+            ],
+            expected_parameter_data_type,
+        )?;
         self.validate_tensor_data_type(
             output,
             self.effective_io_data_type(input_tensor.data_type),
             "batch norm inference output data type",
         )?;
-        for (tensor, name) in [
-            (mean, "batch norm inference mean shape"),
-            (inv_variance, "batch norm inference inv variance shape"),
-            (scale, "batch norm inference scale shape"),
-            (bias, "batch norm inference bias shape"),
-        ] {
-            self.validate_tensor_dimensions(tensor, channel_shape.dimensions(), name)?;
-        }
+        self.validate_tensors_dimensions(
+            [
+                (mean, "batch norm inference mean shape"),
+                (inv_variance, "batch norm inference inv variance shape"),
+                (scale, "batch norm inference scale shape"),
+                (bias, "batch norm inference bias shape"),
+            ],
+            channel_shape.dimensions(),
+        )?;
         self.validate_tensor_dimensions(
             output,
             input_tensor.shape.dimensions(),
             "batch norm inference output shape",
         )?;
-        self.validate_scalar_tensor(config.epsilon(), "batch norm inference epsilon")?;
-        self.operations
-            .push(Operation::BatchNormalizationInference {
+        self.validate_tensor_element_count(config.epsilon(), 1, "batch norm inference epsilon")?;
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::BatchInference {
                 input,
                 mean,
                 inv_variance,
@@ -338,7 +340,8 @@ impl Graph {
                 bias,
                 output,
                 config,
-            });
+            },
+        ));
         Ok(())
     }
 
@@ -382,21 +385,22 @@ impl Graph {
         config: BatchNormalizationFinalizeConfig,
     ) -> Result<()> {
         let shape = self.tensor_config(sum)?.shape.clone();
-        for (tensor, name) in [
-            (sq_sum, "bn finalize sq_sum shape"),
-            (scale, "bn finalize scale shape"),
-            (bias, "bn finalize bias shape"),
-            (saved_mean, "bn finalize saved mean shape"),
-            (saved_inv_variance, "bn finalize saved inv variance shape"),
-            (eq_scale, "bn finalize eq scale shape"),
-            (eq_bias, "bn finalize eq bias shape"),
-        ] {
-            self.validate_tensor_dimensions(tensor, shape.dimensions(), name)?;
-        }
-        self.validate_scalar_tensor(accum_count, "bn finalize accum_count")?;
-        self.validate_scalar_tensor(config.epsilon(), "bn finalize epsilon")?;
+        self.validate_tensors_dimensions(
+            [
+                (sq_sum, "bn finalize sq_sum shape"),
+                (scale, "bn finalize scale shape"),
+                (bias, "bn finalize bias shape"),
+                (saved_mean, "bn finalize saved mean shape"),
+                (saved_inv_variance, "bn finalize saved inv variance shape"),
+                (eq_scale, "bn finalize eq scale shape"),
+                (eq_bias, "bn finalize eq bias shape"),
+            ],
+            shape.dimensions(),
+        )?;
+        self.validate_tensor_element_count(accum_count, 1, "bn finalize accum_count")?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "bn finalize epsilon")?;
         if let Some(momentum) = config.momentum() {
-            self.validate_scalar_tensor(momentum, "bn finalize momentum")?;
+            self.validate_tensor_element_count(momentum, 1, "bn finalize momentum")?;
         }
         match (
             config.prev_running_mean(),
@@ -412,36 +416,37 @@ impl Graph {
                 Some(next_running_mean),
                 Some(next_running_var),
             ) => {
-                for (tensor, name) in [
-                    (prev_running_mean, "bn finalize prev mean shape"),
-                    (prev_running_var, "bn finalize prev variance shape"),
-                    (next_running_mean, "bn finalize next mean shape"),
-                    (next_running_var, "bn finalize next variance shape"),
-                ] {
-                    self.validate_tensor_dimensions(tensor, shape.dimensions(), name)?;
-                }
+                self.validate_tensors_dimensions(
+                    [
+                        (prev_running_mean, "bn finalize prev mean shape"),
+                        (prev_running_var, "bn finalize prev variance shape"),
+                        (next_running_mean, "bn finalize next mean shape"),
+                        (next_running_var, "bn finalize next variance shape"),
+                    ],
+                    shape.dimensions(),
+                )?;
             }
             (None, None, None, None, None) => {}
             _ => {
-                return Err(Error::DescriptorMismatch {
-                    name: "bn finalize running stats".into(),
-                });
+                return Err(Error::FrontendBatchNormFinalizeRunningStatsIncomplete);
             }
         }
-        self.operations.push(Operation::BatchNormalizationFinalize {
-            sum,
-            sq_sum,
-            scale,
-            bias,
-            next_running_mean,
-            next_running_var,
-            saved_mean,
-            saved_inv_variance,
-            eq_scale,
-            eq_bias,
-            accum_count,
-            config,
-        });
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::BatchFinalize {
+                sum,
+                sq_sum,
+                scale,
+                bias,
+                next_running_mean,
+                next_running_var,
+                saved_mean,
+                saved_inv_variance,
+                eq_scale,
+                eq_bias,
+                accum_count,
+                config,
+            },
+        ));
         Ok(())
     }
 
@@ -526,19 +531,6 @@ impl Graph {
                 ]
     }
 
-    fn validate_scalar_tensor(&self, tensor: TensorId, operation: &str) -> Result<()> {
-        let actual = self.tensor_config(tensor)?.shape.element_count()?;
-        if actual != 1 {
-            return Err(Error::FrontendTensorElementCountMismatch {
-                tensor_id: tensor,
-                operation: operation.into(),
-                expected: 1,
-                actual,
-            });
-        }
-        Ok(())
-    }
-
     /// Adds a DBN weight-gradient helper operation.
     ///
     /// DBN is the cuDNN frontend batchnorm backward family; this helper records
@@ -564,31 +556,34 @@ impl Graph {
             "dbn weight dy shape",
         )?;
         let channel_shape = infer_batch_norm_channel_shape(&input_tensor.shape)?;
-        for (tensor, name) in [
-            (scale, "dbn weight scale shape"),
-            (mean, "dbn weight mean shape"),
-            (inv_variance, "dbn weight inv variance shape"),
-            (dscale, "dbn weight dscale shape"),
-            (bias_gradient, "dbn weight bias_gradient shape"),
-            (eq_bias, "dbn weight eq bias shape"),
-            (eq_scale_dy, "dbn weight eq scale dy shape"),
-            (eq_scale_x, "dbn weight eq scale x shape"),
-        ] {
-            self.validate_tensor_dimensions(tensor, channel_shape.dimensions(), name)?;
-        }
-        self.operations.push(Operation::DbnWeight {
-            dy,
-            input,
-            scale,
-            mean,
-            inv_variance,
-            dscale,
-            bias_gradient,
-            eq_bias,
-            eq_scale_dy,
-            eq_scale_x,
-            config,
-        });
+        self.validate_tensors_dimensions(
+            [
+                (scale, "dbn weight scale shape"),
+                (mean, "dbn weight mean shape"),
+                (inv_variance, "dbn weight inv variance shape"),
+                (dscale, "dbn weight dscale shape"),
+                (bias_gradient, "dbn weight bias_gradient shape"),
+                (eq_bias, "dbn weight eq bias shape"),
+                (eq_scale_dy, "dbn weight eq scale dy shape"),
+                (eq_scale_x, "dbn weight eq scale x shape"),
+            ],
+            channel_shape.dimensions(),
+        )?;
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::DbnWeight {
+                dy,
+                input,
+                scale,
+                mean,
+                inv_variance,
+                dscale,
+                bias_gradient,
+                eq_bias,
+                eq_scale_dy,
+                eq_scale_x,
+                config,
+            },
+        ));
         Ok(())
     }
 
@@ -657,38 +652,33 @@ impl Graph {
             "layer norm output shape",
         )?;
         let expected_scale = infer_layer_norm_scale_bias_shape(&input_tensor.shape)?;
-        self.validate_tensor_dimensions(
-            scale,
+        self.validate_tensors_dimensions(
+            [
+                (scale, "layer norm scale shape"),
+                (bias, "layer norm bias shape"),
+            ],
             expected_scale.dimensions(),
-            "layer norm scale shape",
-        )?;
-        self.validate_tensor_dimensions(
-            bias,
-            expected_scale.dimensions(),
-            "layer norm bias shape",
         )?;
         let expected_stats = infer_layer_norm_stats_shape(&input_tensor.shape, &expected_scale)?;
-        self.validate_tensor_dimensions(
-            mean,
+        self.validate_tensors_dimensions(
+            [
+                (mean, "layer norm mean shape"),
+                (inv_variance, "layer norm inv_variance shape"),
+            ],
             expected_stats.dimensions(),
-            "layer norm mean shape",
         )?;
-        self.validate_tensor_dimensions(
-            inv_variance,
-            expected_stats.dimensions(),
-            "layer norm inv_variance shape",
-        )?;
-        self.validate_scalar_tensor(config.epsilon(), "layer norm epsilon")?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "layer norm epsilon")?;
 
-        self.operations.push(Operation::LayerNormalization {
-            input,
-            scale,
-            bias,
-            output,
-            mean,
-            inv_variance,
-            config,
-        });
+        self.operations
+            .push(Operation::Normalization(NormalizationOperation::Layer {
+                input,
+                scale,
+                bias,
+                output,
+                mean,
+                inv_variance,
+                config,
+            }));
         Ok(())
     }
 
@@ -760,16 +750,17 @@ impl Graph {
                 "rms norm bias shape",
             )?;
         }
-        self.validate_scalar_tensor(config.epsilon(), "rms norm epsilon")?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "rms norm epsilon")?;
 
-        self.operations.push(Operation::RmsNormalization {
-            input,
-            scale,
-            bias: config.bias(),
-            output,
-            inv_variance,
-            config,
-        });
+        self.operations
+            .push(Operation::Normalization(NormalizationOperation::Rms {
+                input,
+                scale,
+                bias: config.bias(),
+                output,
+                inv_variance,
+                config,
+            }));
         Ok(())
     }
 
@@ -829,44 +820,36 @@ impl Graph {
             input_tensor.shape.dimensions(),
             "layer norm backward dx shape",
         )?;
-        self.validate_tensor_dimensions(
-            scale,
+        self.validate_tensors_dimensions(
+            [
+                (scale, "layer norm backward scale shape"),
+                (dscale, "layer norm backward dscale shape"),
+                (bias_gradient, "layer norm backward bias_gradient shape"),
+            ],
             expected_scale.dimensions(),
-            "layer norm backward scale shape",
         )?;
-        self.validate_tensor_dimensions(
-            dscale,
-            expected_scale.dimensions(),
-            "layer norm backward dscale shape",
-        )?;
-        self.validate_tensor_dimensions(
-            bias_gradient,
-            expected_scale.dimensions(),
-            "layer norm backward bias_gradient shape",
-        )?;
-        self.validate_tensor_dimensions(
-            mean,
+        self.validate_tensors_dimensions(
+            [
+                (mean, "layer norm backward mean shape"),
+                (inv_variance, "layer norm backward inv_variance shape"),
+            ],
             expected_stats.dimensions(),
-            "layer norm backward mean shape",
         )?;
-        self.validate_tensor_dimensions(
-            inv_variance,
-            expected_stats.dimensions(),
-            "layer norm backward inv_variance shape",
-        )?;
-        self.validate_scalar_tensor(config.epsilon(), "layer norm backward epsilon")?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "layer norm backward epsilon")?;
 
-        self.operations.push(Operation::LayerNormalizationBackward {
-            input,
-            mean,
-            inv_variance,
-            dy,
-            scale,
-            dscale,
-            bias_gradient,
-            dx,
-            config,
-        });
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::LayerBackward {
+                input,
+                mean,
+                inv_variance,
+                dy,
+                scale,
+                dscale,
+                bias_gradient,
+                dx,
+                config,
+            },
+        ));
         Ok(())
     }
 
@@ -930,25 +913,19 @@ impl Graph {
         let expected_stats =
             infer_layer_norm_stats_shape(&input_tensor.shape, &scale_tensor.shape)?;
 
-        self.validate_tensor_dimensions(
-            dy,
+        self.validate_tensors_dimensions(
+            [
+                (dy, "rms norm backward dy shape"),
+                (dx, "rms norm backward dx shape"),
+            ],
             input_tensor.shape.dimensions(),
-            "rms norm backward dy shape",
         )?;
-        self.validate_tensor_dimensions(
-            dx,
-            input_tensor.shape.dimensions(),
-            "rms norm backward dx shape",
-        )?;
-        self.validate_tensor_dimensions(
-            scale,
+        self.validate_tensors_dimensions(
+            [
+                (scale, "rms norm backward scale shape"),
+                (dscale, "rms norm backward dscale shape"),
+            ],
             expected_scale.dimensions(),
-            "rms norm backward scale shape",
-        )?;
-        self.validate_tensor_dimensions(
-            dscale,
-            expected_scale.dimensions(),
-            "rms norm backward dscale shape",
         )?;
         self.validate_tensor_dimensions(
             inv_variance,
@@ -962,16 +939,18 @@ impl Graph {
                 "rms norm backward bias_gradient shape",
             )?;
         }
-        self.operations.push(Operation::RmsNormalizationBackward {
-            input,
-            inv_variance,
-            dy,
-            scale,
-            dscale,
-            bias_gradient,
-            dx,
-            config,
-        });
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::RmsBackward {
+                input,
+                inv_variance,
+                dy,
+                scale,
+                dscale,
+                bias_gradient,
+                dx,
+                config,
+            },
+        ));
         Ok(())
     }
 
@@ -1041,37 +1020,32 @@ impl Graph {
             input_tensor.shape.dimensions(),
             "instance norm output shape",
         )?;
-        self.validate_tensor_dimensions(
-            scale,
+        self.validate_tensors_dimensions(
+            [
+                (scale, "instance norm scale shape"),
+                (bias, "instance norm bias shape"),
+            ],
             expected_scale.dimensions(),
-            "instance norm scale shape",
         )?;
-        self.validate_tensor_dimensions(
-            bias,
-            expected_scale.dimensions(),
-            "instance norm bias shape",
-        )?;
-        self.validate_tensor_dimensions(
-            mean,
+        self.validate_tensors_dimensions(
+            [
+                (mean, "instance norm mean shape"),
+                (inv_variance, "instance norm inv_variance shape"),
+            ],
             expected_stats.dimensions(),
-            "instance norm mean shape",
         )?;
-        self.validate_tensor_dimensions(
-            inv_variance,
-            expected_stats.dimensions(),
-            "instance norm inv_variance shape",
-        )?;
-        self.validate_scalar_tensor(config.epsilon(), "instance norm epsilon")?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "instance norm epsilon")?;
 
-        self.operations.push(Operation::InstanceNormalization {
-            input,
-            scale,
-            bias,
-            output,
-            mean,
-            inv_variance,
-            config,
-        });
+        self.operations
+            .push(Operation::Normalization(NormalizationOperation::Instance {
+                input,
+                scale,
+                bias,
+                output,
+                mean,
+                inv_variance,
+                config,
+            }));
         Ok(())
     }
 
@@ -1136,35 +1110,25 @@ impl Graph {
             input_tensor.shape.dimensions(),
             "instance norm backward dx shape",
         )?;
-        self.validate_tensor_dimensions(
-            scale,
+        self.validate_tensors_dimensions(
+            [
+                (scale, "instance norm backward scale shape"),
+                (dscale, "instance norm backward dscale shape"),
+                (bias_gradient, "instance norm backward bias_gradient shape"),
+            ],
             expected_scale.dimensions(),
-            "instance norm backward scale shape",
         )?;
-        self.validate_tensor_dimensions(
-            dscale,
-            expected_scale.dimensions(),
-            "instance norm backward dscale shape",
-        )?;
-        self.validate_tensor_dimensions(
-            bias_gradient,
-            expected_scale.dimensions(),
-            "instance norm backward bias_gradient shape",
-        )?;
-        self.validate_tensor_dimensions(
-            mean,
+        self.validate_tensors_dimensions(
+            [
+                (mean, "instance norm backward mean shape"),
+                (inv_variance, "instance norm backward inv_variance shape"),
+            ],
             expected_stats.dimensions(),
-            "instance norm backward mean shape",
         )?;
-        self.validate_tensor_dimensions(
-            inv_variance,
-            expected_stats.dimensions(),
-            "instance norm backward inv_variance shape",
-        )?;
-        self.validate_scalar_tensor(config.epsilon(), "instance norm backward epsilon")?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "instance norm backward epsilon")?;
 
-        self.operations
-            .push(Operation::InstanceNormalizationBackward {
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::InstanceBackward {
                 input,
                 mean,
                 inv_variance,
@@ -1174,7 +1138,8 @@ impl Graph {
                 bias_gradient,
                 dx,
                 config,
-            });
+            },
+        ));
         Ok(())
     }
 
@@ -1241,26 +1206,28 @@ impl Graph {
             input_tensor.shape.dimensions(),
             "batch norm output shape",
         )?;
-        for (tensor, name) in [
-            (scale, "batch norm scale shape"),
-            (bias, "batch norm bias shape"),
-            (mean, "batch norm mean shape"),
-            (inv_variance, "batch norm inv_variance shape"),
-        ] {
-            self.validate_tensor_dimensions(tensor, expected_channel.dimensions(), name)?;
-        }
-        self.validate_scalar_tensor(config.epsilon(), "batch norm epsilon")?;
+        self.validate_tensors_dimensions(
+            [
+                (scale, "batch norm scale shape"),
+                (bias, "batch norm bias shape"),
+                (mean, "batch norm mean shape"),
+                (inv_variance, "batch norm inv_variance shape"),
+            ],
+            expected_channel.dimensions(),
+        )?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "batch norm epsilon")?;
         if let Some(running) = config.running() {
             let momentum = running.momentum;
-            self.validate_scalar_tensor(momentum, "batch norm momentum")?;
-            for (tensor, name) in [
-                (running.prev_mean, "batch norm prev_mean shape"),
-                (running.prev_var, "batch norm prev_var shape"),
-                (running.next_mean, "batch norm next_mean shape"),
-                (running.next_var, "batch norm next_var shape"),
-            ] {
-                self.validate_tensor_dimensions(tensor, expected_channel.dimensions(), name)?;
-            }
+            self.validate_tensor_element_count(momentum, 1, "batch norm momentum")?;
+            self.validate_tensors_dimensions(
+                [
+                    (running.prev_mean, "batch norm prev_mean shape"),
+                    (running.prev_var, "batch norm prev_var shape"),
+                    (running.next_mean, "batch norm next_mean shape"),
+                    (running.next_var, "batch norm next_var shape"),
+                ],
+                expected_channel.dimensions(),
+            )?;
         }
         for peer_stat in config.peer_stats() {
             let peer_stat_tensor = self.tensor_config(*peer_stat)?.clone();
@@ -1269,21 +1236,24 @@ impl Graph {
                 &expected_channel,
                 &peer_stat_tensor.shape,
             ) {
-                return Err(Error::DescriptorMismatch {
-                    name: "batch norm peer_stat shape".into(),
+                return Err(Error::ShapeMismatch {
+                    name: support::BATCH_NORM_PEER_STAT_SHAPE.into(),
+                    expected: expected_channel.dimensions().to_vec(),
+                    actual: peer_stat_tensor.shape.dimensions().to_vec(),
                 });
             }
         }
 
-        self.operations.push(Operation::BatchNormalization {
-            input,
-            scale,
-            bias,
-            output,
-            mean,
-            inv_variance,
-            config,
-        });
+        self.operations
+            .push(Operation::Normalization(NormalizationOperation::Batch {
+                input,
+                scale,
+                bias,
+                output,
+                mean,
+                inv_variance,
+                config,
+            }));
         Ok(())
     }
 
@@ -1349,32 +1319,17 @@ impl Graph {
             input_tensor.shape.dimensions(),
             "batch norm backward dx shape",
         )?;
-        self.validate_tensor_dimensions(
-            scale,
+        self.validate_tensors_dimensions(
+            [
+                (scale, "batch norm backward scale shape"),
+                (dscale, "batch norm backward dscale shape"),
+                (bias_gradient, "batch norm backward bias_gradient shape"),
+                (mean, "batch norm backward mean shape"),
+                (inv_variance, "batch norm backward inv_variance shape"),
+            ],
             expected_channel.dimensions(),
-            "batch norm backward scale shape",
         )?;
-        self.validate_tensor_dimensions(
-            dscale,
-            expected_channel.dimensions(),
-            "batch norm backward dscale shape",
-        )?;
-        self.validate_tensor_dimensions(
-            bias_gradient,
-            expected_channel.dimensions(),
-            "batch norm backward bias_gradient shape",
-        )?;
-        self.validate_tensor_dimensions(
-            mean,
-            expected_channel.dimensions(),
-            "batch norm backward mean shape",
-        )?;
-        self.validate_tensor_dimensions(
-            inv_variance,
-            expected_channel.dimensions(),
-            "batch norm backward inv_variance shape",
-        )?;
-        self.validate_scalar_tensor(config.epsilon(), "batch norm backward epsilon")?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "batch norm backward epsilon")?;
         for peer_stat in config.peer_stats() {
             let peer_stat_tensor = self.tensor_config(*peer_stat)?.clone();
             if !Self::batch_normalization_peer_stat_matches(
@@ -1382,23 +1337,27 @@ impl Graph {
                 &expected_channel,
                 &peer_stat_tensor.shape,
             ) {
-                return Err(Error::DescriptorMismatch {
+                return Err(Error::ShapeMismatch {
                     name: "batch norm backward peer_stat shape".into(),
+                    expected: expected_channel.dimensions().to_vec(),
+                    actual: peer_stat_tensor.shape.dimensions().to_vec(),
                 });
             }
         }
 
-        self.operations.push(Operation::BatchNormalizationBackward {
-            input,
-            mean,
-            inv_variance,
-            dy,
-            scale,
-            dscale,
-            bias_gradient,
-            dx,
-            config,
-        });
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::BatchBackward {
+                input,
+                mean,
+                inv_variance,
+                dy,
+                scale,
+                dscale,
+                bias_gradient,
+                dx,
+                config,
+            },
+        ));
         Ok(())
     }
 
@@ -1489,17 +1448,19 @@ impl Graph {
             expected_stats.dimensions(),
             "adaptive layer norm inv_variance shape",
         )?;
-        self.validate_scalar_tensor(config.epsilon(), "adaptive layer norm epsilon")?;
+        self.validate_tensor_element_count(config.epsilon(), 1, "adaptive layer norm epsilon")?;
 
-        self.operations.push(Operation::AdaptiveLayerNormalization {
-            input,
-            scale,
-            bias: config.bias(),
-            output,
-            mean,
-            inv_variance,
-            config,
-        });
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::AdaptiveLayer {
+                input,
+                scale,
+                bias: config.bias(),
+                output,
+                mean,
+                inv_variance,
+                config,
+            },
+        ));
         Ok(())
     }
 
@@ -1554,25 +1515,19 @@ impl Graph {
         let expected_scale = infer_adaptive_layer_norm_scale_bias_shape(&input_tensor.shape)?;
         let expected_stats = infer_adaptive_layer_norm_stats_shape(&input_tensor.shape)?;
 
-        self.validate_tensor_dimensions(
-            dy,
+        self.validate_tensors_dimensions(
+            [
+                (dy, "adaptive layer norm backward dy shape"),
+                (dx, "adaptive layer norm backward dx shape"),
+            ],
             input_tensor.shape.dimensions(),
-            "adaptive layer norm backward dy shape",
         )?;
-        self.validate_tensor_dimensions(
-            dx,
-            input_tensor.shape.dimensions(),
-            "adaptive layer norm backward dx shape",
-        )?;
-        self.validate_tensor_dimensions(
-            scale,
+        self.validate_tensors_dimensions(
+            [
+                (scale, "adaptive layer norm backward scale shape"),
+                (dscale, "adaptive layer norm backward dscale shape"),
+            ],
             expected_scale.dimensions(),
-            "adaptive layer norm backward scale shape",
-        )?;
-        self.validate_tensor_dimensions(
-            dscale,
-            expected_scale.dimensions(),
-            "adaptive layer norm backward dscale shape",
         )?;
         if let Some(bias_gradient) = bias_gradient {
             self.validate_tensor_dimensions(
@@ -1581,19 +1536,19 @@ impl Graph {
                 "adaptive layer norm backward bias_gradient shape",
             )?;
         }
-        self.validate_tensor_dimensions(
-            mean,
+        self.validate_tensors_dimensions(
+            [
+                (mean, "adaptive layer norm backward mean shape"),
+                (
+                    inv_variance,
+                    "adaptive layer norm backward inv_variance shape",
+                ),
+            ],
             expected_stats.dimensions(),
-            "adaptive layer norm backward mean shape",
-        )?;
-        self.validate_tensor_dimensions(
-            inv_variance,
-            expected_stats.dimensions(),
-            "adaptive layer norm backward inv_variance shape",
         )?;
 
-        self.operations
-            .push(Operation::AdaptiveLayerNormalizationBackward {
+        self.operations.push(Operation::Normalization(
+            NormalizationOperation::AdaptiveLayerBackward {
                 input,
                 mean,
                 inv_variance,
@@ -1603,7 +1558,8 @@ impl Graph {
                 bias_gradient,
                 dx,
                 config,
-            });
+            },
+        ));
         Ok(())
     }
 
@@ -1656,6 +1612,6 @@ impl Graph {
         &self,
         cudnn_version: u64,
     ) -> Result<()> {
-        support::ADAPTIVE_LAYER_NORM.require_descriptor_match(cudnn_version)
+        support::ADAPTIVE_LAYER_NORM.require_frontend_feature(cudnn_version)
     }
 }

@@ -1,0 +1,2744 @@
+{
+  "nvtxColorType_t": {
+    "kind": "enum",
+    "page": "group___g_e_n_e_r_a_l.md",
+    "anchor": "gad03fafe52eed68d119c1c4ea6e92a521",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gad03fafe52eed68d119c1c4ea6e92a521",
+    "signature": "enum nvtxColorType_t",
+    "members": {
+      "NVTX_COLOR_UNKNOWN": {
+        "doc": "Color attribute is unused."
+      },
+      "NVTX_COLOR_ARGB": {
+        "doc": "An ARGB color is provided."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMessageType_t": {
+    "kind": "enum",
+    "page": "group___g_e_n_e_r_a_l.md",
+    "anchor": "gaf74d5ab5269ee3c1de7aa0059ca31c46",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gaf74d5ab5269ee3c1de7aa0059ca31c46",
+    "signature": "enum nvtxMessageType_t",
+    "members": {
+      "NVTX_MESSAGE_UNKNOWN": {
+        "doc": "Message attribute is unused."
+      },
+      "NVTX_MESSAGE_TYPE_ASCII": {
+        "doc": "A character sequence is used as payload."
+      },
+      "NVTX_MESSAGE_TYPE_UNICODE": {
+        "doc": "A wide character sequence is used as payload."
+      },
+      "NVTX_MESSAGE_TYPE_REGISTERED": {
+        "doc": "A unique string handle that was registered with `nvtxDomainRegisterStringA` or nvtxDomainRegisterStringW()."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxInitialize": {
+    "kind": "function",
+    "page": "group___g_e_n_e_r_a_l.md",
+    "anchor": "gab89b5c89bfdf240e0ea83b6ab2f89fdf",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gab89b5c89bfdf240e0ea83b6ab2f89fdf",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxInitialize(const void * reserved)",
+    "doc": "Force initialization (optional).\n\nForce NVTX library to initialize. The first call to any NVTX API function will automatically initialize the entire API. This can make the first call much slower than subsequent calls. In applications where the first call to NVTX may be in a performance-critical section, calling nvtxInitialize before any performance-critical sections will ensure NVTX initialization occurs at an acceptable time. Since nvtxInitialize takes no parameters and has no expected behavior besides initialization, it is convenient to add a call to nvtxInitialize in NVTX-instrumented applications that need to force earlier initialization without changing any other code. For example, if an app's first NVTX call is nvtxDomainCreate, and it is difficult to move that call earlier because the domain handle must be stored in an object only created at that point, adding a call to nvtxInitialize at the top of main() will ensure the later call to nvtxDomainCreate is as fast as possible.",
+    "parameters": {
+      "reserved": {
+        "doc": "must be zero or NULL."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxPayloadType_t": {
+    "kind": "enum",
+    "page": "group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.md",
+    "anchor": "ga2cd77099163a1997f5adff5457e6e5d7",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.html#ga2cd77099163a1997f5adff5457e6e5d7",
+    "signature": "enum nvtxPayloadType_t",
+    "members": {
+      "NVTX_PAYLOAD_UNKNOWN": {
+        "doc": "Payload attribute is unused."
+      },
+      "NVTX_PAYLOAD_TYPE_UNSIGNED_INT64": {
+        "doc": "A 64 bit unsigned integer value is used as payload."
+      },
+      "NVTX_PAYLOAD_TYPE_INT64": {
+        "doc": "A 64 bit signed integer value is used as payload."
+      },
+      "NVTX_PAYLOAD_TYPE_DOUBLE": {
+        "doc": "A 64 bit floating point value is used as payload."
+      },
+      "NVTX_PAYLOAD_TYPE_UNSIGNED_INT32": {
+        "doc": "A 32 bit floating point value is used as payload."
+      },
+      "NVTX_PAYLOAD_TYPE_INT32": {
+        "doc": "A 32 bit floating point value is used as payload."
+      },
+      "NVTX_PAYLOAD_TYPE_FLOAT": {
+        "doc": "A 32 bit floating point value is used as payload."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainMarkEx": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "ga9e31d7977bcd3b4e64da577908f20e70",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga9e31d7977bcd3b4e64da577908f20e70",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainMarkEx(nvtxDomainHandle_t domain, const nvtxEventAttributes_t * eventAttrib)",
+    "doc": "Marks an instantaneous event in the application.\n\nA marker can contain a text message or specify additional information using the event attributes structure. These attributes include a text message, color, category, and a payload. Each of the attributes is optional and can only be sent out using the `nvtxDomainMarkEx` function.\n\nnvtxDomainMarkEx(NULL, event) is equivalent to calling nvtxMarkEx(event).",
+    "parameters": {
+      "domain": {
+        "doc": "The domain of scoping the category."
+      },
+      "eventAttrib": {
+        "doc": "The event attribute structure defining the marker's attribute types and attribute values."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainRangeEnd": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "ga29d0e8aa08dec9486559287a27ce7f3f",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga29d0e8aa08dec9486559287a27ce7f3f",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainRangeEnd(nvtxDomainHandle_t domain, nvtxRangeId_t id)",
+    "doc": "Ends a process range.",
+    "parameters": {
+      "domain": {
+        "doc": "The domain."
+      },
+      "id": {
+        "doc": "The correlation ID returned from a nvtxRangeStart call."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainRangePop": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "ga1b9340e7db3641deb5e14566c4fa6920",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga1b9340e7db3641deb5e14566c4fa6920",
+    "signature": "NVTX_DECLSPEC int NVTX_API nvtxDomainRangePop(nvtxDomainHandle_t domain)",
+    "doc": "Ends a nested thread range.",
+    "return_value": {
+      "doc": "The level of the range being ended. If an error occurs a negative value is returned on the current thread.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga1b9340e7db3641deb5e14566c4fa6920"
+    },
+    "deprecated": false
+  },
+  "nvtxDomainRangePushEx": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "ga5bba05d37e356e080b8b68d6618f174d",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga5bba05d37e356e080b8b68d6618f174d",
+    "signature": "NVTX_DECLSPEC int NVTX_API nvtxDomainRangePushEx(nvtxDomainHandle_t domain, const nvtxEventAttributes_t * eventAttrib)",
+    "doc": "Starts a nested thread range.",
+    "parameters": {
+      "domain": {
+        "doc": "The domain of scoping."
+      },
+      "eventAttrib": {
+        "doc": "The event attribute structure defining the range's attribute types and attribute values."
+      }
+    },
+    "return_value": {
+      "doc": "The 0 based level of range being started. This value is scoped to the domain. If an error occurs, a negative value is returned.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga5bba05d37e356e080b8b68d6618f174d"
+    },
+    "deprecated": false
+  },
+  "nvtxDomainRangeStartEx": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "gaf1cdd49e2d1fde6a62fabf30009adbc0",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#gaf1cdd49e2d1fde6a62fabf30009adbc0",
+    "signature": "NVTX_DECLSPEC nvtxRangeId_t NVTX_API nvtxDomainRangeStartEx(nvtxDomainHandle_t domain, const nvtxEventAttributes_t * eventAttrib)",
+    "doc": "Starts a process range in a domain.",
+    "parameters": {
+      "domain": {
+        "doc": "The domain of scoping the category."
+      },
+      "eventAttrib": {
+        "doc": "The event attribute structure defining the range's attribute types and attribute values."
+      }
+    },
+    "return_value": {
+      "doc": "The unique ID used to correlate a pair of Start and End events.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#gaf1cdd49e2d1fde6a62fabf30009adbc0"
+    },
+    "deprecated": false
+  },
+  "nvtxMarkA": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "gaa8b4b68acc37bdaf14349b25752b26f9",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#gaa8b4b68acc37bdaf14349b25752b26f9",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMarkA(const char * message)",
+    "doc": "Marks an instantaneous event in the application.\n\nA marker created using `nvtxMarkA` or nvtxMarkW contains only a text message.",
+    "parameters": {
+      "message": {
+        "doc": "The message associated to this marker event."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMarkEx": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "gaa31a1079a237d0772f84c56aeda7b26d",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#gaa31a1079a237d0772f84c56aeda7b26d",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMarkEx(const nvtxEventAttributes_t * eventAttrib)",
+    "doc": "Marks an instantaneous event in the application.\n\nA marker can contain a text message or specify additional information using the event attributes structure. These attributes include a text message, color, category, and a payload. Each of the attributes is optional and can only be sent out using the `nvtxMarkEx` function. If `nvtxMarkA` or nvtxMarkW are used to specify the marker or if an attribute is unspecified then a default value will be used.",
+    "parameters": {
+      "eventAttrib": {
+        "doc": "The event attribute structure defining the marker's attribute types and attribute values."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxRangeEnd": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "ga5e72fe22a8f4fde6e36ef15e7c1416bb",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga5e72fe22a8f4fde6e36ef15e7c1416bb",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxRangeEnd(nvtxRangeId_t id)",
+    "doc": "Ends a process range.",
+    "parameters": {
+      "id": {
+        "doc": "The correlation ID returned from an nvtxRangeStart call."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxRangePop": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "ga44275a20ccd53472750b46988c772930",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga44275a20ccd53472750b46988c772930",
+    "signature": "NVTX_DECLSPEC int NVTX_API nvtxRangePop(void)",
+    "doc": "Ends a nested thread range.",
+    "return_value": {
+      "doc": "The level of the range being ended. If an error occurs a negative value is returned on the current thread.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga44275a20ccd53472750b46988c772930"
+    },
+    "deprecated": false
+  },
+  "nvtxRangePushA": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "ga67e1802542efa43b20471ad8dec30c1c",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga67e1802542efa43b20471ad8dec30c1c",
+    "signature": "NVTX_DECLSPEC int NVTX_API nvtxRangePushA(const char * message)",
+    "doc": "Starts a nested thread range.",
+    "parameters": {
+      "message": {
+        "doc": "The event message associated to this range event."
+      }
+    },
+    "return_value": {
+      "doc": "The 0 based level of range being started. If an error occurs a negative value is returned.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga67e1802542efa43b20471ad8dec30c1c"
+    },
+    "deprecated": false
+  },
+  "nvtxRangePushEx": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "gadab44822980b42e4b73b19edcd9de92c",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#gadab44822980b42e4b73b19edcd9de92c",
+    "signature": "NVTX_DECLSPEC int NVTX_API nvtxRangePushEx(const nvtxEventAttributes_t * eventAttrib)",
+    "doc": "Starts a nested thread range.",
+    "parameters": {
+      "eventAttrib": {
+        "doc": "The event attribute structure defining the range's attribute types and attribute values."
+      }
+    },
+    "return_value": {
+      "doc": "The 0 based level of range being started. This level is per domain. If an error occurs a negative value is returned.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#gadab44822980b42e4b73b19edcd9de92c"
+    },
+    "deprecated": false
+  },
+  "nvtxRangeStartA": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "ga3069ca1d13ba40acd58bb2bde935c19b",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga3069ca1d13ba40acd58bb2bde935c19b",
+    "signature": "NVTX_DECLSPEC nvtxRangeId_t NVTX_API nvtxRangeStartA(const char * message)",
+    "doc": "Starts a process range.",
+    "parameters": {
+      "message": {
+        "doc": "The event message associated to this range event."
+      }
+    },
+    "return_value": {
+      "doc": "The unique ID used to correlate a pair of Start and End events.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#ga3069ca1d13ba40acd58bb2bde935c19b"
+    },
+    "deprecated": false
+  },
+  "nvtxRangeStartEx": {
+    "kind": "function",
+    "page": "group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.md",
+    "anchor": "gadfb180099c39096e890ad698c5d3efab",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#gadfb180099c39096e890ad698c5d3efab",
+    "signature": "NVTX_DECLSPEC nvtxRangeId_t NVTX_API nvtxRangeStartEx(const nvtxEventAttributes_t * eventAttrib)",
+    "doc": "Starts a process range.",
+    "parameters": {
+      "eventAttrib": {
+        "doc": "The event attribute structure defining the range's attribute types and attribute values."
+      }
+    },
+    "return_value": {
+      "doc": "The unique ID used to correlate a pair of Start and End events.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_a_r_k_e_r_s___a_n_d___r_a_n_g_e_s.html#gadfb180099c39096e890ad698c5d3efab"
+    },
+    "deprecated": false
+  },
+  "nvtxResourceCUDARTType_t": {
+    "kind": "enum",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga0c4c8dd24343fa6f3d32cd778c5fd9ff",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga0c4c8dd24343fa6f3d32cd778c5fd9ff",
+    "signature": "enum nvtxResourceCUDARTType_t",
+    "doc": "Resource types for CUDART.",
+    "deprecated": false
+  },
+  "nvtxResourceCUDAType_t": {
+    "kind": "enum",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gac064cff7b338ee310435be257d66c770",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gac064cff7b338ee310435be257d66c770",
+    "signature": "enum nvtxResourceCUDAType_t",
+    "doc": "Resource types for CUDA.",
+    "deprecated": false
+  },
+  "nvtxResourceGenericType_t": {
+    "kind": "enum",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gabaaf30c7cfd72033a5521de326eacdab",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gabaaf30c7cfd72033a5521de326eacdab",
+    "signature": "enum nvtxResourceGenericType_t",
+    "doc": "Generic resource type for when a resource class is not available.",
+    "members": {
+      "NVTX_RESOURCE_TYPE_GENERIC_POINTER": {
+        "doc": "Generic pointer assumed to have no collisions with other pointers."
+      },
+      "NVTX_RESOURCE_TYPE_GENERIC_HANDLE": {
+        "doc": "Generic handle assumed to have no collisions with other handles."
+      },
+      "NVTX_RESOURCE_TYPE_GENERIC_THREAD_NATIVE": {
+        "doc": "OS native thread identifier."
+      },
+      "NVTX_RESOURCE_TYPE_GENERIC_THREAD_POSIX": {
+        "doc": "POSIX pthread identifier."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxResourceOpenCLType_t": {
+    "kind": "enum",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gabe2bb2099deba2265ec10b8881102e97",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gabe2bb2099deba2265ec10b8881102e97",
+    "signature": "enum nvtxResourceOpenCLType_t",
+    "doc": "Resource types for OpenCL.",
+    "deprecated": false
+  },
+  "nvtxDomainNameCategoryA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gaf2898af52be50279355c0ee1f57afbaa",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gaf2898af52be50279355c0ee1f57afbaa",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainNameCategoryA(nvtxDomainHandle_t domain, uint32_t category, const char * name)",
+    "doc": "Annotate an NVTX category used within a domain.\n\nCategories are used to group sets of events. Each category is identified through a unique ID and that ID is passed into any of the marker/range events to assign that event to a specific category. The nvtxDomainNameCategory function calls allow the user to assign a name to a category ID that is specific to the domain.\n\nnvtxDomainNameCategory(NULL, category, name) is equivalent to calling nvtxNameCategory(category, name).",
+    "parameters": {
+      "domain": {
+        "doc": "The domain of scoping the category."
+      },
+      "category": {
+        "doc": "The category ID to name."
+      },
+      "name": {
+        "doc": "The name of the category."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainResourceCreate": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga12271bb3f03619d5862bd5a900f9aac1",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga12271bb3f03619d5862bd5a900f9aac1",
+    "signature": "NVTX_DECLSPEC nvtxResourceHandle_t NVTX_API nvtxDomainResourceCreate(nvtxDomainHandle_t domain, nvtxResourceAttributes_t * attribs)",
+    "doc": "Create a resource object to track and associate data with OS and middleware objects.\n\nAllows users to associate an API handle or pointer with a user-provided name.",
+    "parameters": {
+      "domain": {
+        "doc": "Domain to own the resource object."
+      },
+      "attribs": {
+        "doc": "Attributes to be associated with the resource."
+      }
+    },
+    "return_value": {
+      "doc": "A handle that represents the newly created resource object.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga12271bb3f03619d5862bd5a900f9aac1"
+    },
+    "deprecated": false
+  },
+  "nvtxDomainResourceDestroy": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gaa95f902006e108c6fcca5c76b2d4a2b1",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gaa95f902006e108c6fcca5c76b2d4a2b1",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainResourceDestroy(nvtxResourceHandle_t resource)",
+    "doc": "Destroy a resource object to track and associate data with OS and middleware objects.\n\nAllows users to associate an API handle or pointer with a user-provided name.",
+    "parameters": {
+      "resource": {
+        "doc": "Handle to the resource in which to operate."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameCategoryA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga801e84711db9de7b28235e529b101e4a",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga801e84711db9de7b28235e529b101e4a",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameCategoryA(uint32_t category, const char * name)",
+    "doc": "Annotate an NVTX category.\n\nCategories are used to group sets of events. Each category is identified through a unique ID and that ID is passed into any of the marker/range events to assign that event to a specific category. The nvtxNameCategory function calls allow the user to assign a name to a category ID.",
+    "parameters": {
+      "category": {
+        "doc": "The category ID to name."
+      },
+      "name": {
+        "doc": "The name of the category."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameClCommandQueueA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gad77c1f0c58901eac54ad4e25a3e0de0e",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gad77c1f0c58901eac54ad4e25a3e0de0e",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameClCommandQueueA(cl_command_queue command_queue, const char * name)",
+    "doc": "Annotates an OpenCL command queue.\n\nAllows to associate an OpenCL command queue with a user-provided name.",
+    "parameters": {
+      "command_queue": {
+        "doc": "The handle of the OpenCL command queue to name."
+      },
+      "name": {
+        "doc": "The name of the OpenCL command queue."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameClContextA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gaf2aecaaf56c48c70a2606e341da019d4",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gaf2aecaaf56c48c70a2606e341da019d4",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameClContextA(cl_context context, const char * name)",
+    "doc": "Annotates an OpenCL context.\n\nAllows to associate an OpenCL context with a user-provided name.",
+    "parameters": {
+      "context": {
+        "doc": "The handle of the OpenCL context to name."
+      },
+      "name": {
+        "doc": "The name of the OpenCL context."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameClDeviceA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga41c7b1a74896903cbe37766555d7bbfc",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga41c7b1a74896903cbe37766555d7bbfc",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameClDeviceA(cl_device_id device, const char * name)",
+    "doc": "Annotates an OpenCL device.\n\nAllows to associate an OpenCL device with a user-provided name.",
+    "parameters": {
+      "device": {
+        "doc": "The handle of the OpenCL device to name."
+      },
+      "name": {
+        "doc": "The name of the OpenCL device."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameClEventA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga25a2056832a5542f41c9e9872765f3d8",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga25a2056832a5542f41c9e9872765f3d8",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameClEventA(cl_event evnt, const char * name)",
+    "doc": "Annotates an OpenCL event.\n\nAllows to associate an OpenCL event with a user-provided name.",
+    "parameters": {
+      "evnt": {
+        "doc": "The handle of the OpenCL event to name."
+      },
+      "name": {
+        "doc": "The name of the OpenCL event."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameClMemObjectA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga8c2f546121c845981e5ec9b4c318a5e1",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga8c2f546121c845981e5ec9b4c318a5e1",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameClMemObjectA(cl_mem memobj, const char * name)",
+    "doc": "Annotates an OpenCL memory object.\n\nAllows to associate an OpenCL memory object with a user-provided name.",
+    "parameters": {
+      "memobj": {
+        "doc": "The handle of the OpenCL memory object to name."
+      },
+      "name": {
+        "doc": "The name of the OpenCL memory object."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameClProgramA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gab97f5a8a16c36c9c6b90428ae9ffa62e",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gab97f5a8a16c36c9c6b90428ae9ffa62e",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameClProgramA(cl_program program, const char * name)",
+    "doc": "Annotates an OpenCL program.\n\nAllows to associate an OpenCL program with a user-provided name.\n\ncpProgram = clCreateProgramWithSource(cxGPUContext, 1,\n\n(const char \\*\\*) &cSourceCL, &program_length, &ciErrNum);\n\nshrCheckErrorEX(ciErrNum, CL_SUCCESS, pCleanup);\n\nnvtxNameClProgram(cpProgram, L\"PROGRAM_NAME\");.",
+    "parameters": {
+      "program": {
+        "doc": "The handle of the OpenCL program to name."
+      },
+      "name": {
+        "doc": "The name of the OpenCL program."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameClSamplerA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga2933ed29151b0c3dcbcd9b80440b09a8",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga2933ed29151b0c3dcbcd9b80440b09a8",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameClSamplerA(cl_sampler sampler, const char * name)",
+    "doc": "Annotates an OpenCL sampler.\n\nAllows to associate an OpenCL sampler with a user-provided name.",
+    "parameters": {
+      "sampler": {
+        "doc": "The handle of the OpenCL sampler to name."
+      },
+      "name": {
+        "doc": "The name of the OpenCL sampler."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameCuContextA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga9e4a70510d4deb5e0e21039d00a64dc4",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga9e4a70510d4deb5e0e21039d00a64dc4",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameCuContextA(CUcontext context, const char * name)",
+    "doc": "Annotates a CUDA context.\n\nAllows the user to associate a CUDA context with a user-provided name.",
+    "parameters": {
+      "context": {
+        "doc": "The handle of the CUDA context to name."
+      },
+      "name": {
+        "doc": "The name of the CUDA context."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameCudaDeviceA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga7dc62de300d3ee0ecd96c8ea4bdf9ede",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga7dc62de300d3ee0ecd96c8ea4bdf9ede",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameCudaDeviceA(int device, const char * name)",
+    "doc": "Annotates a CUDA device.\n\nAllows the user to associate a CUDA device with a user-provided name.",
+    "parameters": {
+      "device": {
+        "doc": "The id of the CUDA device to name."
+      },
+      "name": {
+        "doc": "The name of the CUDA device."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameCudaEventA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gabbdb1f82b6ae42291dd9f9cfce0bda6a",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gabbdb1f82b6ae42291dd9f9cfce0bda6a",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameCudaEventA(cudaEvent_t event, const char * name)",
+    "doc": "Annotates a CUDA event.\n\nAllows the user to associate a CUDA event with a user-provided name.",
+    "parameters": {
+      "event": {
+        "doc": "The handle of the CUDA event to name."
+      },
+      "name": {
+        "doc": "The name of the CUDA event."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameCudaStreamA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga83a1216bed0f8c995a9f8190325d502c",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga83a1216bed0f8c995a9f8190325d502c",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameCudaStreamA(cudaStream_t stream, const char * name)",
+    "doc": "Annotates a CUDA stream.\n\nAllows the user to associate a CUDA stream with a user-provided name.",
+    "parameters": {
+      "stream": {
+        "doc": "The handle of the CUDA stream to name."
+      },
+      "name": {
+        "doc": "The name of the CUDA stream."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameCuDeviceA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga3c55ce198bddea831a5ba087361eb6df",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga3c55ce198bddea831a5ba087361eb6df",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameCuDeviceA(CUdevice device, const char * name)",
+    "doc": "Annotates a CUDA device.\n\nAllows the user to associate a CUDA device with a user-provided name.",
+    "parameters": {
+      "device": {
+        "doc": "The handle of the CUDA device to name."
+      },
+      "name": {
+        "doc": "The name of the CUDA device."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameCuEventA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "ga7d27495642375963619c4be8f871abc1",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#ga7d27495642375963619c4be8f871abc1",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameCuEventA(CUevent event, const char * name)",
+    "doc": "Annotates a CUDA event.\n\nAllows the user to associate a CUDA event with a user-provided name.",
+    "parameters": {
+      "event": {
+        "doc": "The handle of the CUDA event to name."
+      },
+      "name": {
+        "doc": "The name of the CUDA event."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameCuStreamA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gacada16c62463b268f8ede952ec77f766",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gacada16c62463b268f8ede952ec77f766",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameCuStreamA(CUstream stream, const char * name)",
+    "doc": "Annotates a CUDA stream.\n\nAllows the user to associate a CUDA stream with a user-provided name.",
+    "parameters": {
+      "stream": {
+        "doc": "The handle of the CUDA stream to name."
+      },
+      "name": {
+        "doc": "The name of the CUDA stream."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxNameOsThreadA": {
+    "kind": "function",
+    "page": "group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.md",
+    "anchor": "gaeb7d5b25e1147fc4aaf1f3acb8e719d0",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gaeb7d5b25e1147fc4aaf1f3acb8e719d0",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxNameOsThreadA(uint32_t threadId, const char * name)",
+    "doc": "Annotate an OS thread.\n\nAllows the user to name an active thread of the current process. If an invalid thread ID is provided or a thread ID from a different process is used the behavior of the tool is implementation dependent.\n\nTools expect thread ID to be a number that uniquely identifies the thread at the time of the call. Note that a thread's ID can be reused after it is destroyed. Tools may choose how to handle aliasing of thread IDs.\n\nPOSIX pthread_t type returned by pthread_self() may not comply with these expectations. Please use OS-specific thread ID instead of pthread_t.\n\nThe thread name is associated to the default domain. To support domains use resource objects via `nvtxDomainResourceCreate`.\n\nWindows:\n\n#include &lt;windows.h>\n\nnvtxNameOsThread(GetCurrentThreadId(), \"Current thread\");\n\nnvtxNameOsThread(GetThreadId(SomeThreadHandle), \"Other thread\");\n\nAndroid:\n\n#include &lt;unistd.h>\n\n`nvtxNameOsThreadA`(gettid(), \"Current thread\");\n\n`nvtxNameOsThreadA`(getpid(), \"Main thread\");\n\n`nvtxNameOsThreadA`\n\nNVTX_DECLSPEC void NVTX_API nvtxNameOsThreadA(uint32_t threadId, const char \\*name)\n\nAnnotate an OS thread.\n\nLinux:\n\n#include &lt;sys/syscall.h>\n\n`nvtxNameOsThreadA`(syscall(SYS_gettid), \"Current thread\");\n\n#include &lt;unistd.h>\n\n`nvtxNameOsThreadA`(getpid(), \"Main thread\");\n\nmacOS:\n\n#include &lt;sys/syscall.h>\n\n`nvtxNameOsThreadA`(syscall(SYS_thread_selfid), \"Current thread\");\n\n#include &lt;pthread.h>\n\n__uint64_t id;\n\npthread_threadid_np(pthread_self(), &id);\n\n`nvtxNameOsThreadA`(id, \"Current thread\");\n\npthread_threadid_np(somePThreadId, &id);\n\n`nvtxNameOsThreadA`(id, \"Other thread\");.",
+    "parameters": {
+      "threadId": {
+        "doc": "The ID of the thread to name."
+      },
+      "name": {
+        "doc": "The name of the thread."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainRegisterStringA": {
+    "kind": "function",
+    "page": "group___s_t_r_i_n_g___r_e_g_i_s_t_r_a_t_i_o_n.md",
+    "anchor": "gaed4907d1c69789ca32d59788a6386a1f",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_t_r_i_n_g___r_e_g_i_s_t_r_a_t_i_o_n.html#gaed4907d1c69789ca32d59788a6386a1f",
+    "signature": "NVTX_DECLSPEC nvtxStringHandle_t NVTX_API nvtxDomainRegisterStringA(nvtxDomainHandle_t domain, const char * string)",
+    "doc": "Register a string.\n\nRegisters an immutable string with NVTX. Once registered the pointer used to register the domain name can be used in nvtxEventAttributes_t [MESSAGE_FIELD](https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#MESSAGE_FIELD). This allows NVTX implementation to skip copying the contents of the message on each event invocation.\n\nString registration is an optimization. It is recommended to use string registration if the string will be passed to an event many times.\n\nStrings are not unregistered, except that by unregistering the entire domain.",
+    "parameters": {
+      "domain": {
+        "doc": "Domain handle. If NULL then the global domain is used."
+      },
+      "string": {
+        "doc": "A unique pointer to a sequence of characters."
+      }
+    },
+    "return_value": {
+      "doc": "A handle representing the registered string.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_t_r_i_n_g___r_e_g_i_s_t_r_a_t_i_o_n.html#gaed4907d1c69789ca32d59788a6386a1f"
+    },
+    "deprecated": false
+  },
+  "nvtxDomainCreateA": {
+    "kind": "function",
+    "page": "group___d_o_m_a_i_n_s.md",
+    "anchor": "ga2bbf44a48a4a46bf8900bd886524d87d",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___d_o_m_a_i_n_s.html#ga2bbf44a48a4a46bf8900bd886524d87d",
+    "signature": "NVTX_DECLSPEC nvtxDomainHandle_t NVTX_API nvtxDomainCreateA(const char * name)",
+    "doc": "Register a NVTX domain.\n\nDomains are used to scope annotations. All NVTX_VERSION_0 and NVTX_VERSION_1 annotations are scoped to the global domain. The function nvtxDomainCreate creates a new named domain.\n\nEach domain maintains its own nvtxRangePush and nvtxRangePop stack.",
+    "parameters": {
+      "name": {
+        "doc": "A unique string representing the domain."
+      }
+    },
+    "return_value": {
+      "doc": "A handle representing the domain.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___d_o_m_a_i_n_s.html#ga2bbf44a48a4a46bf8900bd886524d87d"
+    },
+    "deprecated": false
+  },
+  "nvtxDomainDestroy": {
+    "kind": "function",
+    "page": "group___d_o_m_a_i_n_s.md",
+    "anchor": "ga58b2508b5bbdfdd3cf30e4eaeb15a885",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___d_o_m_a_i_n_s.html#ga58b2508b5bbdfdd3cf30e4eaeb15a885",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainDestroy(nvtxDomainHandle_t domain)",
+    "doc": "Unregister a NVTX domain.\n\nUnregisters the domain handle and frees all domain specific resources.",
+    "parameters": {
+      "domain": {
+        "doc": "the domain handle."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxResourceSyncAndroidType_t": {
+    "kind": "typedef",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "ga2601dab93020f0a531dbaa78ef6a90f7",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#ga2601dab93020f0a531dbaa78ef6a90f7",
+    "signature": "typedef enum nvtxResourceSyncLinuxType_t nvtxResourceSyncAndroidType_t",
+    "doc": "Resource type values for Android come from Linux.",
+    "deprecated": false
+  },
+  "nvtxSyncUser_t": {
+    "kind": "typedef",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "ga79ab2a04ba725255a14f1d2a34b92f9f",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#ga79ab2a04ba725255a14f1d2a34b92f9f",
+    "signature": "typedef struct nvtxSyncUser* nvtxSyncUser_t",
+    "doc": "User Defined Synchronization Object Handle .\n\nThis structure is opaque to the user and is used as a handle to reference a user defined synchronization object. The tools will return a pointer through the API for the application to hold on its behalf to reference the string in the future.",
+    "deprecated": false
+  },
+  "nvtxResourceSyncLinuxType_t": {
+    "kind": "enum",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "gabd911875209941190ff52505407c7609",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#gabd911875209941190ff52505407c7609",
+    "signature": "enum nvtxResourceSyncLinuxType_t",
+    "doc": "Resource type values for Linux and Linux derived OSs such as Android.",
+    "deprecated": false
+  },
+  "nvtxResourceSyncPosixThreadType_t": {
+    "kind": "enum",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "gad74944ded1068254043d7400a66ce887",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#gad74944ded1068254043d7400a66ce887",
+    "signature": "enum nvtxResourceSyncPosixThreadType_t",
+    "doc": "Resource type values for OSs with POSIX Thread API support.",
+    "deprecated": false
+  },
+  "nvtxResourceSyncWindowsType_t": {
+    "kind": "enum",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "gad86534581d1769a5d946a2f0d98cc8a1",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#gad86534581d1769a5d946a2f0d98cc8a1",
+    "signature": "enum nvtxResourceSyncWindowsType_t",
+    "doc": "Resource type values for Windows OSs.",
+    "deprecated": false
+  },
+  "nvtxDomainSyncUserAcquireFailed": {
+    "kind": "function",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "ga0e55c70eb9e00dab800a1f8d88a8ef64",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#ga0e55c70eb9e00dab800a1f8d88a8ef64",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainSyncUserAcquireFailed(nvtxSyncUser_t handle)",
+    "doc": "Signal to tools of failure in acquiring a user defined synchronization object This should be called after `nvtxDomainSyncUserAcquireStart`.",
+    "parameters": {
+      "handle": {
+        "doc": "A handle to the object to operate on."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainSyncUserAcquireStart": {
+    "kind": "function",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "ga095b4608933461c8be0197d91536f799",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#ga095b4608933461c8be0197d91536f799",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainSyncUserAcquireStart(nvtxSyncUser_t handle)",
+    "doc": "Signal to tools that an attempt to acquire a user defined synchronization object.",
+    "parameters": {
+      "handle": {
+        "doc": "A handle to the object to operate on."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainSyncUserAcquireSuccess": {
+    "kind": "function",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "ga6ea2a313cad77c58dc4150fdd08ef72c",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#ga6ea2a313cad77c58dc4150fdd08ef72c",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainSyncUserAcquireSuccess(nvtxSyncUser_t handle)",
+    "doc": "Signal to tools of success in acquiring a user defined synchronization object This should be called after `nvtxDomainSyncUserAcquireStart`.",
+    "parameters": {
+      "handle": {
+        "doc": "A handle to the object to operate on."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainSyncUserCreate": {
+    "kind": "function",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "gafa5155c0890472bcaaba59e8a20c397e",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#gafa5155c0890472bcaaba59e8a20c397e",
+    "signature": "NVTX_DECLSPEC nvtxSyncUser_t NVTX_API nvtxDomainSyncUserCreate(nvtxDomainHandle_t domain, const nvtxSyncUserAttributes_t * attribs)",
+    "doc": "Create a user defined synchronization object This is used to track non-OS synchronization working with spinlocks and atomics.",
+    "parameters": {
+      "domain": {
+        "doc": "Domain to own the resource."
+      },
+      "attribs": {
+        "doc": "A structure to assign multiple attributes to the object."
+      }
+    },
+    "return_value": {
+      "doc": "A handle that represents the newly created user defined synchronization object.",
+      "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#gafa5155c0890472bcaaba59e8a20c397e"
+    },
+    "deprecated": false
+  },
+  "nvtxDomainSyncUserDestroy": {
+    "kind": "function",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "gadcb0093d514169e0ef8e77df268a05a3",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#gadcb0093d514169e0ef8e77df268a05a3",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainSyncUserDestroy(nvtxSyncUser_t handle)",
+    "doc": "Destroy a user defined synchronization object This is used to track non-OS synchronization working with spinlocks and atomics.",
+    "parameters": {
+      "handle": {
+        "doc": "A handle to the object to operate on."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxDomainSyncUserReleasing": {
+    "kind": "function",
+    "page": "group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.md",
+    "anchor": "ga4524252698484b2af060b4b37bac6840",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___s_y_n_c_h_r_o_n_i_z_a_t_i_o_n.html#ga4524252698484b2af060b4b37bac6840",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxDomainSyncUserReleasing(nvtxSyncUser_t handle)",
+    "doc": "Signal to tools of releasing a reservation on user defined synchronization object This should be called after `nvtxDomainSyncUserAcquireSuccess`.",
+    "parameters": {
+      "handle": {
+        "doc": "A handle to the object to operate on."
+      }
+    },
+    "deprecated": false
+  },
+  "NVTX_MEM_HEAP_HANDLE_PROCESS_WIDE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga1abeb15def646b97b7df002f48c77131",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga1abeb15def646b97b7df002f48c77131",
+    "signature": "#define NVTX_MEM_HEAP_HANDLE_PROCESS_WIDE(NVTX_REINTERPRET_CAST(nvtxMemHeapHandle_t, 0))",
+    "doc": "To indicate the full process virtual address space as a heap for functions where a nvtxMemHeapHandle_t is accepted.\n\nThe heap by default is always read-write-execute permissions without creating regions. Regions created in this heap have read-write access by default but not execute.",
+    "deprecated": false
+  },
+  "NVTX_MEM_HEAP_USAGE_TYPE_LAYOUT": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gac61e78dbf1f2c0041d339d218593e6b6",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gac61e78dbf1f2c0041d339d218593e6b6",
+    "doc": "This is a heap of memory that has an explicit layout.\n\nThe layout could be static or dynamic (calculated). This often represents an algorithm's structures that are packed together. By default this heap is assumed to be accessible for scopes where the memory is naturally accessible by hardware. Regions may be use to further annotate or restrict access. A tool may have an option to be more strict, but special consideration must be made for `NVTX_MEM_HEAP_HANDLE_PROCESS_WIDE`.\n\nThe behavior of this usage is similar to NVTX_MEM_HEAP_HANDLE_PROCESS_WIDE but a tool can use it to track special behaviors and reservation.\n\nMemory in a heap with this usage has read-write permissions by default but not execute without creating regions. Regions created in this heap have the same default permission access.",
+    "deprecated": false
+  },
+  "NVTX_MEM_HEAP_USAGE_TYPE_SUB_ALLOCATOR": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gabfc4a973ce7aae0f6bc85758491dffb2",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gabfc4a973ce7aae0f6bc85758491dffb2",
+    "doc": "This heap is a sub-allocator.\n\nHeap created with this usage should not be accessed by the user until regions are registered. Regions from a heap with this usage have read-write access by default but not execute.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_BIND_FLAGS_NONE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga6354421b6134639e6f43674fcc1267d7",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga6354421b6134639e6f43674fcc1267d7",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_BIND_FLAGS_STRICT_ATOMIC": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gab37b7d7751e95a681f5faa793e8167e9",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gab37b7d7751e95a681f5faa793e8167e9",
+    "doc": "Upon binding, with the thread, exclude parent scope atomic RW regions instead of overlaying on top of them.\n\nEX After eliminating any errors from read and write, a developer may chose to ensure that atomics are in their own region, removing standard read/write, and replacing with this strict atomic only access. This way they know that conventional reads or writes will not cause unexpected issues.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_BIND_FLAGS_STRICT_READ": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga160040e9f3eae923985ca853a8c8b121",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga160040e9f3eae923985ca853a8c8b121",
+    "doc": "Upon binding, with the thread, exclude parent scope read regions instead of overlaying on top of them.\n\nEX After eliminating any errors when applying strict writes, a developer may then choose to annotate and enforce strict reads behaviors in segments of code.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_BIND_FLAGS_STRICT_WRITE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gafc19b9b4a2a897e419b1f3dce50b34a8",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gafc19b9b4a2a897e419b1f3dce50b34a8",
+    "doc": "Upon binding, with the thread, exclude parent scope write regions instead of overlaying on top of them.\n\nEX A developer may chose to first prevent all writes except the ones specified to avoid OOB writes, since there are typically fewer regions written to than read from.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_BIND_SCOPE_CPU_THREAD": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gaf34edbf4ff61c7e8ab4d0a6da9153636",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gaf34edbf4ff61c7e8ab4d0a6da9153636",
+    "doc": "Bind to thread scope. In this case, tools should validate that local thread's execution is honoring the permissions as well as the state of NVTX_MEM_PERMISSIONS_HANDLE_PROCESS_WIDE at the time of binding. If this is not bound then NVTX_MEM_PERMISSIONS_HANDLE_PROCESS_WIDE should be used to validate the memory.\n\nNot all tools will support every scope, such a GPU sanitizer.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_BIND_SCOPE_CUDA_STREAM": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gaa2f9d2a62337fac1f9c1b753da2e3977",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gaa2f9d2a62337fac1f9c1b753da2e3977",
+    "doc": "Bind to CUDA stream scope.\n\nIn this case, work enqueued to a CUDA stream should be validated by the tool, when it executes, that it respect the permissions at the point of binding, as well as the appropriate nvtxMemCudaGetDevicePermissions at the time of binding. If this is not bound then nvtxMemCudaGetDevicePermissions at the time of stream enqueue should be used to validate the memory.\n\nThis could apply to work done either on the GPU like a kernel launch or to CPU based callbacks like cudaStreamAddCallback if the tools supports it.\n\nBinding applies locally to a CPU thread so that if N CPU threads are enqueuing work to the same stream (like the default stream) that there cannot be a race condition between thread binding vs launching their work. IE users should expect the permissions bound in the thread to be honored by the proceeding work (launches, copies, etc) invoked from in the CPU thread until unbound.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_BIND_SCOPE_UNKNOWN": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga87975ae01457c1114ebad7dcb4b88c5f",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga87975ae01457c1114ebad7dcb4b88c5f",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_CREATE_FLAGS_EXCLUDE_GLOBAL_ATOMIC": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga6d2ce0849d6670b3d47d3d75b30625c9",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga6d2ce0849d6670b3d47d3d75b30625c9",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_CREATE_FLAGS_EXCLUDE_GLOBAL_READ": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga6070918bf383e5792cb16a01c14398fb",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga6070918bf383e5792cb16a01c14398fb",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_CREATE_FLAGS_EXCLUDE_GLOBAL_WRITE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gae692c24c1518405de001663d6a9501d1",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gae692c24c1518405de001663d6a9501d1",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_CREATE_FLAGS_NONE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga2837d09d1024664ac71218155c7ee405",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga2837d09d1024664ac71218155c7ee405",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_HANDLE_PROCESS_WIDE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga529a4119f1d3993b26475d561dfffb8d",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga529a4119f1d3993b26475d561dfffb8d",
+    "signature": "#define NVTX_MEM_PERMISSIONS_HANDLE_PROCESS_WIDE(NVTX_REINTERPRET_CAST(nvtxMemPermissionsHandle_t, 0))",
+    "doc": "To indicate you are modifying permissions to the process-wide full virtual address space.\n\nThis is a companion object to `NVTX_MEM_HEAP_HANDLE_PROCESS_WIDE`.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_REGION_FLAGS_ATOMIC": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga45057347a87905989c781bfe5ff58740",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga45057347a87905989c781bfe5ff58740",
+    "doc": "The memory is for atomic RW.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_REGION_FLAGS_NONE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga7044cd91b86ad1df236cebbeb60f145a",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga7044cd91b86ad1df236cebbeb60f145a",
+    "doc": "There are no permissions for this memory.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_REGION_FLAGS_READ": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga8179ca8c39916932114f24bd8f212368",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga8179ca8c39916932114f24bd8f212368",
+    "doc": "The memory is readable.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_REGION_FLAGS_RESET": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga9cd2b522932416c8b526d53d9c51ecb6",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga9cd2b522932416c8b526d53d9c51ecb6",
+    "doc": "The memory access permissions are reset for a region.\n\nThis is as if never set, rather than documented defaults. As as result any flags indicating how unspecified regions are handle will affect this area.\n\nThis should not be used with READ, WRITE, nor ATOMIC, as those flags would have no effect.",
+    "deprecated": false
+  },
+  "NVTX_MEM_PERMISSIONS_REGION_FLAGS_WRITE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga7fbc2145e4b3e4065b430302264beef3",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga7fbc2145e4b3e4065b430302264beef3",
+    "doc": "The memory is writable.",
+    "deprecated": false
+  },
+  "NVTX_MEM_REGION_REF_TYPE_HANDLE": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gaf8eb39d0ca996daab8b02a744d7030da",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gaf8eb39d0ca996daab8b02a744d7030da",
+    "deprecated": false
+  },
+  "NVTX_MEM_REGION_REF_TYPE_POINTER": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga6559423352bc401024ecb38775ab5882",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga6559423352bc401024ecb38775ab5882",
+    "deprecated": false
+  },
+  "NVTX_MEM_REGION_REF_TYPE_UNKNOWN": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gad605b53dfb56232e65fbe5e56fb65dae",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gad605b53dfb56232e65fbe5e56fb65dae",
+    "deprecated": false
+  },
+  "NVTX_MEM_TYPE_VIRTUAL_ADDRESS": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gac19a1d873ae0892b29100597a31d1255",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gac19a1d873ae0892b29100597a31d1255",
+    "doc": "Standard process userspace virtual addresses for linear allocations.\n\nAPIs that map into this space, such as CUDA UVA should use this type.\n\nRelevant functions: cudaMalloc, cudaMallocManaged, cudaHostAlloc, cudaMallocHost NVTX_MEM_HEAP_HANDLE_PROCESS_WIDE is supported\n\nnvtxMemHeapRegister receives a heapDesc of type nvtxMemVirtualRangeDesc_t.",
+    "deprecated": false
+  },
+  "nvtxMemHeapDesc_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga867aaad21c9b037b83689d9635f03ebd",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga867aaad21c9b037b83689d9635f03ebd",
+    "signature": "typedef nvtxMemHeapDesc_v1 nvtxMemHeapDesc_t",
+    "deprecated": false
+  },
+  "nvtxMemHeapHandle_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga7fc8355410f6b30baebc184d29fa21f4",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga7fc8355410f6b30baebc184d29fa21f4",
+    "signature": "typedef nvtxMemHeap_t* nvtxMemHeapHandle_t",
+    "doc": "A handle returned by a tool to represent a memory heap.",
+    "deprecated": false
+  },
+  "nvtxMemPermissionsAssignBatch_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga1c092ef2b3b68bf29bc1e2295e7b3233",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga1c092ef2b3b68bf29bc1e2295e7b3233",
+    "signature": "typedef nvtxMemPermissionsAssignBatch_v1 nvtxMemPermissionsAssignBatch_t",
+    "deprecated": false
+  },
+  "nvtxMemPermissionsAssignRegionDesc_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gaa872dd921b4d004f4be7e444062d706a",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gaa872dd921b4d004f4be7e444062d706a",
+    "signature": "typedef nvtxMemPermissionsAssignRegionDesc_v1 nvtxMemPermissionsAssignRegionDesc_t",
+    "deprecated": false
+  },
+  "nvtxMemPermissionsHandle_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga421ec4c6d96c342008aa3d04906643f0",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga421ec4c6d96c342008aa3d04906643f0",
+    "signature": "typedef nvtxMemPermissions_t* nvtxMemPermissionsHandle_t",
+    "doc": "A handle returned by a tool to represent a memory permissions mask.",
+    "deprecated": false
+  },
+  "nvtxMemRegionHandle_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gabc058b02998bde14517ea665f62495e0",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gabc058b02998bde14517ea665f62495e0",
+    "signature": "typedef nvtxMemRegion_t* nvtxMemRegionHandle_t",
+    "doc": "A handle returned by a tool to represent a memory region.",
+    "deprecated": false
+  },
+  "nvtxMemRegionNameDesc_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gadc3d8fcd45db93799065cde47c1e81e5",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gadc3d8fcd45db93799065cde47c1e81e5",
+    "signature": "typedef nvtxMemRegionNameDesc_v1 nvtxMemRegionNameDesc_t",
+    "deprecated": false
+  },
+  "nvtxMemRegionsNameBatch_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gad832c4d41d8348b2b9994f0d57813aae",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gad832c4d41d8348b2b9994f0d57813aae",
+    "signature": "typedef nvtxMemRegionsNameBatch_v1 nvtxMemRegionsNameBatch_t",
+    "deprecated": false
+  },
+  "nvtxMemRegionsRegisterBatch_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gaeb217715fd36841ea0ba6ded10c72d56",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gaeb217715fd36841ea0ba6ded10c72d56",
+    "signature": "typedef nvtxMemRegionsRegisterBatch_v1 nvtxMemRegionsRegisterBatch_t",
+    "deprecated": false
+  },
+  "nvtxMemRegionsResizeBatch_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gaaa84a28e93d7b1725a3f513bc277e828",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gaaa84a28e93d7b1725a3f513bc277e828",
+    "signature": "typedef nvtxMemRegionsResizeBatch_v1 nvtxMemRegionsResizeBatch_t",
+    "deprecated": false
+  },
+  "nvtxMemRegionsUnregisterBatch_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gaa2bb003e73110c8c1889ae32d06adf5a",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gaa2bb003e73110c8c1889ae32d06adf5a",
+    "signature": "typedef nvtxMemRegionsUnregisterBatch_v1 nvtxMemRegionsUnregisterBatch_t",
+    "deprecated": false
+  },
+  "nvtxMemVirtualRangeDesc_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga7722d1f9cca078acc29dafbdc5f598de",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga7722d1f9cca078acc29dafbdc5f598de",
+    "signature": "typedef nvtxMemVirtualRangeDesc_v1 nvtxMemVirtualRangeDesc_t",
+    "deprecated": false
+  },
+  "nvtxMemHeapRegister": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga6c059f5891bb02717a7453947b6a459a",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga6c059f5891bb02717a7453947b6a459a",
+    "signature": "NVTX_DECLSPEC nvtxMemHeapHandle_t NVTX_API nvtxMemHeapRegister(nvtxDomainHandle_t domain, nvtxMemHeapDesc_t const * desc)",
+    "doc": "Create a memory heap to represent a object or range of memory that will be further sub-divided into regions.\n\nThe handle used to address the heap will depend on the heap's type. Where the heap is virtual memory accessible, the address of the heap's memory itself is its handle. This will likewise be returned from the function.\n\nFor more advanced types, where the heap is not virtual memory accessible the tools may be responsible for returning a void const \\* that that uniquely identifies the object. Please see the description of each heap type for more details on whether this is expected to be a uniquely generated by the tool or otherwise.",
+    "deprecated": false
+  },
+  "nvtxMemHeapReset": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga38b92bad53d38a16b27efc9b36dc4594",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga38b92bad53d38a16b27efc9b36dc4594",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMemHeapReset(nvtxDomainHandle_t domain, nvtxMemHeapHandle_t heap)",
+    "doc": "Reset the memory heap wipes out any changes, as if it were a fresh heap.\n\nThis includes invalidating all regions and their handles.",
+    "deprecated": false
+  },
+  "nvtxMemPermissionsBind": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga590cf0b684dee2f60df844163b48efe9",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga590cf0b684dee2f60df844163b48efe9",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMemPermissionsBind(nvtxDomainHandle_t domain, nvtxMemPermissionsHandle_t permissions, uint32_t bindScope, uint32_t bindFlags)",
+    "doc": "Bind the permissions object into a particular scope on the caller thread.\n\nPermissions do not take effect until binding. Binding permissions is a thread local activity that overrides global behaviors. This is to avoid multi-threaded race conditions,\n\nThe scope dictates what type of processing it applies to, and when in some cases. EX1: NVTX_MEM_PERMISSIONS_BIND_SCOPE_CPU_THREAD applies to CPU code accessing memory while bound. EX2: NVTX_MEM_PERMISSIONS_BIND_SCOPE_CUDA_STREAM applies to CUDA streams, and the permissions must be recorded and applied when the work in the stream dequeues to executes. In this case it could be GPU or CPU, if the tool support both.\n\nBind can be called again on the same object and thread to take any updates to the specified permission object or the inherited properties.\n\nBind flags support changing how the binding process inherits region access control. In the case of thread scope this is NVTX_MEM_PERMISSIONS_HANDLE_PROCESS_WIDE and from CUDA_STREAM this is nvtxMemCudaGetDevicePermissions. Choosing stricter modes allows the user to further reduce the access with less work, since memory by default, behaves as natural until the NVTX annotations instructs a tool to treat it another way. See strict flags for more details.\n\nAlso see nvtxMemPermissionsUnbind.",
+    "deprecated": false
+  },
+  "nvtxMemPermissionsCreate": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga1f855ed95bf9473f6e53d1faf1fc247e",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga1f855ed95bf9473f6e53d1faf1fc247e",
+    "signature": "NVTX_DECLSPEC nvtxMemPermissionsHandle_t NVTX_API nvtxMemPermissionsCreate(nvtxDomainHandle_t domain, int32_t creationflags)",
+    "doc": "Create a permissions object for fine grain thread-local control in multi-threading scenarios.\n\nUnlike the global permissions object (NVTX_MEM_PERMISSIONS_HANDLE_PROCESS_WIDE), a new permissions object is empty. There are no regions registered to it, so more memory is accessible if bound(bind) without calls to nvtxMemPermissionsSetAccess\\* first. The permissions are not active until nvtxMemPermissionsBind. See `nvtxMemPermissionsBind` for more details.\n\nUse the flags NVTX_MEM_PERMISSIONS_CREATE_FLAGS_EXCLUDE_GLOBAL_\\* to control how the regions in this permission object will interact with global permissions when bound. You may choose to either replace global memory regions setting or overlay on top of them. The most common uses are as follows:\n\n* To limit tools to validate writing exclusively specified in this object but inherit all global read access regions use `NVTX_MEM_PERMISSIONS_CREATE_FLAGS_EXCLUDE_GLOBAL_WRITE`\n* To limit tools to validate both read & write permissions exclusively specified in this object use NVTX_MEM_PERMISSIONS_CREATE_FLAGS_EXCLUDE_GLOBAL_READ & NVTX_MEM_PERMISSIONS_CREATE_FLAGS_EXCLUDE_GLOBAL_WRITE\n\nAlso see `nvtxMemPermissionsBind` & `nvtxMemPermissionsSetAccess*`.",
+    "deprecated": false
+  },
+  "nvtxMemPermissionsDestroy": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga7494b21c8738c23941222432134e35d3",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga7494b21c8738c23941222432134e35d3",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMemPermissionsDestroy(nvtxDomainHandle_t domain, nvtxMemPermissionsHandle_t permissionsHandle)",
+    "doc": "Destroy the permissions object.\n\nIf bound(bind), destroy will also unbind it.",
+    "deprecated": false
+  },
+  "nvtxMemPermissionsUnbind": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "gad89c5d699ca976a617511ba3cf7f2fdc",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#gad89c5d699ca976a617511ba3cf7f2fdc",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMemPermissionsUnbind(nvtxDomainHandle_t domain, uint32_t bindScope)",
+    "doc": "Unbind the permissions object bound to the caller thread.\n\nUpon unbind, the thread local permissions for a scope are restored to the default behavior defined by the scope.",
+    "deprecated": false
+  },
+  "nvtxMemRegionsUnregister": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y.md",
+    "anchor": "ga040347db8e2035482a74bcdf5ee25bb0",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y.html#ga040347db8e2035482a74bcdf5ee25bb0",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMemRegionsUnregister(nvtxDomainHandle_t domain, nvtxMemRegionsUnregisterBatch_t const * desc)",
+    "doc": "Unregistration for regions of process virtual memory.\n\nThis is not necessary if the nvtx heap destroy function has been called that contains this object.",
+    "deprecated": false
+  },
+  "NVTX_MEM_CUDA_PEER_ALL_DEVICES": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "ga0ff3290abfdd4de6ab40472dc41f3751",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#ga0ff3290abfdd4de6ab40472dc41f3751",
+    "deprecated": false
+  },
+  "NVTX_MEM_TYPE_CU_ARRAY": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "ga16e14ba99fe35f86514cde7a791021aa",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#ga16e14ba99fe35f86514cde7a791021aa",
+    "doc": "The memory is from a CUDA device array.\n\nRelevant functions: cuArrayCreate, cuArray3DCreate Also CUarray from other types such as CUmipmappedArray\n\nNVTX_MEM_HEAP_HANDLE_PROCESS_WIDE is not supported\n\nnvtxMemHeapRegister receives a heapDesc of type cudaArray_t because the description can be retrieved by tools through cudaArrayGetInfo() nvtxMemRegionRegisterEx receives a regionDesc of type nvtxMemCuArrayRangeDesc_t.",
+    "deprecated": false
+  },
+  "NVTX_MEM_TYPE_CUDA_ARRAY": {
+    "kind": "define",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "gacb334f2ec387c0069fa75fe6bec459bb",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#gacb334f2ec387c0069fa75fe6bec459bb",
+    "doc": "The memory is from a CUDA runtime array.\n\nRelevant functions: cudaMallocArray, cudaMalloc3DArray Also cudaArray_t from other types such as cudaMipmappedArray_t\n\nNVTX_MEM_HEAP_HANDLE_PROCESS_WIDE is not supported\n\nnvtxMemHeapRegister receives a heapDesc of type cudaArray_t because the description can be retrieved by tools through cudaArrayGetInfo() nvtxMemRegionRegisterEx receives a regionDesc of type nvtxMemCudaArrayRangeDesc_t.",
+    "deprecated": false
+  },
+  "nvtxMemCuArrayRangeDesc_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "ga75458e1d4befde4f9b2da3768d6ca968",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#ga75458e1d4befde4f9b2da3768d6ca968",
+    "signature": "typedef nvtxMemCuArrayRangeDesc_v1 nvtxMemCuArrayRangeDesc_t",
+    "deprecated": false
+  },
+  "nvtxMemCudaArrayRangeDesc_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "gaf6a8330b248342b5b07239fa1d722b35",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#gaf6a8330b248342b5b07239fa1d722b35",
+    "signature": "typedef nvtxMemCudaArrayRangeDesc_v1 nvtxMemCudaArrayRangeDesc_t",
+    "deprecated": false
+  },
+  "nvtxMemMarkInitializedBatch_t": {
+    "kind": "typedef",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "ga7e1c95b4125c9753a007558b0db10b64",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#ga7e1c95b4125c9753a007558b0db10b64",
+    "signature": "typedef nvtxMemMarkInitializedBatch_v1 nvtxMemMarkInitializedBatch_t",
+    "deprecated": false
+  },
+  "nvtxMemCudaGetDeviceWidePermissions": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "ga8590f26d90d3bae446b20f45e2fa1f67",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#ga8590f26d90d3bae446b20f45e2fa1f67",
+    "signature": "NVTX_DECLSPEC nvtxMemPermissionsHandle_t NVTX_API nvtxMemCudaGetDeviceWidePermissions(nvtxDomainHandle_t domain, int device)",
+    "doc": "Get the permission object that represent the CUDA runtime device or cuda driver context.\n\nThis object will allow developers to adjust permissions applied to work executed on the GPU. It may be inherited or overridden by permissions object bound with NVTX_MEM_PERMISSIONS_BIND_SCOPE_CUDA_STREAM, depending on the binding flags.\n\nEx. change the peer to peer access permissions between devices in entirety or punch through special holes\n\nBy default, all memory is accessible that naturally would be to a CUDA kernel until modified otherwise by nvtxMemCudaSetPeerAccess or changing regions.\n\nThis object should also represent the CUDA driver API level context.",
+    "deprecated": false
+  },
+  "nvtxMemCudaGetProcessWidePermissions": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "gab620d175752a7d8f653b543b123ff39d",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#gab620d175752a7d8f653b543b123ff39d",
+    "signature": "NVTX_DECLSPEC nvtxMemPermissionsHandle_t NVTX_API nvtxMemCudaGetProcessWidePermissions(nvtxDomainHandle_t domain)",
+    "doc": "Get the permission object that represent the CUDA runtime device or cuda driver context.\n\nThis object will allow developers to adjust permissions applied to work executed on the GPU. It may be inherited or overridden by permissions object bound with NVTX_MEM_PERMISSIONS_BIND_SCOPE_CUDA_STREAM, depending on the binding flags.\n\nEx. change the peer to peer access permissions between devices in entirety or punch through special holes\n\nBy default, all memory is accessible that naturally would be to a CUDA kernel until modified otherwise by nvtxMemCudaSetPeerAccess or changing regions.\n\nThis object should also represent the CUDA driver API level context.",
+    "deprecated": false
+  },
+  "nvtxMemCudaMarkInitialized": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "ga0d8a3745a6812aa75ef3d2279c012259",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#ga0d8a3745a6812aa75ef3d2279c012259",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMemCudaMarkInitialized(nvtxDomainHandle_t domain, cudaStream_t stream, uint8_t isPerThreadStream, nvtxMemMarkInitializedBatch_t const * desc)",
+    "doc": "Register a region of memory inside of a heap of linear process virtual memory.\n\nstream is the CUDA stream where the range was accessed and initialized.",
+    "deprecated": false
+  },
+  "nvtxMemCudaSetPeerAccess": {
+    "kind": "function",
+    "page": "group___m_e_m_o_r_y___c_u_d_a_r_t.md",
+    "anchor": "gab206e393eb36a38670ed44c88f1df217",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___m_e_m_o_r_y___c_u_d_a_r_t.html#gab206e393eb36a38670ed44c88f1df217",
+    "signature": "NVTX_DECLSPEC void NVTX_API nvtxMemCudaSetPeerAccess(nvtxDomainHandle_t domain, nvtxMemPermissionsHandle_t permissions, int devicePeer, uint32_t flags)",
+    "doc": "Change the default behavior for all memory mapped in from a particular device.\n\nWhile typically all memory defaults to readable and writable, users may desire to limit access to reduced default permissions such as read-only and a per-device basis.\n\nRegions can used to further override smaller windows of memory.\n\ndevicePeer can be NVTX_MEM_CUDA_PEER_ALL_DEVICES.",
+    "deprecated": false
+  },
+  "nvtxCounterAttr_t": {
+    "kind": "type",
+    "page": "structnvtx_counter_attr__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_attr__t.html#details",
+    "signature": "struct nvtxCounterAttr_t",
+    "fields": {
+      "counterId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_attr__t.html#a74a6483547eb7f7946020dc2ffcf84fe",
+        "doc": "A static counter ID must be unique within the domain, >= NVTX_COUNTER_ID_STATIC_START, and &lt; NVTX_COUNTER_ID_DYNAMIC_START. Use NVTX_COUNTER_ID_NONE to let the tool create a (dynamic) counter ID.",
+        "deprecated": false
+      },
+      "description": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_attr__t.html#a029534e6f708be20dbb6e220474b2d52",
+        "doc": "Optional detailed description of the counter (group). A description for individual counters can be set in the schema registration.",
+        "deprecated": false
+      },
+      "name": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_attr__t.html#a9bc076586c6c5627632eb1bcd70b861e",
+        "doc": "Name of the counter (group).",
+        "deprecated": false
+      },
+      "schemaId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_attr__t.html#a383083b3ae94dedfb59ddca685abe0eb",
+        "doc": "A schema ID referring to the data layout of the counter group or a predefined NVTX payloads number type.",
+        "deprecated": false
+      },
+      "scopeId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_attr__t.html#a02bba10c2782ffd40efb00155b163917",
+        "doc": "Identifier of the counters' scope. A valid scope ID is either a predefined scope or the value returned by `nvtxScopeRegister` called for the same NVTX domain as `nvtxCounterRegister`. An invalid scope ID will be handled like `NVTX_SCOPE_NONE`.",
+        "deprecated": false
+      },
+      "semantics": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_attr__t.html#a2ab25966e298a5742776ae1aa3bdf401",
+        "doc": "Optional semantics for a counter (group). The specified semantics apply to all counters in a group. If the semantics should only refer to a single counter in a group, the semantics field of the payload entry has to be used. Accepted semantics are `nvtxSemanticsCounter_t` and `nvtxSemanticsTime_t`.",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_attr__t.html#a9edd1b2ed8eae21453b6bdd561b7042f",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxCounterBatch_t": {
+    "kind": "type",
+    "page": "structnvtx_counter_batch__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_batch__t.html#details",
+    "signature": "struct nvtxCounterBatch_t",
+    "fields": {
+      "counterId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_batch__t.html#a55051fa530e11935d88669e619c6b6a4",
+        "doc": "Identifier of a counter group (data layout, scope, etc.). All counter samples in the batch have the same layout and size.",
+        "deprecated": false
+      },
+      "counters": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_batch__t.html#a4196d6a8a534213ac31222cc19fb174e",
+        "doc": "Batch of counter (group) samples.",
+        "deprecated": false
+      },
+      "countersSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_batch__t.html#ada5def99a25f1654b55a7b92e02846dd",
+        "doc": "Size of the counter batch (in bytes).",
+        "deprecated": false
+      },
+      "flags": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_batch__t.html#a3b577fef504751dfe3427916f6e273d8",
+        "doc": "Timestamp ordering, timestamp style, etc. See `NVTX_BATCH_FLAG_*` and `NVTX_COUNTER_BATCH_FLAG_*`.",
+        "deprecated": false
+      },
+      "timestamps": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_batch__t.html#a22e39eb11f801703154a9530474991ac",
+        "doc": "Array of timestamps or a timestamp/interval pair. This field can be `NULL`, if timestamps are included in the counter samples as part of the counter group layout. By default, one timestamp per sample is assumed. The timestamp source is specified via time semantics passed during the counter group registration. This overrides the timestamps embedded in counter samples.",
+        "deprecated": false
+      },
+      "timestampsSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_counter_batch__t.html#afb5cc56e00d8bdb1edc1058d4c36ef35",
+        "doc": "Size of the timestamps array or timestamp/interval pair (in bytes).",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxCounterLimit_t": {
+    "kind": "type",
+    "page": "unionnvtx_counter_limit__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_counter_limit__t.html#details",
+    "signature": "union nvtxCounterLimit_t",
+    "fields": {
+      "f64": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_counter_limit__t.html#acf1a5e128137cc51dec0ac2c52a3855c",
+        "deprecated": false
+      },
+      "i64": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_counter_limit__t.html#aa32d5b3e19e05cbed1920e67bd726236",
+        "deprecated": false
+      },
+      "u64": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_counter_limit__t.html#a0b02c5ce11176b7a6179a7f0e9f76be6",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxEventAttributes_t": {
+    "kind": "type",
+    "page": "structnvtx_event_attributes__v2.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#details",
+    "signature": "struct nvtxEventAttributes_t",
+    "fields": {
+      "category": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#afb670b7abeb2d588c7157c08248e3665",
+        "doc": "ID of the category the event is assigned to.\n\nA category is a user-controlled ID that can be used to group events. The tool may use category IDs to improve filtering or enable grouping of events in the same category. The functions `nvtxNameCategoryA` or `nvtxNameCategoryW` can be used to name a category.\n\nDefault Value is 0.",
+        "deprecated": false
+      },
+      "color": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#aeddc617cf06c8e83dbfaf3968ad04a5d",
+        "doc": "Color assigned to this event.\n\nThe color that the tool should use to visualize the event.",
+        "deprecated": false
+      },
+      "colorType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#a67e51604f4f074d3a896a2475b36a8f0",
+        "doc": "Color type specified in this attribute structure.\n\nDefines the color format of the attribute structure's color field.\n\nDefault Value is [`nvtxColorType_t::NVTX_COLOR_UNKNOWN`].",
+        "deprecated": false
+      },
+      "message": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#ac2c886998107953b9ca44c096650ac6f",
+        "doc": "Message assigned to this attribute structure.\n\nThe text message that is attached to an event.",
+        "deprecated": false
+      },
+      "messageType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#aea6394028b2357cc25b41af32f9a7c8b",
+        "doc": "Message type specified in this attribute structure.\n\nDefines the message format of the attribute structure's message field.\n\nDefault Value is [`nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN`].",
+        "deprecated": false
+      },
+      "payloadType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#ab92717e2aed2888cd99ecdf6c4681e45",
+        "doc": "Payload type specified in this attribute structure.\n\nDefines the payload format of the attribute structure's [payload](https://nvidia.github.io/NVTX/doxygen/unionnvtx_event_attributes__v2_1_1payload__t.html#PAYLOAD_FIELD) field.\n\nDefault Value is [`nvtxPayloadType_t::NVTX_PAYLOAD_UNKNOWN`].",
+        "deprecated": false
+      },
+      "reserved0": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#a77d83fbaf44ca8cf31d26ab41324edad",
+        "deprecated": false
+      },
+      "size": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#a90b5726d65e2665b558668eada26ffb9",
+        "doc": "Size of the structure.\n\nNeeds to be set to the size in bytes of the event attribute structure used to specify the event.",
+        "deprecated": false
+      },
+      "version": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#a307b3b9949304b301e1b6d1346c71530",
+        "doc": "Version flag of the structure.\n\nNeeds to be set to NVTX_VERSION to indicate the version of NVTX APIs supported in this header file. This can optionally be overridden to another version of the tools extension library.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxEventAttributes_t::payload_t": {
+    "kind": "type",
+    "page": "unionnvtx_event_attributes__v2_1_1payload__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_event_attributes__v2_1_1payload__t.html#details",
+    "signature": "union nvtxEventAttributes_t::payload_t",
+    "fields": {
+      "dValue": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_event_attributes__v2_1_1payload__t.html#a01b539a0a8b88a692229b42277b184d3",
+        "deprecated": false
+      },
+      "fValue": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_event_attributes__v2_1_1payload__t.html#a5cde28dbfe81ff3c8a245a0a18e4c99a",
+        "deprecated": false
+      },
+      "iValue": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_event_attributes__v2_1_1payload__t.html#ac5897b0f216c76d9c45fec52d570c754",
+        "deprecated": false
+      },
+      "llValue": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_event_attributes__v2_1_1payload__t.html#a9944f945e4b293e0b74fa4cc7ed0fdf5",
+        "deprecated": false
+      },
+      "uiValue": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_event_attributes__v2_1_1payload__t.html#aedecf10c4c43ce49449a185c74d9d7c8",
+        "deprecated": false
+      },
+      "ullValue": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_event_attributes__v2_1_1payload__t.html#ad3bc2ab19964ab795e331716b9f61ab1",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxEventBatch_t": {
+    "kind": "type",
+    "page": "structnvtx_event_batch__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#details",
+    "signature": "struct nvtxEventBatch_t",
+    "fields": {
+      "events": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#aee58560a3adfde054f0245301cf8d7d4",
+        "doc": "Pointer to the array of deferred events.\n\nFor static schemas, the stride is the fixed payload size. For dynamic schemas, there is no fixed stride. The buffer is read event by event, advancing the pointer by the size of the event.",
+        "deprecated": false
+      },
+      "eventSchemaId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#ab94294d1b1bb900a008c2029db2967d1",
+        "doc": "Identifier of the data layout of a deferred event in the array of events. The time domain of event timestamps is provided via time semantics in the schema registration.",
+        "deprecated": false
+      },
+      "flags": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#a12f16213083385276b9cc080100b5197",
+        "doc": "Timestamp ordering (sorted, partially sorted, unsorted), etc.",
+        "deprecated": false
+      },
+      "flexData": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#af4676ad232d7e62ab7a9aeaceb598429",
+        "doc": "Flexible data blob referenced by events in the batch.\n\nEvents may contain pointer or offset entries that reference data in this blob (e.g. variable-length strings or arrays). The usable region starts at byte offset flexDataOffset and extends for flexDataSize bytes. A tool resolves event-internal offsets relative to `flexData`.",
+        "deprecated": false
+      },
+      "flexDataOffset": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#a029e6d18671052add9f6d94aaa6bf379",
+        "doc": "Byte offset from flexData to the start of the usable region. Allows the caller to prepend metadata or align the usable area.",
+        "deprecated": false
+      },
+      "flexDataSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#a6bed0017d4177f4bbbb6dac5ec70bafb",
+        "doc": "Size of the usable flexible data region (in bytes).",
+        "deprecated": false
+      },
+      "scope": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#a2ba91014d2831e199e4b3e38b388c181",
+        "doc": "Default scope of events or counters in the batch.\n\nA scope from a payload entry or purpose-specific scope semantics takes precedence. If no such scope is specified, the batch scope takes precedence over general scope semantics from the schema.\n\nUse NVTX_SCOPE_NONE when the original execution scope is unknown or intentionally unspecified. Deferred events with NVTX_SCOPE_NONE should not be attributed to the thread or process that submits the batch.",
+        "deprecated": false
+      },
+      "size": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_event_batch__t.html#afee23a8f0781cbe9483293172bd2ce07",
+        "doc": "Size of the array of deferred events (in bytes).",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemCuArrayRangeDesc_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_cu_array_range_desc__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cu_array_range_desc__v1.html#details",
+    "signature": "struct nvtxMemCuArrayRangeDesc_v1",
+    "fields": {
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cu_array_range_desc__v1.html#ae78c91127581d7a62de6cd77db497422",
+        "deprecated": false
+      },
+      "extent": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cu_array_range_desc__v1.html#a3f04305e1521fc7b0a5a500627a330c8",
+        "deprecated": false
+      },
+      "offset": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cu_array_range_desc__v1.html#a552d325c3f5307fc5e6bc5d142cace67",
+        "deprecated": false
+      },
+      "reserved0": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cu_array_range_desc__v1.html#a6bbd9bb19d78d0383641050ce446e70b",
+        "deprecated": false
+      },
+      "src": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cu_array_range_desc__v1.html#a1a24fb9dc415d6bed28e33f5918b55ef",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cu_array_range_desc__v1.html#a74a45d1ab74096b1a9bacf2afa12f16e",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemCudaArrayRangeDesc_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_cuda_array_range_desc__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cuda_array_range_desc__v1.html#details",
+    "signature": "struct nvtxMemCudaArrayRangeDesc_v1",
+    "fields": {
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cuda_array_range_desc__v1.html#acc92a79ffd4d1571d9e54770f15b89fa",
+        "deprecated": false
+      },
+      "extent": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cuda_array_range_desc__v1.html#a773ef159f7cb5b4d44ab7f7d59cc5216",
+        "deprecated": false
+      },
+      "offset": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cuda_array_range_desc__v1.html#a1354cedb701911b336d35e04fd964323",
+        "deprecated": false
+      },
+      "reserved0": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cuda_array_range_desc__v1.html#af68d728ba3dab25ac653e2dbd22531ea",
+        "deprecated": false
+      },
+      "src": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cuda_array_range_desc__v1.html#afdbf176269f15e629132f1b2598151c5",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_cuda_array_range_desc__v1.html#a428503ffa6c99e8c9f51c9de9b825919",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemHeapDesc_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_heap_desc__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#details",
+    "signature": "struct nvtxMemHeapDesc_v1",
+    "fields": {
+      "category": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#a0fe52467a6fef48105632433cac12fa9",
+        "doc": "ID of the category the event is assigned to.\n\nA category is a user-controlled ID that can be used to group events. The tool may use category IDs to improve filtering or enable grouping of events in the same category. The functions `nvtxNameCategoryA` or `nvtxNameCategoryW` can be used to name a category.\n\nDefault Value is 0.",
+        "deprecated": false
+      },
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#ab6067b2540a825ea56d28c99e18bfacd",
+        "deprecated": false
+      },
+      "message": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#ad12fa13f5c26f2373e37c0d81a84ed5a",
+        "doc": "Message assigned to this attribute structure.\n\nThe text message that is attached to an event.",
+        "deprecated": false
+      },
+      "messageType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#ab6fc2c152e78099ddbf86746502b7f5c",
+        "doc": "Message type specified in this attribute structure.\n\nDefines the message format of the attribute structure's message field.\n\nDefault Value is [`nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN`].",
+        "deprecated": false
+      },
+      "reserved0": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#a1dbbb99cb449d709926b7a6a388c99f4",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#a717aaed2342fd530b6f2aa451daea59c",
+        "deprecated": false
+      },
+      "type": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#a000cf395f18b65e398b80cee8987b74c",
+        "doc": "Memory type characteristics of the heap.\n\nThe 'type' indicates how to interpret the ptr field of the heapDesc. This is intended to support many additional types of memory, beyond standard process virtual memory, such as API specific memory only addressed by handles or multi-dimensional memory requiring more complex descriptions to handle features like strides, tiling, or interlace.\n\nThe values conforms to NVTX_MEM_TYPE_\\*\n\nThe value in the field 'type' identifies the descriptor type that will be in the field 'typeSpecificDesc'. 'typeSpecificDesc' is void\\* because it is extensible. Example usage is if type is NVTX_MEM_TYPE_VIRTUAL_ADDRESS, then typeSpecificDesc points to a nvtxMemVirtualRangeDesc_t.\n\nDefault Value is 0, which is invalid.",
+        "deprecated": false
+      },
+      "typeSpecificDesc": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#ac020e353d7840e5c7fe0c53965beb3ad",
+        "doc": "Pointer to the heap memory descriptor.\n\nThe value in the field 'type' identifies the descriptor type that will be in the field 'typeSpecificDesc'. 'typeSpecificDesc' is void\\* because it is extensible. Example usage is if type is NVTX_MEM_TYPE_VIRTUAL_ADDRESS, then typeSpecificDesc points to a nvtxMemVirtualRangeDesc_t.\n\nDefault Value is 0, which is invalid.",
+        "deprecated": false
+      },
+      "typeSpecificDescSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#aff660e4ce3a6c55069d6644f9754ac2e",
+        "doc": "size of the heap memory descriptor pointed to by typeSpecificDesc\n\nDefault Value is 0 which is invalid.",
+        "deprecated": false
+      },
+      "usage": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_heap_desc__v1.html#ace1b78eba0d1733c52f3783fd72b9474",
+        "doc": "Usage characteristics of the heap.\n\nUsage characteristics help tools like memcheckers, sanitizers, as well as other debugging and profiling tools to determine some special behaviors they should apply to the heap and its regions. The value follows the convention NVTX_MEM_HEAP_USAGE_\\*\n\nDefault Value is 0, which is invalid.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemMarkInitializedBatch_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_mark_initialized_batch__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_mark_initialized_batch__v1.html#details",
+    "signature": "struct nvtxMemMarkInitializedBatch_v1",
+    "fields": {
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_mark_initialized_batch__v1.html#a3fe45b7d2d54cf37a205a02fd694eac8",
+        "deprecated": false
+      },
+      "regionDescCount": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_mark_initialized_batch__v1.html#a4a48e7bcf77f9f30cc970fd184140beb",
+        "deprecated": false
+      },
+      "regionDescElements": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_mark_initialized_batch__v1.html#a41498defad4ad016850f8104ae572d30",
+        "deprecated": false
+      },
+      "regionDescElementSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_mark_initialized_batch__v1.html#a213a4654ffa8a7811c02652dcc63e0bb",
+        "deprecated": false
+      },
+      "regionType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_mark_initialized_batch__v1.html#ab7c3190c82d795cd168d1b3414292394",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_mark_initialized_batch__v1.html#acbf47c92b4f9edc74d4551fd18ed6cc1",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemPermissionsAssignBatch_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_permissions_assign_batch__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#details",
+    "signature": "struct nvtxMemPermissionsAssignBatch_v1",
+    "fields": {
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#a792d59839f76e3141dc1eff3df48c0f5",
+        "deprecated": false
+      },
+      "permissions": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#a4a93a8e76a0952c89bb2b2842f2712be",
+        "deprecated": false
+      },
+      "regionCount": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#a9d064f8a5288d14f94f96ed3641496d8",
+        "deprecated": false
+      },
+      "regionElements": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#a613d621a0847071362193b0def4c0112",
+        "deprecated": false
+      },
+      "regionElementSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#a1be3bf28ae1a9f1ca9c065d4395d6cec",
+        "deprecated": false
+      },
+      "reserved0": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#a9fd74efe02ddcff821060ab44f5d3d12",
+        "deprecated": false
+      },
+      "reserved1": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#ac7db4d3bc6b251fbd709397e3230a904",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_batch__v1.html#aca1749b6ca62b6321800ecfc8d5f2c23",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemPermissionsAssignRegionDesc_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_permissions_assign_region_desc__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_region_desc__v1.html#details",
+    "signature": "struct nvtxMemPermissionsAssignRegionDesc_v1",
+    "fields": {
+      "flags": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_region_desc__v1.html#a636fc81df5d04c9f906399cca1134793",
+        "deprecated": false
+      },
+      "region": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_region_desc__v1.html#a7bc7c21968eb617d58c6204e3a51cdca",
+        "deprecated": false
+      },
+      "regionRefType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_permissions_assign_region_desc__v1.html#a9d88627779147a6c6ae2dcc9f93c29eb",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemRegionNameDesc_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_region_name_desc__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_region_name_desc__v1.html#details",
+    "signature": "struct nvtxMemRegionNameDesc_v1",
+    "fields": {
+      "category": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_region_name_desc__v1.html#acbab7a0274b73264d887533c4a5d11e3",
+        "deprecated": false
+      },
+      "name": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_region_name_desc__v1.html#a35d1e2b81f4764550bd968ec11039660",
+        "deprecated": false
+      },
+      "nameType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_region_name_desc__v1.html#a7af4636abbf6c8b85eef3460ae49da54",
+        "deprecated": false
+      },
+      "region": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_region_name_desc__v1.html#a337bd6cbde3dd785b5e67202c0e1aa90",
+        "deprecated": false
+      },
+      "regionRefType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_region_name_desc__v1.html#a88125d8b2486bfd2016400cedb539fb6",
+        "deprecated": false
+      },
+      "reserved0": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_region_name_desc__v1.html#a71943b6fd2c0f88bf91afd1c6fc40435",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemRegionRef_t": {
+    "kind": "type",
+    "page": "unionnvtx_mem_region_ref__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_mem_region_ref__t.html#details",
+    "signature": "union nvtxMemRegionRef_t",
+    "fields": {
+      "handle": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_mem_region_ref__t.html#a27330b3a6f94205e32c31c8550a9c661",
+        "deprecated": false
+      },
+      "pointer": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_mem_region_ref__t.html#a3927ea90083a200093ec23e5d23acb5c",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemRegionsNameBatch_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_regions_name_batch__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_name_batch__v1.html#details",
+    "signature": "struct nvtxMemRegionsNameBatch_v1",
+    "fields": {
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_name_batch__v1.html#a432f91115b32435cd361e5368b6065a6",
+        "deprecated": false
+      },
+      "regionCount": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_name_batch__v1.html#a541c1e9fe255c94b72961ecedc40759d",
+        "deprecated": false
+      },
+      "regionElements": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_name_batch__v1.html#a2e235888653264b6871e476b89ceda78",
+        "deprecated": false
+      },
+      "regionElementSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_name_batch__v1.html#a8c7a62059f93913bc7f86a74fa2cdfa0",
+        "deprecated": false
+      },
+      "reserved0": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_name_batch__v1.html#a9f64659a397ed81c21b9a6bedf92f083",
+        "deprecated": false
+      },
+      "reserved1": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_name_batch__v1.html#ad17f1126c0a0e538ede649e42d52cdc6",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_name_batch__v1.html#a286e2912166716a4d0a3570782d1da65",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemRegionsRegisterBatch_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_regions_register_batch__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#details",
+    "signature": "struct nvtxMemRegionsRegisterBatch_v1",
+    "fields": {
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#a11c31aa4fc90fc8c070c4455806d2fbc",
+        "deprecated": false
+      },
+      "heap": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#a53ab1da174d146b5953f70f5e6677450",
+        "deprecated": false
+      },
+      "regionCount": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#a74da802dbcc017423e4b4a713adfbbd3",
+        "deprecated": false
+      },
+      "regionDescElements": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#a70678fdf38afb9f58950e9fee7718a43",
+        "deprecated": false
+      },
+      "regionDescElementSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#a40de76aa7b48c6273bf0f23efb630536",
+        "deprecated": false
+      },
+      "regionHandleElementsOut": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#a236a6355ac2f67584bdb16b72496a255",
+        "deprecated": false
+      },
+      "regionType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#ae7eb6a65025f0b732fd2cf143b668168",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_register_batch__v1.html#aa1bce31260a42d54714199b8b05b57e1",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemRegionsResizeBatch_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_regions_resize_batch__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_resize_batch__v1.html#details",
+    "signature": "struct nvtxMemRegionsResizeBatch_v1",
+    "fields": {
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_resize_batch__v1.html#a6439a683eb24434f9ab94231ce97f733",
+        "deprecated": false
+      },
+      "regionDescCount": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_resize_batch__v1.html#aaa2cc5cf5443536fb081f038f9c9f4fb",
+        "deprecated": false
+      },
+      "regionDescElements": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_resize_batch__v1.html#a474fa8b300fd39de85dc1e293b8d09fb",
+        "deprecated": false
+      },
+      "regionDescElementSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_resize_batch__v1.html#a983006ae7c2241bfff1a5c3c275dedf6",
+        "deprecated": false
+      },
+      "regionType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_resize_batch__v1.html#aec867d76fa8f4d0e0b63e629b8464316",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_resize_batch__v1.html#a53148b85d45209df7fa4cc7f8cbd0631",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemRegionsUnregisterBatch_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_regions_unregister_batch__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_unregister_batch__v1.html#details",
+    "signature": "struct nvtxMemRegionsUnregisterBatch_v1",
+    "fields": {
+      "extCompatID": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_unregister_batch__v1.html#a4e5ae5cddcd71b61e73884c8ce209588",
+        "deprecated": false
+      },
+      "refCount": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_unregister_batch__v1.html#aad3f35b0c0df9ffdc95c4c083540652f",
+        "deprecated": false
+      },
+      "refElements": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_unregister_batch__v1.html#a33bf637ac431bc7e653a66389f52f433",
+        "deprecated": false
+      },
+      "refElementSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_unregister_batch__v1.html#ae8ffe3559d65e26ee82f67b7b34c6e15",
+        "deprecated": false
+      },
+      "refType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_unregister_batch__v1.html#a5bec6594bb3bef11bf661c1376577f49",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_regions_unregister_batch__v1.html#a30cd8d0aa3a1fa2137decaa6242bcfbd",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMemVirtualRangeDesc_v1": {
+    "kind": "type",
+    "page": "structnvtx_mem_virtual_range_desc__v1.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_virtual_range_desc__v1.html#details",
+    "signature": "struct nvtxMemVirtualRangeDesc_v1",
+    "fields": {
+      "ptr": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_virtual_range_desc__v1.html#a57f846197f51f8821d9b0911c6e16039",
+        "deprecated": false
+      },
+      "size": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_mem_virtual_range_desc__v1.html#add737304ff329b3ef0c43ee97adca717",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxMessageValue_t": {
+    "kind": "type",
+    "page": "unionnvtx_message_value__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_message_value__t.html#details",
+    "signature": "union nvtxMessageValue_t",
+    "fields": {
+      "ascii": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_message_value__t.html#aa519ff356c0cb1665c2072471bbdcc0c",
+        "deprecated": false
+      },
+      "registered": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_message_value__t.html#a2d2fe266355a7f0fd1bdc594553a365a",
+        "deprecated": false
+      },
+      "unicode": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_message_value__t.html#a511e94fcdbcc8fa0bc275ddc41b41000",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxPayloadData_t": {
+    "kind": "type",
+    "page": "structnvtx_payload_data__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_data__t.html#details",
+    "signature": "struct nvtxPayloadData_t",
+    "fields": {
+      "payload": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_data__t.html#ad4ecf00bae9cf3ccd26b75b20cc38019",
+        "doc": "Pointer to the binary payload data. Must not be NULL.",
+        "deprecated": false
+      },
+      "schemaId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_data__t.html#acc85b71f0d3a63e54ebc779f48df8309",
+        "doc": "The schema ID, which defines the layout of the binary data.\n\nThe value can be one of:\n\n* A **predefined entry type** (`NVTX_PAYLOAD_ENTRY_TYPE_*`, i.e. a value below NVTX_PAYLOAD_SCHEMA_ID_STATIC_START). The payload bytes are decoded directly as that type without requiring a registered schema. For C-string types the bytes contain inline character data (not a pointer). For numeric types, the element count is `size / elementSize`; any trailing bytes are ignored.\n* A **registered schema ID** (statically specified or dynamically created), >= NVTX_PAYLOAD_SCHEMA_ID_STATIC_START.\n* One of [NVTX_TYPE_PAYLOAD_SCHEMA_REFERENCED](https://nvidia.github.io/NVTX/doxygen/nv_tools_ext_payload_8h.html#ab8d11d49f72512c907feac5461cfacf0) or [NVTX_TYPE_PAYLOAD_SCHEMA_RAW](https://nvidia.github.io/NVTX/doxygen/nv_tools_ext_payload_8h.html#a4934201f867b553c51e2dd7968fc62fb).",
+        "deprecated": false
+      },
+      "size": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_data__t.html#ad0f0648c8ec5854b2cda3aa6e2f5dae5",
+        "doc": "Size of the payload (blob) in bytes.\n\nMust be non-zero; a payload with `size == 0` is ignored.\n\n`SIZE_MAX` (`(size_t)-1`) defers size determination to the tool. This is only reliably supported when schemaId is a predefined null-terminated C-string type, where the tool can call the appropriate string-length function. For all other schema IDs a tool may not be able to determine the size and will skip the payload.\n\nWhen `schemaId` is a predefined C-string type and `size != SIZE_MAX`, `size` bounds the inline string data in bytes and the payload does not need to include a null terminator. `size` must be at least one code unit. An empty string is encoded as a single null code unit.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxPayloadEntryTypeInfo_t": {
+    "kind": "type",
+    "page": "structnvtx_payload_entry_type_info__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_entry_type_info__t.html#details",
+    "signature": "struct nvtxPayloadEntryTypeInfo_t",
+    "fields": {
+      "align": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_entry_type_info__t.html#ae228d0ea3104ce493660dce6cfaba85b",
+        "deprecated": false
+      },
+      "size": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_entry_type_info__t.html#af463b2b6fc2878b4fa452202188329c0",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxPayloadEnum_t": {
+    "kind": "type",
+    "page": "structnvtx_payload_enum__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum__t.html#details",
+    "signature": "struct nvtxPayloadEnum_t",
+    "fields": {
+      "isFlag": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum__t.html#ae90cfd1bac263d55dfda3e3deab1749a",
+        "doc": "Non-zero if this value is a bit flag that can be combined in a mask.",
+        "deprecated": false
+      },
+      "name": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum__t.html#a66c39fea8c22778c517d4f22671fff73",
+        "doc": "Name of the enum value.",
+        "deprecated": false
+      },
+      "value": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum__t.html#a4ab5b494f0c14b54ca9de2c3477ea36f",
+        "doc": "Value of the enum entry.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxPayloadEnumAttr_t": {
+    "kind": "type",
+    "page": "structnvtx_payload_enum_attr__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#details",
+    "signature": "struct nvtxPayloadEnumAttr_t",
+    "fields": {
+      "entries": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#a2a81abd10a27f81936c78cdafe5a7ab8",
+        "doc": "Entries of the enum. (Mandatory).",
+        "deprecated": false
+      },
+      "extension": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#a31e43f2fd232fe218a8810ca2367906f",
+        "doc": "Reserved for future use.",
+        "deprecated": false
+      },
+      "fieldMask": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#a3210b1a35c305aaef946803cc1ac1317",
+        "doc": "Mask of valid fields in this struct. See `NVTX_PAYLOAD_ENUM_ATTR_FIELD_*`.",
+        "deprecated": false
+      },
+      "name": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#a5731ed1f823e0ff0aac3eeea68c8a6d5",
+        "doc": "Name of the enum. (Optional).",
+        "deprecated": false
+      },
+      "numEntries": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#a011b55b330f17b2e64157c169fad3880",
+        "doc": "Number of entries in the enum. (Mandatory).",
+        "deprecated": false
+      },
+      "schemaId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#ac51da0682943b6a5b4fa12365d7f81d4",
+        "doc": "Unique identifier for this enum type.\n\nSame constraints as [nvtxPayloadSchemaAttr_t::schemaId](https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#ae1fb939b70bec88c7702d6688ae657fc).",
+        "deprecated": false
+      },
+      "sizeOfEnum": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#a12b15187dd2515a895935a767dfbaac0",
+        "doc": "Size of the enumeration type in bytes. (Mandatory)\n\nMust be set to a non-zero value (typically `sizeof(YourEnumType)`) for a tool to be able to read enum-typed fields. If zero, the tool cannot determine how many bytes to read and may skip enum-typed entries.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxPayloadSchemaAttr_t": {
+    "kind": "type",
+    "page": "structnvtx_payload_schema_attr__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#details",
+    "signature": "struct nvtxPayloadSchemaAttr_t",
+    "fields": {
+      "entries": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#afa128ebfebfbb3333f41d8a1161b6176",
+        "doc": "Entries of a payload schema. (Mandatory).\n\nThis field points to an array of schema entries, each describing a field in a data structure such as a C struct or union.",
+        "deprecated": false
+      },
+      "extension": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#addb892502797acf269dc928e8614f97f",
+        "doc": "Reserved for future use.",
+        "deprecated": false
+      },
+      "fieldMask": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#ad7f767a3d434cd4f55e9924573f3544b",
+        "doc": "Mask of valid fields in this struct.\n\nUse the `NVTX_PAYLOAD_SCHEMA_ATTR_FIELD_*` defines.",
+        "deprecated": false
+      },
+      "flags": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#af82f33d22722ca11731778945bc44ef6",
+        "doc": "Payload schema flags. (Optional)\n\nFlags defined by `NVTX_PAYLOAD_SCHEMA_FLAG_*` can be used to set additional properties of the schema.",
+        "deprecated": false
+      },
+      "name": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#aba69f3fad4cd1b2e5b129019b1695422",
+        "doc": "Name of the payload schema. (Optional).",
+        "deprecated": false
+      },
+      "numEntries": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#afc8b55620206061decbac5eb2f3a9051",
+        "doc": "Number of entries in the payload schema. (Mandatory)\n\nNumber of entries in the array of payload entries ENTRIES_FIELD.",
+        "deprecated": false
+      },
+      "packAlign": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#ab7098a38ce30d775c9ce245108ff64db",
+        "doc": "The byte alignment for packed structures.\n\nIf not specified, this field defaults to `0`, which means that the fields in the data structure are not packed and natural alignment rules can be applied.\n\nA non-zero value caps each member's effective alignment identically to C's `#pragma pack(N)`: `effectiveAlign = min(naturalAlign, packAlign)`. For example, `packAlign = 4` means no member is aligned to more than 4 bytes, regardless of its natural alignment.",
+        "deprecated": false
+      },
+      "payloadStaticSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#a30c5c448071bcc470f99ff3b76c29a47",
+        "doc": "The binary payload size in bytes for static payload schemas.\n\nIf PAYLOAD_TYPE_FIELD is NVTX_PAYLOAD_SCHEMA_TYPE_DYNAMIC this value is ignored. If this field is not specified for a schema of type NVTX_PAYLOAD_SCHEMA_TYPE_STATIC, the size can be automatically determined by a tool.",
+        "deprecated": false
+      },
+      "schemaId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#ae1fb939b70bec88c7702d6688ae657fc",
+        "doc": "Unique identifier for this schema.\n\nA static payload schema ID must be unique within the domain, >= NVTX_PAYLOAD_SCHEMA_ID_STATIC_START and &lt; NVTX_PAYLOAD_SCHEMA_ID_DYNAMIC_START.\n\nSchema IDs and enum IDs share a single namespace within a domain. A given numeric ID must not be used for both a schema and an enum.",
+        "deprecated": false
+      },
+      "type": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#a10e7a9740ec894f4b153489deda077e4",
+        "doc": "Payload schema type. (Mandatory).\n\nUse the `NVTX_PAYLOAD_SCHEMA_TYPE_*` defines.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxPayloadSchemaEntry_t": {
+    "kind": "type",
+    "page": "structnvtx_payload_schema_entry__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#details",
+    "signature": "struct nvtxPayloadSchemaEntry_t",
+    "fields": {
+      "arrayOrUnionDetail": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#a187c1291da112ded29e1275700e3dabd",
+        "doc": "String length, array length or member selector for union types.\n\nIf type is a C string type and the entry represents an embedded fixed-size string, this field specifies the string length **in string code units** (not bytes), and must be at least 1. The byte footprint is this value multiplied by the code-unit width of the string type (see [NVTX_PAYLOAD_ENTRY_TYPE_CSTRING](https://nvidia.github.io/NVTX/doxygen/nv_tools_ext_payload_8h.html#a4cce0d88fa2510d8fca8e2e0c7c76c96)). The value 0 does not denote a zero-length embedded string; it selects the pointer/null-terminated form instead. An empty embedded string uses a length of at least 1 with a leading null code unit.\n\nIf flags specify that the entry is an array, this field specifies the array length or length-source index depending on the array flag. See `NVTX_PAYLOAD_ENTRY_FLAG_ARRAY_*` for more details.\n\nIf type is a union with schema type NVTX_PAYLOAD_SCHEMA_TYPE_UNION (external selection of the union member), this field contains the index (starting with 0) to an entry of integral type in the same schema. The associated field value specifies the selected union member.",
+        "deprecated": false
+      },
+      "description": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#a6ed4f95ea65ef1bb2ccbdc8c7fb218e0",
+        "doc": "Description of the payload entry. (Optional)\n\nA more detailed description of the data stored with this entry.",
+        "deprecated": false
+      },
+      "flags": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#ae9d93cd49514b16ffa11d4ae6bcc1da7",
+        "doc": "Flags to augment the basic type.\n\nThis field allows additional properties of the payload entry to be specified. Valid values are `NVTX_PAYLOAD_ENTRY_FLAG_*`.",
+        "deprecated": false
+      },
+      "name": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#a98a3b003669edb0daf1a2b4f9a71fa59",
+        "doc": "Name or label of the payload entry. (Optional)\n\nA meaningful name or label helps tools organize and interpret the data.",
+        "deprecated": false
+      },
+      "offset": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#a6a550470ce91d70e4207583b5f04df7e",
+        "doc": "Offset in the binary payload data (in bytes).\n\nThis field specifies the byte offset from the base address of the actual binary data (blob) to the start address of the data of this entry.\n\nIt is recommended (but not required) to provide the offset. Otherwise, the NVTX handler will determine the offset from natural alignment rules (capped by [nvtxPayloadSchemaAttr_t::packAlign](https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_attr__t.html#ab7098a38ce30d775c9ce245108ff64db) when set).\n\n**Implicit offset convention:** For the first entry (index 0), a value of `0` is always treated as an explicit offset. For all subsequent entries (index > 0), a value of `0` signals the tool to compute the offset implicitly. Therefore, to place a later entry explicitly at byte offset 0, use the first entry slot instead. In dynamic schemas, implicit offsets are computed by advancing a running cursor that is aligned per the entry's type alignment.\n\nSetting the offset can also be used to skip reserved regions in the payload during parsing.",
+        "deprecated": false
+      },
+      "reserved": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#ae8091f5c48af11c8de5353fa4a949d84",
+        "doc": "Reserved for future use.",
+        "deprecated": false
+      },
+      "semantics": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#a71ddd016470557793d6776781b7c8406",
+        "doc": "Additional semantics of the payload entry.\n\nThe field points to the first element in a linked list, which enables multiple semantic extensions.",
+        "deprecated": false
+      },
+      "type": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_schema_entry__t.html#a4c30462422da86de1abeedcef07dd541",
+        "doc": "Predefined payload schema entry type, registered enum ID, or registered schema ID.\n\nThe value can be:\n\n* A **predefined type** (`NVTX_PAYLOAD_ENTRY_TYPE_*`).\n* A **registered schema ID** (>= NVTX_PAYLOAD_SCHEMA_ID_STATIC_START), nesting the referenced schema inline. Size and alignment are taken from the referenced schema.\n* A **registered enum ID** (>= NVTX_PAYLOAD_SCHEMA_ID_STATIC_START). Byte width is given by [nvtxPayloadEnumAttr_t::sizeOfEnum](https://nvidia.github.io/NVTX/doxygen/structnvtx_payload_enum_attr__t.html#a12b15187dd2515a895935a767dfbaac0). A tool resolves the integer value to the enum entry name.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxResourceAttributes_t": {
+    "kind": "type",
+    "page": "structnvtx_resource_attributes__v0.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_resource_attributes__v0.html#details",
+    "signature": "struct nvtxResourceAttributes_t",
+    "fields": {
+      "identifierType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_resource_attributes__v0.html#acec361e5bafce002e93a604e36bdf31b",
+        "doc": "Identifier type specifies how to interpret the identifier field.\n\nDefines the identifier format of the attribute structure's [identifier](https://nvidia.github.io/NVTX/doxygen/unionnvtx_resource_attributes__v0_1_1identifier__t.html#RESOURCE_IDENTIFIER_FIELD) field.\n\nDefault Value is NVTX_RESOURCE_TYPE_UNKNOWN.",
+        "deprecated": false
+      },
+      "message": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_resource_attributes__v0.html#a6fb8c53dcd2860bada12560d5b2e586f",
+        "doc": "Message assigned to this attribute structure.\n\nThe text message that is attached to a resource.",
+        "deprecated": false
+      },
+      "messageType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_resource_attributes__v0.html#a23bd2e672a9fe0b600e7d3599da7443a",
+        "doc": "Message type specified in this attribute structure.\n\nDefines the message format of the attribute structure's message field.\n\nDefault Value is [`nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN`].",
+        "deprecated": false
+      },
+      "size": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_resource_attributes__v0.html#a3f251637098a16e51e3dd16f6f223282",
+        "doc": "Size of the structure.\n\nNeeds to be set to the size in bytes of this attribute structure.",
+        "deprecated": false
+      },
+      "version": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_resource_attributes__v0.html#a6aa99e7e990a00e128b80bf9199bcd7a",
+        "doc": "Version flag of the structure.\n\nNeeds to be set to NVTX_VERSION to indicate the version of NVTX APIs supported in this header file. This can optionally be overridden to another version of the tools extension library.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxResourceAttributes_t::identifier_t": {
+    "kind": "type",
+    "page": "unionnvtx_resource_attributes__v0_1_1identifier__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_resource_attributes__v0_1_1identifier__t.html#details",
+    "signature": "union nvtxResourceAttributes_t::identifier_t",
+    "fields": {
+      "pValue": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_resource_attributes__v0_1_1identifier__t.html#a8edfdf36915ae6707fc5cd696be28bf7",
+        "deprecated": false
+      },
+      "ullValue": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/unionnvtx_resource_attributes__v0_1_1identifier__t.html#ada562ea074b5a66a18f22e755db10126",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxScopeAttr_t": {
+    "kind": "type",
+    "page": "structnvtx_scope_attr__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_scope_attr__t.html#details",
+    "signature": "struct nvtxScopeAttr_t",
+    "fields": {
+      "parentScope": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_scope_attr__t.html#a48eeeed47ef503c114af84c40d39ef98",
+        "doc": "Identifier of the parent scope, to which `path` is appended. Must be `NVTX_SCOPE_ROOT`, `NVTX_SCOPE_NONE`, or a scope ID previously registered with `nvtxScopeRegister` for the same domain. The runtime-resolved scopes (`NVTX_SCOPE_CURRENT_*`) are not valid here.",
+        "deprecated": false
+      },
+      "path": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_scope_attr__t.html#af4db5037a7c7970861688d47db6c0f2a",
+        "doc": "Path delimited by '/' characters, relative to parentScope. Leading slashes are ignored. Nodes in the path may use name[key] syntax to indicate an array of sibling nodes, which may be combined with other non-array nodes or different arrays at the same scope. Node names should be printable UTF-8 characters. '\\' is used to escape '/', '[', and ']' characters in node names. An empty C string \"\" and `NULL` are valid inputs and treated equivalently.\n\nA GPU can be specified with the following notations: \"GPU[UUID:&lt;unique alphanumeric GPU ID>]\", \"GPU[CUDAID:&lt;CUDA device ID>]\" (sensitive to CUDA_VISIBLE_DEVICES), \"GPU[NVSMI:&lt;nvidia-smi(NVML) device ID>]\".\n\nFor display purposes, a tool may show a pretty name. To clearly identify a GPU, parentScope should resolve to a registered scope that represents the GPU's execution context.\n\nA CPU can be specified with the following notations: \"CPU[&lt;physical package ID>:&lt;OS logical core index>]\", \"CPU[OS:&lt;physical package ID>:&lt;OS logical core index>]\", \"CPU[HW:&lt;physical package ID>:&lt;hardware physical core index>]\", \"CPU[NUMA_OS:&lt;NUMA node ID>:&lt;OS logical core index>]\", \"CPU[NUMA_HW:&lt;NUMA node ID>:&lt;hardware physical core index>]\".\n\nPhysical package ID:\n\n* Windows: GetLogicalProcessorInformationEx (RelationProcessorPackage)\n* Linux: /sys/devices/system/cpu/cpu&lt;N>/topology/physical_package_id or /proc/cpuinfo (physical id)\n\nNUMA node ID:\n\n* Windows: GetLogicalProcessorInformationEx (RelationNumaNode)\n* Linux: /sys/devices/system/cpu/cpu&lt;N>/topology/numa_node or libnuma\n\nOS logical core index:\n\n* Windows: GetCurrentProcessorNumber() or GetSystemCpuSetInformation (LogicalProcessorIndex)\n* Linux: sched_getcpu() or /proc/cpuinfo (processor field)\n\nHardware physical core index:\n\n* Windows: GetLogicalProcessorInformationEx (RelationProcessorCore)\n* Linux: /sys/devices/system/cpu/cpu&lt;N>/topology/core_id or /proc/cpuinfo (core id).",
+        "deprecated": false
+      },
+      "scopeId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_scope_attr__t.html#aca9b5b78f0557ccf9c009ce797f9fe87",
+        "doc": "Static scope ID. Must be unique within the domain, >= NVTX_SCOPE_ID_STATIC_START, and &lt; NVTX_SCOPE_ID_DYNAMIC_START. Use NVTX_SCOPE_NONE to let the tool create a (dynamic) scope ID.",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_scope_attr__t.html#a8b181652f06ae70ec916c58dc0f3d114",
+        "doc": "Size of this struct in bytes (set to `sizeof(nvtxScopeAttr_t)`). Allows forward-compatible versioning when fields are appended.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxSemanticsCorrelation_t": {
+    "kind": "type",
+    "page": "structnvtx_semantics_correlation__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_correlation__t.html#details",
+    "signature": "struct nvtxSemanticsCorrelation_t",
+    "fields": {
+      "correlationDomainUuid": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_correlation__t.html#ada580ed40ad9eb37adcd610548430e29",
+        "doc": "Globally unique ID (across NVTX domains).",
+        "deprecated": false
+      },
+      "displayName": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_correlation__t.html#aeba176053808f68d0dac53aab3fa153b",
+        "doc": "Optional descriptive name of the correlation domain. If provided, a tool will copy the string during schema registration.",
+        "deprecated": false
+      },
+      "header": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_correlation__t.html#a0f08ed2402b2352c68f8967dc478d907",
+        "signature": "struct nvtxSemanticsHeader_v1 nvtxSemanticsCorrelation_t::header",
+        "deprecated": false
+      },
+      "role": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_correlation__t.html#adfa233dff15c8ba6455ec2a4122b0442",
+        "doc": "Specifies the role in a correlation with another event.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxSemanticsCounter_t": {
+    "kind": "type",
+    "page": "structnvtx_semantics_counter__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#details",
+    "signature": "struct nvtxSemanticsCounter_t",
+    "fields": {
+      "flags": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#ae3cbd14c5905b869b24212b85b013963",
+        "doc": "Flag if normalization, scale limits, etc. should be applied to counter values.",
+        "deprecated": false
+      },
+      "header": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#a11f4578f98bf9511ac49621748b26057",
+        "signature": "struct nvtxSemanticsHeader_v1 nvtxSemanticsCounter_t::header",
+        "doc": "Header of the semantic extension (with identifier, version, etc.).",
+        "deprecated": false
+      },
+      "limitType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#a3ff51c92a09bb34e169de38309e01582",
+        "doc": "Specifies the used union member for `min` and `max`. Use the defines `NVTX_COUNTER_LIMIT_*`.",
+        "deprecated": false
+      },
+      "max": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#a7d8d61aba9f56e573b1408449090f170",
+        "deprecated": false
+      },
+      "min": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#a353d625001638a5d2c7341a013e505f4",
+        "doc": "Value limits.",
+        "deprecated": false
+      },
+      "unit": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#ab63975716531a02c826e3d60924498e9",
+        "doc": "Unit of the counter value (case insensitive).",
+        "deprecated": false
+      },
+      "unitScaleDenominator": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#a88d60a2c7692ca703a542f3252770f74",
+        "doc": "Should be 1 if not used.",
+        "deprecated": false
+      },
+      "unitScaleNumerator": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_counter__t.html#a8b5740c0116aa8943ba43f9c97e14c64",
+        "doc": "Should be 1 if not used.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxSemanticsHeader_t": {
+    "kind": "type",
+    "page": "structnvtx_semantics_header__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_header__t.html#details",
+    "signature": "struct nvtxSemanticsHeader_t",
+    "fields": {
+      "next": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_header__t.html#a92fd8a055964784cd61c54111b5fa393",
+        "signature": "const struct nvtxSemanticsHeader_v1* nvtxSemanticsHeader_t::next",
+        "doc": "Version of the specific semantic extension.",
+        "deprecated": false
+      },
+      "semanticId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_header__t.html#ad1e09c81ba70c0678b398808b23133ca",
+        "doc": "Size of semantic extension struct.",
+        "deprecated": false
+      },
+      "structSize": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_header__t.html#ac77f3bebc65efb22f06ddb22f1d53991",
+        "deprecated": false
+      },
+      "version": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_header__t.html#a4e7f131e950cde7c3b0f0be8ee4ea50b",
+        "doc": "Identifies the semantic extension.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxSemanticsScope_t": {
+    "kind": "type",
+    "page": "structnvtx_semantics_scope__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_scope__t.html#details",
+    "signature": "struct nvtxSemanticsScope_t",
+    "fields": {
+      "header": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_scope__t.html#af022fd58b36351c7c4d0f4152ed8823c",
+        "signature": "struct nvtxSemanticsHeader_v1 nvtxSemanticsScope_t::header",
+        "deprecated": false
+      },
+      "scopeId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_scope__t.html#af32805268c18be1fa358738811f2916c",
+        "doc": "Specifies the scope of a payload entry.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxSemanticsTime_t": {
+    "kind": "type",
+    "page": "structnvtx_semantics_time__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_time__t.html#details",
+    "signature": "struct nvtxSemanticsTime_t",
+    "fields": {
+      "header": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_time__t.html#aa87ebf632b50a4a45b5d4afbb22c7aa6",
+        "signature": "struct nvtxSemanticsHeader_v1 nvtxSemanticsTime_t::header",
+        "deprecated": false
+      },
+      "timeDomainId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_semantics_time__t.html#ac230ae7d2bef55bfc98bb2788d6248d5",
+        "doc": "Time domain ID or predefined `NVTX_TIMESTAMP_TYPE_*`, if unambiguous.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxSyncPoint_t": {
+    "kind": "type",
+    "page": "structnvtx_sync_point__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_sync_point__t.html#details",
+    "signature": "struct nvtxSyncPoint_t",
+    "fields": {
+      "dst": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_sync_point__t.html#a4753015b28ef4f56893104cf478d19a6",
+        "doc": "Timestamp in the destination time domain (`timeDomainIdDst`).",
+        "deprecated": false
+      },
+      "src": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_sync_point__t.html#a3e32665fbf26ab3aa10730d4295be5fd",
+        "doc": "Timestamp in the source time domain (`timeDomainIdSrc`).",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxSyncUserAttributes_t": {
+    "kind": "type",
+    "page": "structnvtx_sync_user_attributes__v0.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_sync_user_attributes__v0.html#details",
+    "signature": "struct nvtxSyncUserAttributes_t",
+    "fields": {
+      "message": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_sync_user_attributes__v0.html#af0a877617fbf058cc2b6ee5c97a28ca6",
+        "doc": "Message assigned to this attribute structure.\n\nThe text message that is attached to an event.",
+        "deprecated": false
+      },
+      "messageType": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_sync_user_attributes__v0.html#ab31b719d75e5a4b64a7052327c2db023",
+        "doc": "Message type specified in this attribute structure.\n\nDefines the message format of the attribute structure's message field.\n\nDefault Value is [`nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN`].",
+        "deprecated": false
+      },
+      "size": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_sync_user_attributes__v0.html#ad55d1c1734d77c23863234c28667a4e1",
+        "doc": "Size of the structure.\n\nNeeds to be set to the size in bytes of the event attribute structure used to specify the event.",
+        "deprecated": false
+      },
+      "version": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_sync_user_attributes__v0.html#a5f765c007f7b252496240c4fd9e833b8",
+        "doc": "Version flag of the structure.\n\nNeeds to be set to NVTX_VERSION to indicate the version of NVTX APIs supported in this header file. This can optionally be overridden to another version of the tools extension library.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtxTimeDomainAttr_t": {
+    "kind": "type",
+    "page": "structnvtx_time_domain_attr__t.md",
+    "anchor": "details",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_time_domain_attr__t.html#details",
+    "signature": "struct nvtxTimeDomainAttr_t",
+    "fields": {
+      "scopeId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_time_domain_attr__t.html#a5285d2fa1096393a6e77598845265544",
+        "doc": "Identifier of the NVTX scope the time domain is associated with.",
+        "deprecated": false
+      },
+      "timeDomainId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_time_domain_attr__t.html#a37c03a5bfa70f3d6189f7e4d93628105",
+        "doc": "Static (feed-forward) time domain ID. `0` makes the tool generate the ID. The static time domain ID must be >= NVTX_TIME_DOMAIN_ID_STATIC_START and &lt; NVTX_TIME_DOMAIN_ID_DYNAMIC_START.",
+        "deprecated": false
+      },
+      "timerFlags": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_time_domain_attr__t.html#af3b24e72a656a74bc193ad5149939c10",
+        "doc": "Properties of the timer (use NVTX_TIMER_FLAG_\\*).",
+        "deprecated": false
+      },
+      "timerResolution": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_time_domain_attr__t.html#acfe8945f6ca8b09d34016e0b45a9c00c",
+        "doc": "Ticks per second (0 means unknown).",
+        "deprecated": false
+      },
+      "timerStart": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_time_domain_attr__t.html#ac2e5df710e17c9f6b0d2ccf2c22537d9",
+        "doc": "Point in time when the timer starts (use NVTX_TIMER_START_\\*).",
+        "deprecated": false
+      },
+      "timestampTypeId": {
+        "kind": "field",
+        "uri": "https://nvidia.github.io/NVTX/doxygen/structnvtx_time_domain_attr__t.html#a8f591ca10a043d6ea21f70f1718cfd08",
+        "doc": "Predefined `NVTX_TIMESTAMP_TYPE_*`.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  }
+}

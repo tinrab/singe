@@ -7,7 +7,7 @@ use singe_cudnn::{
     data_type::DataType,
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{
             CompileConfig, HeuristicMode, LayerNormalizationBackwardConfig,
             LayerNormalizationConfig, PointwiseOperation,
@@ -24,10 +24,14 @@ fn run_forward(ctx: &common::ExampleContext) -> Result<()> {
     let hidden_size = 128_i64;
     let element_count = (batch_size * seq_length * hidden_size) as usize;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F32)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F32)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let hidden_layout = Shape::contiguous([batch_size * seq_length, hidden_size, 1, 1])?
         .with_strides([hidden_size, 1, hidden_size, hidden_size])?;
@@ -150,10 +154,14 @@ fn run_backward(ctx: &common::ExampleContext) -> Result<()> {
     let hidden_size = 128_i64;
     let element_count = (batch_size * seq_length * hidden_size) as usize;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F32)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F32)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let hidden_layout = Shape::contiguous([batch_size * seq_length, hidden_size, 1, 1])?
         .with_strides([hidden_size, 1, hidden_size, hidden_size])?;

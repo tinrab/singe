@@ -17,7 +17,6 @@ where
     L: ChannelLayout,
     Self: CannyBorderFilterImage<T, L>,
 {
-    #[allow(clippy::too_many_arguments)]
     pub fn filter_canny_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

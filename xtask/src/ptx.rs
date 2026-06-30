@@ -12,7 +12,7 @@ use serde::Deserialize;
 
 use crate::utility::workspace_root;
 
-const PTX_INSTRUCTIONS_JSON: &str = include_str!("../docs/ptx-9.1-instructions.json");
+const PTX_INSTRUCTIONS_JSON: &str = include_str!("../docs/ptx-9.3-instructions.json");
 
 pub fn generate_ptx_instruction_parser() -> Result<()> {
     let root = workspace_root()?;

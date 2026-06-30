@@ -6,7 +6,7 @@ use singe_cudnn::{
     data_type::{DataType, f8e5m2, f8ue8m0, f16},
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{BlockScaleQuantizeConfig, HeuristicMode, LayerNormalizationConfig},
     },
 };
@@ -19,10 +19,14 @@ fn run() -> Result<()> {
     let hidden_size = 128_i64;
     let block_size = 32_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let x_layout = Shape::contiguous([batch_size, seq_length, hidden_size, 1])?.with_strides([
         seq_length * hidden_size,
@@ -77,9 +81,7 @@ fn run() -> Result<()> {
     )?;
     let col = graph.block_scale_quantize_infer(
         y_ln_2d,
-        BlockScaleQuantizeConfig::new(DataType::F32, block_size)
-            .with_axis(0)
-            .without_transpose(),
+        BlockScaleQuantizeConfig::new(DataType::F32, block_size).with_axis(0),
     )?;
 
     graph.mark_as_output(mean)?;

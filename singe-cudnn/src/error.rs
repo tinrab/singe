@@ -171,6 +171,13 @@ pub enum Error {
     #[error("invalid data strides")]
     InvalidDataStrides,
 
+    #[error("`{name}` shape mismatch (expected {expected:?}, got {actual:?})")]
+    ShapeMismatch {
+        name: String,
+        expected: Vec<i64>,
+        actual: Vec<i64>,
+    },
+
     #[error("unsupported data type")]
     UnsupportedDataType,
 
@@ -179,6 +186,9 @@ pub enum Error {
 
     #[error("frontend graph has no operations")]
     FrontendGraphEmpty,
+
+    #[error("frontend configuration mismatch for {name}")]
+    FrontendConfigurationMismatch { name: String },
 
     #[error("frontend tensor `{0}` was not found")]
     FrontendTensorNotFound(TensorId),
@@ -197,6 +207,18 @@ pub enum Error {
 
     #[error("frontend tensor ID `{0}` is duplicated")]
     FrontendTensorIdConflict(TensorId),
+
+    #[error("frontend tensor is missing an explicit ID for {operation}")]
+    FrontendTensorIdMissing { operation: String },
+
+    #[error("frontend tensor `{tensor_id}` participates in a ragged offset cycle")]
+    FrontendTensorRaggedOffsetCycle { tensor_id: TensorId },
+
+    #[error("frontend tensor `{tensor_id}` has incomplete vectorization metadata")]
+    FrontendTensorVectorizationIncomplete { tensor_id: TensorId },
+
+    #[error("frontend RNG seed tensor and offset tensor must be provided together")]
+    FrontendRandomNumberGeneratorSeedOffsetMismatch,
 
     #[error(
         "frontend tensor `{tensor_id}` has incompatible scalar type `{actual}` (expected `{expected}`)"
@@ -264,6 +286,23 @@ pub enum Error {
         operation: String,
         expected: Vec<i64>,
         actual: Vec<i64>,
+    },
+
+    #[error("frontend tensor `{tensor_id}` has incompatible layout for {operation}: {reason}")]
+    FrontendTensorLayoutMismatch {
+        tensor_id: TensorId,
+        operation: String,
+        reason: String,
+    },
+
+    #[error(
+        "frontend tensor `{tensor_id}` has incompatible last stride for {operation} (expected {expected}, got {actual})"
+    )]
+    FrontendTensorLastStrideMismatch {
+        tensor_id: TensorId,
+        operation: String,
+        expected: i64,
+        actual: i64,
     },
 
     #[error(
@@ -355,6 +394,325 @@ pub enum Error {
     #[error("frontend sdpa scores/v shapes are incompatible (scores {scores:?}, v {v:?})")]
     FrontendSdpaScoresVShapeMismatch { scores: Vec<i64>, v: Vec<i64> },
 
+    #[error(
+        "frontend sdpa query heads must be divisible by key/value heads (q {query_heads}, k {key_heads}, v {value_heads})"
+    )]
+    FrontendSdpaGroupedQueryAttentionHeadsMismatch {
+        query_heads: i64,
+        key_heads: i64,
+        value_heads: i64,
+    },
+
+    #[error("frontend sdpa bias tensor must use a numeric data type")]
+    FrontendSdpaBiasDataTypeUnsupported,
+
+    #[error(
+        "frontend sdpa auxiliary output `{output}` request mismatch (requested {requested}, provided {provided})"
+    )]
+    FrontendSdpaAuxOutputRequestMismatch {
+        output: String,
+        requested: bool,
+        provided: bool,
+    },
+
+    #[error("frontend sdpa requested rng dump output is missing")]
+    FrontendSdpaRngDumpOutputMissing,
+
+    #[error("frontend sdpa attention scale is required for {operation}")]
+    FrontendSdpaAttentionScaleRequired { operation: String },
+
+    #[error("frontend sdpa tensor `{tensor_id}` must carry a scalar value for {operation}")]
+    FrontendSdpaScalarValueRequired {
+        tensor_id: TensorId,
+        operation: String,
+    },
+
+    #[error("frontend sdpa scalar data type `{data_type}` is unsupported")]
+    FrontendSdpaScalarDataTypeUnsupported { data_type: DataType },
+
+    #[error("frontend sdpa optional output `{output}` request mismatch")]
+    FrontendSdpaOptionalOutputMismatch { output: String },
+
+    #[error("frontend sdpa unified softmax requires both probability and sum descriptors")]
+    FrontendSdpaUnifiedSoftmaxDescriptorsIncomplete,
+
+    #[error("frontend sdpa unified implementation is unavailable for this configuration")]
+    FrontendSdpaUnifiedImplementationUnavailable,
+
+    #[error("frontend sdpa quantized output `{output}` is unsupported for {operation}")]
+    FrontendSdpaQuantizedAuxOutputUnsupported { operation: String, output: String },
+
+    #[error(
+        "frontend sdpa max sequence length key/value {requested} exceeds available cache sequence length {available}"
+    )]
+    FrontendSdpaMaxSequenceLengthExceedsCache { requested: i64, available: i64 },
+
+    #[error("frontend sdpa causal bottom-right mask cannot be combined with {modifier}")]
+    FrontendSdpaCausalBottomRightModifierConflict { modifier: String },
+
+    #[error("frontend sdpa causal bottom-right mask requires sequence length tensors")]
+    FrontendSdpaCausalBottomRightRequiresSequenceLengths,
+
+    #[error(
+        "frontend sdpa causal bottom-right query sequence length {query_sequence_length} exceeds key/value sequence length {key_sequence_length} without a padding mask"
+    )]
+    FrontendSdpaCausalBottomRightSequenceLengthUnsupported {
+        query_sequence_length: i64,
+        key_sequence_length: i64,
+    },
+
+    #[error(
+        "frontend sdpa causal bottom-right requires query and key/value sequence lengths to be multiples of 64 before cuDNN 9.6 (query {query_sequence_length}, key/value {key_sequence_length})"
+    )]
+    FrontendSdpaCausalBottomRightSequenceLengthAlignmentUnsupported {
+        query_sequence_length: i64,
+        key_sequence_length: i64,
+        actual_version: u64,
+    },
+
+    #[error(
+        "frontend sdpa cannot combine sliding-window and causal bottom-right masks before cuDNN 9.6 unless sequence lengths match"
+    )]
+    FrontendSdpaSlidingWindowCausalBottomRightAlignmentUnsupported {
+        query_sequence_length: i64,
+        key_sequence_length: i64,
+        actual_version: u64,
+    },
+
+    #[error(
+        "frontend sdpa alibi slopes require causal top-left or right-aligned sliding-window masking"
+    )]
+    FrontendSdpaAlibiAlignmentUnsupported,
+
+    #[error("frontend sdpa block mask requires unified cuDNN SDPA lowering")]
+    FrontendSdpaBlockMaskRequiresUnified,
+
+    #[error("frontend sdpa max sequence length key/value requires paged attention")]
+    FrontendSdpaMaxSequenceLengthRequiresPagedAttention,
+
+    #[error(
+        "frontend sdpa max sequence length key/value {max_sequence_length_key_value} does not match bias key/value dimension {bias_key_value_dimension}"
+    )]
+    FrontendSdpaMaxSequenceLengthBiasMismatch {
+        max_sequence_length_key_value: i64,
+        bias_key_value_dimension: i64,
+    },
+
+    #[error("frontend sdpa custom dropout requires both mask and scale tensors")]
+    FrontendSdpaCustomDropoutIncomplete,
+
+    #[error("frontend sdpa cannot combine internal dropout with custom dropout")]
+    FrontendSdpaDropoutModeConflict,
+
+    #[error("frontend sdpa dropout seed tensor requires a dropout offset tensor")]
+    FrontendSdpaDropoutSeedRequiresOffset,
+
+    #[error("frontend sdpa dropout requires a host or device seed")]
+    FrontendSdpaDropoutSeedRequired,
+
+    #[error("frontend sdpa dropout offset tensor requires internal dropout")]
+    FrontendSdpaDropoutOffsetRequiresDropout,
+
+    #[error(
+        "frontend {operation} sequence lengths require a padding mask, causal bottom-right mask, or score subgraph"
+    )]
+    FrontendSdpaSequenceLengthsRequireMaskOrSubgraph { operation: String },
+
+    #[error(
+        "frontend {operation} ragged offsets require a padding mask, additive mask, or score subgraph"
+    )]
+    FrontendSdpaRaggedOffsetsRequireMaskOrSubgraph { operation: String },
+
+    #[error(
+        "frontend sdpa ragged offsets require SM 90 or cuDNN 9.18.1+ (cuDNN {cudnn_version}, SM {sm_version:?})"
+    )]
+    FrontendSdpaRaggedOffsetsArchitectureUnsupported {
+        cudnn_version: u64,
+        sm_version: Option<i32>,
+    },
+
+    #[error("frontend sdpa paged attention requires sequence length tensors")]
+    FrontendSdpaPagedAttentionRequiresSequenceLengths,
+
+    #[error(
+        "frontend {operation} data type `{data_type}` requires cuDNN {min_version} or newer (actual {actual_version})"
+    )]
+    FrontendSdpaDataTypeRequiresCudnnVersion {
+        operation: String,
+        data_type: DataType,
+        min_version: String,
+        actual_version: u64,
+    },
+
+    #[error("frontend sdpa sliding window is unsupported with {reason} before cuDNN 9.10.2")]
+    FrontendSdpaSlidingWindowModifierUnsupported { reason: String, actual_version: u64 },
+
+    #[error("frontend sdpa sliding window alignment is unsupported for this configuration")]
+    FrontendSdpaSlidingWindowAlignmentUnsupported,
+
+    #[error(
+        "frontend sdpa sliding window query sequence length {query_sequence_length} exceeds key/value sequence length {key_sequence_length} without a padding mask"
+    )]
+    FrontendSdpaSlidingWindowSequenceLengthUnsupported {
+        query_sequence_length: i64,
+        key_sequence_length: i64,
+    },
+
+    #[error("frontend sdpa decode masking is unsupported through cuDNN 9.9")]
+    FrontendSdpaDecodeMaskingUnsupported { actual_version: u64 },
+
+    #[error(
+        "frontend sdpa cuDNN 9.14 requires causal-like masking when key/value sequence length exceeds 1024"
+    )]
+    FrontendSdpaCudnn914LongSequenceRequiresCausalMask { key_sequence_length: i64 },
+
+    #[error(
+        "frontend sdpa sink token requires query sequence length greater than one (got {query_sequence_length})"
+    )]
+    FrontendSdpaSinkTokenRequiresNonDecode { query_sequence_length: i64 },
+
+    #[error("frontend {operation} score subgraph cannot be combined with {modifier}")]
+    FrontendSdpaScoreSubgraphModifierConflict { operation: String, modifier: String },
+
+    #[error("frontend sdpa backward score subgraph bprop requires a score subgraph")]
+    FrontendSdpaBackwardScoreSubgraphBpropRequiresForward,
+
+    #[error("frontend sdpa backward rng dump requires dropout")]
+    FrontendSdpaBackwardRngDumpRequiresDropout,
+
+    #[error("frontend sdpa backward requested rng dump output is missing")]
+    FrontendSdpaBackwardRngDumpOutputMissing,
+
+    #[error("frontend sdpa backward requested bias gradient output is missing")]
+    FrontendSdpaBackwardBiasGradientOutputMissing,
+
+    #[error("frontend sdpa fp8 backward does not support bias gradients")]
+    FrontendSdpaFp8BackwardBiasGradientUnsupported,
+
+    #[error("frontend sdpa backward direct does not support auxiliary gradients")]
+    FrontendSdpaBackwardDirectAuxiliaryGradientsUnsupported,
+
+    #[error("frontend sdpa backward requires sequence length greater than one")]
+    FrontendSdpaBackwardSequenceLengthUnsupported,
+
+    #[error(
+        "frontend sdpa backward query heads must be divisible by key/value heads (q {query_heads}, k {key_heads}, v {value_heads})"
+    )]
+    FrontendSdpaBackwardGroupedQueryAttentionHeadsMismatch {
+        query_heads: i64,
+        key_heads: i64,
+        value_heads: i64,
+    },
+
+    #[error("frontend sdpa backward sink gradient requires a sink tensor")]
+    FrontendSdpaBackwardSinkGradientRequiresSink,
+
+    #[error("frontend sdpa backward max total sequence lengths require ragged tensors")]
+    FrontendSdpaBackwardMaxTotalSequenceLengthsRequireRagged,
+
+    #[error("frontend sdpa backward causal bottom-right requires SM 100 or newer")]
+    FrontendSdpaBackwardCausalBottomRightArchitectureUnsupported { sm_version: Option<i32> },
+
+    #[error(
+        "frontend sdpa backward causal bottom-right query sequence length {query_sequence_length} exceeds key/value sequence length {key_sequence_length}"
+    )]
+    FrontendSdpaBackwardCausalBottomRightSequenceLengthUnsupported {
+        query_sequence_length: i64,
+        key_sequence_length: i64,
+    },
+
+    #[error("frontend sdpa backward causal bottom-right does not support dropout")]
+    FrontendSdpaBackwardCausalBottomRightDropoutUnsupported,
+
+    #[error(
+        "frontend sdpa backward causal bottom-right requires query and key/value sequence lengths to be multiples of 64 (query {query_sequence_length}, key/value {key_sequence_length})"
+    )]
+    FrontendSdpaBackwardCausalBottomRightSequenceLengthAlignmentUnsupported {
+        query_sequence_length: i64,
+        key_sequence_length: i64,
+    },
+
+    #[error(
+        "frontend sdpa backward bias gradient is unsupported with ragged tensors on this architecture"
+    )]
+    FrontendSdpaBackwardBiasGradientRaggedUnsupported { sm_version: Option<i32> },
+
+    #[error(
+        "frontend sdpa backward deterministic algorithm is unsupported with bias gradients, dropout, or alibi on this architecture"
+    )]
+    FrontendSdpaBackwardDeterministicAlgorithmModifierUnsupported { sm_version: Option<i32> },
+
+    #[error(
+        "frontend sdpa backward deterministic algorithm is unsupported with ragged tensors on this architecture"
+    )]
+    FrontendSdpaBackwardDeterministicAlgorithmRaggedUnsupported {
+        sm_version: Option<i32>,
+        cudnn_version: u64,
+    },
+
+    #[error("frontend {operation} requires SM 90 or newer")]
+    FrontendSdpaQuantizedBackwardArchitectureUnsupported {
+        operation: String,
+        sm_version: Option<i32>,
+    },
+
+    #[error("frontend {operation} is unsupported with ragged tensors on SM 90")]
+    FrontendSdpaQuantizedBackwardRaggedUnsupported {
+        operation: String,
+        sm_version: Option<i32>,
+    },
+
+    #[error("frontend {operation} is unsupported with dropout on this architecture")]
+    FrontendSdpaQuantizedBackwardDropoutUnsupported {
+        operation: String,
+        sm_version: Option<i32>,
+    },
+
+    #[error("frontend {operation} does not support rng dump")]
+    FrontendSdpaQuantizedBackwardRngDumpUnsupported { operation: String },
+
+    #[error("frontend fp8 sdpa backward is unsupported by cuDNN 9.10")]
+    FrontendSdpaFp8BackwardCudnn910Unsupported,
+
+    #[error(
+        "frontend {operation} head dimensions are unsupported for this architecture (d_qk {d_qk}, d_v {d_v}, SM {sm_version:?})"
+    )]
+    FrontendSdpaQuantizedBackwardHeadDimensionUnsupported {
+        operation: String,
+        d_qk: i64,
+        d_v: i64,
+        sm_version: Option<i32>,
+    },
+
+    #[error("frontend {operation} ragged outputs are unsupported on SM 90")]
+    FrontendSdpaQuantizedBackwardRaggedOutputUnsupported {
+        operation: String,
+        sm_version: Option<i32>,
+    },
+
+    #[error(
+        "frontend {operation} output data type `{output_io_type}` is unsupported before cuDNN 9.13 on SM 100+"
+    )]
+    FrontendSdpaQuantizedOutputDataTypeRequiresCudnn913Sm100 {
+        operation: String,
+        output_io_type: DataType,
+        cudnn_version: u64,
+        sm_version: Option<i32>,
+    },
+
+    #[error(
+        "frontend {operation} is unsupported for {reason} (cuDNN {cudnn_version}, SM {sm_version:?}, data type {data_type}, d_qk {d_qk}, d_v {d_v})"
+    )]
+    FrontendSdpaArchitectureUnsupported {
+        operation: String,
+        reason: String,
+        cudnn_version: u64,
+        sm_version: Option<i32>,
+        data_type: DataType,
+        d_qk: i64,
+        d_v: i64,
+    },
+
     #[error("frontend runtime overrides require dynamic shape or override shape enabled graph")]
     FrontendRuntimeOverridesRequireShapeEnabledGraph,
 
@@ -366,6 +724,24 @@ pub enum Error {
 
     #[error("frontend deviceless compilation requires device properties")]
     FrontendDevicelessRequiresDeviceProperties,
+
+    #[error("frontend graph-aware bindings require a compiled graph template")]
+    FrontendGraphAwareBindingsRequired,
+
+    #[error("frontend legacy softmax supports no aux outputs, stats only, or max plus sum_exp")]
+    FrontendSoftmaxLegacyOutputsUnsupported,
+
+    #[error("frontend diagonal band mask cannot set both left bound and shifted right bound")]
+    FrontendDiagonalBandMaskBoundsConflict,
+
+    #[error("frontend resample indices require max-pool mode")]
+    FrontendResampleIndicesRequireMaxPool,
+
+    #[error("frontend batch norm finalize running-stat tensors must be provided as a complete set")]
+    FrontendBatchNormFinalizeRunningStatsIncomplete,
+
+    #[error("frontend {operation} requires `{field}`")]
+    FrontendOperationFieldMissing { operation: String, field: String },
 
     #[error(
         "frontend feature `{feature}` requires cuDNN >= {min_version} (detected version {actual_version})"

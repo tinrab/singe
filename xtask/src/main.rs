@@ -1,7 +1,4 @@
 //! Workspace maintenance commands for Singe.
-//!
-//! The xtask binary injects generated rustdoc into checked-in bindings and refreshes
-//! generated PTX instruction metadata.
 
 use std::env;
 

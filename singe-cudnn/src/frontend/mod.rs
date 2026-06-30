@@ -8,4 +8,5 @@ pub mod plan;
 
 pub(crate) mod infer;
 pub(crate) mod lower;
+pub(crate) mod shape;
 pub(crate) mod support;

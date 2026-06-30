@@ -14,7 +14,6 @@ where
     L: ChannelLayout,
     Self: BilateralGaussBorderFilterImage<T, L>,
 {
-    #[allow(clippy::too_many_arguments)]
     pub fn filter_bilateral_gauss_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

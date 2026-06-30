@@ -7,8 +7,10 @@ use singe_cudnn::{
     error::{Error, Result, Status},
     frontend::{
         composite::sdpa::SdpaMxfp8BackwardInputs,
-        graph::Graph,
-        operation::{AttentionBackwardConfig, HeuristicMode},
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionBackwardConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+        },
     },
     version,
 };
@@ -29,10 +31,14 @@ fn run() -> Result<()> {
         return Ok(());
     }
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F8E4M3)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F8E4M3)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(TensorSpec::new(
         DataType::F8E4M3,
@@ -125,7 +131,9 @@ fn run() -> Result<()> {
             scale_d_o_t,
             attention_scale,
         ),
-        AttentionBackwardConfig::new(DataType::F32).with_causal_mask(),
+        AttentionBackwardConfig::new(DataType::F32).with_score_config(
+            AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::CausalTopLeft),
+        ),
     ) {
         Ok(outputs) => outputs,
         Err(error) => {
@@ -148,12 +156,12 @@ fn run() -> Result<()> {
     };
 
     for output in [
-        outputs.query_gradient,
-        outputs.key_gradient,
-        outputs.value_gradient,
-        outputs.absolute_max_query_gradient,
-        outputs.absolute_max_key_gradient,
-        outputs.absolute_max_value_gradient,
+        outputs.query_gradient(),
+        outputs.key_gradient(),
+        outputs.value_gradient(),
+        outputs.absolute_max_query_gradient(),
+        outputs.absolute_max_key_gradient(),
+        outputs.absolute_max_value_gradient(),
     ] {
         graph.mark_as_output(output)?;
     }

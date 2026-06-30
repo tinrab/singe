@@ -9,9 +9,12 @@ use singe_cudnn::{
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
-        composite::sdpa::{SdpaInputs, SdpaOutputs},
-        graph::Graph,
-        operation::{AttentionConfig, HeuristicMode},
+        composite::sdpa::SdpaInputs,
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+            SdpaAuxOutputRequest,
+        },
         plan::CompiledGraph,
     },
 };
@@ -40,11 +43,16 @@ fn create_sdpa_forward_graph() -> Result<(
     let d_qk = 128_i64;
     let d_v = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_name("cached-sdpa-forward")
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new()
+            .with_name("cached-sdpa-forward")
+            .with_data_type_policy(
+                DataTypePolicy::new()
+                    .with_io(DataType::BF16)
+                    .with_intermediate(DataType::F32)
+                    .with_compute(DataType::F32),
+            ),
+    );
 
     let q = graph.tensor(
         TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_q, d_qk])?).with_id(1001),
@@ -61,7 +69,7 @@ fn create_sdpa_forward_graph() -> Result<(
     let sequence_length_key_value = graph
         .tensor(TensorSpec::new(DataType::I32, Shape::contiguous([b, 1, 1, 1])?).with_id(1008));
 
-    let SdpaOutputs { output: o, stats } = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto_infer(
         SdpaInputs {
             query: q,
             key: k,
@@ -69,10 +77,16 @@ fn create_sdpa_forward_graph() -> Result<(
             scale: scale,
         },
         AttentionConfig::new(DataType::F32)
-            .with_stats()
-            .with_causal_mask()
-            .with_padding_mask(sequence_length_query, sequence_length_key_value),
+            .with_aux_outputs(SdpaAuxOutputRequest::stats_only())
+            .with_score_config(AttentionScoreConfig::new().with_mask_mode(
+                AttentionMaskMode::CausalTopLeftWithPadding {
+                    sequence_length_query: sequence_length_query,
+                    sequence_length_key_value: sequence_length_key_value,
+                },
+            )),
     )?;
+    let o = outputs.output();
+    let stats = outputs.stats();
 
     graph.replace_tensor(
         o,

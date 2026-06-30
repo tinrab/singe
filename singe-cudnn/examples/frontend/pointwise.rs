@@ -8,7 +8,7 @@ use singe_cudnn::{
     data_type::{DataType, f8e4m3, f16},
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{HeuristicMode, PointwiseOperation, ReductionOperation},
     },
     math::NanPropagation,
@@ -72,9 +72,13 @@ fn run_reduction(ctx: &common::ExampleContext) -> Result<()> {
 fn run_fused_scalar(ctx: &common::ExampleContext) -> Result<()> {
     let n = 4_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F16)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let a = graph.tensor(TensorSpec::new(
         DataType::F16,

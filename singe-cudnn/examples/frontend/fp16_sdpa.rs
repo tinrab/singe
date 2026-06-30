@@ -7,9 +7,12 @@ use singe_cudnn::{
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
-        composite::sdpa::{SdpaInputs, SdpaOutputs},
-        graph::Graph,
-        operation::{AttentionConfig, HeuristicMode},
+        composite::sdpa::SdpaInputs,
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+            SdpaAuxOutputRequest,
+        },
     },
     version,
 };
@@ -55,10 +58,14 @@ fn create_sdpa_forward_graph(
     TensorId,
     TensorId,
 )> {
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::BF16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(
         TensorSpec::new(
@@ -118,18 +125,22 @@ fn create_sdpa_forward_graph(
     );
 
     let mut sdpa_options = AttentionConfig::new(DataType::F32);
+    let mut score_config = AttentionScoreConfig::new();
     if generate_stats {
-        sdpa_options = sdpa_options.with_stats();
+        sdpa_options = sdpa_options.with_aux_outputs(SdpaAuxOutputRequest::stats_only());
     }
     if causal_mask {
-        sdpa_options = sdpa_options.with_causal_mask();
+        score_config = score_config.with_mask_mode(AttentionMaskMode::CausalTopLeft);
     }
     if padding_mask {
-        sdpa_options =
-            sdpa_options.with_padding_mask(sequence_length_query, sequence_length_key_value);
+        score_config = score_config.with_mask_mode(AttentionMaskMode::Padding {
+            sequence_length_query: sequence_length_query,
+            sequence_length_key_value: sequence_length_key_value,
+        });
     }
+    sdpa_options = sdpa_options.with_score_config(score_config);
 
-    let SdpaOutputs { output: o, stats } = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto_infer(
         SdpaInputs {
             query: q,
             key: k,
@@ -138,6 +149,8 @@ fn create_sdpa_forward_graph(
         },
         sdpa_options,
     )?;
+    let o = outputs.output();
+    let stats = outputs.stats();
 
     graph.replace_tensor(
         o,

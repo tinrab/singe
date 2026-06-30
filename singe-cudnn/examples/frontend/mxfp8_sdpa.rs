@@ -7,8 +7,8 @@ use singe_cudnn::{
     error::{Error, Result, Status},
     frontend::{
         composite::sdpa::SdpaMxfp8Inputs,
-        graph::Graph,
-        operation::{HeuristicMode, SdpaConfig},
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{HeuristicMode, SdpaAuxOutputRequest, SdpaConfig, SdpaFusedMaskMode},
     },
     version,
 };
@@ -41,10 +41,14 @@ fn run() -> Result<()> {
     let s_scale_padded = ((s_scale + 3) / 4) * 4;
     let d_padded = ((d + 127) / 128) * 128;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F8E4M3)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F8E4M3)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let qkv_dims = vec![b, h, s, d];
     let qkv_strides = vec![s * 3 * h * d, d, 3 * h * d, 1];
@@ -93,9 +97,8 @@ fn run() -> Result<()> {
         SdpaMxfp8Inputs::new(q, k, v, scale_q, scale_k, scale_v, attention_scale),
         &SdpaConfig::new()
             .with_name("sdpa_mxfp8")
-            .with_causal_mask()
-            .with_stats()
-            .with_absolute_max_o(),
+            .with_mask(SdpaFusedMaskMode::CausalTopLeft)
+            .with_aux_outputs(SdpaAuxOutputRequest::mxfp8_amax()),
     ) {
         Ok(outputs) => outputs,
         Err(error) => {
@@ -114,9 +117,9 @@ fn run() -> Result<()> {
             return Err(error);
         }
     };
-    let o = outputs.output;
-    let stats = outputs.stats;
-    let absolute_max_o = outputs.absolute_max_output;
+    let o = outputs.output();
+    let stats = outputs.stats();
+    let absolute_max_o = outputs.absolute_max_output();
 
     for output in [Some(o), stats, absolute_max_o].into_iter().flatten() {
         graph.mark_as_output(output)?;

@@ -1,6 +1,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    sync::Arc,
     thread,
     time::{Duration, Instant},
 };
@@ -351,7 +352,7 @@ fn validate_config(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn create_communicator(
-    cuda_context: &std::sync::Arc<CudaContext>,
+    cuda_context: &Arc<CudaContext>,
     config: &Config,
 ) -> Result<Communicator, Box<dyn std::error::Error>> {
     let id = if config.rank_count == 1 {

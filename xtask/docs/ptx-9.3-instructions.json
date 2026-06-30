@@ -1,0 +1,2085 @@
+{
+  "instructions": [
+    {
+      "id": "integer-arithmetic-instructions-add",
+      "names": ["add"],
+      "summary": "Add two values.",
+      "syntax": [
+        "add.type1 d, a, b;",
+        "add{.sat}.type2 d, a, b;",
+        ".type1 = {.u16, .u64, .s16, .s64};",
+        ".type2 = {.u32, .u16x2, .u8x4, .s32, .s16x2, .s8x4};"
+      ]
+    },
+    {
+      "id": "integer-arithmetic-instructions-sub",
+      "names": ["sub"],
+      "summary": "Subtract one value from another.",
+      "syntax": [
+        "sub.type1 d, a, b;",
+        "sub{.sat}.type2 d, a, b;",
+        ".type1 = {.u16, .u32, .u64, .s16, .s64};",
+        ".type2 = {.s32, .u8x4, .s8x4};"
+      ]
+    },
+    {
+      "id": "integer-arithmetic-instructions-mul",
+      "names": ["mul"],
+      "summary": "Multiply two values.",
+      "syntax": [
+        "mul.mode.type d, a, b;",
+        ".mode = {.hi, .lo, .wide};",
+        ".type = {.u16, .u32, .u64, .s16, .s32, .s64};"
+      ]
+    },
+    {
+      "id": "integer-arithmetic-instructions-mad",
+      "names": ["mad"],
+      "summary": "Multiply two values, optionally extract the high or low half of the intermediate result, and add a third value.",
+      "syntax": [
+        "mad.mode.type d, a, b, c;",
+        "mad.hi.sat.s32 d, a, b, c;",
+        ".mode = {.hi, .lo, .wide};",
+        ".type = {.u16, .u32, .u64, .s16, .s32, .s64};"
+      ]
+    },
+    {
+      "id": "integer-arithmetic-instructions-clmad",
+      "names": ["clmad"],
+      "summary": "Perform carryless multiply and add operation.",
+      "syntax": ["clmad.mode.u64 d, a, b, c;", ".mode = {.hi, .lo};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-mul24",
+      "names": ["mul24"],
+      "summary": "Multiply two 24-bit integer values.",
+      "syntax": ["mul24.mode.type d, a, b;", ".mode = {.hi, .lo};", ".type = {.u32, .s32};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-mad24",
+      "names": ["mad24"],
+      "summary": "Multiply two 24-bit integer values and add a third value.",
+      "syntax": [
+        "mad24.mode.type d, a, b, c;",
+        "mad24.hi.sat.s32 d, a, b, c;",
+        ".mode = {.hi, .lo};",
+        ".type = {.u32, .s32};"
+      ]
+    },
+    {
+      "id": "integer-arithmetic-instructions-sad",
+      "names": ["sad"],
+      "summary": "Sum of absolute differences.",
+      "syntax": ["sad.type d, a, b, c;", ".type = {.u16, .u32, .u64, .s16, .s32, .s64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-div",
+      "names": ["div"],
+      "summary": "Divide one value by another.",
+      "syntax": ["div.type d, a, b;", ".type = {.u16, .u32, .u64, .s16, .s32, .s64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-rem",
+      "names": ["rem"],
+      "summary": "The remainder of integer division.",
+      "syntax": ["rem.type d, a, b;", ".type = {.u16, .u32, .u64, .s16, .s32, .s64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-abs",
+      "names": ["abs"],
+      "summary": "Absolute value.",
+      "syntax": ["abs.type d, a;", ".type = {.s16, .s32, .s64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-neg",
+      "names": ["neg"],
+      "summary": "Arithmetic negate.",
+      "syntax": ["neg.type d, a;", ".type = {.s8x4, .s16, .s32, .s64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-min",
+      "names": ["min"],
+      "summary": "Find the minimum of two values.",
+      "syntax": [
+        "min.type1 d, a, b;",
+        "min{.relu}.type2 d, a, b;",
+        ".type1 = {.u16, .u32, .u64, .u16x2, .u8x4, .s16, .s64};",
+        ".type2 = {.s16x2, .s32, .s8x4};"
+      ]
+    },
+    {
+      "id": "integer-arithmetic-instructions-max",
+      "names": ["max"],
+      "summary": "Find the maximum of two values.",
+      "syntax": [
+        "max.type1 d, a, b;",
+        "max{.relu}.type2 d, a, b;",
+        ".type1 = {.u16, .u32, .u64, .u16x2, .u8x4, .s16, .s64};",
+        ".type2 = {.s16x2, .s32, .s8x4};"
+      ]
+    },
+    {
+      "id": "integer-arithmetic-instructions-popc",
+      "names": ["popc"],
+      "summary": "Population count.",
+      "syntax": ["popc.type d, a;", ".type = {.b32, .b64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-clz",
+      "names": ["clz"],
+      "summary": "Count leading zeros.",
+      "syntax": ["clz.type d, a;", ".type = {.b32, .b64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-bfind",
+      "names": ["bfind"],
+      "summary": "Find most significant non-sign bit.",
+      "syntax": [
+        "bfind.type d, a;",
+        "bfind.shiftamt.type d, a;",
+        ".type = {.u32, .u64, .s32, .s64};"
+      ]
+    },
+    {
+      "id": "integer-arithmetic-instructions-fns",
+      "names": ["fns"],
+      "summary": "Find the n-th set bit",
+      "syntax": ["fns.b32 d, mask, base, offset;"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-brev",
+      "names": ["brev"],
+      "summary": "Bit reverse.",
+      "syntax": ["brev.type d, a;", ".type = {.b32, .b64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-bfe",
+      "names": ["bfe"],
+      "summary": "Bit Field Extract.",
+      "syntax": ["bfe.type d, a, b, c;", ".type = {.u32, .u64, .s32, .s64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-bfi",
+      "names": ["bfi"],
+      "summary": "Bit Field Insert.",
+      "syntax": ["bfi.type f, a, b, c, d;", ".type = {.b32, .b64};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-szext",
+      "names": ["szext"],
+      "summary": "Sign-extend or Zero-extend.",
+      "syntax": ["szext.mode.type d, a, b;", ".mode = {.clamp, .wrap};", ".type = {.u32, .s32};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-bmsk",
+      "names": ["bmsk"],
+      "summary": "Bit Field Mask.",
+      "syntax": ["bmsk.mode.b32 d, a, b;", ".mode = {.clamp, .wrap};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-dp4a",
+      "names": ["dp4a"],
+      "summary": "Four-way byte dot product-accumulate.",
+      "syntax": ["dp4a.atype.btype d, a, b, c;", ".atype = {.u32, .s32};", ".btype = {.u32, .s32};"]
+    },
+    {
+      "id": "integer-arithmetic-instructions-dp2a",
+      "names": ["dp2a"],
+      "summary": "Two-way dot product-accumulate.",
+      "syntax": [
+        "dp2a.mode.atype.btype d, a, b, c;",
+        ".atype = {.u32, .s32};",
+        ".btype = {.u32, .s32};",
+        ".mode = {.lo, .hi};"
+      ]
+    },
+    {
+      "id": "extended-precision-arithmetic-instructions-add-cc",
+      "names": ["add.cc"],
+      "summary": "Add two values with carry-out.",
+      "syntax": ["add.cc.type d, a, b;", ".type = {.u32, .s32, .u64, .s64};"]
+    },
+    {
+      "id": "extended-precision-arithmetic-instructions-addc",
+      "names": ["addc"],
+      "summary": "Add two values with carry-in and optional carry-out.",
+      "syntax": ["addc{.cc}.type d, a, b;", ".type = {.u32, .s32, .u64, .s64};"]
+    },
+    {
+      "id": "extended-precision-arithmetic-instructions-sub-cc",
+      "names": ["sub.cc"],
+      "summary": "Subtract one value from another, with borrow-out.",
+      "syntax": ["sub.cc.type d, a, b;", ".type = {.u32, .s32, .u64, .s64};"]
+    },
+    {
+      "id": "extended-precision-arithmetic-instructions-subc",
+      "names": ["subc"],
+      "summary": "Subtract one value from another, with borrow-in and optional borrow-out.",
+      "syntax": ["subc{.cc}.type d, a, b;", ".type = {.u32, .s32, .u64, .s64};"]
+    },
+    {
+      "id": "extended-precision-arithmetic-instructions-mad-cc",
+      "names": ["mad.cc"],
+      "summary": "Multiply two values, extract high or low half of result, and add a third value with carry-out.",
+      "syntax": ["mad{.hi,.lo}.cc.type d, a, b, c;", ".type = {.u32, .s32, .u64, .s64};"]
+    },
+    {
+      "id": "extended-precision-arithmetic-instructions-madc",
+      "names": ["madc"],
+      "summary": "Multiply two values, extract high or low half of result, and add a third value with carry-in and optional carry-out.",
+      "syntax": ["madc{.hi,.lo}{.cc}.type d, a, b, c;", ".type = {.u32, .s32, .u64, .s64};"]
+    },
+    {
+      "id": "floating-point-instructions-testp",
+      "names": ["testp"],
+      "summary": "Test floating-point property.",
+      "syntax": [
+        "testp.op.type p, a;",
+        ".op = {.finite, .infinite, .number, .notanumber, .normal, .subnormal};",
+        ".type = {.f32, .f64};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-copysign",
+      "names": ["copysign"],
+      "summary": "Copy sign of one input to another.",
+      "syntax": ["copysign.type d, a, b;", ".type = {.f32, .f64};"]
+    },
+    {
+      "id": "floating-point-instructions-add",
+      "names": ["add"],
+      "summary": "Add two values.",
+      "syntax": [
+        "add{.rnd}{.ftz}{.sat}.f32 d, a, b;",
+        "add{.rnd}{.ftz}.f32x2 d, a, b;",
+        "add{.rnd}.f64 d, a, b;",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-sub",
+      "names": ["sub"],
+      "summary": "Subtract one value from another.",
+      "syntax": [
+        "sub{.rnd}{.ftz}{.sat}.f32 d, a, b;",
+        "sub{.rnd}{.ftz}.f32x2 d, a, b;",
+        "sub{.rnd}.f64 d, a, b;",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-mul",
+      "names": ["mul"],
+      "summary": "Multiply two values.",
+      "syntax": [
+        "mul{.rnd}{.ftz}{.sat}.f32 d, a, b;",
+        "mul{.rnd}{.ftz}.f32x2 d, a, b;",
+        "mul{.rnd}.f64 d, a, b;",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-fma",
+      "names": ["fma"],
+      "summary": "Fused multiply-add.",
+      "syntax": [
+        "fma.rnd{.ftz}{.sat}.f32 d, a, b, c;",
+        "fma.rnd{.ftz}.f32x2 d, a, b, c;",
+        "fma.rnd.f64 d, a, b, c;",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-mad",
+      "names": ["mad"],
+      "summary": "Multiply two values and add a third value.",
+      "syntax": [
+        "mad{.ftz}{.sat}.f32 d, a, b, c; mad.rnd{.ftz}{.sat}.f32 d, a, b, c; mad.rnd.f64 d, a, b, c;",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-div",
+      "names": ["div"],
+      "summary": "Divide one value by another.",
+      "syntax": [
+        "div.approx{.ftz}.f32 d, a, b; div.full{.ftz}.f32 d, a, b; div.rnd{.ftz}.f32 d, a, b; div.rnd.f64 d, a, b;",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-abs",
+      "names": ["abs"],
+      "summary": "Absolute value.",
+      "syntax": ["abs{.ftz}.f32 d, a;", "abs.f64 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-neg",
+      "names": ["neg"],
+      "summary": "Arithmetic negate.",
+      "syntax": ["neg{.ftz}.f32 d, a;", "neg.f64 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-min",
+      "names": ["min"],
+      "summary": "Find the minimum of given values.",
+      "syntax": [
+        "min{.ftz}{.NaN}{.xorsign.abs}.f32 d, a, b;",
+        "min{.ftz}{.NaN}{.abs}.f32 d, a, b, c;",
+        "min.f64 d, a, b;"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-max",
+      "names": ["max"],
+      "summary": "Find the maximum of given values.",
+      "syntax": [
+        "max{.ftz}{.NaN}{.xorsign.abs}.f32 d, a, b;",
+        "max{.ftz}{.NaN}{.abs}.f32 d, a, b, c;",
+        "max.f64 d, a, b;"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-rcp",
+      "names": ["rcp"],
+      "summary": "Take the reciprocal of a value.",
+      "syntax": [
+        "rcp.approx{.ftz}.f32 d, a; rcp.rnd{.ftz}.f32 d, a; rcp.rnd.f64 d, a;",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-rcp-approx-ftz-f64",
+      "names": ["rcp.approx.ftz.f64"],
+      "summary": "Compute a fast, gross approximation to the reciprocal of a value.",
+      "syntax": ["rcp.approx.ftz.f64 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-sqrt",
+      "names": ["sqrt"],
+      "summary": "Take the square root of a value.",
+      "syntax": [
+        "sqrt.approx{.ftz}.f32 d, a; sqrt.rnd{.ftz}.f32 d, a; sqrt.rnd.f64 d, a;",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "floating-point-instructions-rsqrt",
+      "names": ["rsqrt"],
+      "summary": "Take the reciprocal of the square root of a value.",
+      "syntax": ["rsqrt.approx{.ftz}.f32 d, a;", "rsqrt.approx.f64 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-rsqrt-approx-ftz-f64",
+      "names": ["rsqrt.approx.ftz.f64"],
+      "summary": "Compute an approximation of the square root reciprocal of a value.",
+      "syntax": ["rsqrt.approx.ftz.f64 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-sin",
+      "names": ["sin"],
+      "summary": "Find the sine of a value.",
+      "syntax": ["sin.approx{.ftz}.f32 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-cos",
+      "names": ["cos"],
+      "summary": "Find the cosine of a value.",
+      "syntax": ["cos.approx{.ftz}.f32 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-lg2",
+      "names": ["lg2"],
+      "summary": "Find the base-2 logarithm of a value.",
+      "syntax": ["lg2.approx{.ftz}.f32 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-ex2",
+      "names": ["ex2"],
+      "summary": "Find the base-2 exponential of a value.",
+      "syntax": ["ex2.approx{.ftz}.f32 d, a;"]
+    },
+    {
+      "id": "floating-point-instructions-tanh",
+      "names": ["tanh"],
+      "summary": "Find the hyperbolic tangent of a value (in radians)",
+      "syntax": ["tanh.approx.f32 d, a;"]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-add",
+      "names": ["add"],
+      "summary": "Add two values.",
+      "syntax": [
+        "add{.rnd}{.ftz}{.sat}.f16 d, a, b;",
+        "add{.rnd}{.ftz}{.sat}.f16x2 d, a, b;",
+        "add{.rnd}.bf16 d, a, b;",
+        "add{.rnd}.bf16x2 d, a, b;",
+        ".rnd = {.rn};"
+      ]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-sub",
+      "names": ["sub"],
+      "summary": "Subtract two values.",
+      "syntax": [
+        "sub{.rnd}{.ftz}{.sat}.f16 d, a, b;",
+        "sub{.rnd}{.ftz}{.sat}.f16x2 d, a, b;",
+        "sub{.rnd}.bf16 d, a, b;",
+        "sub{.rnd}.bf16x2 d, a, b;",
+        ".rnd = {.rn};"
+      ]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-mul",
+      "names": ["mul"],
+      "summary": "Multiply two values.",
+      "syntax": [
+        "mul{.rnd}{.ftz}{.sat}.f16 d, a, b;",
+        "mul{.rnd}{.ftz}{.sat}.f16x2 d, a, b;",
+        "mul{.rnd}.bf16 d, a, b;",
+        "mul{.rnd}.bf16x2 d, a, b;",
+        ".rnd = {.rn};"
+      ]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-fma",
+      "names": ["fma"],
+      "summary": "Fused multiply-add",
+      "syntax": [
+        "fma.rnd{.ftz}{.sat}.f16 d, a, b, c;",
+        "fma.rnd{.ftz}{.sat}.f16x2 d, a, b, c;",
+        "fma.rnd{.ftz}.relu.f16 d, a, b, c;",
+        "fma.rnd{.ftz}.relu.f16x2 d, a, b, c;",
+        "fma.rnd{.relu}.bf16 d, a, b, c;",
+        "fma.rnd{.relu}.bf16x2 d, a, b, c;",
+        "fma.rnd.oob.{relu}.type d, a, b, c;",
+        ".rnd = {.rn};"
+      ]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-neg",
+      "names": ["neg"],
+      "summary": "Arithmetic negate.",
+      "syntax": [
+        "neg{.ftz}.f16 d, a;",
+        "neg{.ftz}.f16x2 d, a;",
+        "neg.bf16 d, a;",
+        "neg.bf16x2 d, a;"
+      ]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-abs",
+      "names": ["abs"],
+      "summary": "Absolute value",
+      "syntax": [
+        "abs{.ftz}.f16 d, a;",
+        "abs{.ftz}.f16x2 d, a;",
+        "abs.bf16 d, a;",
+        "abs.bf16x2 d, a;"
+      ]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-min",
+      "names": ["min"],
+      "summary": "Find the minimum of two values.",
+      "syntax": [
+        "min{.ftz}{.NaN}{.xorsign.abs}.f16 d, a, b;",
+        "min{.ftz}{.NaN}{.xorsign.abs}.f16x2 d, a, b;",
+        "min{.NaN}{.xorsign.abs}.bf16 d, a, b;",
+        "min{.NaN}{.xorsign.abs}.bf16x2 d, a, b;"
+      ]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-max",
+      "names": ["max"],
+      "summary": "Find the maximum of two values.",
+      "syntax": [
+        "max{.ftz}{.NaN}{.xorsign.abs}.f16 d, a, b;",
+        "max{.ftz}{.NaN}{.xorsign.abs}.f16x2 d, a, b;",
+        "max{.NaN}{.xorsign.abs}.bf16 d, a, b;",
+        "max{.NaN}{.xorsign.abs}.bf16x2 d, a, b;"
+      ]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-tanh",
+      "names": ["tanh"],
+      "summary": "Find the hyperbolic tangent of a value (in radians)",
+      "syntax": ["tanh.approx.type d, a;", ".type = {.f16, .f16x2, .bf16, .bf16x2};"]
+    },
+    {
+      "id": "half-precision-floating-point-instructions-ex2",
+      "names": ["ex2"],
+      "summary": "Find the base-2 exponent of input.",
+      "syntax": [
+        "ex2.approx.atype d, a;",
+        "ex2.approx.ftz.btype d, a;",
+        ".atype = {.f16, .f16x2};",
+        ".btype = {.bf16, .bf16x2};"
+      ]
+    },
+    {
+      "id": "mixed-precision-floating-point-instructions-add",
+      "names": ["add"],
+      "summary": "Add 2 values.",
+      "syntax": [
+        "add{.rnd}{.sat}.f32.atype d, a, c;",
+        ".atype = {.f16, .bf16};",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "mixed-precision-floating-point-instructions-sub",
+      "names": ["sub"],
+      "summary": "Subtract one value from another.",
+      "syntax": [
+        "sub{.rnd}{.sat}.f32.atype d, a, c;",
+        ".atype = {.f16, .bf16};",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "mixed-precision-floating-point-instructions-fma",
+      "names": ["fma"],
+      "summary": "Fused multiply-add.",
+      "syntax": [
+        "fma.rnd{.sat}.f32.abtype d, a, b, c;",
+        ".abtype = {.f16, .bf16};",
+        ".rnd = {.rn, .rz, .rm, .rp};"
+      ]
+    },
+    {
+      "id": "comparison-and-selection-instructions-set",
+      "names": ["set"],
+      "summary": "Compare two numeric values with a relational operator, and optionally combine this result with a predicate value by applying a Boolean operator.",
+      "syntax": [
+        "set.CmpOp{.ftz}.dtype.stype d, a, b;",
+        "set.CmpOp.BoolOp{.ftz}.dtype.stype d, a, b, {!}c;",
+        ".CmpOp = {eq, ne, lt, le, gt, ge, lo, ls, hi, hs, equ, neu, ltu, leu, gtu, geu, num, nan};",
+        ".BoolOp = {and, or, xor};",
+        ".dtype = {.u32, .s32, .f32};",
+        ".stype = {.b16, .b32, .b64, .u16, .u32, .u64, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "comparison-and-selection-instructions-setp",
+      "names": ["setp"],
+      "summary": "Compare two numeric values with a relational operator, and (optionally) combine this result with a predicate value by applying a Boolean operator.",
+      "syntax": [
+        "setp.CmpOp{.ftz}.type p[|q], a, b;",
+        "setp.CmpOp.BoolOp{.ftz}.type p[|q], a, b, {!}c;",
+        ".CmpOp = {eq, ne, lt, le, gt, ge, lo, ls, hi, hs, equ, neu, ltu, leu, gtu, geu, num, nan};",
+        ".BoolOp = {and, or, xor};",
+        ".type = {.b16, .b32, .b64, .u16, .u32, .u64, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "comparison-and-selection-instructions-selp",
+      "names": ["selp"],
+      "summary": "Select between source operands, based on the value of the predicate source operand.",
+      "syntax": [
+        "selp.type d, a, b, c;",
+        ".type = {.b16, .b32, .b64, .u16, .u32, .u64, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "comparison-and-selection-instructions-slct",
+      "names": ["slct"],
+      "summary": "Select one source operand, based on the sign of the third operand.",
+      "syntax": [
+        "slct.dtype.s32 d, a, b, c;",
+        "slct{.ftz}.dtype.f32 d, a, b, c;",
+        ".dtype = {.b16, .b32, .b64, .u16, .u32, .u64, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "half-precision-comparison-instructions-set",
+      "names": ["set"],
+      "summary": "Compare two numeric values with a relational operator, and optionally combine this result with a predicate value by applying a Boolean operator.",
+      "syntax": [
+        "set.CmpOp{.ftz}.f16.stype d, a, b;",
+        "set.CmpOp.BoolOp{.ftz}.f16.stype d, a, b, {!}c;",
+        "set.CmpOp.bf16.stype d, a, b;",
+        "set.CmpOp.BoolOp.bf16.stype d, a, b, {!}c;",
+        "set.CmpOp{.ftz}.dtype.f16 d, a, b;",
+        "set.CmpOp.BoolOp{.ftz}.dtype.f16 d, a, b, {!}c;",
+        ".dtype = {.u16, .s16, .u32, .s32};",
+        "set.CmpOp.dtype.bf16 d, a, b;",
+        "set.CmpOp.BoolOp.dtype.bf16 d, a, b, {!}c;",
+        ".dtype = {.u16, .s16, .u32, .s32};",
+        "set.CmpOp{.ftz}.dtype.f16x2 d, a, b;",
+        "set.CmpOp.BoolOp{.ftz}.dtype.f16x2 d, a, b, {!}c;",
+        ".dtype = {.f16x2, .u32, .s32};",
+        "set.CmpOp.dtype.bf16x2 d, a, b;",
+        "set.CmpOp.BoolOp.dtype.bf16x2 d, a, b, {!}c;",
+        ".dtype = {.bf16x2, .u32, .s32};",
+        ".CmpOp = {eq, ne, lt, le, gt, ge, equ, neu, ltu, leu, gtu, geu, num, nan};",
+        ".BoolOp = {and, or, xor};",
+        ".stype = {.b16, .b32, .b64, .u16, .u32, .u64, .s16, .s32, .s64, .f16, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "half-precision-comparison-instructions-setp",
+      "names": ["setp"],
+      "summary": "Compare two numeric values with a relational operator, and optionally combine this result with a predicate value by applying a Boolean operator.",
+      "syntax": [
+        "setp.CmpOp{.ftz}.f16 p, a, b;",
+        "setp.CmpOp.BoolOp{.ftz}.f16 p, a, b, {!}c;",
+        "setp.CmpOp{.ftz}.f16x2 p|q, a, b;",
+        "setp.CmpOp.BoolOp{.ftz}.f16x2 p|q, a, b, {!}c;",
+        "setp.CmpOp.bf16 p, a, b;",
+        "setp.CmpOp.BoolOp.bf16 p, a, b, {!}c;",
+        "setp.CmpOp.bf16x2 p|q, a, b;",
+        "setp.CmpOp.BoolOp.bf16x2 p|q, a, b, {!}c;",
+        ".CmpOp = {eq, ne, lt, le, gt, ge, equ, neu, ltu, leu, gtu, geu, num, nan};",
+        ".BoolOp = {and, or, xor};"
+      ]
+    },
+    {
+      "id": "logic-and-shift-instructions-and",
+      "names": ["and"],
+      "summary": "Bitwise AND.",
+      "syntax": ["and.type d, a, b;", ".type = {.pred, .b16, .b32, .b64};"]
+    },
+    {
+      "id": "logic-and-shift-instructions-or",
+      "names": ["or"],
+      "summary": "Biwise OR.",
+      "syntax": ["or.type d, a, b;", ".type = {.pred, .b16, .b32, .b64};"]
+    },
+    {
+      "id": "logic-and-shift-instructions-xor",
+      "names": ["xor"],
+      "summary": "Bitwise exclusive-OR (inequality).",
+      "syntax": ["xor.type d, a, b;", ".type = {.pred, .b16, .b32, .b64};"]
+    },
+    {
+      "id": "logic-and-shift-instructions-not",
+      "names": ["not"],
+      "summary": "Bitwise negation; one\u2019s complement.",
+      "syntax": ["not.type d, a;", ".type = {.pred, .b16, .b32, .b64};"]
+    },
+    {
+      "id": "logic-and-shift-instructions-cnot",
+      "names": ["cnot"],
+      "summary": "C/C++ style logical negation.",
+      "syntax": ["cnot.type d, a;", ".type = {.b16, .b32, .b64};"]
+    },
+    {
+      "id": "logic-and-shift-instructions-lop3",
+      "names": ["lop3"],
+      "summary": "Arbitrary logical operation on 3 inputs.",
+      "syntax": [
+        "lop3.b32 d, a, b, c, immLut;",
+        "lop3.BoolOp.b32 d|p, a, b, c, immLut, q;",
+        ".BoolOp = {.or, .and};"
+      ]
+    },
+    {
+      "id": "logic-and-shift-instructions-shf",
+      "names": ["shf"],
+      "summary": "Funnel shift.",
+      "syntax": [
+        "shf.l.mode.b32 d, a, b, c; shf.r.mode.b32 d, a, b, c;",
+        ".mode = {.clamp, .wrap};"
+      ]
+    },
+    {
+      "id": "logic-and-shift-instructions-shl",
+      "names": ["shl"],
+      "summary": "Shift bits left, zero-fill on right.",
+      "syntax": ["shl.type d, a, b;", ".type = {.b16, .b32, .b64};"]
+    },
+    {
+      "id": "logic-and-shift-instructions-shr",
+      "names": ["shr"],
+      "summary": "Shift bits right, sign or zero-fill on left.",
+      "syntax": [
+        "shr.type d, a, b;",
+        ".type = {.b16, .b32, .b64, .u16, .u32, .u64, .s16, .s32, .s64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-mov",
+      "names": ["mov"],
+      "summary": "Set a register variable with the value of a register variable or an immediate value. Take the non-generic address of a variable in global, local, or shared state space.",
+      "syntax": [
+        "mov.type d, a;",
+        "mov.type d, sreg;",
+        "mov.type d, avar; mov.type d, avar+imm; mov.u32 d, fname; mov.u64 d, fname; mov.u32 d, kernel; mov.u64 d, kernel;",
+        ".type = {.pred, .b16, .b32, .b64, .u16, .u32, .u64, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-mov-2",
+      "names": ["mov"],
+      "summary": "Move vector-to-scalar (pack) or scalar-to-vector (unpack).",
+      "syntax": ["mov.type d, a;", ".type = {.b16, .b32, .b64, .b128};"]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-shfl",
+      "names": ["shfl"],
+      "summary": "Register data shuffle within threads of a warp.",
+      "syntax": ["shfl.mode.b32 d[|p], a, b, c;", ".mode = {.up, .down, .bfly, .idx};"]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-shfl-sync",
+      "names": ["shfl.sync"],
+      "summary": "Register data shuffle within threads of a warp.",
+      "syntax": [
+        "shfl.sync.mode.b32 d[|p], a, b, c, membermask;",
+        ".mode = {.up, .down, .bfly, .idx};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-prmt",
+      "names": ["prmt"],
+      "summary": "Permute bytes from register pair.",
+      "syntax": ["prmt.b32{.mode} d, a, b, c;", ".mode = {.f4e, .b4e, .rc8, .ecl, .ecr, .rc16};"]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-ld",
+      "names": ["ld"],
+      "summary": "Load a register variable from an addressable state space variable.",
+      "syntax": [
+        "ld{.weak}{.ss}{.cop}{.level::cache_hint}{.level::prefetch_size}{.vec}.type d, [a]{.unified}{, cache_policy};",
+        "ld{.weak}{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}{.vec}.type d, [a]{.unified}{, cache_policy};",
+        "ld.volatile{.ss}{.level::prefetch_size}{.vec}.type d, [a];",
+        "ld.relaxed.scope{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}{.vec}.type d, [a]{, cache_policy};",
+        "ld.acquire.scope{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}{.vec}.type d, [a]{, cache_policy};",
+        "ld.mmio.sem.sys{.global}.type d, [a];",
+        ".ss = {.const, .global, .local, .param{::entry, ::func}, .shared{::cta, ::cluster}};",
+        ".cop = {.ca, .cg, .cs, .lu, .cv};",
+        ".sem = {.acquire, .relaxed};",
+        ".level1::eviction_priority = {.L1::evict_normal, .L1::evict_unchanged, .L1::evict_first, .L1::evict_last, .L1::no_allocate};",
+        ".level2::eviction_priority = {.L2::evict_normal, .L2::evict_first, .L2::evict_last};",
+        ".level::cache_hint = {.L2::cache_hint};",
+        ".level::prefetch_size = {.L2::64B, .L2::128B, .L2::256B};",
+        ".scope = {.cta, .cluster, .gpu, .sys};",
+        ".vec = {.v2, .v4, .v8};",
+        ".type = {.b8, .b16, .b32, .b64, .b128, .u8, .u16, .u32, .u64, .s8, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-ld-global-nc",
+      "names": ["ld.global.nc"],
+      "summary": "Load a register variable from global state space via non-coherent cache.",
+      "syntax": [
+        "ld.global{.cop}.nc{.level::cache_hint}{.level::prefetch_size}.type d, [a]{, cache_policy};",
+        "ld.global{.cop}.nc{.level::cache_hint}{.level::prefetch_size}.vec.type d, [a]{, cache_policy};",
+        "ld.global.nc{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}.type d, [a]{, cache_policy};",
+        "ld.global.nc{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.level::prefetch_size}.vec.type d, [a]{, cache_policy};",
+        ".cop = {.ca, .cg, .cs};",
+        ".level1::eviction_priority = {.L1::evict_normal, .L1::evict_unchanged, .L1::evict_first, .L1::evict_last, .L1::no_allocate};",
+        ".level2::eviction_priority = {.L2::evict_normal, .L2::evict_first, .L2::evict_last};",
+        ".level::cache_hint = {.L2::cache_hint};",
+        ".level::prefetch_size = {.L2::64B, .L2::128B, .L2::256B};",
+        ".vec = {.v2, .v4, .v8};",
+        ".type = {.b8, .b16, .b32, .b64, .b128, .u8, .u16, .u32, .u64, .s8, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-ldu",
+      "names": ["ldu"],
+      "summary": "Load read-only data from an address that is common across threads in the warp.",
+      "syntax": [
+        "ldu{.ss}.type d, [a]; ldu{.ss}.vec.type d, [a];",
+        ".ss = {.global};",
+        ".vec = {.v2, .v4};",
+        ".type = {.b8, .b16, .b32, .b64, .b128, .u8, .u16, .u32, .u64, .s8, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-st",
+      "names": ["st"],
+      "summary": "Store data to an addressable state space variable.",
+      "syntax": [
+        "st{.weak}{.ss}{.cop}{.level::cache_hint}{.vec}.type [a], b{, cache_policy};",
+        "st{.weak}{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.vec}.type [a], b{, cache_policy};",
+        "st.volatile{.ss}{.vec}.type [a], b;",
+        "st.relaxed.scope{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.vec}.type [a], b{, cache_policy};",
+        "st.release.scope{.ss}{.level1::eviction_priority}{.level2::eviction_priority}{.level::cache_hint}{.vec}.type [a], b{, cache_policy};",
+        "st.mmio.sem.sys{.global}.type [a], b;",
+        ".ss = {.global, .local, .param{::func}, .shared{::cta, ::cluster}};",
+        ".sem = {.release, .relaxed};",
+        ".level1::eviction_priority = {.L1::evict_normal, .L1::evict_unchanged, .L1::evict_first, .L1::evict_last, .L1::no_allocate};",
+        ".level2::eviction_priority = {.L2::evict_normal, .L2::evict_first, .L2::evict_last};",
+        ".level::cache_hint = {.L2::cache_hint};",
+        ".cop = {.wb, .cg, .cs, .wt};",
+        ".sem = {.relaxed, .release};",
+        ".scope = {.cta, .cluster, .gpu, .sys};",
+        ".vec = {.v2, .v4, .v8};",
+        ".type = {.b8, .b16, .b32, .b64, .b128, .u8, .u16, .u32, .u64, .s8, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-st-async",
+      "names": ["st.async"],
+      "summary": "Asynchronous store operation.",
+      "syntax": [
+        "st.async{.weak}{.ss}.completion_mechanism{.vec}.type [a], b, [mbar];",
+        ".ss = {.shared::cluster};",
+        ".type = {.b32, .b64, .b128, .u32, .u64, .s32, .s64, .f32, .f64};",
+        ".vec = {.v2, .v4};",
+        ".completion_mechanism = {.mbarrier::complete_tx::bytes};",
+        "st.async{.mmio}.sem.scope{.ss}.type [a], b;",
+        ".sem = {.release};",
+        ".scope = {.gpu, .sys};",
+        ".ss = {.global};",
+        ".type = {.b8, .b16, .b32, .b64, .u8, .u16, .u32, .u64, .s8, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-multimem-st-async",
+      "names": ["multimem.st.async"],
+      "summary": "Perform asynchronous store with release ordering on the multimem address.",
+      "syntax": [
+        "multimem.st.async.sem.scope{.ss}.type [a], b;",
+        ".sem = {.release};",
+        ".scope = {.gpu, .sys};",
+        ".ss = {.global};",
+        ".type = {.b8, .b16, .b32, .b64, .u8, .u16, .u32, .u64, .s8, .s16, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-st-bulk",
+      "names": ["st.bulk"],
+      "summary": "Initializes a region of memory as specified by state space.",
+      "syntax": ["st.bulk{.weak}{.shared::cta} [a], size, initval;"]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-multimem",
+      "names": ["multimem.ld_reduce", "multimem.st", "multimem.red"],
+      "summary": "The multimem.* operations operate on multimem addresses and accesses all of the multiple memory locations which the multimem address points to.",
+      "syntax": [
+        "multimem.ld_reduce{.ldsem}{.scope}{.ss}.op.type d, [a];",
+        "multimem.ld_reduce.weak{.ss}.op.type d, [a];",
+        "multimem.st{.stsem}{.scope}{.ss}.type [a], b;",
+        "multimem.st.weak{.ss}.type [a], b;",
+        "multimem.red{.redsem}{.scope}{.ss}.op.type [a], b;",
+        ".ss = {.global};",
+        ".ldsem = {.relaxed, .acquire};",
+        ".stsem = {.relaxed, .release};",
+        ".redsem = {.relaxed, .release};",
+        ".scope = {.cta, .cluster, .gpu, .sys};",
+        ".op = {.min, .max, .add, .and, .or, .xor};",
+        ".type = {.b32, .b64, .u32, .u64, .s32, .s64};",
+        "multimem.ld_reduce{.ldsem}{.scope}{.ss}.op{.acc_prec}{.vec}.type d, [a];",
+        "multimem.ld_reduce.weak{.ss}.op{.acc_prec}{.vec}.type d, [a];",
+        "multimem.st{.stsem}{.scope}{.ss}{.vec}.type [a], b;",
+        "multimem.st.weak{.ss}{.vec}.type [a], b;",
+        "multimem.red{.redsem}{.scope}{.ss}.redop{.vec}.redtype [a], b;",
+        ".ss = {.global};",
+        ".ldsem = {.relaxed, .acquire};",
+        ".stsem = {.relaxed, .release};",
+        ".redsem = {.relaxed, .release};",
+        ".scope = {.cta, .cluster, .gpu, .sys};",
+        ".op = {.min, .max, .add};",
+        ".redop = {.add};",
+        ".acc_prec = {.acc::f32, .acc::f16};",
+        ".vec = {.v2, .v4, .v8};",
+        ".type = {.f16, .f16x2, .bf16, .bf16x2, .f32, .f64, .e5m2, .e5m2x2, .e5m2x4, .e4m3, .e4m3x2, .e4m3x4};",
+        ".redtype = {.f16, .f16x2, .bf16, .bf16x2, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-prefetch-prefetchu",
+      "names": ["prefetch", "prefetchu"],
+      "summary": "Prefetch line containing a generic address at a specified level of memory hierarchy, in specified state space.",
+      "syntax": [
+        "prefetch{.space}.level [a]; prefetch.global.level::eviction_priority [a];",
+        "prefetchu.L1 [a];",
+        "prefetch{.tensormap_space}.tensormap [a];",
+        ".space = {.global, .local};",
+        ".level = {.L1, .L2};",
+        ".level::eviction_priority = {.L2::evict_last, .L2::evict_normal};",
+        ".tensormap_space = {.const, .param};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-applypriority",
+      "names": ["applypriority"],
+      "summary": "Apply the cache eviction priority to the specified address in the specified cache level.",
+      "syntax": [
+        "applypriority{.global}.level::eviction_priority [a], size;",
+        ".level::eviction_priority = {.L2::evict_normal};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-discard",
+      "names": ["discard"],
+      "summary": "Discard the data at the specified address range and cache level.",
+      "syntax": ["discard{.global}.level [a], size;", ".level = {.L2};"]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-createpolicy",
+      "names": ["createpolicy"],
+      "summary": "Create a cache eviction policy for the specified cache level.",
+      "syntax": [
+        "createpolicy.range{.global}.level::primary_priority{.level::secondary_priority}.b64 cache_policy, [a], primary-size, total-size;",
+        "createpolicy.fractional.level::primary_priority{.level::secondary_priority}.b64 cache_policy{, fraction};",
+        "createpolicy.cvt.L2.b64 cache_policy, access-property;",
+        ".level::primary_priority = {.L2::evict_last, .L2::evict_normal, .L2::evict_first, .L2::evict_unchanged};",
+        ".level::secondary_priority = {.L2::evict_first, .L2::evict_unchanged};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-isspacep",
+      "names": ["isspacep"],
+      "summary": "Query whether a generic address falls within a specified state space window.",
+      "syntax": [
+        "isspacep.space p, a;",
+        ".space = {const, .global, .local, .shared{::cta, ::cluster}, .param{::entry}};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-cvta",
+      "names": ["cvta"],
+      "summary": "Convert address from .const, Kernel Function Parameters ( .param ), .global, .local, or .shared state space to generic, or vice-versa. Take the generic address of a variable declared in .const, Kernel Function Parameters ( .param ), .global, .local, or .shared state space.",
+      "syntax": [
+        "cvta.space.size p, a; cvta.space.size p, var; cvta.space.size p, var+imm;",
+        "cvta.to.space.size p, a;",
+        ".space = {.const, .global, .local, .shared{::cta, ::cluster}, .param{::entry}};",
+        ".size = {.u32, .u64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-cvt",
+      "names": ["cvt"],
+      "summary": "Convert a value from one type to another.",
+      "syntax": [
+        "cvt{.irnd}{.ftz}{.sat}.dtype.atype d, a; cvt{.frnd}{.ftz}{.sat}.dtype.atype d, a;",
+        "cvt.frnd2{.relu}{.satfinite}.f16.f32 d, a;",
+        "cvt.frnd2{.relu}{.satfinite}.f16x2.f32 d, a, b;",
+        "cvt.rs{.relu}{.satfinite}.f16x2.f32 d, a, b, rbits;",
+        "cvt.frnd2{.relu}{.satfinite}.bf16.f32 d, a;",
+        "cvt.frnd2{.relu}{.satfinite}.bf16x2.f32 d, a, b;",
+        "cvt.rs{.relu}{.satfinite}.bf16x2.f32 d, a, b, rbits;",
+        "cvt.rna{.satfinite}.tf32.f32 d, a;",
+        "cvt.frnd2{.satfinite}{.relu}.tf32.f32 d, a;",
+        "cvt.rn.satfinite{.relu}.f8x2type.f32 d, a, b;",
+        "cvt.rn.satfinite{.relu}.f8x2type.fp16x2 d, a;",
+        "cvt.rn{.relu}.f16x2.f8x2type d, a;",
+        "cvt.rn{.relu}{.satfinite}{.scaled::n2::ue8m0}.bf16x2.f8x2type d, a{, scale-factor};",
+        "cvt.rs{.relu}.satfinite.f8x4type.f32 d, {a, b, e, f}, rbits;",
+        "cvt.rn.satfinite{.relu}.f4x2type.f32 d, a, b;",
+        "cvt.rn.satfinite{.relu}.f4x2type.fp16x2type d, a;",
+        "cvt.rn{.relu}.f16x2.f4x2type d, a;",
+        "cvt.rn{.relu}{.satfinite}{.scaled::n2::ue8m0}.bf16x2.f4x2type d, a{, scale-factor};",
+        "cvt.rs{.relu}.satfinite.f4x4type.f32 d, {a, b, e, f}, rbits;",
+        "cvt.rn.satfinite{.relu}.f6x2type.f32 d, a, b;",
+        "cvt.rn.satfinite{.relu}.f6x2type.fp16x2type d, a;",
+        "cvt.rn{.relu}.f16x2.f6x2type d, a;",
+        "cvt.rn{.relu}{.satfinite}{.scaled::n2::ue8m0}.bf16x2.f6x2type d, a{, scale-factor};",
+        "cvt.rs{.relu}.satfinite.f6x4type.f32 d, {a, b, e, f}, rbits;",
+        "cvt.frnd3{.satfinite}.ue8m0x2.f32 d, a, b;",
+        "cvt.frnd3{.satfinite}.ue8m0x2.bf16x2 d, a;",
+        "cvt.rn.bf16x2.ue8m0x2 d, a;",
+        "cvt.rn.satfinite{.relu}{.scaled::n2::ue8m0}.s2f6x2.f32 d, a, b{, scale-factor};",
+        "cvt.rn.satfinite{.relu}{.scaled::n2::ue8m0}.s2f6x2.bf16x2 d, a{, scale-factor};",
+        "cvt.rn{.satfinite}{.relu}{.scaled::n2::ue8m0}.bf16x2.s2f6x2 d, a{, scale-factor};",
+        ".irnd = {.rni, .rzi, .rmi, .rpi};",
+        ".frnd = {.rn, .rz, .rm, .rp};",
+        ".frnd2 = {.rn, .rz};",
+        ".frnd3 = {.rz, .rp};",
+        ".dtype = {.u8, .u16, .u32, .u64, .s8, .s16, .s32, .s64, .bf16, .f16, .f32, .f64};",
+        ".atype = {.u8, .u16, .u32, .u64, .s8, .s16, .s32, .s64, .bf16, .f16, .f32, .f64};",
+        ".f8x2type = {.e4m3x2, .e5m2x2};",
+        ".f4x2type = {.e2m1x2};",
+        ".f6x2type = {.e2m3x2, .e3m2x2};",
+        ".f4x4type = {.e2m1x4};",
+        ".f8x4type = {.e4m3x4, .e5m2x4};",
+        ".f6x4type = {.e2m3x4, .e3m2x4};",
+        ".fp16x2type = {.f16x2, .bf16x2};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-cvt-pack",
+      "names": ["cvt.pack"],
+      "summary": "Convert two integer values from one integer type to another and pack the results.",
+      "syntax": [
+        "cvt.pack.sat.convertType.abType d, a, b;",
+        ".convertType = {.u16, .s16};",
+        ".abType = {.s32};",
+        "cvt.pack.sat.convertType.abType.cType d, a, b, c;",
+        ".convertType = {.u2, .s2, .u4, .s4, .u8, .s8};",
+        ".abType = {.s32};",
+        ".cType = {.b32};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-mapa",
+      "names": ["mapa"],
+      "summary": "Map the address of the shared variable in the target CTA.",
+      "syntax": [
+        "mapa{.space}.type d, a, b;",
+        "mapa.shared::cluster.type d, a, b;",
+        "mapa.shared::cluster.type d, sh, b;",
+        "mapa.shared::cluster.type d, sh + imm, b;",
+        "mapa.type d, a, b;",
+        ".space = {.shared::cluster};",
+        ".type = {.u32, .u64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-getctarank",
+      "names": ["getctarank"],
+      "summary": "Generate the CTA rank of the address.",
+      "syntax": [
+        "getctarank{.space}.type d, a;",
+        "getctarank.shared::cluster.type d, a;",
+        "getctarank.shared::cluster.type d, var;",
+        "getctarank.shared::cluster.type d, var + imm;",
+        "getctarank.type d, a;",
+        ".space = {.shared::cluster};",
+        ".type = {.u32, .u64};"
+      ]
+    },
+    {
+      "id": "data-movement-and-conversion-instructions-tensormap-replace",
+      "names": ["tensormap.replace"],
+      "summary": "Modifies the field of a tensor-map object.",
+      "syntax": [
+        "tensormap.replace.mode.field1{.ss}.b1024.type [addr], new_val;",
+        "tensormap.replace.mode.field2{.ss}.b1024.type [addr], ord, new_val;",
+        "tensormap.replace.mode.field3{.ss}.b1024.type [addr], new_val;",
+        ".mode = {.tile};",
+        ".field1 = {.global_address, .rank};",
+        ".field2 = {.box_dim, .global_dim, .global_stride, .element_stride};",
+        ".field3 = {.elemtype, .interleave_layout, .swizzle_mode, .swizzle_atomicity, .fill_mode};",
+        ".ss = {.global, .shared::cta};",
+        ".type = {.b32, .b64};"
+      ]
+    },
+    {
+      "id": "fabric-instructions-try-get",
+      "names": ["fabric.try_get"],
+      "summary": "Asynchronous copy from fabric handle.",
+      "syntax": [
+        "fabric.try_get.async.dst.completion_mechanism.sem.scope.b128 [dst], [srcLeId, srcDataOff], size, [bar];",
+        ".dst = {.shared::cta};",
+        ".completion_mechanism = {.mbarrier::complete_tx::bytes.mbarrier::report::fabric};",
+        ".sem = {.relaxed};",
+        ".scope = {.sys};"
+      ]
+    },
+    {
+      "id": "fabric-instructions-try-put",
+      "names": ["fabric.try_put"],
+      "summary": "Asynchronous copy to fabric handle.",
+      "syntax": [
+        "fabric.try_put.async{.multimem}.src.completion_mechanism0.sem.scope.b128 [dstLeId, dstDataOff], [src], size, [bar];",
+        "fabric.try_put.async{.multimem}.src.completion_mechanism0.cp_mask.sem.scope.b128 [dstLeId, dstDataOff], [src], size, [bar], bytemask;",
+        "fabric.try_put.async{.multimem}.src.completion_mechanism1.sem.scope.b128 [dstLeId, dstDataOff, dstCounterOff], [src], size, [bar];",
+        ".src = {.shared::cta};",
+        ".completion_mechanism0 = {.mbarrier::complete_tx::16B.mbarrier::report::fabric};",
+        ".completion_mechanism1 = {.mbarrier::complete_tx::16B.mbarrier::report::fabric.counted::bytes};",
+        ".sem = {.relaxed};",
+        ".scope = {.sys};"
+      ]
+    },
+    {
+      "id": "fabric-instructions-try-red",
+      "names": ["fabric.try_red"],
+      "summary": "Asynchronous copy to fabric handle with reduction.",
+      "syntax": [
+        "fabric.try_red.async{.multimem}.src.completion_mechanism0.sem.scope.redOpBit.typeBit [dstLeId, dstDataOff], [src], size, [bar];",
+        "fabric.try_red.async{.multimem}.src.completion_mechanism0.sem.scope.redOpMinMax.typeMinMax [dstLeId, dstDataOff], [src], size, [bar];",
+        "fabric.try_red.async{.multimem}.src.completion_mechanism0.sem.scope.redOpArith.typeArith [dstLeId, dstDataOff], [src], size, [bar];",
+        "fabric.try_red.async{.multimem}.src.completion_mechanism1.sem.scope.redOpBit.typeBit [dstLeId, dstDataOff, dstCounterOff], [src], size, [bar];",
+        "fabric.try_red.async{.multimem}.src.completion_mechanism1.sem.scope.redOpMinMax.typeMinMax [dstLeId, dstDataOff, dstCounterOff], [src], size, [bar];",
+        "fabric.try_red.async{.multimem}.src.completion_mechanism1.sem.scope.redOpAdd.typeAdd [dstLeId, dstDataOff, dstCounterOff], [src], size, [bar];",
+        ".src = {.shared::cta};",
+        ".completion_mechanism0 = {.mbarrier::complete_tx::16B.mbarrier::report::fabric};",
+        ".completion_mechanism1 = {.mbarrier::complete_tx::16B.mbarrier::report::fabric.counted::bytes};",
+        ".sem = {.relaxed};",
+        ".scope = {.sys};",
+        ".redOpBit = {.and, .xor, .or};",
+        ".typeBit = {.b32, .b64};",
+        ".redOpMinMax = {.min, .max};",
+        ".typeMinMax = {.u32, .s32, .u64, .s64, .f16, .bf16};",
+        ".redOpArith = {.add};",
+        ".typeArith = {.u32, .u64, .f16, .bf16, .f32, .f64};",
+        ".redOpAdd = {.add};",
+        ".typeAdd = {.u32, .u64, .f16, .bf16, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "fabric-instructions-try-pullred",
+      "names": ["fabric.try_pullred"],
+      "summary": "Asynchronous copy from fabric handle with pull-reduction.",
+      "syntax": [
+        "fabric.try_pullred.async.multimem.dst.completion_mechanism.sem.scope.redOpBit.typeBit.sync [dst], [srcLeId, srcDataOff], size, [bar], imm-membermask;",
+        "fabric.try_pullred.async.multimem.dst.completion_mechanism.sem.scope.redOpMinMax.typeMinMax.sync [dst], [srcLeId, srcDataOff], size, [bar], imm-membermask;",
+        "fabric.try_pullred.async.multimem.dst.completion_mechanism.sem.scope.redOpAdd.typeAdd.sync [dst], [srcLeId, srcDataOff], size, [bar], imm-membermask;",
+        "fabric.try_pullred.async.multimem.dst.completion_mechanism.sem.scope.redOpAddAcc16.typeAddAcc16.sync [dst], [srcLeId, srcDataOff], size, [bar], imm-membermask;",
+        "fabric.try_pullred.async.multimem.dst.completion_mechanism.sem.scope.redOpAddAcc32.typeAddAcc32.sync [dst], [srcLeId, srcDataOff], size, [bar], imm-membermask;",
+        ".dst = {.shared::cta};",
+        ".completion_mechanism = {.mbarrier::complete_tx::bytes.mbarrier::report::fabric};",
+        ".sem = {.relaxed};",
+        ".scope = {.sys};",
+        ".redOpBit = {.and, .xor, .or};",
+        ".typeBit = {.b32, .b64};",
+        ".redOpMinMax = {.min, .max};",
+        ".typeMinMax = {.u32, .s32, .u64, .s64, .bf16, .f16, .e4m3, .e5m2};",
+        ".redOpAdd = {.add};",
+        ".typeAdd = {.u32, .u64, .f16, .bf16, .f32};",
+        ".redOpAddAcc16 = {.add.acc::f16};",
+        ".typeAddAcc16 = {.e4m3, .e5m2};",
+        ".redOpAddAcc32 = {.add.acc::f32};",
+        ".typeAddAcc32 = {.f16, .bf16};"
+      ]
+    },
+    {
+      "id": "fabric-instructions-submit",
+      "names": ["fabric.submit"],
+      "summary": "Submits prior fabric operations issued by the current thread.",
+      "syntax": ["fabric.submit{.submitop};", ".submitop = {.op_restrict::fetching};"]
+    },
+    {
+      "id": "fabric-instructions-wait",
+      "names": ["fabric.wait"],
+      "summary": "Wait on local shared-memory reads of submitted fabric operations.",
+      "syntax": ["fabric.wait.sync_restrict::reads;"]
+    },
+    {
+      "id": "texture-instructions-tex",
+      "names": ["tex"],
+      "summary": "Perform a texture memory lookup.",
+      "syntax": [
+        "tex.geom.v4.dtype.ctype d, [a, c] {, e} {, f};",
+        "tex.geom.v4.dtype.ctype d[|p], [a, b, c] {, e} {, f};",
+        "tex.geom.v2.f16x2.ctype d[|p], [a, c] {, e} {, f};",
+        "tex.geom.v2.f16x2.ctype d[|p], [a, b, c] {, e} {, f};",
+        "tex.base.geom.v4.dtype.ctype d[|p], [a, {b,} c] {, e} {, f};",
+        "tex.level.geom.v4.dtype.ctype d[|p], [a, {b,} c], lod {, e} {, f};",
+        "tex.grad.geom.v4.dtype.ctype d[|p], [a, {b,} c], dPdx, dPdy {, e} {, f};",
+        "tex.base.geom.v2.f16x2.ctype d[|p], [a, {b,} c] {, e} {, f};",
+        "tex.level.geom.v2.f16x2.ctype d[|p], [a, {b,} c], lod {, e} {, f};",
+        "tex.grad.geom.v2.f16x2.ctype d[|p], [a, {b,} c], dPdx, dPdy {, e} {, f};",
+        ".geom = {.1d, .2d, .3d, .a1d, .a2d, .cube, .acube, .2dms, .a2dms};",
+        ".dtype = {.u32, .s32, .f16, .f32};",
+        ".ctype = {.s32, .f32};"
+      ]
+    },
+    {
+      "id": "texture-instructions-tld4",
+      "names": ["tld4"],
+      "summary": "Perform a texture fetch of the 4-texel bilerp footprint.",
+      "syntax": [
+        "tld4.comp.2d.v4.dtype.f32 d[|p], [a, c] {, e} {, f};",
+        "tld4.comp.geom.v4.dtype.f32 d[|p], [a, b, c] {, e} {, f};",
+        ".comp = {.r, .g, .b, .a};",
+        ".geom = {.2d, .a2d, .cube, .acube};",
+        ".dtype = {.u32, .s32, .f32};"
+      ]
+    },
+    {
+      "id": "texture-instructions-txq",
+      "names": ["txq"],
+      "summary": "Query texture and sampler attributes.",
+      "syntax": [
+        "txq.tquery.b32 d, [a]; txq.level.tlquery.b32 d, [a], lod; txq.squery.b32 d, [a];",
+        ".tquery = {.width, .height, .depth, .channel_data_type, .channel_order, .normalized_coords, .array_size, .num_mipmap_levels, .num_samples};",
+        ".tlquery = {.width, .height, .depth};",
+        ".squery = {.force_unnormalized_coords, .filter_mode, .addr_mode_0, addr_mode_1, addr_mode_2};"
+      ]
+    },
+    {
+      "id": "texture-instructions-istypep",
+      "names": ["istypep"],
+      "summary": "Query whether a register points to an opaque variable of a specified type.",
+      "syntax": ["istypep.type p, a;", ".type = {.texref, .samplerref, .surfref};"]
+    },
+    {
+      "id": "surface-instructions-suld",
+      "names": ["suld"],
+      "summary": "Load from surface memory.",
+      "syntax": [
+        "suld.b.geom{.cop}.vec.dtype.clamp d, [a, b];",
+        ".geom = {.1d, .2d, .3d, .a1d, .a2d};",
+        ".cop = {.ca, .cg, .cs, .cv};",
+        ".vec = {none, .v2, .v4};",
+        ".dtype = {.b8, .b16, .b32, .b64};",
+        ".clamp = {.trap, .clamp, .zero};"
+      ]
+    },
+    {
+      "id": "surface-instructions-sust",
+      "names": ["sust"],
+      "summary": "Store to surface memory.",
+      "syntax": [
+        "sust.b.{1d,2d,3d}{.cop}.vec.ctype.clamp [a, b], c; sust.p.{1d,2d,3d}.vec.b32.clamp [a, b], c;",
+        "sust.b.{a1d,a2d}{.cop}.vec.ctype.clamp [a, b], c;",
+        ".cop = {.wb, .cg, .cs, .wt};",
+        ".vec = {none, .v2, .v4};",
+        ".ctype = {.b8, .b16, .b32, .b64};",
+        ".clamp = {.trap, .clamp, .zero};"
+      ]
+    },
+    {
+      "id": "surface-instructions-sured",
+      "names": ["sured"],
+      "summary": "Reduce surface memory.",
+      "syntax": [
+        "sured.b.op.geom.ctype.clamp [a,b],c; sured.p.op.geom.ctype.clamp [a,b],c;",
+        ".op = {.add, .min, .max, .and, .or};",
+        ".geom = {.1d, .2d, .3d};",
+        ".ctype = {.u32, .u64, .s32, .b32, .s64};",
+        ".ctype = {.b32, .b64};",
+        ".clamp = {.trap, .clamp, .zero};"
+      ]
+    },
+    {
+      "id": "surface-instructions-suq",
+      "names": ["suq"],
+      "summary": "Query a surface attribute.",
+      "syntax": [
+        "suq.query.b32 d, [a];",
+        ".query = {.width, .height, .depth, .channel_data_type, .channel_order, .array_size, .memory_layout};"
+      ]
+    },
+    {
+      "id": "control-flow-instructions-curly-braces",
+      "names": ["{}"],
+      "summary": "Instruction grouping.",
+      "syntax": ["{instructionList}"]
+    },
+    {
+      "id": "control-flow-instructions-at",
+      "names": ["@"],
+      "summary": "Predicated execution.",
+      "syntax": ["@{!}p instruction;"]
+    },
+    {
+      "id": "control-flow-instructions-bra",
+      "names": ["bra"],
+      "summary": "Branch to a target and continue execution there.",
+      "syntax": ["@p bra{.uni} tgt; bra{.uni} tgt;"]
+    },
+    {
+      "id": "control-flow-instructions-brx-idx",
+      "names": ["brx.idx"],
+      "summary": "Branch to a label indexed from a list of potential branch targets.",
+      "syntax": ["@p brx.idx{.uni} index, tlist;", "brx.idx{.uni} index, tlist;"]
+    },
+    {
+      "id": "control-flow-instructions-call",
+      "names": ["call"],
+      "summary": "Call a function, recording the return location.",
+      "syntax": [
+        "call{.uni} (ret-param), func, (param-list);",
+        "call{.uni} func, (param-list);",
+        "call{.uni} func;",
+        "call{.uni} (ret-param), fptr, (param-list), flist;",
+        "call{.uni} fptr, (param-list), flist;",
+        "call{.uni} fptr, flist;",
+        "call{.uni} (ret-param), fptr, (param-list), fproto;",
+        "call{.uni} fptr, (param-list), fproto;",
+        "call{.uni} fptr, fproto;"
+      ]
+    },
+    {
+      "id": "control-flow-instructions-ret",
+      "names": ["ret"],
+      "summary": "Return from function to instruction after call.",
+      "syntax": ["ret{.uni};"]
+    },
+    {
+      "id": "control-flow-instructions-exit",
+      "names": ["exit"],
+      "summary": "Terminate a thread.",
+      "syntax": ["exit;"]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-bar",
+      "names": ["bar", "barrier"],
+      "summary": "Barrier synchronization.",
+      "syntax": [
+        "barrier{.cta}.sync{.aligned} a{, b};",
+        "barrier{.cta}.arrive{.aligned} a, b;",
+        "barrier{.cta}.red.popc{.aligned}.u32 d, a{, b}, {!}c;",
+        "barrier{.cta}.red.op{.aligned}.pred p, a{, b}, {!}c;",
+        "bar{.cta}.sync a{, b};",
+        "bar{.cta}.arrive a, b;",
+        "bar{.cta}.red.popc.u32 d, a{, b}, {!}c;",
+        "bar{.cta}.red.op.pred p, a{, b}, {!}c;",
+        ".op = {.and, .or};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-bar-warp-sync",
+      "names": ["bar.warp.sync"],
+      "summary": "Barrier synchronization for threads in a warp.",
+      "syntax": ["bar.warp.sync membermask;"]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-barrier-cluster",
+      "names": ["barrier.cluster"],
+      "summary": "Barrier synchronization within a cluster.",
+      "syntax": [
+        "barrier.cluster.arrive{.sem}{.aligned};",
+        "barrier.cluster.wait{.acquire}{.aligned};",
+        ".sem = {.release, .relaxed};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-membar",
+      "names": ["membar", "fence"],
+      "summary": "Enforce an ordering of memory operations.",
+      "syntax": [
+        "fence{.sem}.scope;",
+        "fence.acquire.sync_restrict::shared::cluster.cluster;",
+        "fence.release.sync_restrict::shared::cta.cluster;",
+        "fence.op_restrict.release.cluster;",
+        "fence.proxy.proxykind;",
+        "fence.proxy.to_proxykind::from_proxykind.release.scope;",
+        "fence.proxy.to_proxykind::from_proxykind.acquire.scope [addr], size;",
+        "fence.proxy.async::generic.acquire.sync_restrict::shared::cluster.cluster;",
+        "fence.proxy.async::generic.release.sync_restrict::shared::cta.cluster;",
+        "fence.proxy.to_proxykind::from_proxykind_fabric.alias.sem_fabric.sys;",
+        "membar.level;",
+        "membar.proxy.proxykind;",
+        ".sem = {.sc, .acq_rel, .acquire, .release};",
+        ".scope = {.cta, .cluster, .gpu, .sys};",
+        ".level = {.cta, .gl, .sys};",
+        ".proxykind = {.alias, .async, .async.global, .async.shared::{cta, cluster}};",
+        ".op_restrict = {.mbarrier_init};",
+        ".to_proxykind::from_proxykind = {.tensormap::generic};",
+        ".to_proxykind::from_proxykind_fabric = {.generic::fabric, .fabric::generic, .fabric::fabric};",
+        ".sem_fabric = {.acquire, .release};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-atom",
+      "names": ["atom"],
+      "summary": "Atomic reduction operations for thread-to-thread communication.",
+      "syntax": [
+        "atom{.sem}{.scope}{.space}.op{.level::cache_hint}.type d, [a], b{, cache_policy};",
+        "atom{.sem}{.scope}{.space}.cas.type1 d, [a], b, c;",
+        "atom{.sem}{.scope}{.space}.exch{.level::cache_hint}.type2 d, [a], b {, cache_policy};",
+        "atom{.sem}{.scope}{.space}.add.noftz{.level::cache_hint}.f16 d, [a], b{, cache_policy};",
+        "atom{.sem}{.scope}{.space}.add.noftz{.level::cache_hint}.f16x2 d, [a], b{, cache_policy};",
+        "atom{.sem}{.scope}{.space}.add.noftz{.level::cache_hint}.bf16 d, [a], b{, cache_policy};",
+        "atom{.sem}{.scope}{.space}.add.noftz{.level::cache_hint}.bf16x2 d, [a], b{, cache_policy};",
+        ".space = {.global, .shared{::cta, ::cluster}};",
+        ".sem = {.relaxed, .acquire, .release, .acq_rel};",
+        ".scope = {.cta, .cluster, .gpu, .sys};",
+        ".op = {.and, .or, .xor, .add, .inc, .dec, .min, .max};",
+        ".level::cache_hint = {.L2::cache_hint};",
+        ".type = {.b32, .b64, .u32, .u64, .s32, .s64, .f32, .f64};",
+        ".type1 = {.b16, .b32, .b64, .b128};",
+        ".type2 = {.b32, .b64, .b128};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-red",
+      "names": ["red"],
+      "summary": "Reduction operations on global and shared memory.",
+      "syntax": [
+        "red{.sem}{.scope}{.space}.op{.level::cache_hint}.type [a], b{, cache_policy};",
+        "red{.sem}{.scope}{.space}.add.noftz{.level::cache_hint}.f16 [a], b{, cache_policy};",
+        "red{.sem}{.scope}{.space}.add.noftz{.level::cache_hint}.f16x2 [a], b{, cache_policy};",
+        "red{.sem}{.scope}{.space}.add.noftz{.level::cache_hint}.bf16 [a], b {, cache_policy};",
+        "red{.sem}{.scope}{.space}.add.noftz{.level::cache_hint}.bf16x2 [a], b {, cache_policy};",
+        ".space = {.global, .shared{::cta, ::cluster}};",
+        ".sem = {.relaxed, .release};",
+        ".scope = {.cta, .cluster, .gpu, .sys};",
+        ".op = {.and, .or, .xor, .add, .inc, .dec, .min, .max};",
+        ".level::cache_hint = {.L2::cache_hint};",
+        ".type = {.b32, .b64, .u32, .u64, .s32, .s64, .f32, .f64};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-red-async",
+      "names": ["red.async"],
+      "summary": "Asynchronous reduction operation.",
+      "syntax": [
+        "red.async.sem.scope{.ss}.completion_mechanism.op.type [a], b, [mbar];",
+        ".sem = {.relaxed};",
+        ".scope = {.cluster};",
+        ".ss = {.shared::cluster};",
+        ".op = {.inc, .dec};",
+        ".type = {.u32};",
+        ".completion_mechanism = {.mbarrier::complete_tx::bytes};",
+        "red.async.sem.scope{.ss}.completion_mechanism.op.type [a], b, [mbar];",
+        ".sem = {.relaxed};",
+        ".scope = {.cluster};",
+        ".ss = {.shared::cluster};",
+        ".op = {.min, .max};",
+        ".type = {.u32, .s32};",
+        ".completion_mechanism = {.mbarrier::complete_tx::bytes};",
+        "red.async.sem.scope{.ss}.completion_mechanism.op.type [a], b, [mbar];",
+        ".sem = {.relaxed};",
+        ".scope = {.cluster};",
+        ".ss = {.shared::cluster};",
+        ".op = {.and, .or, .xor};",
+        ".type = {.b32};",
+        ".completion_mechanism = {.mbarrier::complete_tx::bytes};",
+        "red.async.sem.scope{.ss}.completion_mechanism.add.type [a], b, [mbar];",
+        ".sem = {.relaxed};",
+        ".scope = {.cluster};",
+        ".ss = {.shared::cluster};",
+        ".type = {.u32, .s32, .u64};",
+        ".completion_mechanism = {.mbarrier::complete_tx::bytes};",
+        "red.async{.mmio}.sem.scope{.ss}.add.type [a], b;",
+        ".sem = {.release};",
+        ".scope = {.gpu, .sys};",
+        ".ss = {.global};",
+        ".type = {.u32, .s32, .u64, .s64};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-multimem-red-async",
+      "names": ["multimem.red.async"],
+      "summary": "Perform asynchronous reduction with release ordering on the multimem address.",
+      "syntax": [
+        "multimem.red.async.sem.scope{.ss}.op.type [a], b;",
+        ".sem = {.release};",
+        ".scope = {.gpu, .sys};",
+        ".ss = {.global};",
+        ".op = {.add};",
+        ".type = {.u32, .s32, .u64};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-vote",
+      "names": ["vote"],
+      "summary": "Vote across thread group.",
+      "syntax": [
+        "vote.mode.pred d, {!}a;",
+        "vote.ballot.b32 d, {!}a;",
+        ".mode = {.all, .any, .uni};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-vote-sync",
+      "names": ["vote.sync"],
+      "summary": "Vote across thread group.",
+      "syntax": [
+        "vote.sync.mode.pred d, {!}a, membermask;",
+        "vote.sync.ballot.b32 d, {!}a, membermask;",
+        ".mode = {.all, .any, .uni};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-match-sync",
+      "names": ["match.sync"],
+      "summary": "Broadcast and compare a value across threads in warp.",
+      "syntax": [
+        "match.any.sync.type d, a, membermask;",
+        "match.all.sync.type d[|p], a, membermask;",
+        ".type = {.b32, .b64};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-activemask",
+      "names": ["activemask"],
+      "summary": "Queries the active threads within a warp.",
+      "syntax": ["activemask.b32 d;"]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-redux-sync",
+      "names": ["redux.sync"],
+      "summary": "Perform reduction operation on the data from each predicated active thread in the thread group.",
+      "syntax": [
+        "redux.sync.op.type dst, src, membermask;",
+        ".op = {.add, .min, .max};",
+        ".type = {.u32, .s32};",
+        "redux.sync.op.b32 dst, src, membermask;",
+        ".op = {.and, .or, .xor};",
+        "redux.sync.op{.abs.}{.NaN}.f32 dst, src, membermask;",
+        ".op = {.min, .max};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-griddepcontrol",
+      "names": ["griddepcontrol"],
+      "summary": "Control execution of dependent grids.",
+      "syntax": ["griddepcontrol.action;", ".action = {.launch_dependents, .wait};"]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-elect-sync",
+      "names": ["elect.sync"],
+      "summary": "Elect a leader thread from a set of threads.",
+      "syntax": ["elect.sync d|p, membermask;"]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-init",
+      "names": ["mbarrier.init"],
+      "summary": "Initialize the mbarrier object .",
+      "syntax": [
+        "mbarrier.init{.layout}{.shared{::cta}}.b64 [addr], count;",
+        ".layout = {.layout::v0, .layout::v1};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-inval",
+      "names": ["mbarrier.inval"],
+      "summary": "Invalidates the mbarrier object .",
+      "syntax": ["mbarrier.inval{.shared{::cta}}.b64 [addr];"]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-expect-tx",
+      "names": ["mbarrier.expect_tx"],
+      "summary": "Performs expect-tx operation on the mbarrier object .",
+      "syntax": [
+        "mbarrier.expect_tx{.sem.scope}{.space}.b64 [addr], txCount;",
+        ".sem = {.relaxed};",
+        ".scope = {.cta, .cluster};",
+        ".space = {.shared{::cta}, .shared::cluster};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-complete-tx",
+      "names": ["mbarrier.complete_tx"],
+      "summary": "Performs complete-tx operation on the mbarrier object .",
+      "syntax": [
+        "mbarrier.complete_tx{.sem.scope}{.space}.b64 [addr], txCount;",
+        ".sem = {.relaxed};",
+        ".scope = {.cta, .cluster};",
+        ".space = {.shared{::cta}, .shared::cluster};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-arrive",
+      "names": ["mbarrier.arrive"],
+      "summary": "Performs arrive-on operation on the mbarrier object .",
+      "syntax": [
+        "mbarrier.arrive{.sem.scope}{.shared{::cta}}.b64 state, [addr]{, count};",
+        "mbarrier.arrive{.sem.scope}{.shared::cluster}.b64 _, [addr] {,count} mbarrier.arrive.expect_tx{.sem.scope}{.shared{::cta}}.b64 state, [addr], txCount;",
+        "mbarrier.arrive.expect_tx{.sem.scope}{.shared::cluster}.b64 _, [addr], txCount;",
+        "mbarrier.arrive.noComplete{.release.cta}{.shared{::cta}}.b64 state, [addr], count;",
+        ".sem = {.release, .relaxed};",
+        ".scope = {.cta, .cluster};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-arrive-drop",
+      "names": ["mbarrier.arrive_drop"],
+      "summary": "Decrements the expected count of the mbarrier object and performs arrive-on operation .",
+      "syntax": [
+        "mbarrier.arrive_drop{.sem.scope}{.shared{::cta}}.b64 state, [addr] {, count};",
+        "mbarrier.arrive_drop{.sem.scope}{.shared::cluster}.b64 _, [addr] {, count};",
+        "mbarrier.arrive_drop.expect_tx{.sem.scope}{.shared{::cta}}.b64 state, [addr], tx_count;",
+        "mbarrier.arrive_drop.expect_tx{.sem.scope}{.shared::cluster}.b64 _, [addr], tx_count;",
+        "mbarrier.arrive_drop.noComplete{.release.cta}{.shared{::cta}}.b64 state, [addr], count;",
+        ".sem = {.release, .relaxed};",
+        ".scope = {.cta, .cluster};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-cp-async-mbarrier-arrive",
+      "names": ["cp.async.mbarrier.arrive"],
+      "summary": "Makes the mbarrier object track all prior cp.async operations initiated by the executing thread.",
+      "syntax": ["cp.async.mbarrier.arrive{.noinc}{.shared{::cta}}.b64 [addr];"]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-test-wait-try-wait",
+      "names": ["mbarrier.test_wait", "mbarrier.try_wait"],
+      "summary": "Checks whether the mbarrier object has completed the phase.",
+      "syntax": [
+        "mbarrier.test_wait{.phase_type::primary}{.sem.scope}{.ss}.b64 waitComplete, [addr], state;",
+        "mbarrier.test_wait.phase_type::primary{.sem}{.scope}{.ss}.b64 waitComplete|reportPredicate {, reportValue}, [addr], state;",
+        "mbarrier.test_wait.parity{.phase_type}{.sem.scope}{.ss}.b64 waitComplete, [addr], phaseParity;",
+        "mbarrier.test_wait.parity.phase_type::primary{.sem}{.scope}{.ss}.b64 waitComplete|reportPredicate {, reportValue}, [addr], phaseParity;",
+        "mbarrier.try_wait{.phase_type::primary}{.sem.scope}{.ss}.b64 waitComplete, [addr], state {, timeHint};",
+        "mbarrier.try_wait.phase_type::primary{.sem}{.scope}{.ss}.b64 waitComplete|reportPredicate {, reportValue}, [addr], state {, timeHint};",
+        "mbarrier.try_wait.parity{.phase_type}{.sem.scope}{.ss}.b64 waitComplete, [addr], phaseParity {, timeHint};",
+        "mbarrier.try_wait.parity.phase_type::primary{.sem}{.scope}{.ss}.b64 waitComplete|reportPredicate {, reportValue}, [addr], phaseParity {, timeHint};",
+        ".ss = {.shared{::cta}};",
+        ".sem = {.acquire, .relaxed};",
+        ".scope = {.cta, .cluster};",
+        ".phase_type = {.phase_type::primary, .phase_type::conditional};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-pending-count",
+      "names": ["mbarrier.pending_count"],
+      "summary": "Query the pending arrival count from the opaque mbarrier state.",
+      "syntax": ["mbarrier.pending_count{.layout}.b64 count, state;", ".layout = {.layout::v0};"]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-mbarrier-check-layout",
+      "names": ["mbarrier.check_layout"],
+      "summary": "Check the layout of the mbarrier object .",
+      "syntax": [
+        "mbarrier.check_layout.layout{.ss}.b64 p, [addr];",
+        ".layout = {.layout::v0, .layout::v1};",
+        ".ss = {.shared::cta};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-tensormap-cp-fenceproxy",
+      "names": ["tensormap.cp_fenceproxy"],
+      "summary": "A fused copy and fence operation.",
+      "syntax": [
+        "tensormap.cp_fenceproxy.cp_qualifiers.fence_qualifiers.sync.aligned [dst], [src], size;",
+        ".cp_qualifiers = {.global.shared::cta};",
+        ".fence_qualifiers = {.to_proxy::from_proxy.release.scope};",
+        ".to_proxy::from_proxy = {.tensormap::generic};",
+        ".scope = {.cta, .cluster, .gpu, .sys};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-clusterlaunchcontrol-try-cancel",
+      "names": ["clusterlaunchcontrol.try_cancel"],
+      "summary": "Requests cancellation of cluster which is not launched yet.",
+      "syntax": [
+        "clusterlaunchcontrol.try_cancel.async{.space}.completion_mechanism{.multicast::cluster::all}.b128 [addr], [mbar];",
+        ".completion_mechanism = {.mbarrier::complete_tx::bytes};",
+        ".space = {.shared::cta};"
+      ]
+    },
+    {
+      "id": "parallel-synchronization-and-communication-instructions-clusterlaunchcontrol-query-cancel",
+      "names": ["clusterlaunchcontrol.query_cancel"],
+      "summary": "Queries response of clusterlaunchcontrol.try_cancel operation.",
+      "syntax": [
+        "clusterlaunchcontrol.query_cancel.is_canceled.pred.b128 pred, try_cancel_response;",
+        "clusterlaunchcontrol.query_cancel.get_first_ctaid.v4.b32.b128 {xdim, ydim, zdim, _}, try_cancel_response;",
+        "clusterlaunchcontrol.query_cancel.get_first_ctaid{::dimension}.b32.b128 reg, try_cancel_response;",
+        "::dimension = {::x, ::y, ::z};"
+      ]
+    },
+    {
+      "id": "warp-level-matrix-instructions-wmma-ld",
+      "names": ["wmma.load"],
+      "summary": "Collectively load a matrix from memory for WMMA",
+      "syntax": [
+        "wmma.load.a.sync.aligned.layout.shape{.ss}.atype r, [p] {, stride};",
+        "wmma.load.b.sync.aligned.layout.shape{.ss}.btype r, [p] {, stride};",
+        "wmma.load.c.sync.aligned.layout.shape{.ss}.ctype r, [p] {, stride};",
+        ".layout = {.row, .col};",
+        ".shape = {.m16n16k16, .m8n32k16, .m32n8k16};",
+        ".ss = {.global, .shared{::cta}};",
+        ".atype = {.f16, .s8, .u8};",
+        ".btype = {.f16, .s8, .u8};",
+        ".ctype = {.f16, .f32, .s32};"
+      ]
+    },
+    {
+      "id": "warp-level-matrix-instructions-wmma-st",
+      "names": ["wmma.store"],
+      "summary": "Collectively store a matrix into memory for WMMA",
+      "syntax": [
+        "wmma.store.d.sync.aligned.layout.shape{.ss}.type [p], r {, stride};",
+        ".layout = {.row, .col};",
+        ".shape = {.m16n16k16, .m8n32k16, .m32n8k16};",
+        ".ss = {.global, .shared{::cta}};",
+        ".type = {.f16, .f32, .s32};",
+        "wmma.store.d.sync.aligned.layout.shape{.ss}.type [p], r {, stride}",
+        ".layout = {.row, .col};",
+        ".shape = {.m8n8k32, .m8n8k128};",
+        ".ss = {.global, .shared{::cta}};",
+        ".type = {.s32};",
+        "wmma.store.d.sync.aligned.layout.shape{.ss}.type [p], r {, stride}",
+        ".layout = {.row, .col};",
+        ".shape = {.m16n16k8};",
+        ".ss = {.global, .shared{::cta}};",
+        ".type = {.f32};",
+        "wmma.store.d.sync.aligned.layout.shape{.ss}.type [p], r {, stride}",
+        ".layout = {.row, .col};",
+        ".shape = {.m8n8k4};",
+        ".ss = {.global, .shared{::cta}};",
+        ".type = {.f64};"
+      ]
+    },
+    {
+      "id": "warp-level-matrix-instructions-wmma-mma",
+      "names": ["wmma.mma"],
+      "summary": "Perform a single matrix multiply-and-accumulate operation across a warp",
+      "syntax": [
+        "wmma.mma.sync.aligned.alayout.blayout.shape.dtype.ctype d, a, b, c;",
+        "wmma.mma.sync.aligned.alayout.blayout.shape.s32.atype.btype.s32{.satfinite} d, a, b, c;",
+        ".alayout = {.row, .col};",
+        ".blayout = {.row, .col};",
+        ".shape = {.m16n16k16, .m8n32k16, .m32n8k16};",
+        ".dtype = {.f16, .f32};",
+        ".atype = {.s8, .u8};",
+        ".btype = {.s8, .u8};",
+        ".ctype = {.f16, .f32};"
+      ]
+    },
+    {
+      "id": "warp-level-matrix-instructions-mma",
+      "names": ["mma"],
+      "summary": "Perform matrix multiply-and-accumulate operation",
+      "syntax": [
+        "mma.sync.aligned.m8n8k4.alayout.blayout.dtype.f16.f16.ctype d, a, b, c;",
+        "mma.sync.aligned.m16n8k8.row.col.dtype.f16.f16.ctype d, a, b, c;",
+        "mma.sync.aligned.m16n8k16.row.col.dtype.f16.f16.ctype d, a, b, c;",
+        ".alayout = {.row, .col};",
+        ".blayout = {.row, .col};",
+        ".ctype = {.f16, .f32};",
+        ".dtype = {.f16, .f32};"
+      ]
+    },
+    {
+      "id": "warp-level-matrix-instructions-ldmatrix",
+      "names": ["ldmatrix"],
+      "summary": "Collectively load one or more matrices from shared memory for mma instruction",
+      "syntax": [
+        "ldmatrix.sync.aligned.shape.num{.trans}{.ss}.type r, [p];",
+        "ldmatrix.sync.aligned.m8n16.num{.ss}.dst_fmt.src_fmt r, [p];",
+        "ldmatrix.sync.aligned.m16n16.num.trans{.ss}.dst_fmt.src_fmt r, [p];",
+        ".shape = {.m8n8, .m16n16};",
+        ".num = {.x1, .x2, .x4};",
+        ".ss = {.shared{::cta}};",
+        ".type = {.b16, .b8};",
+        ".dst_fmt = {.b8x16};",
+        ".src_fmt = {.b6x16_p32, .b4x16_p64};"
+      ]
+    },
+    {
+      "id": "warp-level-matrix-instructions-stmatrix",
+      "names": ["stmatrix"],
+      "summary": "Collectively store one or more matrices to shared memory.",
+      "syntax": [
+        "stmatrix.sync.aligned.shape.num{.trans}{.ss}.type [p], r;",
+        ".shape = {.m8n8, .m16n8};",
+        ".num = {.x1, .x2, .x4};",
+        ".ss = {.shared{::cta}};",
+        ".type = {.b16, .b8};"
+      ]
+    },
+    {
+      "id": "warp-level-matrix-instructions-movmatrix",
+      "names": ["movmatrix"],
+      "summary": "Transpose a matrix in registers across the warp.",
+      "syntax": [
+        "movmatrix.sync.aligned.shape.trans.type d, a;",
+        ".shape = {.m8n8};",
+        ".type = {.b16};"
+      ]
+    },
+    {
+      "id": "warp-level-matrix-instructions-sparse-mma",
+      "names": ["mma.sp", "mma.sp::ordered_metadata"],
+      "summary": "Perform matrix multiply-and-accumulate operation with sparse matrix A",
+      "syntax": [
+        "mma.spvariant.sync.aligned.m16n8k16.row.col.dtype.f16.f16.ctype d, a, b, c, e, f;",
+        "mma.spvariant.sync.aligned.m16n8k32.row.col.dtype.f16.f16.ctype d, a, b, c, e, f;",
+        ".ctype = {.f16, .f32};",
+        ".dtype = {.f16, .f32};",
+        ".spvariant = {.sp, .sp::ordered_metadata};"
+      ]
+    },
+    {
+      "id": "asynchronous-warpgroup-level-matrix-instructions-wgmma-mma",
+      "names": ["wgmma.mma_async"],
+      "summary": "Perform matrix multiply-and-accumulate operation across warpgroup",
+      "syntax": [
+        "wgmma.mma_async.sync.aligned.shape.dtype.f16.f16 d, a-desc, b-desc, scale-d, imm-scale-a, imm-scale-b, imm-trans-a, imm-trans-b;",
+        "wgmma.mma_async.sync.aligned.shape.dtype.f16.f16 d, a, b-desc, scale-d, imm-scale-a, imm-scale-b, imm-trans-b;",
+        ".shape = {.m64n8k16, .m64n16k16, .m64n24k16, .m64n32k16, .m64n40k16, .m64n48k16, .m64n56k16, .m64n64k16, .m64n72k16, .m64n80k16, .m64n88k16, .m64n96k16, .m64n104k16, .m64n112k16, .m64n120k16, .m64n128k16, .m64n136k16, .m64n144k16, .m64n152k16, .m64n160k16, .m64n168k16, .m64n176k16, .m64n184k16, .m64n192k16, .m64n200k16, .m64n208k16, .m64n216k16, .m64n224k16, .m64n232k16, .m64n240k16, .m64n248k16, .m64n256k16};",
+        ".dtype = {.f16, .f32};"
+      ]
+    },
+    {
+      "id": "asynchronous-warpgroup-level-matrix-instructions-wgmma-mma-sp",
+      "names": ["wgmma.mma_async.sp"],
+      "summary": "Perform matrix multiply-and-accumulate operation with sparse matrix A across warpgroup",
+      "syntax": [
+        "wgmma.mma_async.sp.sync.aligned.shape.dtype.f16.f16 d, a-desc, b-desc, sp-meta, sp-sel, scale-d, imm-scale-a, imm-scale-b, imm-trans-a, imm-trans-b;",
+        "wgmma.mma_async.sp.sync.aligned.shape.dtype.f16.f16 d, a, b-desc, sp-meta, sp-sel, scale-d, imm-scale-a, imm-scale-b, imm-trans-b;",
+        ".shape = {.m64n8k32, .m64n16k32, .m64n24k32, .m64n32k32, .m64n40k32, .m64n48k32, .m64n56k32, .m64n64k32, .m64n72k32, .m64n80k32, .m64n88k32, .m64n96k32, .m64n104k32, .m64n112k32, .m64n120k32, .m64n128k32, .m64n136k32, .m64n144k32, .m64n152k32, .m64n160k32, .m64n168k32, .m64n176k32, .m64n184k32, .m64n192k32, .m64n200k32, .m64n208k32, .m64n216k32, .m64n224k32, .m64n232k32, .m64n240k32, .m64n248k32, .m64n256k32};",
+        ".dtype = {.f16, .f32};"
+      ]
+    },
+    {
+      "id": "asynchronous-warpgroup-level-matrix-instructions-wgmma-fence",
+      "names": ["wgmma.fence"],
+      "summary": "Enforce an ordering of register accesses between wgmma.mma_async and other operations.",
+      "syntax": ["wgmma.fence.sync.aligned;"]
+    },
+    {
+      "id": "asynchronous-warpgroup-level-matrix-instructions-wgmma-commit-group",
+      "names": ["wgmma.commit_group"],
+      "summary": "Commits all prior uncommitted wgmma.mma_async operations into a wgmma-group .",
+      "syntax": ["wgmma.commit_group.sync.aligned;"]
+    },
+    {
+      "id": "asynchronous-warpgroup-level-matrix-instructions-wgmma-wait-group",
+      "names": ["wgmma.wait_group"],
+      "summary": "Signal the completion of a preceding warpgroup operation.",
+      "syntax": ["wgmma.wait_group.sync.aligned N;"]
+    },
+    {
+      "id": "tcgen05-instructions-tcgen05-alloc-dealloc-relinquish-alloc-permit",
+      "names": ["tcgen05.alloc", "tcgen05.dealloc", "tcgen05.relinquish_alloc_permit"],
+      "summary": "Dynamic Tensor Memory allocation management instructions",
+      "syntax": [
+        "tcgen05.alloc.cta_group.sync.aligned{.shared::cta}.b32 [dst], nCols;",
+        "tcgen05.dealloc.cta_group.sync.aligned.b32 taddr, nCols;",
+        "tcgen05.relinquish_alloc_permit.cta_group.sync.aligned;",
+        ".cta_group = {.cta_group::1, .cta_group::2};"
+      ]
+    },
+    {
+      "id": "tcgen05-instructions-tcgen05-ld",
+      "names": ["tcgen05.ld"],
+      "summary": "Asynchronous collective load from tensor memory into registers.",
+      "syntax": [
+        "tcgen05.ld.sync.aligned.shape1.num{.pack}.b32 r, [taddr];",
+        "tcgen05.ld.sync.aligned.shape2.num{.pack}.b32 r, [taddr], immHalfSplitoff;",
+        ".shape1 = {.16x64b, .16x128b, .16x256b, .32x32b};",
+        ".shape2 = {.16x32bx2};",
+        ".num = {.x1, .x2, .x4, .x8, .x16, .x32, .x64, .x128};",
+        ".pack = {.pack::16b};",
+        "tcgen05.ld.red.sync.aligned.shape3.num.redOp{.abs}{.NaN}.f32 r, redval, [taddr];",
+        "tcgen05.ld.red.sync.aligned.shape4.num.redOp{.abs}{.NaN}.f32 r, redval, [taddr], immHalfSplitoff;",
+        "tcgen05.ld.red.sync.aligned.shape3.num.redOp.type r, redval, [taddr];",
+        "tcgen05.ld.red.sync.aligned.shape4.num.redOp.type r, redval, [taddr], immHalfSplitoff;",
+        ".shape3 = {.32x32b};",
+        ".shape4 = {.16x32bx2};",
+        ".redOp = {.min, .max};",
+        ".type = {.u32, .s32};"
+      ]
+    },
+    {
+      "id": "tcgen05-instructions-tcgen05-st",
+      "names": ["tcgen05.st"],
+      "summary": "Asynchronous collective store to tensor memory from registers.",
+      "syntax": [
+        "tcgen05.st.sync.aligned.shape1.num{.unpack}.b32 [taddr], r;",
+        "tcgen05.st.sync.aligned.shape2.num{.unpack}.b32 [taddr], immHalfSplitoff, r;",
+        ".shape1 = {.16x64b, .16x128b, .16x256b, .32x32b};",
+        ".shape2 = {.16x32bx2};",
+        ".num = {.x1, .x2, .x4, .x8, .x16, .x32, .x64, .x128};",
+        ".unpack = {.unpack::16b};"
+      ]
+    },
+    {
+      "id": "tcgen05-instructions-tcgen05-wait",
+      "names": ["tcgen05.wait"],
+      "summary": "Waits for the completion of all prior asynchronous tcgen05.ld / tcgen05.st instructions.",
+      "syntax": [
+        "tcgen05.wait_operation.sync.aligned;",
+        ".wait_operation = {.wait::ld, .wait::st};"
+      ]
+    },
+    {
+      "id": "tcgen05-instructions-tcgen05-cp",
+      "names": ["tcgen05.cp"],
+      "summary": "Initiates an asynchronous copy operation from shared memory to the Tensor Memory .",
+      "syntax": [
+        "tcgen05.cp.cta_group.shape{.multicast}{.dst_fmt.src_fmt} [taddr], s-desc;",
+        ".cta_group = {.cta_group::1, .cta_group::2};",
+        ".src_fmt = {.b6x16_p32, .b4x16_p64};",
+        ".dst_fmt = {.b8x16};",
+        ".shape = {.128x256b, .4x256b, .128x128b, .64x128b**, .32x128b***};",
+        ".multicast = {.warpx2::02_13**, .warpx2::01_23**, .warpx4***};"
+      ]
+    },
+    {
+      "id": "tcgen05-instructions-tcgen05-shift",
+      "names": ["tcgen05.shift"],
+      "summary": "Asynchronously shift down the rows of the matrix in the Tensor Memory for a warp.",
+      "syntax": [
+        "tcgen05.shift.cta_group.down [taddr];",
+        ".cta_group = {.cta_group::1, .cta_group::2};"
+      ]
+    },
+    {
+      "id": "tcgen05-special-sync-operations-fence",
+      "names": ["tcgen05.fence"],
+      "summary": "Specialized fence for the asynchronous tcgen05 operations.",
+      "syntax": ["tcgen05.fence::before_thread_sync;", "tcgen05.fence::after_thread_sync;"]
+    },
+    {
+      "id": "tcgen-async-sync-operations-commit",
+      "names": ["tcgen05.commit"],
+      "summary": "Makes the mbarrier object track the completion of all prior async-tcgen05 operations initiated by the executing thread.",
+      "syntax": [
+        "tcgen05.commit.cta_group.completion_mechanism{.shared::cluster}{.multicast}.b64 [mbar] {, ctaMask};",
+        ".completion_mechanism = {.mbarrier::arrive::one};",
+        ".cta_group = {.cta_group::1, .cta_group::2};",
+        ".multicast = {.multicast::cluster};"
+      ]
+    },
+    {
+      "id": "stack-manipulation-instructions-stacksave",
+      "names": ["stacksave"],
+      "summary": "Save the value of stack pointer into a register.",
+      "syntax": ["stacksave.type d;", ".type = {.u32, .u64};"]
+    },
+    {
+      "id": "stack-manipulation-instructions-stackrestore",
+      "names": ["stackrestore"],
+      "summary": "Update the stack pointer with a new value.",
+      "syntax": ["stackrestore.type a;", ".type = {.u32, .u64};"]
+    },
+    {
+      "id": "stack-manipulation-instructions-alloca",
+      "names": ["alloca"],
+      "summary": "Dynamically allocate memory on stack.",
+      "syntax": ["alloca.type ptr, size{, immAlign};", ".type = {.u32, .u64};"]
+    },
+    {
+      "id": "scalar-video-instructions-vadd-vsub-vabsdiff-vmin-vmax",
+      "names": ["vadd", "vsub", "vabsdiff", "vmin", "vmax"],
+      "summary": "Integer byte/half-word/word addition/subtraction.",
+      "syntax": [
+        "vop.dtype.atype.btype{.sat} d, a{.asel}, b{.bsel};",
+        "vop.dtype.atype.btype{.sat}.op2 d, a{.asel}, b{.bsel}, c;",
+        "vop.dtype.atype.btype{.sat} d.dsel, a{.asel}, b{.bsel}, c;",
+        "vop = {vadd, vsub, vabsdiff, vmin, vmax};",
+        ".dtype = {.u32, .s32};",
+        ".atype = {.u32, .s32};",
+        ".btype = {.u32, .s32};",
+        ".dsel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".asel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".bsel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".op2 = {.add, .min, .max};"
+      ]
+    },
+    {
+      "id": "scalar-video-instructions-vshl-vshr",
+      "names": ["vshl", "vshr"],
+      "summary": "Integer byte/half-word/word left/right shift.",
+      "syntax": [
+        "vop.dtype.atype.u32{.sat}.mode d, a{.asel}, b{.bsel};",
+        "vop.dtype.atype.u32{.sat}.mode.op2 d, a{.asel}, b{.bsel}, c;",
+        "vop.dtype.atype.u32{.sat}.mode d.dsel, a{.asel}, b{.bsel}, c;",
+        "vop = {vshl, vshr};",
+        ".dtype = {.u32, .s32};",
+        ".atype = {.u32, .s32};",
+        ".mode = {.clamp, .wrap};",
+        ".dsel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".asel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".bsel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".op2 = {.add, .min, .max};"
+      ]
+    },
+    {
+      "id": "scalar-video-instructions-vmad",
+      "names": ["vmad"],
+      "summary": "Integer byte/half-word/word multiply-accumulate.",
+      "syntax": [
+        "vmad.dtype.atype.btype{.sat}{.scale} d, {-}a{.asel}, {-}b{.bsel}, {-}c;",
+        "vmad.dtype.atype.btype.po{.sat}{.scale} d, a{.asel}, b{.bsel}, c;",
+        ".dtype = {.u32, .s32};",
+        ".atype = {.u32, .s32};",
+        ".btype = {.u32, .s32};",
+        ".asel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".bsel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".scale = {.shr7, .shr15};"
+      ]
+    },
+    {
+      "id": "scalar-video-instructions-vset",
+      "names": ["vset"],
+      "summary": "Integer byte/half-word/word comparison.",
+      "syntax": [
+        "vset.atype.btype.cmp d, a{.asel}, b{.bsel};",
+        "vset.atype.btype.cmp.op2 d, a{.asel}, b{.bsel}, c;",
+        "vset.atype.btype.cmp d.dsel, a{.asel}, b{.bsel}, c;",
+        ".atype = {.u32, .s32};",
+        ".btype = {.u32, .s32};",
+        ".cmp = {.eq, .ne, .lt, .le, .gt, .ge};",
+        ".dsel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".asel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".bsel = {.b0, .b1, .b2, .b3, .h0, .h1};",
+        ".op2 = {.add, .min, .max};"
+      ]
+    },
+    {
+      "id": "simd-video-instructions-vadd2-vsub2-vavrg2-vabsdiff2-vmin2-vmax2",
+      "names": ["vadd2", "vsub2", "vavrg2", "vabsdiff2", "vmin2", "vmax2"],
+      "summary": "Integer dual half-word SIMD addition/subtraction.",
+      "syntax": [
+        "vop2.dtype.atype.btype{.sat} d{.mask}, a{.asel}, b{.bsel}, c;",
+        "vop2.dtype.atype.btype.add d{.mask}, a{.asel}, b{.bsel}, c;",
+        "vop2 = {vadd2, vsub2, vavrg2, vabsdiff2, vmin2, vmax2};",
+        ".dtype = {.u32, .s32};",
+        ".atype = {.u32, .s32};",
+        ".btype = {.u32, .s32};",
+        ".mask = {.h0, .h1, .h10};",
+        ".asel = {.hxy, where x,y are from {0, 1, 2, 3}};",
+        ".bsel = {.hxy, where x,y are from {0, 1, 2, 3}};",
+        ".asel defaults to .h10 .bsel defaults to .h32"
+      ]
+    },
+    {
+      "id": "simd-video-instructions-vset2",
+      "names": ["vset2"],
+      "summary": "Integer dual half-word SIMD comparison.",
+      "syntax": [
+        "vset2.atype.btype.cmp d{.mask}, a{.asel}, b{.bsel}, c;",
+        "vset2.atype.btype.cmp.add d{.mask}, a{.asel}, b{.bsel}, c;",
+        ".atype = {.u32, .s32};",
+        ".btype = {.u32, .s32};",
+        ".cmp = {.eq, .ne, .lt, .le, .gt, .ge};",
+        ".mask = {.h0, .h1, .h10};",
+        ".asel = {.hxy, where x,y are from {0, 1, 2, 3}};",
+        ".bsel = {.hxy, where x,y are from {0, 1, 2, 3}};",
+        ".asel defaults to .h10 .bsel defaults to .h32"
+      ]
+    },
+    {
+      "id": "simd-video-instructions-vadd4-vsub4-vavrg4-vabsdiff4-vmin4-vmax4",
+      "names": ["vadd4", "vsub4", "vavrg4", "vabsdiff4", "vmin4", "vmax4"],
+      "summary": "Integer quad byte SIMD addition/subtraction.",
+      "syntax": [
+        "vop4.dtype.atype.btype{.sat} d{.mask}, a{.asel}, b{.bsel}, c;",
+        "vop4.dtype.atype.btype.add d{.mask}, a{.asel}, b{.bsel}, c;",
+        "vop4 = {vadd4, vsub4, vavrg4, vabsdiff4, vmin4, vmax4};",
+        ".dtype = {.u32, .s32};",
+        ".atype = {.u32, .s32};",
+        ".btype = {.u32, .s32};",
+        ".mask = {.b0, .b1, .b10 .b2, .b20, .b21, .b210, .b3, .b30, .b31, .b310, .b32, .b320, .b321, .b3210};",
+        "defaults to .b3210",
+        ".asel = .bxyzw, where x,y,z,w are from {0, ..., 7};",
+        ".bsel = .bxyzw, where x,y,z,w are from {0, ..., 7};",
+        ".asel defaults to .b3210 .bsel defaults to .b7654"
+      ]
+    },
+    {
+      "id": "simd-video-instructions-vset4",
+      "names": ["vset4"],
+      "summary": "Integer quad byte SIMD comparison.",
+      "syntax": [
+        "vset4.atype.btype.cmp d{.mask}, a{.asel}, b{.bsel}, c;",
+        "vset4.atype.btype.cmp.add d{.mask}, a{.asel}, b{.bsel}, c;",
+        ".atype = {.u32, .s32};",
+        ".btype = {.u32, .s32};",
+        ".cmp = {.eq, .ne, .lt, .le, .gt, .ge};",
+        ".mask = {.b0, .b1, .b10 .b2, .b20, .b21, .b210, .b3, .b30, .b31, .b310, .b32, .b320, .b321, .b3210};",
+        "defaults to .b3210",
+        ".asel = .bxyzw, where x,y,z,w are from {0, ..., 7};",
+        ".bsel = .bxyzw, where x,y,z,w are from {0, ..., 7};",
+        ".asel defaults to .b3210 .bsel defaults to .b7654"
+      ]
+    },
+    {
+      "id": "miscellaneous-instructions-brkpt",
+      "names": ["brkpt"],
+      "summary": "Breakpoint.",
+      "syntax": ["brkpt;"]
+    },
+    {
+      "id": "miscellaneous-instructions-nanosleep",
+      "names": ["nanosleep"],
+      "summary": "Suspend the thread for an approximate delay given in nanoseconds.",
+      "syntax": ["nanosleep.u32 t;"]
+    },
+    {
+      "id": "miscellaneous-instructions-pmevent",
+      "names": ["pmevent"],
+      "summary": "Trigger one or more Performance Monitor events.",
+      "syntax": ["pmevent a; pmevent.mask a;"]
+    },
+    {
+      "id": "miscellaneous-instructions-trap",
+      "names": ["trap"],
+      "summary": "Perform trap operation.",
+      "syntax": ["trap;"]
+    },
+    {
+      "id": "miscellaneous-instructions-setmaxnreg",
+      "names": ["setmaxnreg"],
+      "summary": "Hint to change the number of registers owned by the warp.",
+      "syntax": ["setmaxnreg.action.sync.aligned.u32 imm-reg-count;", ".action = {.inc, .dec};"]
+    }
+  ]
+}

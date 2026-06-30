@@ -8,8 +8,8 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use singe_cuda_sys::driver::{CUresult, CUstream};
 
-#[cfg(feature = "cufile_1_17")]
-include!("sys_1170.rs");
+#[cfg(feature = "cufile_1_18")]
+include!("sys_1180.rs");
 
 #[cfg(test)]
 mod tests {

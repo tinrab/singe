@@ -5,7 +5,6 @@
 **/dist
 !/dist
 __pycache__
-thirdparty
+/thirdparty/
 singe-npp/examples/output
-docs
-singe
+/docs/

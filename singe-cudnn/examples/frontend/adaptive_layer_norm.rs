@@ -6,7 +6,7 @@ use singe_cudnn::{
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{AdaptiveLayerNormalizationConfig, HeuristicMode},
     },
 };
@@ -94,10 +94,14 @@ fn run_shape(
     max_stats_volume: usize,
     max_weights_volume: usize,
 ) -> Result<(Vec<bf16>, Vec<f32>, Vec<f32>)> {
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::BF16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let x = graph.tensor(
         TensorSpec::new(

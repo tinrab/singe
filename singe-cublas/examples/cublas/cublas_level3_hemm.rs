@@ -43,16 +43,11 @@ fn main() -> Result<()> {
     )?;
 
     let result = c.copy_to_host_vec()?;
-    assert_complex64_close(result[0], Complex64::new(-17.38, 18.62));
-    assert_complex64_close(result[1], Complex64::new(4.82, 38.90));
-    assert_complex64_close(result[2], Complex64::new(-23.14, 26.78));
-    assert_complex64_close(result[3], Complex64::new(10.58, 55.70));
+    singe_core::assert_complex_close!(result[0], Complex64::new(-17.38, 18.62), 1.0e-10);
+    singe_core::assert_complex_close!(result[1], Complex64::new(4.82, 38.90), 1.0e-10);
+    singe_core::assert_complex_close!(result[2], Complex64::new(-23.14, 26.78), 1.0e-10);
+    singe_core::assert_complex_close!(result[3], Complex64::new(10.58, 55.70), 1.0e-10);
 
     println!("hemm result: {result:?}");
     Ok(())
-}
-
-fn assert_complex64_close(actual: Complex64, expected: Complex64) {
-    assert!((actual.re - expected.re).abs() < 1e-10);
-    assert!((actual.im - expected.im).abs() < 1e-10);
 }

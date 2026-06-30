@@ -10,7 +10,8 @@ use crate::{
         composite::sdpa::{SdpaInputs, SdpaOutputTensors},
         lower::{LoweredGraph, LoweredOperation, LoweredSdpaSubgraph},
         operation::{
-            CompileConfig, DirectSdpaForwardConfig, HeuristicMode, Operation, SdpaScoreModifiers,
+            AttentionMaskMode, AttentionPrimitiveOperation, CompileConfig, DirectSdpaForwardConfig,
+            DirectSdpaSequenceMode, HeuristicMode, Operation, SdpaOperation, SdpaScoreModifiers,
             SoftmaxConfig,
         },
         plan::{
@@ -27,70 +28,37 @@ use crate::{
 use super::{Graph, PreparedGraph};
 
 impl Graph {
-    fn candidate_matches_config(
-        engine_metadata: &EngineConfigMetadata,
+    fn engine_config_matches_compile_config(
+        operation_graph: &OperationGraph,
+        engine_config: &EngineConfig,
         compile_config: &CompileConfig,
     ) -> Result<bool> {
-        if let Some(max_workspace_size) = compile_config.max_workspace_size()
-            && engine_metadata.workspace_size > max_workspace_size
-        {
-            return Ok(false);
+        Ok(
+            EngineConfigMetadata::create(operation_graph, engine_config)?
+                .matches_compile_config(compile_config),
+        )
+    }
+
+    fn filter_engine_configs(
+        operation_graph: &OperationGraph,
+        engine_configs: Vec<EngineConfig>,
+        compile_config: &CompileConfig,
+    ) -> Result<Vec<EngineConfig>> {
+        if !compile_config.has_engine_filters() {
+            return Ok(engine_configs);
         }
 
-        if let Some(max_shared_memory_size) = compile_config.max_shared_memory_size()
-            && engine_metadata.shared_memory_size > max_shared_memory_size
-        {
-            return Ok(false);
-        }
-
-        if !compile_config.excluded_engine_name_substrings().is_empty()
-            && compile_config
-                .excluded_engine_name_substrings()
-                .iter()
-                .any(|blocked| engine_metadata.name.contains(blocked))
-        {
-            return Ok(false);
-        }
-
-        if !compile_config.include_numerical_notes().is_empty()
-            || !compile_config.exclude_numerical_notes().is_empty()
-        {
-            if !compile_config
-                .include_numerical_notes()
-                .iter()
-                .all(|note| engine_metadata.numerical_notes.contains(note))
-            {
-                return Ok(false);
-            }
-            if compile_config
-                .exclude_numerical_notes()
-                .iter()
-                .any(|note| engine_metadata.numerical_notes.contains(note))
-            {
-                return Ok(false);
+        let mut filtered = Vec::new();
+        for engine_config in engine_configs {
+            if Self::engine_config_matches_compile_config(
+                operation_graph,
+                &engine_config,
+                compile_config,
+            )? {
+                filtered.push(engine_config);
             }
         }
-
-        if !compile_config.include_behavior_notes().is_empty()
-            || !compile_config.exclude_behavior_notes().is_empty()
-        {
-            if !compile_config
-                .include_behavior_notes()
-                .iter()
-                .all(|note| engine_metadata.behavior_notes.contains(note))
-            {
-                return Ok(false);
-            }
-            if compile_config
-                .exclude_behavior_notes()
-                .iter()
-                .any(|note| engine_metadata.behavior_notes.contains(note))
-            {
-                return Ok(false);
-            }
-        }
-
-        Ok(true)
+        Ok(filtered)
     }
 
     fn collect_engine_configs(
@@ -182,11 +150,9 @@ impl Graph {
                         }
                     } {
                         Ok(engine_config)
-                            if Self::candidate_matches_config(
-                                &EngineConfigMetadata::create(
-                                    &prepared.operation_graph,
-                                    &engine_config,
-                                )?,
+                            if Self::engine_config_matches_compile_config(
+                                &prepared.operation_graph,
+                                &engine_config,
                                 compile_config,
                             )? =>
                         {
@@ -209,32 +175,11 @@ impl Graph {
             return Err(last_error.unwrap_or(Error::NoAvailableEngines));
         }
 
-        let has_post_filters = compile_config.max_workspace_size().is_some()
-            || compile_config.max_shared_memory_size().is_some()
-            || !compile_config.excluded_engine_name_substrings().is_empty()
-            || !compile_config.include_numerical_notes().is_empty()
-            || !compile_config.exclude_numerical_notes().is_empty()
-            || !compile_config.include_behavior_notes().is_empty()
-            || !compile_config.exclude_behavior_notes().is_empty();
-
-        if !has_post_filters {
-            return Ok(engine_configs);
-        }
-
-        let mut filtered = Vec::new();
-        for engine_config in engine_configs {
-            if Self::candidate_matches_config(
-                &EngineConfigMetadata::create(&prepared.operation_graph, &engine_config)?,
-                compile_config,
-            )? {
-                filtered.push(engine_config);
-            }
-        }
-        Ok(filtered)
+        Self::filter_engine_configs(&prepared.operation_graph, engine_configs, compile_config)
     }
 
     pub(crate) fn expand_for_runtime(&self, cudnn_version: u64) -> Result<Self> {
-        if cudnn_version >= 92100 {
+        if !support::runtime_requires_legacy_attention_primitives(cudnn_version) {
             return Ok(self.clone());
         }
 
@@ -242,15 +187,17 @@ impl Graph {
         let operations = std::mem::take(&mut expanded.operations);
         for operation in operations {
             match operation {
-                Operation::Softmax {
+                Operation::AttentionPrimitive(AttentionPrimitiveOperation::Softmax {
                     x,
                     y,
                     stats,
                     max,
                     sum_exp,
                     sink,
-                } => expanded.expand_softmax_for_legacy_runtime(x, y, stats, max, sum_exp, sink)?,
-                Operation::DiagonalBandMask {
+                }) => {
+                    expanded.expand_softmax_for_legacy_runtime(x, y, stats, max, sum_exp, sink)?
+                }
+                Operation::AttentionPrimitive(AttentionPrimitiveOperation::DiagonalBandMask {
                     x,
                     b,
                     y,
@@ -259,7 +206,7 @@ impl Graph {
                     sequence_length_key_value,
                     left_bound,
                     shift_right_bound,
-                } => expanded.expand_diagonal_band_mask_for_legacy_runtime(
+                }) => expanded.expand_diagonal_band_mask_for_legacy_runtime(
                     x,
                     b,
                     y,
@@ -269,7 +216,7 @@ impl Graph {
                     left_bound,
                     shift_right_bound,
                 )?,
-                Operation::SdpaForward {
+                Operation::Sdpa(SdpaOperation::Forward {
                     q,
                     k,
                     v,
@@ -279,7 +226,8 @@ impl Graph {
                     logit_max,
                     score_sum_exp,
                     ..
-                } if cudnn_version < 91301 => expanded.sdpa_with_modifiers(
+                }) if support::runtime_requires_composite_sdpa_forward(cudnn_version) => expanded
+                    .sdpa_with_modifiers(
                     SdpaInputs {
                         query: q,
                         key: k,
@@ -327,19 +275,23 @@ impl Graph {
         for operation in &expanded.operations {
             let lowers = !matches!(
                 operation,
-                Operation::MatmulFp8 { .. } | Operation::Slice { .. } | Operation::Transpose { .. }
+                Operation::Matmul(crate::frontend::operation::MatmulOperation::Fp8 { .. })
+                    | Operation::Tensor(crate::frontend::operation::TensorOperation::Slice { .. })
+                    | Operation::Tensor(
+                        crate::frontend::operation::TensorOperation::Transpose { .. }
+                    )
             );
             if !lowers {
                 continue;
             }
-            if let Operation::SdpaForward {
+            if let Operation::Sdpa(SdpaOperation::Forward {
                 q,
                 k,
                 config,
                 score_modifiers,
                 score_subgraph,
                 ..
-            } = operation
+            }) = operation
             {
                 if let Some(subgraph) = expanded.build_sdpa_unified_subgraph(
                     *q,
@@ -374,9 +326,8 @@ impl Graph {
                             extra_scalar_bindings.push((subgraph_record.id, scalar_value));
                         }
                     }
-                    lowered.operations[lowered_operation_index] =
-                        LoweredOperation::lower_sdpa_forward_operation(
-                            operation,
+                    if let Operation::Sdpa(op) = operation {
+                        lowered.operations[lowered_operation_index] = op.lower_with_tensors(
                             &lowered.backend_tensors,
                             Some(LoweredSdpaSubgraph {
                                 operation_graph: &prepared_subgraph.operation_graph,
@@ -384,34 +335,41 @@ impl Graph {
                                 output_id: subgraph_output_id,
                             }),
                         )?;
+                    }
                 }
-            } else if let Operation::SdpaBackward { q, k, config, .. } = operation {
-                let mut score_modifiers = SdpaScoreModifiers::new();
-                if config.causal_mask() {
-                    score_modifiers = score_modifiers.with_causal_mask();
-                }
-                if config.padding_mask()
-                    && let (Some(sequence_length_query), Some(sequence_length_key_value)) = (
-                        config.sequence_length_query(),
-                        config.sequence_length_key_value(),
-                    )
+            } else if let Operation::Sdpa(SdpaOperation::Backward { q, k, config, .. }) = operation
+            {
+                let mask_mode = if let DirectSdpaSequenceMode::PaddingMask {
+                    sequence_length_query,
+                    sequence_length_key_value,
+                } = config.sequence_mode()
                 {
-                    score_modifiers = score_modifiers
-                        .with_padding_mask(sequence_length_query, sequence_length_key_value);
-                }
-                if config.causal_mask() || config.score_subgraph().is_some() {
-                    let mut subgraph_config = DirectSdpaForwardConfig::new();
-                    if let (Some(sequence_length_query), Some(sequence_length_key_value)) = (
-                        config.sequence_length_query(),
-                        config.sequence_length_key_value(),
-                    ) {
-                        subgraph_config = subgraph_config.with_sequence_lengths(
+                    if config.causal_mask() {
+                        AttentionMaskMode::CausalTopLeftWithPadding {
                             sequence_length_query,
                             sequence_length_key_value,
-                        );
-                        if config.padding_mask() {
-                            subgraph_config = subgraph_config.with_padding_mask();
                         }
+                    } else {
+                        AttentionMaskMode::Padding {
+                            sequence_length_query,
+                            sequence_length_key_value,
+                        }
+                    }
+                } else if config.causal_mask() {
+                    AttentionMaskMode::CausalTopLeft
+                } else {
+                    AttentionMaskMode::None
+                };
+                let score_modifiers = SdpaScoreModifiers::new().with_mask_mode(mask_mode);
+                if config.causal_mask() || config.score_subgraph().is_some() {
+                    let mut subgraph_config = DirectSdpaForwardConfig::new();
+                    if matches!(
+                        config.sequence_mode(),
+                        DirectSdpaSequenceMode::SequenceLengths { .. }
+                            | DirectSdpaSequenceMode::PaddingMask { .. }
+                    ) {
+                        subgraph_config =
+                            subgraph_config.with_sequence_mode(config.sequence_mode());
                     }
                     if let Some(subgraph) = expanded.build_sdpa_unified_subgraph(
                         *q,
@@ -447,9 +405,8 @@ impl Graph {
                                 extra_scalar_bindings.push((subgraph_record.id, scalar_value));
                             }
                         }
-                        lowered.operations[lowered_operation_index] =
-                            LoweredOperation::lower_sdpa_backward_operation(
-                                operation,
+                        if let Operation::Sdpa(op) = operation {
+                            lowered.operations[lowered_operation_index] = op.lower_with_tensors(
                                 &lowered.backend_tensors,
                                 Some(LoweredSdpaSubgraph {
                                     operation_graph: &prepared_subgraph.operation_graph,
@@ -457,6 +414,7 @@ impl Graph {
                                     output_id: subgraph_output_id,
                                 }),
                             )?;
+                        }
                     }
                 }
             }

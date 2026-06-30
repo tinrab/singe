@@ -1,6 +1,95 @@
 use serde::{Deserialize, Serialize};
 
-use crate::data_type::DataType;
+use crate::{
+    data_type::DataType,
+    error::Result,
+    execution::advanced::{
+        BlockScaleDequantizeOperation as BackendBlockScaleDequantizeOperation,
+        BlockScaleQuantizeOperation as BackendBlockScaleQuantizeOperation,
+    },
+    frontend::{
+        lower::{LoweredOperation, LoweringContext, tensor_at},
+        operation::FrontendOperationTensors,
+    },
+    tensor::TensorId,
+    utility::to_i32,
+};
+
+/// Frontend block-scale operation variants.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum BlockScaleOperation {
+    Quantize {
+        input: TensorId,
+        output: TensorId,
+        scale: TensorId,
+        config: BlockScaleQuantizeConfig,
+    },
+    Dequantize {
+        input: TensorId,
+        scale: TensorId,
+        output: TensorId,
+        config: BlockScaleDequantizeConfig,
+    },
+}
+
+impl FrontendOperationTensors for BlockScaleOperation {
+    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>) {
+        match self {
+            Self::Quantize {
+                input,
+                output,
+                scale,
+                ..
+            }
+            | Self::Dequantize {
+                input,
+                scale,
+                output,
+                ..
+            } => {
+                tensors.extend([*input, *scale, *output]);
+            }
+        }
+    }
+}
+
+impl BlockScaleOperation {
+    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
+        let tensors = context.backend_tensors();
+        match self {
+            Self::Quantize {
+                input,
+                output,
+                scale,
+                config,
+            } => Ok(LoweredOperation::BlockScaleQuantize(
+                BackendBlockScaleQuantizeOperation::create(
+                    tensor_at(tensors, *input)?,
+                    tensor_at(tensors, *output)?,
+                    tensor_at(tensors, *scale)?,
+                    config.compute_type(),
+                    to_i32(config.block_size(), "block size")?,
+                )?,
+            )),
+            Self::Dequantize {
+                input,
+                scale,
+                output,
+                config,
+            } => Ok(LoweredOperation::BlockScaleDequantize(
+                BackendBlockScaleDequantizeOperation::create(
+                    tensor_at(tensors, *input)?,
+                    tensor_at(tensors, *scale)?,
+                    tensor_at(tensors, *output)?,
+                    config.compute_type(),
+                    config.block_sizes(),
+                    config.is_negative_scale(),
+                )?,
+            )),
+        }
+    }
+}
 
 /// Attributes for block scale quantization.
 ///
@@ -32,11 +121,6 @@ impl BlockScaleQuantizeConfig {
 
     pub fn with_transpose(mut self) -> Self {
         self.transpose = true;
-        self
-    }
-
-    pub fn without_transpose(mut self) -> Self {
-        self.transpose = false;
         self
     }
 
@@ -77,7 +161,7 @@ impl BlockScaleDequantizeConfig {
         }
     }
 
-    pub fn without_compute_type(block_sizes: impl Into<Vec<i32>>) -> Self {
+    pub fn with_default_compute_type(block_sizes: impl Into<Vec<i32>>) -> Self {
         Self {
             compute_type: None,
             block_sizes: block_sizes.into(),
@@ -87,27 +171,6 @@ impl BlockScaleDequantizeConfig {
 
     pub fn with_negative_scale(mut self) -> Self {
         self.is_negative_scale = true;
-        self
-    }
-
-    pub fn without_negative_scale(mut self) -> Self {
-        self.is_negative_scale = false;
-        self
-    }
-
-    pub fn set_compute_type(&mut self, compute_type: DataType) {
-        self.compute_type = Some(compute_type);
-    }
-
-    pub fn clear_compute_type(&mut self) {
-        self.compute_type = None;
-    }
-
-    pub fn with_block_size(mut self, value: i32, index: usize) -> Self {
-        if self.block_sizes.len() <= index {
-            self.block_sizes.resize(index + 1, 1);
-        }
-        self.block_sizes[index] = value;
         self
     }
 

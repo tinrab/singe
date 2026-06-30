@@ -1,7 +1,22 @@
 use crate::{
     data_type::DataType,
     error::{Error, Result},
-    frontend::{composite::sdpa::SdpaAuxOutputs, graph::Graph, infer::*, operation::*, support},
+    frontend::{
+        composite::sdpa::{
+            SdpaAuxOutputs,
+            support::{
+                SDPA_DATA_TYPE, SDPA_DROPOUT_OFFSET, SDPA_DROPOUT_PROBABILITY, SDPA_DROPOUT_SEED,
+                SDPA_LOGIT_MAX, SDPA_LOGIT_MAX_DATA_TYPE, SDPA_LOGIT_MAX_SHAPE, SDPA_OUTPUT_LAYOUT,
+                SDPA_OUTPUT_SHAPE, SDPA_Q_LAYOUT, SDPA_RNG_DUMP, SDPA_SCALE, SDPA_SCORE_SUM_EXP,
+                SDPA_SCORE_SUM_EXP_DATA_TYPE, SDPA_SCORE_SUM_EXP_SHAPE, SDPA_SINK_TOKEN_SHAPE,
+                SDPA_SOFTMAX_P, SDPA_SOFTMAX_S, SDPA_STATS, SDPA_STATS_DATA_TYPE, SDPA_STATS_SHAPE,
+            },
+        },
+        graph::Graph,
+        infer::*,
+        operation::*,
+        support,
+    },
     scalar::ScalarValue,
     tensor::{Shape, TensorId, TensorSpec},
     utility::check_range,
@@ -60,17 +75,18 @@ impl Graph {
             return Ok(false);
         }
 
-        if let Some(cache) = config.paged_k()
+        let paged = config.paged();
+        if let Some(cache) = paged.k()
             && self
-                .tensor_config(cache.page_table)?
+                .tensor_config(cache.page_table())?
                 .ragged_offset
                 .is_some()
         {
             return Ok(false);
         }
-        if let Some(cache) = config.paged_v()
+        if let Some(cache) = paged.v()
             && self
-                .tensor_config(cache.page_table)?
+                .tensor_config(cache.page_table())?
                 .ragged_offset
                 .is_some()
         {
@@ -125,9 +141,7 @@ impl Graph {
                 )? {
                     Ok(AttentionImplementation::Unified)
                 } else {
-                    Err(Error::DescriptorMismatch {
-                        name: "sdpa unified implementation".into(),
-                    })
+                    Err(Error::FrontendSdpaUnifiedImplementationUnavailable)
                 }
             }
             AttentionImplementation::Composite => Ok(AttentionImplementation::Composite),
@@ -145,12 +159,9 @@ impl Graph {
         let v_tensor = self.tensor_config(v)?.clone();
 
         let mut k_shape = if let Some(page_table_k) = direct_config.page_table_k() {
-            let sequence_length_key_value =
-                direct_config
-                    .sequence_length_key_value()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa paged seq lens".into(),
-                    })?;
+            let sequence_length_key_value = direct_config
+                .sequence_length_key_value()
+                .ok_or(Error::FrontendSdpaPagedAttentionRequiresSequenceLengths)?;
             let seq_len_kv_tensor = self.tensor_config(sequence_length_key_value)?.clone();
             let page_table_k_tensor = self.tensor_config(page_table_k)?.clone();
             infer_paged_cache_output(
@@ -164,12 +175,9 @@ impl Graph {
         };
 
         let mut v_shape = if let Some(page_table_v) = direct_config.page_table_v() {
-            let sequence_length_key_value =
-                direct_config
-                    .sequence_length_key_value()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa paged seq lens".into(),
-                    })?;
+            let sequence_length_key_value = direct_config
+                .sequence_length_key_value()
+                .ok_or(Error::FrontendSdpaPagedAttentionRequiresSequenceLengths)?;
             let seq_len_kv_tensor = self.tensor_config(sequence_length_key_value)?.clone();
             let page_table_v_tensor = self.tensor_config(page_table_v)?.clone();
             infer_paged_cache_output(
@@ -228,21 +236,28 @@ impl Graph {
         if config.unfuse_fma() {
             direct_config = direct_config.with_unfused_fma();
         }
-        if let (Some(sequence_length_query), Some(sequence_length_key_value)) = (
-            config.modifiers().sequence_length_query,
-            config.modifiers().sequence_length_key_value,
-        ) {
-            direct_config = direct_config
-                .with_sequence_lengths(sequence_length_query, sequence_length_key_value);
-            if config.modifiers().padding_mask {
-                direct_config = direct_config.with_padding_mask();
-            }
+        if let Some((sequence_length_query, sequence_length_key_value)) =
+            config.modifiers().sequence_lengths()
+        {
+            let sequence = if config.modifiers().padding_mask() {
+                DirectSdpaSequenceMode::padding_mask(
+                    sequence_length_query,
+                    sequence_length_key_value,
+                )
+            } else {
+                DirectSdpaSequenceMode::sequence_lengths(
+                    sequence_length_query,
+                    sequence_length_key_value,
+                )
+            };
+            direct_config = direct_config.with_sequence_mode(sequence);
         }
-        if let Some(cache) = config.paged_k() {
-            direct_config = direct_config.with_page_table_k(cache.page_table);
+        let paged = config.paged();
+        if let Some(cache) = paged.k() {
+            direct_config = direct_config.with_page_table_k(cache.page_table());
         }
-        if let Some(cache) = config.paged_v() {
-            direct_config = direct_config.with_page_table_v(cache.page_table);
+        if let Some(cache) = paged.v() {
+            direct_config = direct_config.with_page_table_v(cache.page_table());
         }
         if let Some(block_mask) = config.block_mask() {
             direct_config = direct_config.with_block_mask(block_mask);
@@ -252,33 +267,26 @@ impl Graph {
             k,
             v,
             &direct_config,
-            config.max_sequence_length_key_value(),
+            paged.max_sequence_length_key_value(),
         )?;
         let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &kv_shapes.key)?;
         let output_shape = infer_sdpa_output_shape(&scores_shape, &kv_shapes.value)?;
         let output = self.tensor(TensorSpec::new(q_tensor.data_type, output_shape));
         let aux_data_type = self.sdpa_aux_data_type();
-        let stats = if fused.has_stats() {
-            let stats_shape = reduce_last_axis(&scores_shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, stats_shape)))
-        } else {
-            None
-        };
-        let logit_max = if fused.has_logit_max() {
-            let aux_shape = reduce_last_axis(&scores_shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, aux_shape)))
-        } else {
-            None
-        };
-        let score_sum_exp = if fused.has_score_sum_exp() {
-            let aux_shape = reduce_last_axis(&scores_shape)?;
-            Some(self.tensor(TensorSpec::new(aux_data_type, aux_shape)))
-        } else {
-            None
-        };
-        let sink = config.modifiers().sink_token;
-        let (softmax_p, softmax_s) = if version()? >= 92100
-            && (stats.is_some() || logit_max.is_some() || score_sum_exp.is_some() || sink.is_some())
+        let aux_shape = reduce_last_axis(&scores_shape)?;
+        let outputs = self.sdpa_requested_aux_output_tensors(
+            output,
+            fused.aux_outputs().softmax(),
+            aux_data_type,
+            &aux_shape,
+        );
+        let sink = config.modifiers().sink_token();
+        let (softmax_p, softmax_s) = if support::SDPA_UNIFIED_AUX_SOFTMAX
+            .is_supported(version()?.raw())
+            && (outputs.stats.is_some()
+                || outputs.logit_max.is_some()
+                || outputs.score_sum_exp.is_some()
+                || sink.is_some())
         {
             let softmax_shape = Shape::contiguous(scores_shape.dimensions().to_vec())?;
             (
@@ -299,18 +307,19 @@ impl Graph {
             let seed = if let Some(seed) = dropout.seed_tensor() {
                 seed
             } else {
-                let seed_value = dropout.seed().ok_or(Error::DescriptorMismatch {
-                    name: "sdpa dropout seed".into(),
-                })?;
+                let seed_value = dropout
+                    .seed()
+                    .ok_or(Error::FrontendSdpaDropoutSeedRequired)?;
                 self.tensor(
                     TensorSpec::new(DataType::I64, Shape::contiguous([1, 1, 1, 1])?)
                         .with_scalar_value(ScalarValue::I64(seed_value))?,
                 )
             };
-            direct_config = direct_config.with_dropout(dropout).with_dropout_seed(seed);
+            let mut direct_dropout = DirectSdpaDropout::new(dropout).with_seed(seed);
             if let Some(rng_dump) = rng_dump {
-                direct_config = direct_config.with_random_number_generator_dump(rng_dump);
+                direct_dropout = direct_dropout.with_random_number_generator_dump(rng_dump);
             }
+            direct_config = direct_config.with_dropout(direct_dropout);
         }
         self.sdpa_direct(
             q,
@@ -318,9 +327,9 @@ impl Graph {
             v,
             scale,
             output,
-            stats,
-            logit_max,
-            score_sum_exp,
+            outputs.stats,
+            outputs.logit_max,
+            outputs.score_sum_exp,
             softmax_p,
             softmax_s,
             sink,
@@ -328,15 +337,121 @@ impl Graph {
             config.score_subgraph().cloned(),
             fused,
             direct_config,
-            config.max_sequence_length_key_value(),
+            config.paged().max_sequence_length_key_value(),
         )?;
         Ok(SdpaAuxOutputs::with_aux(
             output,
-            stats,
-            logit_max,
-            score_sum_exp,
+            outputs.stats,
+            outputs.logit_max,
+            outputs.score_sum_exp,
             rng_dump,
         ))
+    }
+
+    fn validate_direct_sdpa_dropout(
+        &self,
+        direct_config: &DirectSdpaForwardConfig,
+        scores_shape: &Shape,
+    ) -> Result<()> {
+        let Some(dropout) = direct_config.dropout() else {
+            return Ok(());
+        };
+        let dropout_config = dropout.config();
+
+        check_range!(
+            SDPA_DROPOUT_PROBABILITY,
+            (0.0..1.0).contains(&dropout_config.probability())
+        )?;
+        if let Some(dropout_seed) = dropout.seed() {
+            self.validate_direct_sdpa_rng_scalar(dropout_seed, SDPA_DROPOUT_SEED)?;
+        }
+        if let Some(dropout_offset) = dropout_config.offset() {
+            self.validate_direct_sdpa_rng_scalar(dropout_offset, SDPA_DROPOUT_OFFSET)?;
+        }
+        if let Some(rng_dump) = dropout.random_number_generator_dump() {
+            self.validate_sdpa_tensor_dimensions_and_data_type(
+                rng_dump,
+                scores_shape.dimensions(),
+                DataType::F32,
+                SDPA_RNG_DUMP,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn validate_direct_sdpa_softmax_descriptors(
+        &self,
+        softmax_p: Option<TensorId>,
+        softmax_s: Option<TensorId>,
+        expected_shape: &Shape,
+        expected_data_type: DataType,
+    ) -> Result<bool> {
+        let (Some(softmax_p), Some(softmax_s)) = (softmax_p, softmax_s) else {
+            if softmax_p.is_some() || softmax_s.is_some() {
+                return Err(Error::FrontendSdpaUnifiedSoftmaxDescriptorsIncomplete);
+            }
+            return Ok(false);
+        };
+
+        self.validate_direct_sdpa_softmax_tensor(
+            softmax_p,
+            expected_shape,
+            expected_data_type,
+            SDPA_SOFTMAX_P,
+        )?;
+        self.validate_direct_sdpa_softmax_tensor(
+            softmax_s,
+            expected_shape,
+            expected_data_type,
+            SDPA_SOFTMAX_S,
+        )?;
+        Ok(true)
+    }
+
+    fn validate_direct_sdpa_softmax_tensor(
+        &self,
+        tensor: TensorId,
+        expected_shape: &Shape,
+        expected_data_type: DataType,
+        error_name: &str,
+    ) -> Result<()> {
+        self.validate_sdpa_tensor_shape_and_data_types(
+            tensor,
+            expected_shape,
+            &[expected_data_type],
+            error_name,
+        )
+    }
+
+    fn validate_direct_sdpa_sink_token(
+        &self,
+        sink: Option<TensorId>,
+        attention_heads: i64,
+        has_softmax_descriptors: bool,
+    ) -> Result<()> {
+        let Some(sink) = sink else {
+            return Ok(());
+        };
+        if !has_softmax_descriptors {
+            return Err(Error::FrontendSdpaUnifiedSoftmaxDescriptorsIncomplete);
+        }
+
+        let expected_sink_shape = Shape::contiguous([1, attention_heads, 1, 1])?;
+        self.validate_sdpa_tensor_shape_and_data_types(
+            sink,
+            &expected_sink_shape,
+            &[DataType::F32],
+            SDPA_SINK_TOKEN_SHAPE,
+        )
+    }
+
+    fn validate_direct_sdpa_rng_scalar(&self, tensor: TensorId, error_name: &str) -> Result<()> {
+        self.validate_sdpa_rank4_scalar_data_type_supported(
+            tensor,
+            &[DataType::I32, DataType::I64],
+            error_name,
+            error_name,
+        )
     }
 
     pub(in crate::frontend::composite::sdpa) fn sdpa_direct(
@@ -361,25 +476,21 @@ impl Graph {
         let scale = self.sdpa_effective_scale(scale, config.attention_scale())?;
 
         let q_tensor = self.tensor_config(q)?.clone();
-        let o_tensor = self.tensor_config(o)?.clone();
-        let scale_tensor = self.tensor_config(scale)?.clone();
         let kv_shapes =
             self.infer_direct_sdpa_kv_shapes(k, v, &direct_config, max_sequence_length_key_value)?;
 
-        if q_tensor.data_type != o_tensor.data_type {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa data type".into(),
-            });
-        }
-        self.validate_sdpa_tensor_layout(q, "sdpa q layout")?;
+        self.validate_sdpa_tensor_data_type_match(o, q_tensor.data_type, SDPA_DATA_TYPE)?;
+        self.validate_sdpa_tensor_layout(q, SDPA_Q_LAYOUT)?;
         self.validate_sdpa_k_layout(k)?;
         self.validate_sdpa_k_layout(v)?;
-        self.validate_sdpa_tensor_layout(o, "sdpa output layout")?;
+        self.validate_sdpa_tensor_layout(o, SDPA_OUTPUT_LAYOUT)?;
         if q_tensor.shape.dimensions()[1] % kv_shapes.key.dimensions()[1] != 0
             || q_tensor.shape.dimensions()[1] % kv_shapes.value.dimensions()[1] != 0
         {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa attention heads".into(),
+            return Err(Error::FrontendSdpaGroupedQueryAttentionHeadsMismatch {
+                query_heads: q_tensor.shape.dimensions()[1],
+                key_heads: kv_shapes.key.dimensions()[1],
+                value_heads: kv_shapes.value.dimensions()[1],
             });
         }
         self.validate_sdpa_direct_ragged_support_for_version(
@@ -391,187 +502,75 @@ impl Graph {
             &direct_config,
             score_subgraph.is_some(),
         )?;
-        if scale_tensor.shape.element_count()? != 1 {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa scale".into(),
-            });
-        }
+        self.validate_sdpa_scalar_element_count(scale, SDPA_SCALE)?;
         let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &kv_shapes.key)?;
         let output_shape = infer_sdpa_output_shape(&scores_shape, &kv_shapes.value)?;
         let aux_data_type = self.sdpa_aux_data_type();
         let expected_softmax_shape = Shape::contiguous(scores_shape.dimensions().to_vec())?;
-        if o_tensor.shape.dimensions() != output_shape.dimensions() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa output shape".into(),
-            });
-        }
-        if let Some(stats) = stats {
-            let stats_tensor = self.tensor_config(stats)?.clone();
-            let expected_stats_shape = reduce_last_axis(&scores_shape)?;
-            if stats_tensor.shape.dimensions() != expected_stats_shape.dimensions() {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa stats shape".into(),
-                });
-            }
-            if stats_tensor.data_type != aux_data_type {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa stats data type".into(),
-                });
-            }
-        } else if config.has_stats() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa stats".into(),
-            });
-        }
-        if let Some(logit_max) = logit_max {
-            let logit_max_tensor = self.tensor_config(logit_max)?.clone();
-            let expected_shape = reduce_last_axis(&scores_shape)?;
-            if logit_max_tensor.shape.dimensions() != expected_shape.dimensions() {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa logit max shape".into(),
-                });
-            }
-            if logit_max_tensor.data_type != aux_data_type {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa logit max data type".into(),
-                });
-            }
-        } else if config.has_logit_max() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa logit max".into(),
-            });
-        }
-        if let Some(score_sum_exp) = score_sum_exp {
-            let score_sum_exp_tensor = self.tensor_config(score_sum_exp)?.clone();
-            let expected_shape = reduce_last_axis(&scores_shape)?;
-            if score_sum_exp_tensor.shape.dimensions() != expected_shape.dimensions() {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa score sum exp shape".into(),
-                });
-            }
-            if score_sum_exp_tensor.data_type != aux_data_type {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa score sum exp data type".into(),
-                });
-            }
-        } else if config.has_score_sum_exp() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa score sum exp".into(),
-            });
-        }
-        if let Some(dropout) = direct_config.dropout() {
-            check_range!(
-                "sdpa dropout probability",
-                (0.0..1.0).contains(&dropout.probability())
-            )?;
-            if let Some(dropout_seed) = direct_config.dropout_seed() {
-                let dropout_seed_tensor = self.tensor_config(dropout_seed)?.clone();
-                let expected_scalar_shape = Shape::contiguous([1, 1, 1, 1])?;
-                if !matches!(dropout_seed_tensor.data_type, DataType::I32 | DataType::I64)
-                    || dropout_seed_tensor.shape.dimensions() != expected_scalar_shape.dimensions()
-                {
-                    return Err(Error::DescriptorMismatch {
-                        name: "sdpa dropout seed".into(),
-                    });
-                }
-            }
-            if let Some(dropout_offset) = dropout.offset() {
-                let dropout_offset_tensor = self.tensor_config(dropout_offset)?.clone();
-                let expected_scalar_shape = Shape::contiguous([1, 1, 1, 1])?;
-                if !matches!(
-                    dropout_offset_tensor.data_type,
-                    DataType::I32 | DataType::I64
-                ) || dropout_offset_tensor.shape.dimensions()
-                    != expected_scalar_shape.dimensions()
-                {
-                    return Err(Error::DescriptorMismatch {
-                        name: "sdpa dropout offset".into(),
-                    });
-                }
-            }
-            if let Some(rng_dump) = direct_config.random_number_generator_dump() {
-                let rng_dump_tensor = self.tensor_config(rng_dump)?.clone();
-                if rng_dump_tensor.data_type != DataType::F32
-                    || rng_dump_tensor.shape.dimensions() != scores_shape.dimensions()
-                {
-                    return Err(Error::DescriptorMismatch {
-                        name: "sdpa rng dump".into(),
-                    });
-                }
-            }
-        } else if direct_config.dropout_seed().is_some()
-            || direct_config
-                .dropout()
-                .and_then(|dropout| dropout.offset())
-                .is_some()
-            || direct_config.random_number_generator_dump().is_some()
-        {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa dropout".into(),
-            });
-        }
-        match (softmax_p, softmax_s) {
-            (Some(softmax_p), Some(softmax_s)) => {
-                let softmax_p_tensor = self.tensor_config(softmax_p)?.clone();
-                let softmax_s_tensor = self.tensor_config(softmax_s)?.clone();
-                if softmax_p_tensor.data_type != aux_data_type
-                    || softmax_p_tensor.shape.dimensions() != expected_softmax_shape.dimensions()
-                    || softmax_p_tensor.shape.strides() != expected_softmax_shape.strides()
-                {
-                    return Err(Error::DescriptorMismatch {
-                        name: "sdpa softmax p".into(),
-                    });
-                }
-                if softmax_s_tensor.data_type != aux_data_type
-                    || softmax_s_tensor.shape.dimensions() != expected_softmax_shape.dimensions()
-                    || softmax_s_tensor.shape.strides() != expected_softmax_shape.strides()
-                {
-                    return Err(Error::DescriptorMismatch {
-                        name: "sdpa softmax s".into(),
-                    });
-                }
-            }
-            (None, None) => {}
-            _ => {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa unified softmax descriptor".into(),
-                });
-            }
-        }
-        if let Some(sink) = sink {
-            let sink_tensor = self.tensor_config(sink)?.clone();
-            let expected_sink_shape = Shape::contiguous([1, q_tensor.shape.dimensions()[1], 1, 1])?;
-            if softmax_p.is_none() || softmax_s.is_none() {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa unified softmax descriptor".into(),
-                });
-            }
-            if sink_tensor.data_type != DataType::F32
-                || sink_tensor.shape.dimensions() != expected_sink_shape.dimensions()
-                || sink_tensor.shape.strides() != expected_sink_shape.strides()
-            {
-                return Err(Error::DescriptorMismatch {
-                    name: "sdpa sink token shape".into(),
-                });
-            }
-        }
-
-        self.operations.push(Operation::SdpaForward {
-            q,
-            k,
-            v,
+        self.validate_sdpa_tensor_dimensions_match(
             o,
-            scale,
+            output_shape.dimensions(),
+            SDPA_OUTPUT_SHAPE,
+        )?;
+        let expected_aux_shape = reduce_last_axis(&scores_shape)?;
+        let softmax_aux = config.aux_outputs().softmax();
+        self.validate_optional_sdpa_tensor_dimensions_and_data_type(
             stats,
+            softmax_aux.stats(),
+            expected_aux_shape.dimensions(),
+            aux_data_type,
+            SDPA_STATS,
+            SDPA_STATS_SHAPE,
+            SDPA_STATS_DATA_TYPE,
+        )?;
+        self.validate_optional_sdpa_tensor_dimensions_and_data_type(
             logit_max,
+            softmax_aux.logit_max(),
+            expected_aux_shape.dimensions(),
+            aux_data_type,
+            SDPA_LOGIT_MAX,
+            SDPA_LOGIT_MAX_SHAPE,
+            SDPA_LOGIT_MAX_DATA_TYPE,
+        )?;
+        self.validate_optional_sdpa_tensor_dimensions_and_data_type(
             score_sum_exp,
+            softmax_aux.score_sum_exp(),
+            expected_aux_shape.dimensions(),
+            aux_data_type,
+            SDPA_SCORE_SUM_EXP,
+            SDPA_SCORE_SUM_EXP_SHAPE,
+            SDPA_SCORE_SUM_EXP_DATA_TYPE,
+        )?;
+        self.validate_direct_sdpa_dropout(&direct_config, &scores_shape)?;
+        let has_softmax_descriptors = self.validate_direct_sdpa_softmax_descriptors(
             softmax_p,
             softmax_s,
+            &expected_softmax_shape,
+            aux_data_type,
+        )?;
+        self.validate_direct_sdpa_sink_token(
             sink,
-            score_modifiers,
-            score_subgraph: Box::new(score_subgraph),
-            config: Box::new(direct_config),
-        });
+            q_tensor.shape.dimensions()[1],
+            has_softmax_descriptors,
+        )?;
+
+        self.operations
+            .push(Operation::Sdpa(SdpaOperation::Forward {
+                q,
+                k,
+                v,
+                o,
+                scale,
+                stats,
+                logit_max,
+                score_sum_exp,
+                softmax_p,
+                softmax_s,
+                sink,
+                score_modifiers,
+                score_subgraph: Box::new(score_subgraph),
+                config: Box::new(direct_config),
+            }));
 
         Ok(())
     }

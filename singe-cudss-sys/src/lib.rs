@@ -11,7 +11,7 @@ use singe_cuda_sys::{
     runtime::cudaStream_t,
 };
 
-#[cfg(feature = "cudss_8_0")]
+#[cfg(feature = "cudss_0_8")]
 include!("sys_800.rs");
 
 #[cfg(test)]

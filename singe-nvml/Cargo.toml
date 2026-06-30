@@ -13,9 +13,9 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["nvml_13_2"]
+default = ["nvml_13_3"]
 
-nvml_13_2 = ["singe-nvml-sys/nvml_13_2"]
+nvml_13_3 = ["singe-nvml-sys/nvml_13_3"]
 
 [dependencies]
 singe-core.workspace = true

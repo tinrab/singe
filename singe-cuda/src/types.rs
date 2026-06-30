@@ -10,6 +10,8 @@ pub use half::{bf16, f16};
 
 use singe_core::{impl_enum_conversion, impl_enum_display};
 
+use crate::view::{DeviceRepr, ZeroableDeviceRepr};
+
 macro_rules! impl_float_storage {
     ($name:ident, $bits:ty) => {
         #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -54,6 +56,9 @@ pub struct DeviceFunction(driver::CUfunction);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[repr(transparent)]
 pub struct DevicePtr(*mut ());
+
+unsafe impl DeviceRepr for DevicePtr {}
+unsafe impl ZeroableDeviceRepr for DevicePtr {}
 
 impl HostFunction {
     /// Wraps a raw CUDA host callback function pointer.

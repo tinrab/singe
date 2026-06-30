@@ -1872,7 +1872,7 @@ impl Graph {
     ///
     /// CUDA stores the raw source and destination addresses in the graph node
     /// for later replay. The caller must ensure `params` remains valid
-    /// according to [`Memcpy1DNodeParams::new`] for every graph instantiation
+    /// according to [`MemoryCopy1DNodeParams::new`] for every graph instantiation
     /// and launch that can execute this node.
     ///
     /// # Errors
@@ -2000,7 +2000,7 @@ impl Graph {
     ///
     /// CUDA stores the raw source and destination addresses in the graph node
     /// for later replay. The caller must ensure `params` remains valid
-    /// according to [`Memcpy3DNodeParams`] for every graph instantiation and
+    /// according to [`MemoryCopy3DNodeParams`] for every graph instantiation and
     /// launch that can execute this node.
     ///
     /// # Errors
@@ -2033,7 +2033,7 @@ impl Graph {
     ///
     /// CUDA stores the raw symbol and source pointer in the graph node for
     /// later replay. The caller must ensure `params` remains valid according to
-    /// [`MemcpyToSymbolNodeParams::new`] for every graph instantiation and
+    /// [`MemoryCopyToSymbolNodeParams::new`] for every graph instantiation and
     /// launch that can execute this node.
     pub unsafe fn add_memory_copy_node_to_symbol(
         &mut self,
@@ -2169,7 +2169,7 @@ impl Graph {
     /// Creates a new memory free node for a graph allocation and adds it to the graph.
     /// The dependency list may be empty, in which case the node is placed at the root of the graph, and it may not contain duplicate entries.
     ///
-    /// [`Graph::add_mem_free_node`] returns [`crate::error::Status::InvalidValue`] if the caller attempts to free:
+    /// [`Graph::add_memory_free_node`] returns [`crate::error::Status::InvalidValue`] if the caller attempts to free:
     ///
     /// * an allocation twice in the same graph.
     /// * an address that was not returned by an allocation node.
@@ -2231,10 +2231,10 @@ impl Graph {
     /// Creates a new allocation node and adds it to the graph with the given dependencies and allocation parameters.
     /// The dependency list may be empty, in which case the node is placed at the root of the graph, and it may not contain duplicate entries.
     ///
-    /// When [`Graph::add_mem_alloc_node`] creates an allocation node, it returns the allocation metadata in [`MemoryAllocationNodeInfo`].
+    /// When [`Graph::add_memory_allocation_node`] creates an allocation node, it returns the allocation metadata in [`MemoryAllocationNodeInfo`].
     /// The allocation's address remains fixed across instantiations and launches.
     ///
-    /// If the allocation is freed in the same graph, by creating a free node using [`Graph::add_mem_free_node`], the allocation can be accessed by nodes ordered after the allocation node but before the free node.
+    /// If the allocation is freed in the same graph, by creating a free node using [`Graph::add_memory_free_node`], the allocation can be accessed by nodes ordered after the allocation node but before the free node.
     /// These allocations cannot be freed outside the owning graph, and they can only be freed once in the owning graph.
     ///
     /// If the allocation is not freed in the same graph, then it can be accessed not only by nodes in the graph which are ordered after the allocation node, but also by stream operations ordered after the graph's execution but before the allocation is freed.
@@ -2922,7 +2922,7 @@ impl ExecutableGraph {
     ///
     /// CUDA stores the raw source and destination addresses in the executable
     /// graph for future launches. The caller must ensure `params` remains
-    /// valid according to [`Memcpy1DNodeParams::new`] for every future launch
+    /// valid according to [`MemoryCopy1DNodeParams::new`] for every future launch
     /// that can execute this node.
     ///
     /// # Errors

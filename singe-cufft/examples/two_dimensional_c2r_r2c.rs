@@ -59,14 +59,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // For 2D transforms, the round-trip scale is rows * cols for each batch.
     let output_spectrum = device_spectrum.copy_to_host_vec()?;
     for (actual, expected) in output_spectrum.iter().zip(input_spectrum.iter()) {
-        assert_complex_close(*actual, *expected * (rows * cols) as f32);
+        singe_core::assert_complex_close!(*actual, *expected * (rows * cols) as f32, 1.0e-3);
     }
 
     println!("2d c2r/r2c round trip result: {output_spectrum:?}");
     Ok(())
-}
-
-fn assert_complex_close(actual: Complex32, expected: Complex32) {
-    assert!((actual.re - expected.re).abs() < 1e-3);
-    assert!((actual.im - expected.im).abs() < 1e-3);
 }

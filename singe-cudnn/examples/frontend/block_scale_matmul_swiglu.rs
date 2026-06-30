@@ -7,7 +7,7 @@ use singe_cudnn::{
     data_type::DataType,
     error::{Error, Result, Status},
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{
             BlockScaleDequantizeConfig, CompileConfig, HeuristicMode, MatmulConfig,
             PointwiseOperation,
@@ -68,9 +68,13 @@ fn run() -> Result<()> {
         / indestructible_128x4_block_k)
         * indestructible_128x4_block_k;
 
-    let mut graph = Graph::new()
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let tensor_a = graph.tensor(named_tensor(
         "tensor_a",
@@ -115,17 +119,17 @@ fn run() -> Result<()> {
     let dequan_tensor_a = graph.block_scale_dequantize_infer(
         tensor_a,
         block_descale_a,
-        BlockScaleDequantizeConfig::without_compute_type(vec![1, block_size]),
+        BlockScaleDequantizeConfig::with_default_compute_type(vec![1, block_size]),
     )?;
     let dequan_tensor_b0 = graph.block_scale_dequantize_infer(
         tensor_b0,
         block_descale_b0,
-        BlockScaleDequantizeConfig::without_compute_type(vec![block_size, 1]),
+        BlockScaleDequantizeConfig::with_default_compute_type(vec![block_size, 1]),
     )?;
     let dequan_tensor_b1 = graph.block_scale_dequantize_infer(
         tensor_b1,
         block_descale_b1,
-        BlockScaleDequantizeConfig::without_compute_type(vec![block_size, 1]),
+        BlockScaleDequantizeConfig::with_default_compute_type(vec![block_size, 1]),
     )?;
 
     let tensor_c0 = graph.tensor(

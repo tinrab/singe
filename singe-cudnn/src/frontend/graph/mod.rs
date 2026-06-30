@@ -13,9 +13,6 @@ mod reduction;
 mod resample;
 mod reshape;
 mod rng;
-mod sdpa;
-#[cfg(test)]
-mod sdpa_backward_validation;
 mod serialization;
 mod state;
 
@@ -37,10 +34,9 @@ pub use normalization::{
     RmsNormalizationBackwardOutputs, RmsNormalizationOutputs,
 };
 pub use resample::ResampleOutputs;
-pub use state::{AliasBinding, DataTypePolicy, Graph, PreparedGraph, RuntimeShapeConstraints};
-
-#[cfg(all(test, feature = "testing"))]
-mod tests;
+pub use state::{
+    AliasBinding, DataTypePolicy, Graph, GraphConfig, PreparedGraph, RuntimeShapeConstraints,
+};
 
 use std::{
     collections::HashSet,
@@ -65,21 +61,34 @@ impl Graph {
         id
     }
 
-    /// Inserts a tensor and returns the logical tensor ID.
-    ///
-    /// If the config has no ID, the graph assigns one. If the config has an
-    /// explicit ID that is not already in use, that ID is preserved exactly.
-    /// Otherwise the graph assigns a fresh ID. Use [`Graph::insert_tensor`]
-    /// when duplicate explicit IDs should be reported as recoverable errors.
-    pub fn tensor(&mut self, tensor: TensorSpec) -> TensorId {
-        let mut tensor = tensor;
-        let id = tensor
-            .id
-            .filter(|id| !self.tensors.contains_key(id))
-            .unwrap_or_else(|| self.allocate_tensor_id());
+    fn insert_tensor_with_id(&mut self, mut tensor: TensorSpec, id: TensorId) -> TensorId {
         tensor.id = Some(id);
         self.tensors.insert(id, tensor);
         id
+    }
+
+    /// Inserts a tensor and returns the logical tensor ID.
+    ///
+    /// If the config has no ID, the graph assigns one. If the config has an
+    /// explicit ID, that ID is preserved exactly.
+    ///
+    /// This panics if an explicit ID is already in use. Use
+    /// [`Graph::insert_tensor`] or [`Graph::try_tensor`] when duplicate
+    /// explicit IDs should be reported as recoverable errors, and use
+    /// [`Graph::tensor_with_fresh_id`] when a fresh generated ID should be
+    /// assigned regardless of the tensor spec.
+    pub fn tensor(&mut self, tensor: TensorSpec) -> TensorId {
+        let id = match tensor.id {
+            Some(id) => {
+                assert!(
+                    !self.tensors.contains_key(&id),
+                    "frontend tensor id {id:?} already exists"
+                );
+                id
+            }
+            None => self.allocate_tensor_id(),
+        };
+        self.insert_tensor_with_id(tensor, id)
     }
 
     /// Inserts a tensor using exactly the ID stored in the tensor spec.
@@ -87,12 +96,11 @@ impl Graph {
     /// This is the checked insertion API for caller-provided tensor IDs. It
     /// returns [`Error::FrontendTensorIdConflict`] if the ID is already present.
     pub fn insert_tensor(&mut self, tensor: TensorSpec) -> Result<TensorId> {
-        let id = tensor.id.ok_or(Error::DescriptorMismatch {
-            name: "frontend tensor id".into(),
+        let id = tensor.id.ok_or_else(|| Error::FrontendTensorIdMissing {
+            operation: "frontend tensor id".into(),
         })?;
         self.check_id(id)?;
-        self.tensors.insert(id, tensor);
-        Ok(id)
+        Ok(self.insert_tensor_with_id(tensor, id))
     }
 
     /// Inserts a tensor after assigning a fresh generated ID.
@@ -100,11 +108,8 @@ impl Graph {
     /// This intentionally ignores any ID already present in the config and is
     /// useful for internally created virtual/intermediate tensors.
     pub fn tensor_with_fresh_id(&mut self, tensor: TensorSpec) -> TensorId {
-        let mut tensor = tensor;
         let id = self.allocate_tensor_id();
-        tensor.id = Some(id);
-        self.tensors.insert(id, tensor);
-        id
+        self.insert_tensor_with_id(tensor, id)
     }
 
     pub fn try_tensor(&mut self, tensor: TensorSpec) -> Result<TensorId> {
@@ -188,6 +193,28 @@ impl Graph {
         Ok(())
     }
 
+    pub(crate) fn validate_tensors_data_type<const N: usize>(
+        &self,
+        tensors: [(TensorId, &str); N],
+        expected: DataType,
+    ) -> Result<()> {
+        for (tensor, operation) in tensors {
+            self.validate_tensor_data_type(tensor, expected, operation)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_tensor_data_type_and_dimensions(
+        &self,
+        tensor: TensorId,
+        expected_data_type: DataType,
+        expected_dimensions: &[i64],
+        operation: &str,
+    ) -> Result<()> {
+        self.validate_tensor_data_type(tensor, expected_data_type, operation)?;
+        self.validate_tensor_dimensions(tensor, expected_dimensions, operation)
+    }
+
     pub(crate) fn validate_tensor_data_type_supported(
         &self,
         tensor: TensorId,
@@ -224,7 +251,17 @@ impl Graph {
         Ok(())
     }
 
-    #[cfg(test)]
+    pub(crate) fn validate_tensors_dimensions<const N: usize>(
+        &self,
+        tensors: [(TensorId, &str); N],
+        expected: &[i64],
+    ) -> Result<()> {
+        for (tensor, operation) in tensors {
+            self.validate_tensor_dimensions(tensor, expected, operation)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate_tensor_strides(
         &self,
         tensor: TensorId,
@@ -444,85 +481,6 @@ impl Graph {
             .retain(|id, _| checkpoint.tensor_ids.contains(id));
         self.operations.truncate(checkpoint.operation_count);
         self.alias_bindings.truncate(checkpoint.alias_binding_count);
-    }
-
-    fn default_nhwc_shape(dimensions: Vec<i64>) -> Result<Shape> {
-        if dimensions.len() < 2 {
-            return Shape::contiguous(dimensions);
-        }
-
-        let mut stride_order = vec![0_i64; dimensions.len()];
-        let mut order = 0_i64;
-        stride_order[1] = order;
-        order += 1;
-        for index in (2..dimensions.len()).rev() {
-            stride_order[index] = order;
-            order += 1;
-        }
-        stride_order[0] = order;
-
-        let mut sorted = stride_order
-            .iter()
-            .copied()
-            .enumerate()
-            .map(|(index, order)| (order, (index, dimensions[index])))
-            .collect::<Vec<_>>();
-        sorted.sort_unstable_by_key(|(order, _)| *order);
-
-        let mut strides = vec![0_i64; dimensions.len()];
-        let mut stride = 1_i64;
-        for (_, (index, dimension)) in sorted {
-            strides[index] = stride;
-            stride = stride
-                .checked_mul(dimension)
-                .ok_or_else(|| Error::OutOfRange {
-                    name: "tensor strides".into(),
-                })?;
-        }
-
-        Shape::contiguous(dimensions)?.with_strides(strides)
-    }
-
-    fn shape_preserving_input_format(input: &Shape, dimensions: Vec<i64>) -> Result<Shape> {
-        if input.strides().len() != dimensions.len() {
-            return Err(Error::LengthMismatch {
-                name: "tensor strides".into(),
-                expected: dimensions.len(),
-                actual: input.strides().len(),
-            });
-        }
-        if dimensions.len() < 2 {
-            return Shape::contiguous(dimensions);
-        }
-
-        let mut indices = (0..input.strides().len()).collect::<Vec<_>>();
-        indices.sort_by(|&left, &right| {
-            let left_stride = input.strides()[left];
-            let right_stride = input.strides()[right];
-            if left_stride == right_stride {
-                let left_dim = input.dimensions()[left];
-                let right_dim = input.dimensions()[right];
-                return if left_dim == 1 || right_dim != 1 {
-                    std::cmp::Ordering::Less
-                } else {
-                    std::cmp::Ordering::Greater
-                };
-            }
-            left_stride.cmp(&right_stride)
-        });
-
-        let mut strides = vec![0_i64; dimensions.len()];
-        let mut stride = 1_i64;
-        for index in indices {
-            strides[index] = stride;
-            stride = stride
-                .checked_mul(dimensions[index])
-                .ok_or_else(|| Error::OutOfRange {
-                    name: "tensor strides".into(),
-                })?;
-        }
-
-        Shape::contiguous(dimensions)?.with_strides(strides)
     }
 }
 

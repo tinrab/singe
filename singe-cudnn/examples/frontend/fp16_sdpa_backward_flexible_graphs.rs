@@ -7,9 +7,10 @@ use singe_cudnn::{
     error::Result,
     frontend::{
         composite::sdpa::SdpaBackwardInputs,
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{
-            AttentionBackwardConfig, HeuristicMode, PointwiseOperation, SdpaScoreSubgraph,
+            AttentionBackwardConfig, AttentionScoreConfig, HeuristicMode, PointwiseOperation,
+            SdpaScoreSubgraph,
         },
     },
     math::NanPropagation,
@@ -42,10 +43,14 @@ fn run() -> Result<()> {
     let d_qk = 64_i64;
     let d_v = 64_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(TensorSpec::new(
         DataType::F16,
@@ -120,10 +125,8 @@ fn run() -> Result<()> {
     let outputs = graph.sdpa_backward_infer(
         SdpaBackwardInputs::new(q, k, v, o, d_o, stats, scale),
         AttentionBackwardConfig::new(DataType::F32)
-            .with_score_subgraph(SdpaScoreSubgraph::new(
-                score_subgraph,
-                score_input,
-                score_output,
+            .with_score_config(AttentionScoreConfig::new().with_score_subgraph(
+                SdpaScoreSubgraph::new(score_subgraph, score_input, score_output),
             ))
             .with_score_subgraph_bprop(SdpaScoreSubgraph::new(
                 score_subgraph_bprop,
@@ -131,9 +134,9 @@ fn run() -> Result<()> {
                 bprop_output,
             )),
     )?;
-    let d_q = outputs.query_gradient;
-    let d_k = outputs.key_gradient;
-    let d_v = outputs.value_gradient;
+    let d_q = outputs.query_gradient();
+    let d_k = outputs.key_gradient();
+    let d_v = outputs.value_gradient();
 
     for output in [d_q, d_k, d_v] {
         graph.mark_as_output(output)?;

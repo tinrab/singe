@@ -5,8 +5,9 @@ use crate::{
         graph::{BlockScaleQuantizeOutputs, Graph},
         operation::{
             BlockScaleDequantizeConfig, BlockScaleQuantizeConfig, MatmulConfig, MatmulFp8Config,
-            Operation, PointwiseOperation, ReductionOperation,
+            MatmulOperation, Operation, PointwiseOperation, ReductionOperation,
         },
+        shape::unit_shape_like,
     },
     math::NanPropagation,
     pointwise::PointwiseMode,
@@ -130,7 +131,13 @@ impl Graph {
     ) -> Result<()> {
         let expected_output = self.infer_matmul_output_shape(a, b, "matmul shapes")?;
         self.validate_tensor_dimensions(c, expected_output.dimensions(), "matmul output shape")?;
-        self.operations.push(Operation::Matmul { a, b, c, config });
+        self.operations
+            .push(Operation::Matmul(MatmulOperation::Matmul {
+                a,
+                b,
+                c,
+                config,
+            }));
         Ok(())
     }
 
@@ -309,13 +316,9 @@ impl Graph {
             "matmul fp8 quantize output",
         )?;
         let absolute_max_shape = Shape::contiguous(vec![1; pre_scale_shape.dimensions().len()])?;
-        self.validate_tensor_data_type(
+        self.validate_tensor_data_type_and_dimensions(
             absolute_max_output,
             compute_type,
-            "matmul fp8 quantize absolute_max output",
-        )?;
-        self.validate_tensor_dimensions(
-            absolute_max_output,
             absolute_max_shape.dimensions(),
             "matmul fp8 quantize absolute_max output",
         )?;
@@ -381,16 +384,16 @@ impl Graph {
         let compute_type = config.compute_type();
         let output_data_type = self.effective_io_data_type(compute_type);
         let matmul_shape = self.infer_matmul_output_shape(a, b, "matmul fp8 shapes")?;
-        self.validate_tensor_data_type(c, output_data_type, "matmul fp8 output")?;
-        self.validate_tensor_dimensions(c, matmul_shape.dimensions(), "matmul fp8 output")?;
+        self.validate_tensor_data_type_and_dimensions(
+            c,
+            output_data_type,
+            matmul_shape.dimensions(),
+            "matmul fp8 output",
+        )?;
         let absolute_max_shape = Shape::contiguous(vec![1; matmul_shape.dimensions().len()])?;
-        self.validate_tensor_data_type(
+        self.validate_tensor_data_type_and_dimensions(
             absolute_max_c,
             compute_type,
-            "matmul fp8 absolute_max output",
-        )?;
-        self.validate_tensor_dimensions(
-            absolute_max_c,
             absolute_max_shape.dimensions(),
             "matmul fp8 absolute_max output",
         )?;
@@ -495,8 +498,7 @@ impl Graph {
         let output = self.tensor(TensorSpec::new(output_data_type, output_shape.clone()));
         let absolute_max_output = self.tensor(TensorSpec::new(
             compute_type,
-            Shape::contiguous(vec![1; output_shape.dimensions().len()])?
-                .with_strides(vec![1; output_shape.strides().len()])?,
+            unit_shape_like(&output_shape)?,
         ));
         self.matmul_fp8_quantize(
             MatmulFp8QuantizeTensors {

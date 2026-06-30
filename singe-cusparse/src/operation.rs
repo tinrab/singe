@@ -410,6 +410,7 @@ impl<'a> SpMmOpPlan<'a> {
     ///
     /// Returns an error if the CUDA context cannot be bound or if cuSPARSE
     /// rejects the prepared SpMM operation.
+    #[allow(deprecated)]
     pub fn execute(&self, external_buffer: Option<DevicePtr>) -> Result<()> {
         self.context.bind()?;
 

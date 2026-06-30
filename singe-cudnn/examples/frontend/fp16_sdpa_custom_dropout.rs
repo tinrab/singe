@@ -6,9 +6,12 @@ use singe_cudnn::{
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
-        composite::sdpa::{SdpaInputs, SdpaOutputs},
-        graph::Graph,
-        operation::{AttentionConfig, HeuristicMode},
+        composite::sdpa::SdpaInputs,
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionConfig, AttentionDropoutMode, AttentionMaskMode, AttentionScoreConfig,
+            HeuristicMode, SdpaAuxOutputRequest,
+        },
     },
     version,
 };
@@ -47,10 +50,14 @@ fn run() -> Result<()> {
     let d_v = 128_i64;
     let has_attn_bias = version()? >= 8903;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::BF16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(
         TensorSpec::new(
@@ -118,15 +125,20 @@ fn run() -> Result<()> {
         None
     };
 
-    let mut config = AttentionConfig::new(DataType::F32)
-        .with_stats()
-        .with_causal_mask()
-        .with_dropout(dropout_mask, dropout_scale);
+    let mut score_config = AttentionScoreConfig::new()
+        .with_mask_mode(AttentionMaskMode::CausalTopLeft)
+        .with_dropout_mode(AttentionDropoutMode::CustomMask {
+            mask: dropout_mask,
+            scale: dropout_scale,
+        });
     if let Some(bias) = bias {
-        config = config.with_bias(bias);
+        score_config = score_config.with_bias(bias);
     }
+    let config = AttentionConfig::new(DataType::F32)
+        .with_aux_outputs(SdpaAuxOutputRequest::stats_only())
+        .with_score_config(score_config);
 
-    let SdpaOutputs { output: o, stats } = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto_infer(
         SdpaInputs {
             query: q,
             key: k,
@@ -135,6 +147,8 @@ fn run() -> Result<()> {
         },
         config,
     )?;
+    let o = outputs.output();
+    let stats = outputs.stats();
 
     graph.replace_tensor(
         o,

@@ -7,8 +7,8 @@ use singe_cudnn::{
     error::Result,
     frontend::{
         composite::sdpa::SdpaFp8Inputs,
-        graph::Graph,
-        operation::{HeuristicMode, SdpaConfig},
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{HeuristicMode, SdpaAuxOutputRequest, SdpaConfig, SdpaFusedMaskMode},
     },
     version,
 };
@@ -37,10 +37,14 @@ fn run() -> Result<()> {
     let s = 512_i64;
     let d = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::F8E4M3)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::F8E4M3)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let qkvo_dims = vec![b, h, s, d];
     let qkv_strides = vec![s * 3 * h * d, d, 3 * h * d, 1];
@@ -77,15 +81,14 @@ fn run() -> Result<()> {
         &SdpaConfig::new()
             .with_name("sdpa_fp8_current_scaling")
             .with_attention_scale(0.123)
-            .with_stats()
-            .with_causal_mask()
-            .with_absolute_max_s()
-            .with_absolute_max_o(),
+            .with_aux_outputs(SdpaAuxOutputRequest::stats_only())
+            .with_mask(SdpaFusedMaskMode::CausalTopLeft)
+            .with_aux_outputs(SdpaAuxOutputRequest::fp8_amax()),
     )?;
-    let o = outputs.output;
-    let stats = outputs.stats;
-    let absolute_max_s = outputs.logit_max;
-    let absolute_max_o = outputs.score_sum_exp;
+    let o = outputs.output();
+    let stats = outputs.stats();
+    let absolute_max_s = outputs.logit_max();
+    let absolute_max_o = outputs.score_sum_exp();
 
     let mut o_tensor = graph.tensor_config(o)?.clone();
     o_tensor = o_tensor

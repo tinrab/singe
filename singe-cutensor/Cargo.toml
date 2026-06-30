@@ -15,7 +15,7 @@ rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 [features]
 default = ["cutensor_2_6", "mg", "mp"]
 
-cutensor_2_6 = ["singe-cuda/runtime_13_2", "singe-cutensor-sys/cutensor_2_6"]
+cutensor_2_6 = ["singe-cuda/runtime_13_3", "singe-cutensor-sys/cutensor_2_6"]
 
 testing = ["singe-cuda/testing"]
 

@@ -6031,7 +6031,7 @@ mod tests {
             environmentKind:
                 sys::CUpti_ActivityEnvironmentKind::CUPTI_ACTIVITY_ENVIRONMENT_SPEED,
             data: sys::CUpti_ActivityEnvironment__bindgen_ty_1 {
-                speed: sys::CUpti_ActivityEnvironment__bindgen_ty_1__bindgen_ty_1 {
+                speed: sys::CUpti_ActivityEnvironmentSpeed {
                     smClock: 3,
                     memoryClock: 4,
                     pcieLinkGen: 5,
@@ -6069,7 +6069,7 @@ mod tests {
             timestamp: 8,
             environmentKind: sys::CUpti_ActivityEnvironmentKind::CUPTI_ACTIVITY_ENVIRONMENT_POWER,
             data: sys::CUpti_ActivityEnvironment__bindgen_ty_1 {
-                power: sys::CUpti_ActivityEnvironment__bindgen_ty_1__bindgen_ty_3 {
+                power: sys::CUpti_ActivityEnvironmentPower {
                     power: 9,
                     powerLimit: 10,
                 },
@@ -6228,7 +6228,7 @@ mod tests {
                 uuidDev: sys::CUuuid { bytes: [6; 16] },
             },
             idDev1: sys::CUpti_ActivityNvLink5__bindgen_ty_2 {
-                npu: sys::CUpti_ActivityNvLink5__bindgen_ty_2__bindgen_ty_1 {
+                npu: sys::CUpti_ActivityNvLinkNpu {
                     index: 7,
                     domainId: 8,
                 },
@@ -6285,7 +6285,7 @@ mod tests {
             linkWidth: 5,
             upstreamBus: 6,
             attr: sys::CUpti_ActivityPcie__bindgen_ty_2 {
-                gpuAttr: sys::CUpti_ActivityPcie__bindgen_ty_2__bindgen_ty_1 {
+                gpuAttr: sys::CUpti_ActivityPcieGpuAttr {
                     uuidDev: sys::CUuuid { bytes: [7; 16] },
                     peerDev: [8; 32],
                 },
@@ -6322,7 +6322,7 @@ mod tests {
             linkWidth: 13,
             upstreamBus: 14,
             attr: sys::CUpti_ActivityPcie__bindgen_ty_2 {
-                bridgeAttr: sys::CUpti_ActivityPcie__bindgen_ty_2__bindgen_ty_2 {
+                bridgeAttr: sys::CUpti_ActivityPcieBridgeAttr {
                     secondaryBus: 15,
                     deviceId: 16,
                     vendorId: 17,

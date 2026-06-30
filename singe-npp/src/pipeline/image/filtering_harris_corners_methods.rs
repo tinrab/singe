@@ -14,7 +14,6 @@ where
     L: ChannelLayout,
     Self: HarrisCornersBorderFilterImage<T, L>,
 {
-    #[allow(clippy::too_many_arguments)]
     pub fn filter_harris_corners_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

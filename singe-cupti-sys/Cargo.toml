@@ -13,9 +13,9 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cupti_13_2"]
+default = ["cupti_13_3"]
 
-cupti_13_2 = []
+cupti_13_3 = []
 
 [dependencies]
 num_enum.workspace = true

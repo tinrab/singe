@@ -15,7 +15,7 @@ rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 [features]
 default = ["cusolver_12_2"]
 
-cusolver_12_2 = ["singe-cuda-sys/runtime_13_2"]
+cusolver_12_2 = ["singe-cuda-sys/runtime_13_3"]
 
 [dependencies]
 singe-cuda-sys.workspace = true

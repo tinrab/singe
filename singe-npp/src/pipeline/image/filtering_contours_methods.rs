@@ -16,7 +16,6 @@ use crate::{
 use super::ImagePipeline;
 
 impl<'a> ImagePipeline<'a, u8, C1> {
-    #[allow(clippy::too_many_arguments)]
     pub fn contours_image_marching_squares_interpolation_32f(
         stream_context: &StreamContext,
         contours_image_dev: &ImageView<'_, u8, C1>,
@@ -55,7 +54,6 @@ impl<'a> ImagePipeline<'a, u8, C1> {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn contours_image_marching_squares_interpolation_64f(
         stream_context: &StreamContext,
         contours_image_dev: &ImageView<'_, u8, C1>,

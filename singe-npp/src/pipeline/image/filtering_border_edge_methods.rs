@@ -48,7 +48,6 @@ where
     L: ChannelLayout,
     Self: AdaptiveBoxThresholdBorderImage<T, L>,
 {
-    #[allow(clippy::too_many_arguments)]
     pub fn filter_threshold_adaptive_box_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

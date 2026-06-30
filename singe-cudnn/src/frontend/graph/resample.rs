@@ -5,7 +5,8 @@ use crate::{
     frontend::{
         graph::Graph,
         infer::infer_resample_output,
-        operation::{Operation, ResampleConfig},
+        operation::{Operation, ResampleConfig, ResampleOperation},
+        shape::shape_preserving_stride_order,
     },
     tensor::{TensorId, TensorSpec},
 };
@@ -51,16 +52,16 @@ impl Graph {
             indices,
             expected_output.dimensions(),
             config.mode(),
-            "resample indices",
             "resample indices shape",
         )?;
 
-        self.operations.push(Operation::Resample {
-            input,
-            output,
-            indices,
-            config,
-        });
+        self.operations
+            .push(Operation::Resample(ResampleOperation::Forward {
+                input,
+                output,
+                indices,
+                config,
+            }));
         Ok(())
     }
 
@@ -73,7 +74,7 @@ impl Graph {
     ) -> Result<TensorId> {
         let input_tensor = self.tensor_config(input)?.clone();
         let inferred_output = infer_resample_output(&input_tensor.shape, &config)?;
-        let output_shape = Self::shape_preserving_input_format(
+        let output_shape = shape_preserving_stride_order(
             &input_tensor.shape,
             inferred_output.dimensions().to_vec(),
         )?;
@@ -81,7 +82,6 @@ impl Graph {
             indices,
             output_shape.dimensions(),
             config.mode(),
-            "resample indices",
             "resample indices shape",
         )?;
         let output_data_type = self.effective_io_data_type(input_tensor.data_type);
@@ -98,7 +98,7 @@ impl Graph {
     ) -> Result<ResampleOutputs> {
         let input_tensor = self.tensor_config(input)?.clone();
         let inferred_output = infer_resample_output(&input_tensor.shape, &config)?;
-        let output_shape = Self::shape_preserving_input_format(
+        let output_shape = shape_preserving_stride_order(
             &input_tensor.shape,
             inferred_output.dimensions().to_vec(),
         )?;
@@ -149,18 +149,18 @@ impl Graph {
             indices,
             output_tensor.shape.dimensions(),
             config.mode(),
-            "resample backward indices",
             "resample backward indices shape",
         )?;
 
-        self.operations.push(Operation::ResampleBackward {
-            input,
-            output,
-            output_gradient,
-            input_gradient,
-            indices,
-            config,
-        });
+        self.operations
+            .push(Operation::Resample(ResampleOperation::Backward {
+                input,
+                output,
+                output_gradient,
+                input_gradient,
+                indices,
+                config,
+            }));
         Ok(())
     }
 
@@ -179,7 +179,6 @@ impl Graph {
             indices,
             output_tensor.shape.dimensions(),
             config.mode(),
-            "resample backward indices",
             "resample backward indices shape",
         )?;
         let input_gradient_data_type = self.effective_io_data_type(input_tensor.data_type);
@@ -206,25 +205,18 @@ impl Graph {
         indices: Option<TensorId>,
         output_dimensions: &[i64],
         mode: ResampleMode,
-        mode_error: &str,
         shape_error: &str,
     ) -> Result<()> {
         if let Some(indices) = indices {
             if mode != ResampleMode::MaxPool {
-                return Err(Error::DescriptorMismatch {
-                    name: mode_error.into(),
-                });
+                return Err(Error::FrontendResampleIndicesRequireMaxPool);
             }
-            self.validate_tensor_data_type(indices, DataType::I8, shape_error)?;
-            let indices_tensor = self.tensor_config(indices)?;
-            if indices_tensor.shape.dimensions() != output_dimensions {
-                return Err(Error::FrontendTensorDimensionsMismatch {
-                    tensor_id: indices,
-                    operation: shape_error.into(),
-                    expected: output_dimensions.to_vec(),
-                    actual: indices_tensor.shape.dimensions().to_vec(),
-                });
-            }
+            self.validate_tensor_data_type_and_dimensions(
+                indices,
+                DataType::I8,
+                output_dimensions,
+                shape_error,
+            )?;
         }
         Ok(())
     }

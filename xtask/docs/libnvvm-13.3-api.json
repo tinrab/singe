@@ -1,0 +1,273 @@
+{
+  "nvvmResult": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "group__error_1gaf2c5dc3a2ff02166a0c39f4bf4ece2a1",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__error_1gaf2c5dc3a2ff02166a0c39f4bf4ece2a1",
+    "doc": "NVVM API call result code.",
+    "signature": "enum nvvmResult",
+    "deprecated": false
+  },
+  "nvvmGetErrorString": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__error_1ga93f81ec6a9f957b30524dba42c9ce9d0",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__error_1ga93f81ec6a9f957b30524dba42c9ce9d0",
+    "doc": "Get the message string for the given `nvvmResult` code.",
+    "signature": "const char *nvvmGetErrorString(nvvmResult result)",
+    "parameters": {
+      "result": {
+        "doc": "NVVM API result code."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmIRVersion": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__query_1ga0894677934db095b3c40d4f8e2578cc5",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__query_1ga0894677934db095b3c40d4f8e2578cc5",
+    "doc": "Get the NVVM IR version.",
+    "signature": "nvvmResult nvvmIRVersion(int *majorIR, int *minorIR, int *majorDbg, int *minorDbg)",
+    "parameters": {
+      "majorIR": {
+        "doc": "NVVM IR major version number."
+      },
+      "minorIR": {
+        "doc": "NVVM IR minor version number."
+      },
+      "majorDbg": {
+        "doc": "NVVM IR debug metadata major version number."
+      },
+      "minorDbg": {
+        "doc": "NVVM IR debug metadata minor version number."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmLLVMVersion": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__query_1gaea550a0d261472c47d4eee8634e77593",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__query_1gaea550a0d261472c47d4eee8634e77593",
+    "doc": "Get the LLVM IR version guaranteed to be supported by NVVM.\n\nThe valid arch strings are the ones supported by `nvvmCompileProgram`.",
+    "signature": "nvvmResult nvvmLLVMVersion(const char *arch, int *major)",
+    "parameters": {
+      "arch": {
+        "doc": "Architecture string."
+      },
+      "major": {
+        "doc": "IR version number."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmVersion": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__query_1gacdd062f26078d20ded68f1017e999246",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__query_1gacdd062f26078d20ded68f1017e999246",
+    "doc": "Get the NVVM version.",
+    "signature": "nvvmResult nvvmVersion(int *major, int *minor)",
+    "parameters": {
+      "major": {
+        "doc": "NVVM major version number."
+      },
+      "minor": {
+        "doc": "NVVM minor version number."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmAddModuleToProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga0c22d2b9be033c165bc37b16f3ed75c6",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1ga0c22d2b9be033c165bc37b16f3ed75c6",
+    "doc": "Add a module level NVVM IR to a program.\n\nThe `buffer` should contain an NVVM IR module. The module should have NVVM IR either in the LLVM 7.0.1 bitcode representation or in the LLVM 7.0.1 text representation. Support for reading the text representation of NVVM IR is deprecated and may be removed in a later version.",
+    "signature": "nvvmResult nvvmAddModuleToProgram(nvvmProgram prog, const char *buffer, size_t size, const char *name)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      },
+      "buffer": {
+        "doc": "NVVM IR module in the bitcode or text representation."
+      },
+      "size": {
+        "doc": "Size of the NVVM IR module."
+      },
+      "name": {
+        "doc": "Name of the NVVM IR module. If NULL, \u201c&lt;unnamed>\u201d is used as the name."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmCompileProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga76ac1e23f5d0e2240e78be0e63450346",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1ga76ac1e23f5d0e2240e78be0e63450346",
+    "doc": "Compile the NVVM program.\n\nThe NVVM IR modules in the program will be linked at the IR level. The linked IR program is compiled to PTX.\n\nThe target datalayout in the linked IR program is used to determine the address size (32bit vs 64bit).\n\nThe valid compiler options are:\n\n* -g (enable generation of full debugging information). Full debug support is only valid with \u2018-opt=0\u2019. Debug support requires the input module to utilize NVVM IR Debug Metadata. Line number (line info) only generation is also enabled via NVVM IR Debug Metadata, there is no specific libNVVM API flag for that case.\n* -opt=\n\n  + 0 (disable optimizations)\n  + 3 (default, enable optimizations)\n* -arch=\n\n  + compute_75 (default)\n  + compute_80\n  + compute_87\n  + compute_89\n  + compute_90\n  + compute_90a\n  + compute_100\n  + compute_100a\n  + compute_100f\n  + compute_103\n  + compute_103a\n  + compute_103f\n  + compute_110\n  + compute_110a\n  + compute_110f\n  + compute_120\n  + compute_120a\n  + compute_120f\n  + compute_121\n  + compute_121a\n  + compute_121f\n* -ftz=\n\n  + 0 (default, preserve denormal values, when performing single-precision floating-point operations)\n  + 1 (flush denormal values to zero, when performing single-precision floating-point operations)\n* -prec-sqrt=\n\n  + 0 (use a faster approximation for single-precision floating-point square root)\n  + 1 (default, use IEEE round-to-nearest mode for single-precision floating-point square root)\n* -prec-div=\n\n  + 0 (use a faster approximation for single-precision floating-point division and reciprocals)\n  + 1 (default, use IEEE round-to-nearest mode for single-precision floating-point division and reciprocals)\n* -fma=\n\n  + 0 (disable FMA contraction)\n  + 1 (default, enable FMA contraction)\n* -jump-table-density=[0-101] Specify the case density percentage in switch statements, and use it as a minimal threshold to determine whether jump table(brx.idx instruction) will be used to implement a switch statement. Default value is 101. The percentage ranges from 0 to 101 inclusively.\n* -gen-lto (Generate LTO IR instead of PTX).",
+    "signature": "nvvmResult nvvmCompileProgram(nvvmProgram prog, int numOptions, const char **options)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      },
+      "numOptions": {
+        "doc": "Number of compiler options passed."
+      },
+      "options": {
+        "doc": "Compiler options in the form of C string array."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmCreateProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga46a0ab04a063cba28bfbb41a1939e3f4",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1ga46a0ab04a063cba28bfbb41a1939e3f4",
+    "doc": "Create a program, and set the value of its handle to `*prog`.",
+    "signature": "nvvmResult nvvmCreateProgram(nvvmProgram *prog)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmDestroyProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gafba94cab1224c0152841b80690d366aa",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1gafba94cab1224c0152841b80690d366aa",
+    "doc": "Destroy a program.",
+    "signature": "nvvmResult nvvmDestroyProgram(nvvmProgram *prog)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmGetCompiledResult": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gaff56fc783d0c4fb0759bfaa00f414072",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1gaff56fc783d0c4fb0759bfaa00f414072",
+    "doc": "Get the compiled result.\n\nThe result is stored in the memory pointed to by `buffer`.",
+    "signature": "nvvmResult nvvmGetCompiledResult(nvvmProgram prog, char *buffer)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      },
+      "buffer": {
+        "doc": "Compiled result."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmGetCompiledResultSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga837cfc3c852c82ecef14cda6c6702c9f",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1ga837cfc3c852c82ecef14cda6c6702c9f",
+    "doc": "Get the size of the compiled result.",
+    "signature": "nvvmResult nvvmGetCompiledResultSize(nvvmProgram prog, size_t *bufferSizeRet)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      },
+      "bufferSizeRet": {
+        "doc": "Size of the compiled result (including the trailing NULL)."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmGetProgramLog": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga2691e391b700f29457b7362cf5603b76",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1ga2691e391b700f29457b7362cf5603b76",
+    "doc": "Get the Compiler/Verifier Message.\n\nThe NULL terminated message string is stored in the memory pointed to by `buffer` when the return value is [`nvvmResult::NVVM_SUCCESS`].",
+    "signature": "nvvmResult nvvmGetProgramLog(nvvmProgram prog, char *buffer)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      },
+      "buffer": {
+        "doc": "Compilation/Verification log."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmGetProgramLogSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga74c5e0f33b20c1168ed79669a72a7467",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1ga74c5e0f33b20c1168ed79669a72a7467",
+    "doc": "Get the Size of Compiler/Verifier Message.\n\nThe size of the message string (including the trailing NULL) is stored into `bufferSizeRet` when the return value is [`nvvmResult::NVVM_SUCCESS`].",
+    "signature": "nvvmResult nvvmGetProgramLogSize(nvvmProgram prog, size_t *bufferSizeRet)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      },
+      "bufferSizeRet": {
+        "doc": "Size of the compilation/verification log (including the trailing NULL)."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmLazyAddModuleToProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga5356ce5063db232cd4330b666c62219b",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1ga5356ce5063db232cd4330b666c62219b",
+    "doc": "Add a module level NVVM IR to a program.\n\nThe `buffer` should contain an NVVM IR module. The module should have NVVM IR in the LLVM 7.0.1 bitcode representation.\n\nA module added using this API is lazily loaded - the only symbols loaded are those that are required by module(s) loaded using nvvmAddModuleToProgram. It is an error for a program to have all modules loaded using this API. Compiler may also optimize entities in this module by making them internal to the linked NVVM IR module, making them eligible for other optimizations. Due to these optimizations, this API to load a module is more efficient and should be used where possible.",
+    "signature": "nvvmResult nvvmLazyAddModuleToProgram(nvvmProgram prog, const char *buffer, size_t size, const char *name)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      },
+      "buffer": {
+        "doc": "NVVM IR module in the bitcode representation."
+      },
+      "size": {
+        "doc": "Size of the NVVM IR module."
+      },
+      "name": {
+        "doc": "Name of the NVVM IR module. If NULL, \u201c&lt;unnamed>\u201d is used as the name."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmVerifyProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga77a96a407f9c6785f47ec1ea13f9cf9f",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1ga77a96a407f9c6785f47ec1ea13f9cf9f",
+    "doc": "Verify the NVVM program.\n\nThe valid compiler options are:\n\nSame as for `nvvmCompileProgram`.",
+    "signature": "nvvmResult nvvmVerifyProgram(nvvmProgram prog, int numOptions, const char **options)",
+    "parameters": {
+      "prog": {
+        "doc": "NVVM program."
+      },
+      "numOptions": {
+        "doc": "Number of compiler options passed."
+      },
+      "options": {
+        "doc": "Compiler options in the form of C string array."
+      }
+    },
+    "deprecated": false
+  },
+  "nvvmProgram": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "group__compilation_1gad4334e62c0b6ddd8d32ef3da5c204162",
+    "uri": "https://docs.nvidia.com/cuda/libnvvm-api/index.html#group__compilation_1gad4334e62c0b6ddd8d32ef3da5c204162",
+    "doc": "NVVM Program.\n\nAn opaque handle for a program.",
+    "signature": "typedef struct _nvvmProgram *nvvmProgram",
+    "deprecated": false
+  }
+}

@@ -12,6 +12,7 @@ mod reduction;
 mod resample;
 mod rng;
 mod stats;
+mod tensor_ops;
 
 pub use advanced::*;
 pub use attention::*;
@@ -25,3 +26,10 @@ pub use reduction::*;
 pub use resample::*;
 pub use rng::*;
 pub use stats::*;
+pub use tensor_ops::*;
+
+use crate::tensor::TensorId;
+
+pub(crate) trait FrontendOperationTensors {
+    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>);
+}

@@ -1,16 +1,26 @@
-use std::iter;
-
 use crate::{
     data_type::DataType,
     error::{Error, Result},
     frontend::{
-        composite::sdpa::{
-            SdpaAuxOutputs, SdpaFp8Inputs, SdpaFp8OutputTensors, SdpaMxfp8AuxOutputs,
-            SdpaMxfp8Inputs, SdpaMxfp8OutputTensors,
+        composite::{
+            sdpa::{
+                SdpaAuxOutputs, SdpaFp8Inputs, SdpaFp8OutputTensors, SdpaMxfp8AuxOutputs,
+                SdpaMxfp8Inputs, SdpaMxfp8OutputTensors,
+                support::{
+                    SDPA_FP8_ABSOLUTE_MAX_O, SDPA_FP8_ABSOLUTE_MAX_S, SDPA_FP8_ATTN_SCALE,
+                    SDPA_FP8_AUX_OUTPUTS, SDPA_FP8_DESCALE_K, SDPA_FP8_DESCALE_Q,
+                    SDPA_FP8_DESCALE_S, SDPA_FP8_DESCALE_V, SDPA_FP8_OUTPUT, SDPA_FP8_RNG_DUMP,
+                    SDPA_FP8_SCALE_O, SDPA_FP8_SCALE_S, SDPA_FP8_STATS, SDPA_MXFP8_ABSOLUTE_MAX_O,
+                    SDPA_MXFP8_ABSOLUTE_MAX_S, SDPA_MXFP8_ATTN_SCALE, SDPA_MXFP8_AUX_OUTPUTS,
+                    SDPA_MXFP8_OUTPUT, SDPA_MXFP8_STATS,
+                },
+            },
+            softmax::SoftmaxCompositeTensors,
         },
         graph::{Graph, MatmulFp8Inputs, MatmulFp8QuantizeTensors},
         infer::*,
         operation::*,
+        shape::{shape_with_strides, transpose_last_two_shape, unit_shape_like},
     },
     math::NanPropagation,
     pointwise::PointwiseMode,
@@ -19,6 +29,11 @@ use crate::{
     tensor::{Shape, TensorId, TensorSpec},
     version,
 };
+
+struct QuantizedSoftmaxOutputs {
+    probs: TensorId,
+    stats: Option<TensorId>,
+}
 
 impl Graph {
     pub(in crate::frontend::composite::sdpa) fn dequantize_tensor_infer(
@@ -37,17 +52,55 @@ impl Graph {
         tensor: TensorId,
         name: &str,
     ) -> Result<()> {
-        let tensor = self.tensor_config(tensor)?;
-        match tensor.data_type {
-            DataType::F32 | DataType::F16 | DataType::BF16 => {}
-            _ => {
-                return Err(Error::DescriptorMismatch { name: name.into() });
-            }
+        let tensor_config = self.tensor_config(tensor)?;
+        let supported = [DataType::F32, DataType::F16, DataType::BF16];
+        if !supported.contains(&tensor_config.data_type) {
+            return Err(Error::FrontendTensorDataTypeUnsupported {
+                tensor_id: tensor,
+                operation: name.into(),
+                supported: supported.to_vec(),
+                actual: tensor_config.data_type,
+            });
         }
-        if tensor.shape.element_count()? != 1 {
-            return Err(Error::DescriptorMismatch { name: name.into() });
-        }
+        self.validate_sdpa_scalar_element_count(tensor, name)
+    }
 
+    fn validate_fp8_forward_scale_tensors(&self, inputs: SdpaFp8Inputs) -> Result<()> {
+        self.validate_fp8_scale_tensor(inputs.descale_query, SDPA_FP8_DESCALE_Q)?;
+        self.validate_fp8_scale_tensor(inputs.descale_key, SDPA_FP8_DESCALE_K)?;
+        self.validate_fp8_scale_tensor(inputs.descale_value, SDPA_FP8_DESCALE_V)?;
+        self.validate_fp8_scale_tensor(inputs.descale_scores, SDPA_FP8_DESCALE_S)?;
+        self.validate_fp8_scale_tensor(inputs.scale_scores, SDPA_FP8_SCALE_S)?;
+        self.validate_fp8_scale_tensor(inputs.scale_output, SDPA_FP8_SCALE_O)
+    }
+
+    fn validate_fp8_forward_aux_outputs(&self, config: &SdpaConfig) -> Result<()> {
+        let softmax_aux = config.aux_outputs().softmax();
+        if softmax_aux.requires_unified_cudnn_921() {
+            return Err(Error::FrontendSdpaQuantizedAuxOutputUnsupported {
+                operation: "fp8 sdpa".into(),
+                output: SDPA_FP8_AUX_OUTPUTS.into(),
+            });
+        }
+        Ok(())
+    }
+
+    fn validate_mxfp8_forward_aux_outputs(&self, config: &SdpaConfig) -> Result<()> {
+        let aux_outputs = config.aux_outputs();
+        let softmax_aux = aux_outputs.softmax();
+        let quantized_aux = aux_outputs.quantized();
+        if quantized_aux.absolute_max_s() {
+            return Err(Error::FrontendSdpaQuantizedAuxOutputUnsupported {
+                operation: "mxfp8 sdpa".into(),
+                output: SDPA_MXFP8_ABSOLUTE_MAX_S.into(),
+            });
+        }
+        if softmax_aux.requires_unified_cudnn_921() {
+            return Err(Error::FrontendSdpaQuantizedAuxOutputUnsupported {
+                operation: "mxfp8 sdpa".into(),
+                output: SDPA_MXFP8_AUX_OUTPUTS.into(),
+            });
+        }
         Ok(())
     }
 
@@ -60,6 +113,92 @@ impl Graph {
         let compute_type = self.effective_compute_data_type(DataType::F32);
         let scaled = self.pointwise_binary_infer(input, scale, PointwiseMode::Mul, compute_type)?;
         self.pointwise_identity_infer(scaled, output_data_type, compute_type)
+    }
+
+    fn sdpa_apply_fused_score_mask(
+        &mut self,
+        scores: TensorId,
+        mask: SdpaFusedMaskMode,
+        compute_type: DataType,
+        output_data_type: DataType,
+    ) -> Result<TensorId> {
+        match mask {
+            SdpaFusedMaskMode::None => Ok(scores),
+            SdpaFusedMaskMode::CausalTopLeft => self.apply_diagonal_band_mask(scores, 0, Some(0)),
+            SdpaFusedMaskMode::CausalBottomRight {
+                sequence_length_query,
+                sequence_length_key_value,
+            } => {
+                let mask = self.causal_bottom_right_mask(
+                    scores,
+                    sequence_length_query,
+                    sequence_length_key_value,
+                )?;
+                self.pointwise_binary_infer_as(
+                    scores,
+                    mask,
+                    PointwiseMode::Add,
+                    compute_type,
+                    output_data_type,
+                )
+            }
+        }
+    }
+
+    fn quantized_sdpa_mul_like(
+        &mut self,
+        input: TensorId,
+        rhs: TensorId,
+        output_data_type: DataType,
+        compute_type: DataType,
+    ) -> Result<TensorId> {
+        let output = self.tensor(
+            TensorSpec::new(output_data_type, self.tensor_config(input)?.shape.clone())
+                .virtual_tensor(),
+        );
+        self.pointwise(PointwiseOperation::Binary {
+            mode: PointwiseMode::Mul,
+            lhs: input,
+            rhs,
+            output,
+            compute_type,
+            nan_propagation: NanPropagation::NotPropagate,
+            alpha1: 1.0,
+            alpha2: 1.0,
+        });
+        Ok(output)
+    }
+
+    fn quantized_sdpa_softmax(
+        &mut self,
+        scores: TensorId,
+        softmax_aux: SdpaSoftmaxAuxOutputRequest,
+        probability_data_type: DataType,
+        aux_data_type: DataType,
+        compute_type: DataType,
+    ) -> Result<QuantizedSoftmaxOutputs> {
+        let probs = self.tensor(
+            TensorSpec::new(
+                probability_data_type,
+                self.tensor_config(scores)?.shape.clone(),
+            )
+            .virtual_tensor(),
+        );
+        let aux_shape = reduce_last_axis(self.shape(scores)?)?;
+        let stats = softmax_aux
+            .stats()
+            .then(|| self.tensor(TensorSpec::new(aux_data_type, aux_shape.clone())));
+        let softmax_stats = stats.unwrap_or_else(|| {
+            self.tensor(TensorSpec::new(aux_data_type, aux_shape.clone()).virtual_tensor())
+        });
+        let logit_max =
+            self.tensor(TensorSpec::new(aux_data_type, aux_shape.clone()).virtual_tensor());
+        let score_sum_exp = self.tensor(TensorSpec::new(aux_data_type, aux_shape).virtual_tensor());
+        self.softmax_composite(
+            SoftmaxCompositeTensors::new(scores, softmax_stats, logit_max, score_sum_exp, probs),
+            SoftmaxConfig::new(compute_type),
+        )?;
+        Ok(QuantizedSoftmaxOutputs { probs, stats })
     }
 
     /// Adds an FP8 SDPA forward graph and creates output and auxiliary tensors.
@@ -98,17 +237,10 @@ impl Graph {
         let intermediate_type = self.effective_intermediate_data_type(DataType::F32);
         let aux_data_type = self.sdpa_aux_data_type();
         self.validate_fp8_forward_support_surface_for_version(version()?.raw(), output_io_type)?;
-        self.validate_fp8_scale_tensor(descale_q, "sdpa fp8 descale_q")?;
-        self.validate_fp8_scale_tensor(descale_k, "sdpa fp8 descale_k")?;
-        self.validate_fp8_scale_tensor(descale_v, "sdpa fp8 descale_v")?;
-        self.validate_fp8_scale_tensor(descale_s, "sdpa fp8 descale_s")?;
-        self.validate_fp8_scale_tensor(scale_s, "sdpa fp8 scale_s")?;
-        self.validate_fp8_scale_tensor(scale_o, "sdpa fp8 scale_o")?;
-        if config.has_logit_max() || config.has_score_sum_exp() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa fp8 aux outputs".into(),
-            });
-        }
+        self.validate_fp8_forward_scale_tensors(inputs)?;
+        self.validate_fp8_forward_aux_outputs(config)?;
+        let softmax_aux = config.aux_outputs().softmax();
+        let quantized_aux = config.aux_outputs().quantized();
         let q_tensor = self.tensor_config(q)?.clone();
         let k_tensor = self.tensor_config(k)?.clone();
         let v_tensor = self.tensor_config(v)?.clone();
@@ -116,8 +248,10 @@ impl Graph {
         let output_shape = infer_sdpa_output_shape(&scores_shape, &v_tensor.shape)?;
         let attention_scale = self.tensor(
             TensorSpec::new(compute_type, Shape::contiguous([1, 1, 1, 1])?).with_scalar_value(
-                ScalarValue::F32(config.attention_scale().ok_or(Error::DescriptorMismatch {
-                    name: "sdpa fp8 attn scale".into(),
+                ScalarValue::F32(config.attention_scale().ok_or_else(|| {
+                    Error::FrontendSdpaAttentionScaleRequired {
+                        operation: SDPA_FP8_ATTN_SCALE.into(),
+                    }
                 })?),
             )?,
         );
@@ -125,132 +259,39 @@ impl Graph {
         let scores =
             self.tensor(TensorSpec::new(intermediate_type, scores_shape.clone()).virtual_tensor());
         self.matmul(q, k_t, scores, compute_type)?;
-        let scaled_scores = self.tensor(
-            TensorSpec::new(intermediate_type, self.tensor_config(scores)?.shape.clone())
-                .virtual_tensor(),
-        );
-        self.pointwise(PointwiseOperation::Binary {
-            mode: PointwiseMode::Mul,
-            lhs: scores,
-            rhs: attention_scale,
-            output: scaled_scores,
+        let scaled_scores =
+            self.quantized_sdpa_mul_like(scores, attention_scale, intermediate_type, compute_type)?;
+        let q_descaled_scores = self.quantized_sdpa_mul_like(
+            scaled_scores,
+            descale_q,
+            intermediate_type,
             compute_type,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
-        let q_descaled_scores = self.tensor(
-            TensorSpec::new(
-                intermediate_type,
-                self.tensor_config(scaled_scores)?.shape.clone(),
-            )
-            .virtual_tensor(),
-        );
-        self.pointwise(PointwiseOperation::Binary {
-            mode: PointwiseMode::Mul,
-            lhs: scaled_scores,
-            rhs: descale_q,
-            output: q_descaled_scores,
+        )?;
+        let k_descaled_scores = self.quantized_sdpa_mul_like(
+            q_descaled_scores,
+            descale_k,
+            intermediate_type,
             compute_type,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
-        let k_descaled_scores = self.tensor(
-            TensorSpec::new(
-                intermediate_type,
-                self.tensor_config(q_descaled_scores)?.shape.clone(),
-            )
-            .virtual_tensor(),
-        );
-        self.pointwise(PointwiseOperation::Binary {
-            mode: PointwiseMode::Mul,
-            lhs: q_descaled_scores,
-            rhs: descale_k,
-            output: k_descaled_scores,
+        )?;
+        let masked_scores = self.sdpa_apply_fused_score_mask(
+            k_descaled_scores,
+            config.mask(),
             compute_type,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
-        let mut masked_scores = k_descaled_scores;
-        if config.has_causal_bottom_right() {
-            let sequence_length_query =
-                config
-                    .sequence_length_query()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa bottom right seq len".into(),
-                    })?;
-            let sequence_length_key_value =
-                config
-                    .sequence_length_key_value()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa bottom right seq len".into(),
-                    })?;
-            let mask = self.causal_bottom_right_mask(
-                masked_scores,
-                sequence_length_query,
-                sequence_length_key_value,
-            )?;
-            masked_scores = self.pointwise_binary_infer_as(
-                masked_scores,
-                mask,
-                PointwiseMode::Add,
+            intermediate_type,
+        )?;
+        let softmax = self.quantized_sdpa_softmax(
+            masked_scores,
+            softmax_aux,
+            intermediate_type,
+            aux_data_type,
+            compute_type,
+        )?;
+        let probs = softmax.probs;
+        let absolute_max_s = if quantized_aux.absolute_max_s() {
+            let output = self.tensor(TensorSpec::new(
                 compute_type,
-                intermediate_type,
-            )?;
-        } else if config.has_causal_mask() {
-            masked_scores = self.apply_diagonal_band_mask(masked_scores, 0, Some(0))?;
-        }
-        let probs = self.tensor(
-            TensorSpec::new(
-                intermediate_type,
-                self.tensor_config(masked_scores)?.shape.clone(),
-            )
-            .virtual_tensor(),
-        );
-        let (stats, _score_sum_exp) = if config.has_stats() {
-            let aux_shape = reduce_last_axis(self.shape(masked_scores)?)?;
-            let logit_max = self.tensor(
-                TensorSpec::new(aux_data_type, aux_shape.clone())
-                    .with_id(TensorId::generate())
-                    .virtual_tensor(),
-            );
-            let score_sum_exp =
-                self.tensor(TensorSpec::new(aux_data_type, aux_shape).virtual_tensor());
-            self.softmax_composite(
-                masked_scores,
-                logit_max,
-                score_sum_exp,
-                probs,
-                SoftmaxConfig::new(compute_type),
-            )?;
-            (Some(logit_max), Some(score_sum_exp))
-        } else {
-            let aux_shape = reduce_last_axis(self.shape(masked_scores)?)?;
-            let logit_max =
-                self.tensor(TensorSpec::new(aux_data_type, aux_shape.clone()).virtual_tensor());
-            let score_sum_exp =
-                self.tensor(TensorSpec::new(aux_data_type, aux_shape).virtual_tensor());
-            self.softmax_composite(
-                masked_scores,
-                logit_max,
-                score_sum_exp,
-                probs,
-                SoftmaxConfig::new(compute_type),
-            )?;
-            (None, None)
-        };
-        let absolute_max_s = if config.has_absolute_max_s() {
-            let absolute_max_s_shape = Shape::contiguous(
-                iter::repeat_n(1_i64, self.tensor_config(probs)?.shape.dimensions().len())
-                    .collect::<Vec<_>>(),
-            )?
-            .with_strides(
-                iter::repeat_n(1_i64, self.tensor_config(probs)?.shape.strides().len())
-                    .collect::<Vec<_>>(),
-            )?;
-            let output = self.tensor(TensorSpec::new(compute_type, absolute_max_s_shape));
+                unit_shape_like(self.shape(probs)?)?,
+            ));
             self.reduction(ReductionOperation::Reduce {
                 op: ReduceTensorOperator::AbsoluteMax,
                 input: probs,
@@ -262,20 +303,8 @@ impl Graph {
         } else {
             None
         };
-        let probs_scaled = self.tensor(
-            TensorSpec::new(intermediate_type, self.tensor_config(probs)?.shape.clone())
-                .virtual_tensor(),
-        );
-        self.pointwise(PointwiseOperation::Binary {
-            mode: PointwiseMode::Mul,
-            lhs: probs,
-            rhs: scale_s,
-            output: probs_scaled,
-            compute_type,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
+        let probs_scaled =
+            self.quantized_sdpa_mul_like(probs, scale_s, intermediate_type, compute_type)?;
         let probs_fp8 = self.tensor(
             TensorSpec::new(
                 output_io_type,
@@ -298,12 +327,10 @@ impl Graph {
             axis: None,
         });
         let output = self.tensor(TensorSpec::new(output_io_type, output_shape.clone()));
-        let absolute_max_o_shape = Shape::contiguous(
-            iter::repeat_n(1_i64, output_shape.dimensions().len()).collect::<Vec<_>>(),
-        )?
-        .with_strides(iter::repeat_n(1_i64, output_shape.strides().len()).collect::<Vec<_>>())?;
-        let computed_absolute_max_o =
-            self.tensor(TensorSpec::new(compute_type, absolute_max_o_shape));
+        let computed_absolute_max_o = self.tensor(TensorSpec::new(
+            compute_type,
+            unit_shape_like(&output_shape)?,
+        ));
         self.matmul_fp8_quantize(
             MatmulFp8QuantizeTensors::new(
                 MatmulFp8Inputs {
@@ -318,12 +345,12 @@ impl Graph {
             ),
             compute_type,
         )?;
-        let absolute_max_o = config
-            .has_absolute_max_o()
+        let absolute_max_o = quantized_aux
+            .absolute_max_o()
             .then_some(computed_absolute_max_o);
         Ok(SdpaAuxOutputs::with_aux(
             output,
-            stats,
+            softmax.stats,
             absolute_max_s,
             absolute_max_o,
             None,
@@ -342,22 +369,23 @@ impl Graph {
             config,
         )?;
         if computed.rng_dump.is_some() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa fp8 rng dump".into(),
+            return Err(Error::FrontendSdpaQuantizedAuxOutputUnsupported {
+                operation: "fp8 sdpa".into(),
+                output: SDPA_FP8_RNG_DUMP.into(),
             });
         }
 
-        self.bind_sdpa_inferred_tensor(computed.output, outputs.output, "sdpa fp8 output")?;
-        self.bind_sdpa_inferred_optional_tensor(computed.stats, outputs.stats, "sdpa fp8 stats")?;
+        self.bind_sdpa_inferred_tensor(computed.output, outputs.output, SDPA_FP8_OUTPUT)?;
+        self.bind_sdpa_inferred_optional_tensor(computed.stats, outputs.stats, SDPA_FP8_STATS)?;
         self.bind_sdpa_inferred_optional_tensor(
             computed.logit_max,
             outputs.absolute_max_scores,
-            "sdpa fp8 absolute_max_s",
+            SDPA_FP8_ABSOLUTE_MAX_S,
         )?;
         self.bind_sdpa_inferred_optional_tensor(
             computed.score_sum_exp,
             outputs.absolute_max_output,
-            "sdpa fp8 absolute_max_o",
+            SDPA_FP8_ABSOLUTE_MAX_O,
         )?;
         Ok(())
     }
@@ -388,23 +416,16 @@ impl Graph {
         let output_io_type = self.effective_io_data_type(DataType::BF16);
         let intermediate_type = self.effective_intermediate_data_type(DataType::F32);
         let compute_type = self.effective_compute_data_type(DataType::F32);
-        if config.has_absolute_max_s() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa mxfp8 absolute_max_s".into(),
-            });
-        }
-        if config.has_logit_max() || config.has_score_sum_exp() {
-            return Err(Error::DescriptorMismatch {
-                name: "sdpa mxfp8 aux outputs".into(),
-            });
-        }
+        self.validate_mxfp8_forward_aux_outputs(config)?;
+        let softmax_aux = config.aux_outputs().softmax();
+        let quantized_aux = config.aux_outputs().quantized();
 
-        let attn_scale_value =
-            self.tensor_config(attention_scale)?
-                .scalar_value
-                .ok_or(Error::DescriptorMismatch {
-                    name: "sdpa mxfp8 attn scale".into(),
-                })?;
+        let attn_scale_value = self
+            .tensor_config(attention_scale)?
+            .scalar_value
+            .ok_or_else(|| Error::FrontendSdpaAttentionScaleRequired {
+                operation: SDPA_MXFP8_ATTN_SCALE.into(),
+            })?;
         let attention_scale = self.tensor(
             TensorSpec::new(compute_type, Shape::contiguous([1, 1, 1, 1])?)
                 .with_scalar_value(attn_scale_value)?,
@@ -412,26 +433,12 @@ impl Graph {
 
         let q_input_tensor = self.tensor_config(q)?.clone();
         let k_tensor = self.tensor_config(k)?.clone();
-        let mut kt_dimensions = k_tensor.shape.dimensions().to_vec();
-        let mut kt_strides = k_tensor.shape.strides().to_vec();
-        kt_dimensions.swap(2, 3);
-        kt_strides.swap(2, 3);
-        self.replace_tensor(
-            k,
-            k_tensor.with_shape(
-                Shape::contiguous(kt_dimensions.clone())?.with_strides(kt_strides.clone())?,
-            ),
-        )?;
+        let k_t_shape = transpose_last_two_shape(&k_tensor.shape)?;
+        self.replace_tensor(k, k_tensor.with_shape(k_t_shape))?;
 
         let sf_k_tensor = self.tensor_config(scale_k)?.clone();
-        let mut sf_k_dimensions = sf_k_tensor.shape.dimensions().to_vec();
-        let mut sf_k_strides = sf_k_tensor.shape.strides().to_vec();
-        sf_k_dimensions.swap(2, 3);
-        sf_k_strides.swap(2, 3);
-        self.replace_tensor(
-            scale_k,
-            sf_k_tensor.with_shape(Shape::contiguous(sf_k_dimensions)?.with_strides(sf_k_strides)?),
-        )?;
+        let sf_k_t_shape = transpose_last_two_shape(&sf_k_tensor.shape)?;
+        self.replace_tensor(scale_k, sf_k_tensor.with_shape(sf_k_t_shape))?;
 
         let q_fp = self.block_scale_dequantize_infer(
             q,
@@ -455,20 +462,22 @@ impl Graph {
         let scores = self.tensor(
             TensorSpec::new(
                 intermediate_type,
-                Shape::contiguous(vec![
-                    q_tensor.shape.dimensions()[0],
-                    q_tensor.shape.dimensions()[1],
-                    q_tensor.shape.dimensions()[2],
-                    k_tensor.shape.dimensions()[3],
-                ])?
-                .with_strides(vec![
-                    q_tensor.shape.dimensions()[1]
-                        * q_tensor.shape.dimensions()[2]
-                        * k_tensor.shape.dimensions()[3],
-                    q_tensor.shape.dimensions()[2] * k_tensor.shape.dimensions()[3],
-                    k_tensor.shape.dimensions()[3],
-                    1,
-                ])?,
+                shape_with_strides(
+                    vec![
+                        q_tensor.shape.dimensions()[0],
+                        q_tensor.shape.dimensions()[1],
+                        q_tensor.shape.dimensions()[2],
+                        k_tensor.shape.dimensions()[3],
+                    ],
+                    vec![
+                        q_tensor.shape.dimensions()[1]
+                            * q_tensor.shape.dimensions()[2]
+                            * k_tensor.shape.dimensions()[3],
+                        q_tensor.shape.dimensions()[2] * k_tensor.shape.dimensions()[3],
+                        k_tensor.shape.dimensions()[3],
+                        1,
+                    ],
+                )?,
             )
             .virtual_tensor(),
         );
@@ -487,68 +496,21 @@ impl Graph {
             alpha1: 1.0,
             alpha2: 1.0,
         });
-        let scores = if config.has_causal_bottom_right() {
-            let sequence_length_query =
-                config
-                    .sequence_length_query()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa bottom right seq len".into(),
-                    })?;
-            let sequence_length_key_value =
-                config
-                    .sequence_length_key_value()
-                    .ok_or(Error::DescriptorMismatch {
-                        name: "sdpa bottom right seq len".into(),
-                    })?;
-            let score_data_type = intermediate_type;
-            let mask = self.causal_bottom_right_mask(
-                scaled_scores,
-                sequence_length_query,
-                sequence_length_key_value,
-            )?;
-            self.pointwise_binary_infer_as(
-                scaled_scores,
-                mask,
-                PointwiseMode::Add,
-                compute_type,
-                score_data_type,
-            )?
-        } else if config.has_causal_mask() {
-            self.apply_diagonal_band_mask(scaled_scores, 0, Some(0))?
-        } else {
-            scaled_scores
-        };
-
-        let probs = self.tensor(
-            TensorSpec::new(intermediate_type, self.shape(scores)?.clone()).virtual_tensor(),
-        );
-        let stats = if config.has_stats() {
-            Some(self.tensor(TensorSpec::new(
-                compute_type,
-                reduce_last_axis(self.shape(scores)?)?,
-            )))
-        } else {
-            None
-        };
-        let logit_max = self.tensor(
-            TensorSpec::new(compute_type, reduce_last_axis(self.shape(scores)?)?).virtual_tensor(),
-        );
-        let score_sum_exp = self.tensor(
-            TensorSpec::new(compute_type, reduce_last_axis(self.shape(scores)?)?).virtual_tensor(),
-        );
-        self.softmax_composite(
-            scores,
-            if config.has_stats() {
-                stats.ok_or_else(|| Error::DescriptorMismatch {
-                    name: "sdpa stats".into(),
-                })?
-            } else {
-                logit_max
-            },
-            score_sum_exp,
-            probs,
-            SoftmaxConfig::new(compute_type),
+        let scores = self.sdpa_apply_fused_score_mask(
+            scaled_scores,
+            config.mask(),
+            compute_type,
+            intermediate_type,
         )?;
+
+        let softmax = self.quantized_sdpa_softmax(
+            scores,
+            softmax_aux,
+            intermediate_type,
+            compute_type,
+            compute_type,
+        )?;
+        let probs = softmax.probs;
 
         let scaled_probs = self.tensor(
             TensorSpec::new(
@@ -569,30 +531,36 @@ impl Graph {
 
         let output = self.tensor(TensorSpec::new(
             output_io_type,
-            Shape::contiguous(vec![
-                q_input_tensor.shape.dimensions()[0],
-                q_input_tensor.shape.dimensions()[1],
-                q_input_tensor.shape.dimensions()[2],
-                v_tensor.shape.dimensions()[3],
-            ])?
-            .with_strides(vec![
-                q_input_tensor.shape.dimensions()[2]
-                    * q_input_tensor.shape.dimensions()[1]
-                    * v_tensor.shape.dimensions()[3],
-                v_tensor.shape.dimensions()[3],
-                q_input_tensor.shape.dimensions()[1] * v_tensor.shape.dimensions()[3],
-                1,
-            ])?,
+            shape_with_strides(
+                vec![
+                    q_input_tensor.shape.dimensions()[0],
+                    q_input_tensor.shape.dimensions()[1],
+                    q_input_tensor.shape.dimensions()[2],
+                    v_tensor.shape.dimensions()[3],
+                ],
+                vec![
+                    q_input_tensor.shape.dimensions()[2]
+                        * q_input_tensor.shape.dimensions()[1]
+                        * v_tensor.shape.dimensions()[3],
+                    v_tensor.shape.dimensions()[3],
+                    q_input_tensor.shape.dimensions()[1] * v_tensor.shape.dimensions()[3],
+                    1,
+                ],
+            )?,
         ));
         self.matmul(scaled_probs, v_fp, output, compute_type)?;
 
-        let absolute_max_o = if config.has_absolute_max_o() {
+        let absolute_max_o = if quantized_aux.absolute_max_o() {
             Some(self.absolute_max_infer(output, compute_type)?)
         } else {
             None
         };
 
-        Ok(SdpaMxfp8AuxOutputs::new(output, stats, absolute_max_o))
+        Ok(SdpaMxfp8AuxOutputs::new(
+            output,
+            softmax.stats,
+            absolute_max_o,
+        ))
     }
 
     pub fn sdpa_mxfp8_with_aux(
@@ -603,12 +571,12 @@ impl Graph {
     ) -> Result<()> {
         let computed = self.sdpa_mxfp8_infer(inputs, config)?;
 
-        self.bind_sdpa_inferred_tensor(computed.output, outputs.output, "sdpa mxfp8 output")?;
-        self.bind_sdpa_inferred_optional_tensor(computed.stats, outputs.stats, "sdpa mxfp8 stats")?;
+        self.bind_sdpa_inferred_tensor(computed.output, outputs.output, SDPA_MXFP8_OUTPUT)?;
+        self.bind_sdpa_inferred_optional_tensor(computed.stats, outputs.stats, SDPA_MXFP8_STATS)?;
         self.bind_sdpa_inferred_optional_tensor(
             computed.absolute_max_output,
             outputs.absolute_max_output,
-            "sdpa mxfp8 absolute_max_o",
+            SDPA_MXFP8_ABSOLUTE_MAX_O,
         )?;
         Ok(())
     }

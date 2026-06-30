@@ -7,8 +7,10 @@ use singe_cudnn::{
     error::Result,
     frontend::{
         composite::sdpa::SdpaBackwardInputs,
-        graph::Graph,
-        operation::{AttentionBackwardConfig, HeuristicMode},
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionBackwardConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+        },
     },
 };
 
@@ -31,10 +33,14 @@ fn run() -> Result<()> {
     let d_qk = 128_i64;
     let d_value = 128_i64;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::BF16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(
         TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_qk])?).with_id(1001),
@@ -81,12 +87,16 @@ fn run() -> Result<()> {
         AttentionBackwardConfig::new(DataType::F32)
             .with_attention_scale(0.123)
             .with_deterministic_algorithm()
-            .with_causal_mask()
-            .with_padding_mask(sequence_length_query, sequence_length_key_value),
+            .with_score_config(AttentionScoreConfig::new().with_mask_mode(
+                AttentionMaskMode::CausalTopLeftWithPadding {
+                    sequence_length_query: sequence_length_query,
+                    sequence_length_key_value: sequence_length_key_value,
+                },
+            )),
     )?;
-    let d_q = outputs.query_gradient;
-    let d_k = outputs.key_gradient;
-    let d_v = outputs.value_gradient;
+    let d_q = outputs.query_gradient();
+    let d_k = outputs.key_gradient();
+    let d_v = outputs.value_gradient();
     graph.replace_tensor(
         d_q,
         graph

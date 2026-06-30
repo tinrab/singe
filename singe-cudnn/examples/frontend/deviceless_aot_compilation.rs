@@ -8,7 +8,7 @@ use singe_cudnn::{
     data_type::{DataType, f16},
     error::{Error, Result, Status},
     frontend::{
-        graph::Graph,
+        graph::{DataTypePolicy, Graph, GraphConfig},
         operation::{ConvolutionConfig, HeuristicMode},
         plan::CompiledGraph,
     },
@@ -67,11 +67,16 @@ fn build_graph(device_properties: DeviceProperties) -> Result<Graph> {
     let r = 3_i64;
     let s = 3_i64;
 
-    let mut graph = Graph::new()
-        .with_name("deviceless-aot-demo")
-        .with_io_data_type(DataType::F16)
-        .with_compute_data_type(DataType::F32);
-    graph.set_device_properties(device_properties)?;
+    let mut graph = Graph::with_config(
+        GraphConfig::new()
+            .with_name("deviceless-aot-demo")
+            .with_data_type_policy(
+                DataTypePolicy::new()
+                    .with_io(DataType::F16)
+                    .with_compute(DataType::F32),
+            ),
+    );
+    graph.attach_device_properties(device_properties)?;
 
     let x = graph.tensor(
         TensorSpec::new(

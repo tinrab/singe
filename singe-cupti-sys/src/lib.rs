@@ -6,8 +6,8 @@
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-#[cfg(feature = "cupti_13_2")]
-include!("cupti_sys_130201.rs");
+#[cfg(feature = "cupti_13_3")]
+include!("cupti_sys_130300.rs");
 
 #[cfg(test)]
 mod tests {
@@ -15,6 +15,6 @@ mod tests {
 
     #[test]
     fn it_works() {
-        assert_eq!(CUPTI_API_VERSION, 130201);
+        assert_eq!(CUPTI_API_VERSION, 130300);
     }
 }

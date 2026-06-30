@@ -7,7 +7,9 @@ use crate::{
             infer_block_scale_dequantize_shape, infer_block_scale_quantize_output_shape,
             infer_block_scale_shape_with_layout,
         },
-        operation::{BlockScaleDequantizeConfig, BlockScaleQuantizeConfig, Operation},
+        operation::{
+            BlockScaleDequantizeConfig, BlockScaleOperation, BlockScaleQuantizeConfig, Operation,
+        },
         support,
     },
     tensor::{TensorId, TensorSpec},
@@ -64,12 +66,13 @@ impl Graph {
             "block scale quantize scale shape",
         )?;
 
-        self.operations.push(Operation::BlockScaleQuantize {
-            input,
-            output,
-            scale,
-            config,
-        });
+        self.operations
+            .push(Operation::BlockScale(BlockScaleOperation::Quantize {
+                input,
+                output,
+                scale,
+                config,
+            }));
 
         Ok(())
     }
@@ -139,12 +142,13 @@ impl Graph {
             "block scale dequantize scale shape",
         )?;
 
-        self.operations.push(Operation::BlockScaleDequantize {
-            input,
-            scale,
-            output,
-            config,
-        });
+        self.operations
+            .push(Operation::BlockScale(BlockScaleOperation::Dequantize {
+                input,
+                scale,
+                output,
+                config,
+            }));
 
         Ok(())
     }
@@ -172,13 +176,13 @@ impl Graph {
         &self,
         cudnn_version: u64,
     ) -> Result<()> {
-        support::BLOCK_SCALE_QUANTIZE.require_descriptor_match(cudnn_version)
+        support::BLOCK_SCALE_QUANTIZE.require_frontend_feature(cudnn_version)
     }
 
     pub(crate) fn validate_block_scale_dequantize_support_surface_for_version(
         &self,
         cudnn_version: u64,
     ) -> Result<()> {
-        support::BLOCK_SCALE_DEQUANTIZE.require_descriptor_match(cudnn_version)
+        support::BLOCK_SCALE_DEQUANTIZE.require_frontend_feature(cudnn_version)
     }
 }

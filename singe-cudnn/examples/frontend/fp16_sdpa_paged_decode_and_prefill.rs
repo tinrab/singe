@@ -6,9 +6,12 @@ use singe_cudnn::{
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
-        composite::sdpa::{SdpaInputs, SdpaOutputs},
-        graph::Graph,
-        operation::{AttentionConfig, AttentionPagedCache, HeuristicMode},
+        composite::sdpa::SdpaInputs,
+        graph::{DataTypePolicy, Graph, GraphConfig},
+        operation::{
+            AttentionConfig, AttentionMaskMode, AttentionPagedCache, AttentionPagedKvCache,
+            AttentionScoreConfig, HeuristicMode, SdpaAuxOutputRequest,
+        },
     },
     version,
 };
@@ -44,10 +47,14 @@ fn build_case(is_ragged_prefill: bool) -> Result<()> {
     let num_blocks_k = table_size * b;
     let num_blocks_v = table_size * b;
 
-    let mut graph = Graph::new()
-        .with_io_data_type(DataType::BF16)
-        .with_intermediate_data_type(DataType::F32)
-        .with_compute_data_type(DataType::F32);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_io(DataType::BF16)
+                .with_intermediate(DataType::F32)
+                .with_compute(DataType::F32),
+        ),
+    );
 
     let q = graph.tensor(TensorSpec::new(
         DataType::BF16,
@@ -102,7 +109,7 @@ fn build_case(is_ragged_prefill: bool) -> Result<()> {
         Shape::contiguous([b, 1, table_size, 1])?.with_strides([table_size, table_size, 1, 1])?,
     ));
 
-    let SdpaOutputs { output: o, stats } = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto_infer(
         SdpaInputs {
             query: q,
             key: k,
@@ -110,19 +117,28 @@ fn build_case(is_ragged_prefill: bool) -> Result<()> {
             scale: scale,
         },
         AttentionConfig::new(DataType::F32)
-            .with_stats()
-            .with_causal_mask()
-            .with_padding_mask(sequence_length_query, sequence_length_key_value)
-            .with_paged_k(AttentionPagedCache::new(
-                sequence_length_key_value,
-                page_table_k,
+            .with_aux_outputs(SdpaAuxOutputRequest::stats_only())
+            .with_score_config(AttentionScoreConfig::new().with_mask_mode(
+                AttentionMaskMode::CausalTopLeftWithPadding {
+                    sequence_length_query: sequence_length_query,
+                    sequence_length_key_value: sequence_length_key_value,
+                },
             ))
-            .with_paged_v(AttentionPagedCache::new(
-                sequence_length_key_value,
-                page_table_v,
-            ))
-            .with_max_sequence_length_key_value(s_kv),
+            .with_paged_cache(
+                AttentionPagedKvCache::new()
+                    .with_k(AttentionPagedCache::new(
+                        sequence_length_key_value,
+                        page_table_k,
+                    ))
+                    .with_v(AttentionPagedCache::new(
+                        sequence_length_key_value,
+                        page_table_v,
+                    ))
+                    .with_max_sequence_length_key_value(s_kv),
+            ),
     )?;
+    let o = outputs.output();
+    let stats = outputs.stats();
 
     let o_tensor = TensorSpec::new(
         DataType::BF16,

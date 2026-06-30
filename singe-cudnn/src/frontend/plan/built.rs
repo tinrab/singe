@@ -17,8 +17,9 @@ use crate::{
         },
         graph::{Graph, TensorRecord},
         plan::{
-            AliasTensorBinding, BindingReplacement, CompiledGraph, PlanCandidates, RequiredTensor,
+            AliasTensorBinding, BindingReplacement, CompiledGraph, RequiredTensor,
             bindings::{alias_tensor_bindings, required_tensor_bindings},
+            metadata::{EngineConfigFilter, EngineConfigMetadata},
         },
     },
     scalar::ScalarValue,
@@ -43,6 +44,7 @@ pub struct BuiltPlanCandidates {
 #[derive(Debug)]
 pub(crate) struct BuiltPlanEntry {
     pub(crate) engine_config: EngineConfig,
+    pub(crate) engine_metadata: EngineConfigMetadata,
     pub(crate) execution_plan: Option<ExecutionPlan>,
     pub(crate) build_error: Option<Error>,
     pub(crate) support_error: Option<Error>,
@@ -68,26 +70,18 @@ impl BuiltPlanCandidates {
     }
 
     pub fn engine_index_at(&self, plan_index: usize) -> Result<i64> {
-        Ok(self
-            .engine_config_at(plan_index)?
-            .engine()?
-            .index()
-            .as_i64())
+        Ok(self.engine_metadata_at(plan_index)?.engine_index)
     }
 
     pub fn engine_numerical_notes_at(
         &self,
         plan_index: usize,
     ) -> Result<Vec<BackendNumericalNote>> {
-        self.engine_config_at(plan_index)?
-            .engine()?
-            .numerical_notes(self.operation_graph.descriptor())
+        Ok(self.engine_metadata_at(plan_index)?.numerical_notes.clone())
     }
 
     pub fn engine_behavior_notes_at(&self, plan_index: usize) -> Result<Vec<BackendBehaviorNote>> {
-        self.engine_config_at(plan_index)?
-            .engine()?
-            .behavior_notes(self.operation_graph.descriptor())
+        Ok(self.engine_metadata_at(plan_index)?.behavior_notes.clone())
     }
 
     pub fn engine_workspace_size_at(&self, plan_index: usize) -> Result<usize> {
@@ -107,10 +101,11 @@ impl BuiltPlanCandidates {
     }
 
     pub fn name_at(&self, plan_index: usize) -> Result<String> {
-        PlanCandidates::format_name(
-            self.graph_name.as_deref(),
-            self.engine_config_at(plan_index)?,
-        )
+        let engine_name = &self.engine_metadata_at(plan_index)?.name;
+        Ok(match self.graph_name.as_deref() {
+            Some(graph_name) => format!("{graph_name}/{engine_name}"),
+            None => engine_name.clone(),
+        })
     }
 
     pub fn execution_plan_at(&self, plan_index: usize) -> Result<&ExecutionPlan> {
@@ -130,6 +125,15 @@ impl BuiltPlanCandidates {
         self.entries
             .get(plan_index)
             .map(|entry| &entry.engine_config)
+            .ok_or(Error::OutOfRange {
+                name: "plan_index".into(),
+            })
+    }
+
+    fn engine_metadata_at(&self, plan_index: usize) -> Result<&EngineConfigMetadata> {
+        self.entries
+            .get(plan_index)
+            .map(|entry| &entry.engine_metadata)
             .ok_or(Error::OutOfRange {
                 name: "plan_index".into(),
             })
@@ -265,19 +269,15 @@ impl BuiltPlanCandidates {
         alias_tensor_bindings(&self.tensors, &self.binding_replacements)
     }
 
-    pub fn deselect_workspace_greater_than(mut self, max_workspace_size: usize) -> Result<Self> {
+    impl_engine_config_filter_methods!();
+
+    pub(crate) fn apply_filter(&mut self, filter: EngineConfigFilter<'_>) {
         for entry in &mut self.entries {
-            if let Some(execution_plan) = entry.execution_plan.as_ref()
-                && let Ok(workspace_size) = execution_plan.workspace_size()
-                && workspace_size > max_workspace_size
-            {
-                entry.support_error = Some(Error::FrontendCompile(format!(
-                    "skipping plan since workspace violation. requires {}",
-                    workspace_size
-                )));
+            if !filter.accepts(&entry.engine_metadata) {
+                entry.support_error = Some(filter.rejection_error(&entry.engine_metadata));
+                entry.execution_plan = None;
             }
         }
-        Ok(self)
     }
 
     pub fn compile(self) -> Result<CompiledGraph> {

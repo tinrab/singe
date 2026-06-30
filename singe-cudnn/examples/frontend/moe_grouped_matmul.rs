@@ -7,7 +7,7 @@ use singe_cudnn::{
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{Graph, MoeGroupedMatmulInputs},
+        graph::{DataTypePolicy, Graph, GraphConfig, MoeGroupedMatmulInputs},
         operation::{BlockScaleDequantizeConfig, HeuristicMode, MoeGroupedMatmulConfig},
     },
 };
@@ -20,7 +20,7 @@ fn run() -> Result<()> {
     let ctx = common::ExampleContext::create()?;
 
     let batch_size = 2_i64;
-    let num_experts = 3_i64;
+    let expert_count = 3_i64;
     let top_k = 2_i32;
     let token_num = 512_i64;
     let weight_size = 256_i64;
@@ -28,9 +28,13 @@ fn run() -> Result<()> {
     let block_size = 128_i64;
     let expanded_top_k = i64::from(top_k);
 
-    let mut graph = Graph::new()
-        .with_intermediate_data_type(DataType::F16)
-        .with_compute_data_type(DataType::F16);
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(
+            DataTypePolicy::new()
+                .with_intermediate(DataType::F16)
+                .with_compute(DataType::F16),
+        ),
+    );
 
     let token = graph.tensor(named_tensor(
         "token",
@@ -49,7 +53,7 @@ fn run() -> Result<()> {
     let weight = graph.tensor(named_tensor(
         "weight",
         DataType::I4,
-        Shape::contiguous([num_experts, hidden_size, weight_size])?.with_strides([
+        Shape::contiguous([expert_count, hidden_size, weight_size])?.with_strides([
             hidden_size * weight_size,
             1,
             hidden_size,
@@ -58,7 +62,7 @@ fn run() -> Result<()> {
     let block_scale = graph.tensor(named_tensor(
         "block_scale",
         DataType::F16,
-        Shape::contiguous([num_experts, hidden_size / block_size, weight_size])?.with_strides(
+        Shape::contiguous([expert_count, hidden_size / block_size, weight_size])?.with_strides(
             vec![
                 (hidden_size / block_size) * weight_size,
                 1,
@@ -69,7 +73,7 @@ fn run() -> Result<()> {
     let first_token_offset = graph.tensor(named_tensor(
         "first_token_offset",
         DataType::I32,
-        Shape::contiguous([batch_size * num_experts, 1, 1])?.with_strides([1, 1, 1])?,
+        Shape::contiguous([batch_size * expert_count, 1, 1])?.with_strides([1, 1, 1])?,
     ));
 
     let dequantized_weight = graph.block_scale_dequantize_infer(
@@ -88,9 +92,9 @@ fn run() -> Result<()> {
     let token_elements = usize::try_from(batch_size * token_num * expanded_top_k * hidden_size)
         .expect("token elements");
     let weight_bytes =
-        usize::try_from(num_experts * hidden_size * weight_size / 2).expect("weight bytes");
+        usize::try_from(expert_count * hidden_size * weight_size / 2).expect("weight bytes");
     let block_scale_elements =
-        usize::try_from(num_experts * (hidden_size / block_size) * weight_size)
+        usize::try_from(expert_count * (hidden_size / block_size) * weight_size)
             .expect("block scale elements");
     let output_elements = usize::try_from(batch_size * token_num * expanded_top_k * weight_size)
         .expect("output elements");
@@ -105,7 +109,6 @@ fn run() -> Result<()> {
     let mut bindings = compiled.bindings();
     bindings.set(token, &mut token_dev)?;
     // I4 weights are packed two values per byte and do not have a scalar Rust binding type, so bind the byte backing storage directly.
-    // TODO: better API?
     unsafe {
         bindings.set_ptr(weight, DevicePtr::from_raw(weight_dev.as_mut_ptr().cast()))?;
     }

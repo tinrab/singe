@@ -11,8 +11,8 @@ use singe_cuda_sys::{
     runtime::cudaStream_t,
 };
 
-#[cfg(feature = "cusparse_12_7")]
-include!("sys_12710.rs");
+#[cfg(feature = "cusparse_12_8")]
+include!("sys_12801.rs");
 
 #[cfg(test)]
 mod tests {

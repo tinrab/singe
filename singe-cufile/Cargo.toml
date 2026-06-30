@@ -13,10 +13,10 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cufile_1_17"]
+default = ["cufile_1_18"]
 
-cufile_1_17 = ["singe-cuda/driver_13_2", "singe-cufile-sys/cufile_1_17"]
-cuda_13_2 = ["cufile_1_17"]
+cufile_1_18 = ["singe-cuda/driver_13_3", "singe-cufile-sys/cufile_1_18"]
+cuda_13_3 = ["cufile_1_18"]
 
 testing = ["singe-cuda/testing"]
 

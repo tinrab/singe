@@ -1,0 +1,598 @@
+{
+  "nvrtcResult": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "group__error_1ga31e41ef222c0ea75b4c48f715b3cd9f0",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__error_1ga31e41ef222c0ea75b4c48f715b3cd9f0",
+    "doc": "The enumerated type nvrtcResult defines API call result codes.\n\nNVRTC API functions return nvrtcResult to indicate the call result.",
+    "signature": "enum nvrtcResult",
+    "deprecated": false
+  },
+  "nvrtcGetErrorString": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__error_1gace77107f185310fb006e7f9a722009e6",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__error_1gace77107f185310fb006e7f9a722009e6",
+    "doc": "nvrtcGetErrorString is a helper function that returns a string describing the given nvrtcResult code, e.g., [`nvrtcResult::NVRTC_SUCCESS`] to `\"NVRTC_SUCCESS\"`.\n\nFor unrecognized enumeration values, it returns `\"NVRTC_ERROR unknown\"`.",
+    "signature": "const char *nvrtcGetErrorString(nvrtcResult result)",
+    "parameters": {
+      "result": {
+        "doc": "CUDA Runtime Compilation API result code."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetNumSupportedArchs": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__query_1gad02fe42a81d969c0efbeb8e4ec78450d",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__query_1gad02fe42a81d969c0efbeb8e4ec78450d",
+    "doc": "nvrtcGetNumSupportedArchs sets the output parameter `numArchs` with the number of architectures supported by NVRTC.\n\nThis can then be used to pass an array to `nvrtcGetSupportedArchs` to get the supported architectures.\n\nsee `nvrtcGetSupportedArchs`.",
+    "signature": "nvrtcResult nvrtcGetNumSupportedArchs(int *numArchs)",
+    "parameters": {
+      "numArchs": {
+        "doc": "number of supported architectures."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetSupportedArchs": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__query_1ga04c729958964c5e7b889a644f086ad4a",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__query_1ga04c729958964c5e7b889a644f086ad4a",
+    "doc": "nvrtcGetSupportedArchs populates the array passed via the output parameter `supportedArchs` with the architectures supported by NVRTC.\n\nThe array is sorted in the ascending order. The size of the array to be passed can be determined using `nvrtcGetNumSupportedArchs`.\n\nsee `nvrtcGetNumSupportedArchs`.",
+    "signature": "nvrtcResult nvrtcGetSupportedArchs(int *supportedArchs)",
+    "parameters": {
+      "supportedArchs": {
+        "doc": "sorted array of supported architectures."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcVersion": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__query_1ga7492ae22a599fc3a7cd654915b91d790",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__query_1ga7492ae22a599fc3a7cd654915b91d790",
+    "doc": "nvrtcVersion sets the output parameters `major` and `minor` with the CUDA Runtime Compilation version number.",
+    "signature": "nvrtcResult nvrtcVersion(int *major, int *minor)",
+    "parameters": {
+      "major": {
+        "doc": "CUDA Runtime Compilation major version number."
+      },
+      "minor": {
+        "doc": "CUDA Runtime Compilation minor version number."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcAddNameExpression": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga0b07e4173b28a10682f21edc7140844e",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga0b07e4173b28a10682f21edc7140844e",
+    "doc": "nvrtcAddNameExpression notes the given name expression denoting the address of a **global** function or **device**/__constant__ variable.\n\nThe identical name expression string must be provided on a subsequent call to nvrtcGetLoweredName to extract the lowered name.",
+    "signature": "nvrtcResult nvrtcAddNameExpression(nvrtcProgram prog, const char *const name_expression)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "name_expression": {
+        "doc": "constant expression denoting the address of a global function or device /__constant__ variable."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcCompileProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga1f3136029db1413e362154b567297e8b",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga1f3136029db1413e362154b567297e8b",
+    "doc": "nvrtcCompileProgram compiles the given program.\n\nIt supports compile options listed in Supported Compile Options.",
+    "signature": "nvrtcResult nvrtcCompileProgram(nvrtcProgram prog, int numOptions, const char *const *options)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "numOptions": {
+        "doc": "Number of compiler options passed."
+      },
+      "options": {
+        "doc": "Compiler options in the form of C string array. options can be NULL when numOptions is 0."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcCreateProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga9ae65f68911d1cf0adda2af4ad8cb458",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga9ae65f68911d1cf0adda2af4ad8cb458",
+    "doc": "nvrtcCreateProgram creates an instance of nvrtcProgram with the given input parameters, and sets the output parameter `prog` with it.",
+    "signature": "nvrtcResult nvrtcCreateProgram(nvrtcProgram *prog, const char *src, const char *name, int numHeaders, const char *const *headers, const char *const *includeNames)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "src": {
+        "doc": "CUDA program source."
+      },
+      "name": {
+        "doc": "CUDA program name. name can be NULL ; \"default_program\" is used when name is NULL or \u201c\u201d."
+      },
+      "numHeaders": {
+        "doc": "Number of headers used. numHeaders must be greater than or equal to 0."
+      },
+      "headers": {
+        "doc": "Sources of the headers. headers can be NULL when numHeaders is 0."
+      },
+      "includeNames": {
+        "doc": "Name of each header by which they can be included in the CUDA program source. includeNames can be NULL when numHeaders is 0. These headers must be included with the exact names specified here."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcDestroyProgram": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gaaa237c59615b7d4f48d5b308b5c9b140",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1gaaa237c59615b7d4f48d5b308b5c9b140",
+    "doc": "nvrtcDestroyProgram destroys the given program.",
+    "signature": "nvrtcResult nvrtcDestroyProgram(nvrtcProgram *prog)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetCUBIN": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga4ecc086d17712082178a241941efcd41",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga4ecc086d17712082178a241941efcd41",
+    "doc": "nvrtcGetCUBIN stores the cubin generated by the previous compilation of `prog` in the memory pointed by `cubin`.\n\nNo cubin is available if the value specified to `-arch` is a virtual architecture instead of an actual architecture. The cubin does not contain code for the Tile functions (`__tile__` / `__tile_global__`) or variables (`__tile__`); use `nvrtcGetTileIR()` to extract the cuda_tile IR generated for Tile code.",
+    "signature": "nvrtcResult nvrtcGetCUBIN(nvrtcProgram prog, char *cubin)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "cubin": {
+        "doc": "Compiled and assembled result."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetCUBINSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gaea4745f354b8768f3e9777490d87adf0",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1gaea4745f354b8768f3e9777490d87adf0",
+    "doc": "nvrtcGetCUBINSize sets the value of `cubinSizeRet` with the size of the cubin generated by the previous compilation of `prog`.\n\nThe value of cubinSizeRet is set to 0 if the value specified to `-arch` is a virtual architecture instead of an actual architecture.",
+    "signature": "nvrtcResult nvrtcGetCUBINSize(nvrtcProgram prog, size_t *cubinSizeRet)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "cubinSizeRet": {
+        "doc": "Size of the generated cubin."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetLTOIR": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gaf177b85a16bd879ba5d814e7afd5e2a0",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1gaf177b85a16bd879ba5d814e7afd5e2a0",
+    "doc": "nvrtcGetLTOIR stores the LTO IR generated by the previous compilation of `prog` in the memory pointed by `LTOIR`.\n\nNo LTO IR is available if the program was compiled without `-dlto`.",
+    "signature": "nvrtcResult nvrtcGetLTOIR(nvrtcProgram prog, char *LTOIR)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "LTOIR": {
+        "doc": "Compiled result."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetLTOIRSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gac2343fbb195dec6a0c10de30e35f2371",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1gac2343fbb195dec6a0c10de30e35f2371",
+    "doc": "nvrtcGetLTOIRSize sets the value of `LTOIRSizeRet` with the size of the LTO IR generated by the previous compilation of `prog`.\n\nThe value of LTOIRSizeRet is set to 0 if the program was not compiled with `-dlto`.",
+    "signature": "nvrtcResult nvrtcGetLTOIRSize(nvrtcProgram prog, size_t *LTOIRSizeRet)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "LTOIRSizeRet": {
+        "doc": "Size of the generated LTO IR."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetLoweredName": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga2543158bd0e25649254a9d86a81e4f50",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga2543158bd0e25649254a9d86a81e4f50",
+    "doc": "nvrtcGetLoweredName extracts the lowered (mangled) name for a **global** function or **device**/__constant__ variable, and updates \\*lowered_name to point to it.\n\nThe memory containing the name is released when the NVRTC program is destroyed by nvrtcDestroyProgram. The identical name expression must have been previously provided to nvrtcAddNameExpression.",
+    "signature": "nvrtcResult nvrtcGetLoweredName(nvrtcProgram prog, const char *const name_expression, const char **lowered_name)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "name_expression": {
+        "doc": "constant expression denoting the address of a global function or device /__constant__ variable."
+      },
+      "lowered_name": {
+        "doc": "initialized by the function to point to a C string containing the lowered (mangled) name corresponding to the provided name expression."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetOptiXIR": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga475c7f5a59f9c69a03541e496942ed19",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga475c7f5a59f9c69a03541e496942ed19",
+    "doc": "nvrtcGetOptiXIR stores the OptiX IR generated by the previous compilation of `prog` in the memory pointed by `optixir`.\n\nNo OptiX IR is available if the program was compiled with options incompatible with OptiX IR generation.",
+    "signature": "nvrtcResult nvrtcGetOptiXIR(nvrtcProgram prog, char *optixir)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "optixir": {
+        "doc": "Optix IR Compiled result."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetOptiXIRSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga4b9ff77cc01b3ec20e73606fa9d8dd1e",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga4b9ff77cc01b3ec20e73606fa9d8dd1e",
+    "doc": "nvrtcGetOptiXIRSize sets the value of `optixirSizeRet` with the size of the OptiX IR generated by the previous compilation of `prog`.\n\nThe value of nvrtcGetOptiXIRSize is set to 0 if the program was compiled with options incompatible with OptiX IR generation.",
+    "signature": "nvrtcResult nvrtcGetOptiXIRSize(nvrtcProgram prog, size_t *optixirSizeRet)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "optixirSizeRet": {
+        "doc": "Size of the generated LTO IR."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetPTX": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gac9a66bbbd47c256f4a8955517b3965da",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1gac9a66bbbd47c256f4a8955517b3965da",
+    "doc": "nvrtcGetPTX stores the PTX generated by the previous compilation of `prog` in the memory pointed by `ptx`.",
+    "signature": "nvrtcResult nvrtcGetPTX(nvrtcProgram prog, char *ptx)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "ptx": {
+        "doc": "Compiled result."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetPTXSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gac622d6ffb6fff71e209407da19612c1a",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1gac622d6ffb6fff71e209407da19612c1a",
+    "doc": "nvrtcGetPTXSize sets the value of `ptxSizeRet` with the size of the PTX generated by the previous compilation of `prog` (including the trailing `NULL`).",
+    "signature": "nvrtcResult nvrtcGetPTXSize(nvrtcProgram prog, size_t *ptxSizeRet)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "ptxSizeRet": {
+        "doc": "Size of the generated PTX (including the trailing NULL )."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetProgramLog": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga74c550e5cab81efbd59e4f72579edbd1",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga74c550e5cab81efbd59e4f72579edbd1",
+    "doc": "nvrtcGetProgramLog stores the log generated by the previous compilation of `prog` in the memory pointed by `log`.",
+    "signature": "nvrtcResult nvrtcGetProgramLog(nvrtcProgram prog, char *log)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "log": {
+        "doc": "Compilation log."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetProgramLogSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga59944bb118095ab53eec8994d056a18d",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga59944bb118095ab53eec8994d056a18d",
+    "doc": "nvrtcGetProgramLogSize sets `logSizeRet` with the size of the log generated by the previous compilation of `prog` (including the trailing `NULL`).\n\nNote that compilation log may be generated with warnings and informative messages, even when the compilation of `prog` succeeds.",
+    "signature": "nvrtcResult nvrtcGetProgramLogSize(nvrtcProgram prog, size_t *logSizeRet)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "logSizeRet": {
+        "doc": "Size of the compilation log (including the trailing NULL )."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetTileIR": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga90db48b04bccc77093c568b11b9aee15",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga90db48b04bccc77093c568b11b9aee15",
+    "doc": "nvrtcGetTileIR stores the cuda_tile IR generated by the previous compilation of `prog` in the memory pointed by `TileIR`.",
+    "signature": "nvrtcResult nvrtcGetTileIR(nvrtcProgram prog, char *TileIR)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "TileIR": {
+        "doc": "Generated cuda_tile IR."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetTileIRSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1ga0e02adc553c7fe08e528d3cbd4f73cea",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1ga0e02adc553c7fe08e528d3cbd4f73cea",
+    "doc": "nvrtcGetTileIRSize sets the value of `TileIRSizeRet` with the size of the cuda_tile IR generated by the previous compilation of `prog`.",
+    "signature": "nvrtcResult nvrtcGetTileIRSize(nvrtcProgram prog, size_t *TileIRSizeRet)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "TileIRSizeRet": {
+        "doc": "Size of the generated cuda_tile IR."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcSetFlowCallback": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__compilation_1gafaf7298846647a6ab15449757b657c65",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1gafaf7298846647a6ab15449757b657c65",
+    "doc": "nvrtcSetFlowCallback registers a callback function that the compiler will invoke at different points during a call to nvrtcCompileProgram, and the callback function can decide whether to cancel compilation by returning specific values.\n\nThe callback function must satisfy the following constraints:\n\n(1) Its signature should be:\n\n(2) It must return 1 to cancel compilation or 0 to continue. Other return values are reserved for future use.\n\n(3) It must return consistent values. Once it returns 1 at one point, it must return 1 in all following invocations during the current nvrtcCompileProgram call in progress.\n\n(4) It must be thread-safe.\n\n(5) It must not invoke any nvrtc/libnvvm/ptx APIs.",
+    "signature": "nvrtcResult nvrtcSetFlowCallback(nvrtcProgram prog, int(*callback)(void*, void*), void *payload)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "callback": {
+        "doc": "the callback that issues cancellation signal."
+      },
+      "payload": {
+        "doc": "to be passed as a parameter when invoking the callback."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcProgram": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "group__compilation_1gaa64ec636c8e3e1e8ea10028866c4594b",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__compilation_1gaa64ec636c8e3e1e8ea10028866c4594b",
+    "doc": "nvrtcProgram is the unit of compilation, and an opaque handle for a program.\n\nTo compile a CUDA program string, an instance of nvrtcProgram must be created first with `nvrtcCreateProgram`, then compiled with `nvrtcCompileProgram`.",
+    "signature": "typedef struct _nvrtcProgram *nvrtcProgram",
+    "deprecated": false
+  },
+  "nvrtcGetPCHCreateStatus": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__precompiled__header_1ga50244119c7f7b6ef427bd9bb6cd78526",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__precompiled__header_1ga50244119c7f7b6ef427bd9bb6cd78526",
+    "doc": "Returns the PCH creation status.\n\n[`nvrtcResult::NVRTC_SUCCESS`] indicates that the PCH was successfully created. [`nvrtcResult::NVRTC_ERROR_NO_PCH_CREATE_ATTEMPTED`] indicates that no PCH creation was attempted, either because PCH functionality was not requested during the preceding nvrtcCompileProgram call, or automatic PCH processing was requested, and compiler chose not to create a PCH file. [`nvrtcResult::NVRTC_ERROR_PCH_CREATE_HEAP_EXHAUSTED`] indicates that a PCH file could potentially have been created, but the compiler ran out space in the PCH heap. In this scenario, the `nvrtcGetPCHHeapSizeRequired` can be used to query the required heap size, the heap can be reallocated for this size with `nvrtcSetPCHHeapSize` and PCH creation may be reattempted again invoking `nvrtcCompileProgram` with a new NVRTC program instance. [`nvrtcResult::NVRTC_ERROR_PCH_CREATE`] indicates that an error condition prevented the PCH file from being created.",
+    "signature": "nvrtcResult nvrtcGetPCHCreateStatus(nvrtcProgram prog)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetPCHHeapSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__precompiled__header_1ga7880883709a2d6c22a4c1b102a0762ee",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__precompiled__header_1ga7880883709a2d6c22a4c1b102a0762ee",
+    "doc": "retrieve the current size of the PCH Heap.",
+    "signature": "nvrtcResult nvrtcGetPCHHeapSize(size_t *ret)",
+    "parameters": {
+      "ret": {
+        "doc": "pointer to location where the size of the PCH Heap will be stored."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetPCHHeapSizeRequired": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__precompiled__header_1ga07b8b65fadc36fe1e5b8092ee472026f",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__precompiled__header_1ga07b8b65fadc36fe1e5b8092ee472026f",
+    "doc": "retrieve the required size of the PCH heap required to compile the given program.",
+    "signature": "nvrtcResult nvrtcGetPCHHeapSizeRequired(nvrtcProgram prog, size_t *size)",
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "size": {
+        "doc": "pointer to location where the required size of the PCH Heap will be stored."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "NVRTC_ERROR_INVALID_INPUT": {
+          "doc": "The size retrieved using this function is only valid if nvrtcGetPCHCreateStatus() returned [`nvrtcResult::NVRTC_SUCCESS`] or [`nvrtcResult::NVRTC_ERROR_PCH_CREATE_HEAP_EXHAUSTED`]."
+        }
+      },
+      "type": "nvrtcResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "nvrtcSetPCHHeapSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__precompiled__header_1ga49a780adeb8b272252f400138fd142e3",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__precompiled__header_1ga49a780adeb8b272252f400138fd142e3",
+    "doc": "set the size of the PCH Heap.\n\nThe requested size may be rounded up to a platform dependent alignment (e.g. page size). If the PCH Heap has already been allocated, the heap memory will be freed and a new PCH Heap will be allocated.",
+    "signature": "nvrtcResult nvrtcSetPCHHeapSize(size_t size)",
+    "parameters": {
+      "size": {
+        "doc": "requested size of the PCH Heap, in bytes."
+      }
+    },
+    "deprecated": false
+  },
+  "nvrtcGetTypeName": {
+    "kind": "function",
+    "parameters": {
+      "tinfo": {
+        "doc": "reference to object of type std::type_info for a given type."
+      },
+      "result": {
+        "doc": "pointer to std::string in which to store the type name.",
+        "output": true
+      }
+    },
+    "overloads": [
+      {
+        "page": "index.html",
+        "anchor": "group__hosthelper_1ga6e22e29ebd768ef8cb001af6866f07e7",
+        "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__hosthelper_1ga6e22e29ebd768ef8cb001af6866f07e7",
+        "signature": "inline nvrtcResult nvrtcGetTypeName(const std::type_info &tinfo, std::string *result)",
+        "doc": "nvrtcGetTypeName stores the source level name of a type in the given std::string location.\n\nThis function is only provided when the macro NVRTC_GET_TYPE_NAME is defined with a non-zero value. It uses abi::__cxa_demangle or UnDecorateSymbolName function calls to extract the type name, when using gcc/clang or cl.exe compilers, respectively. If the name extraction fails, it will return NVRTC_INTERNAL_ERROR, otherwise \\*result is initialized with the extracted name.\n\nWindows-specific notes:\n\n* nvrtcGetTypeName() is not multi-thread safe because it calls UnDecorateSymbolName(), which is not multi-thread safe.\n* The returned string may contain Microsoft-specific keywords such as __ptr64 and __cdecl."
+      },
+      {
+        "page": "index.html",
+        "anchor": "group__hosthelper_1ga793010cbd3f789a26ca956fd463d73cb",
+        "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__hosthelper_1ga793010cbd3f789a26ca956fd463d73cb",
+        "signature": "template<typename T> nvrtcResult nvrtcGetTypeName(std::string *result)",
+        "doc": "nvrtcGetTypeName stores the source level name of the template type argument T in the given std::string location.\n\nThis function is only provided when the macro NVRTC_GET_TYPE_NAME is defined with a non-zero value. It uses abi::__cxa_demangle or UnDecorateSymbolName function calls to extract the type name, when using gcc/clang or cl.exe compilers, respectively. If the name extraction fails, it will return NVRTC_INTERNAL_ERROR, otherwise \\*result is initialized with the extracted name.\n\nWindows-specific notes:\n\n* nvrtcGetTypeName() is not multi-thread safe because it calls UnDecorateSymbolName(), which is not multi-thread safe.\n* The returned string may contain Microsoft-specific keywords such as __ptr64 and __cdecl."
+      }
+    ],
+    "deprecated": false
+  },
+  "nvrtcGetBundledHeadersInfo": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__bundled__headers_1gac16a0fe9249555d980c595eeda59f654",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__bundled__headers_1gac16a0fe9249555d980c595eeda59f654",
+    "doc": "nvrtcGetBundledHeadersInfo queries information about the bundled headers without extracting them.\n\nThis function allows users to determine if bundled headers are available and get size estimates before calling nvrtcInstallBundledHeaders.",
+    "signature": "nvrtcResult nvrtcGetBundledHeadersInfo(nvrtcBundledHeadersInfo *info, const char **errorLog)",
+    "parameters": {
+      "info": {
+        "doc": "Pointer to structure to receive header information.",
+        "output": true
+      },
+      "errorLog": {
+        "doc": "Optional pointer to receive detailed error message on failure. If non-NULL, *errorLog will be set to point to a string describing the error cause. Note: subsequent API calls from the same thread may overwrite this message. May be NULL if error details are not needed."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "NVRTC_ERROR_INVALID_INPUT": {
+          "doc": "(info is NULL)."
+        },
+        "NVRTC_ERROR_BUILTIN_OPERATION_FAILURE": {
+          "doc": "(failed to query bundled headers)."
+        }
+      },
+      "type": "nvrtcResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "nvrtcInstallBundledHeaders": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__bundled__headers_1ga2b758f7dcb6987adcf6dad9e4a77df1c",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__bundled__headers_1ga2b758f7dcb6987adcf6dad9e4a77df1c",
+    "doc": "nvrtcInstallBundledHeaders extracts CUDA headers bundled with NVRTC to a specified directory for use during compilation.\n\nNVRTC bundles a set of CUDA Toolkit headers and CUDA C++ Core Libraries (CCCL) within libnvrtc-builtins. This function extracts these headers to the specified directory, allowing NVRTC programs to compile without requiring a separate CUDA Toolkit installation. The bundled headers match those available in the CUDA Toolkit plus CCCL libraries.\n\nAfter extraction, users can compile kernels by passing appropriate include paths (such as \u201c-I&lt;installPath>\u201d and \u201c-I&lt;installPath>/cccl\u201d) to nvrtcCompileProgram.\n\nA version marker file (.nvrtc_headers_version) is created in the installation directory to track the installed version.\n\nThis function is thread-safe and process-safe. Concurrent calls from multiple threads or processes will be serialized using file locking. By default, the function waits for the lock; use NVRTC_INSTALL_HEADERS_NO_WAIT to return immediately with [`nvrtcResult::NVRTC_ERROR_BUSY`] if another process holds the lock.",
+    "signature": "nvrtcResult nvrtcInstallBundledHeaders(const char *installPath, unsigned int flags, const char **errorLog)",
+    "parameters": {
+      "installPath": {
+        "doc": "Path where headers should be extracted (UTF-8 encoded). The directory will be created if it doesn\u2019t exist."
+      },
+      "flags": {
+        "doc": "NVRTC_INSTALL_HEADERS_* flags: 0 (SKIP_IF_EXISTS): Skip if version marker exists and version matches. This is the default. NVRTC_INSTALL_HEADERS_FORCE_OVERWRITE: Clear directory first, then install. Guarantees consistency. NVRTC_INSTALL_HEADERS_NO_WAIT: Return [`nvrtcResult::NVRTC_ERROR_BUSY`] immediately if lock cannot be acquired. NO_WAIT can be combined with FORCE_OVERWRITE."
+      },
+      "errorLog": {
+        "doc": "Optional pointer to receive detailed error message on failure. If non-NULL, *errorLog will be set to point to a string describing the error cause. Note: subsequent API calls from the same thread may overwrite this message. May be NULL if error details are not needed."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "NVRTC_ERROR_INVALID_INPUT": {
+          "doc": "(invalid path or conflicting flags like SKIP_IF_EXISTS | FORCE_OVERWRITE)."
+        },
+        "NVRTC_ERROR_BUILTIN_OPERATION_FAILURE": {
+          "doc": "(extraction failed or version mismatch)."
+        },
+        "NVRTC_ERROR_BUSY": {
+          "doc": "(lock held by another process and NVRTC_INSTALL_HEADERS_NO_WAIT was specified)."
+        }
+      },
+      "type": "nvrtcResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "nvrtcRemoveBundledHeaders": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "group__bundled__headers_1gaab74af6f6ea29ed99a3b62366117abaf",
+    "uri": "https://docs.nvidia.com/cuda/nvrtc/index.html#group__bundled__headers_1gaab74af6f6ea29ed99a3b62366117abaf",
+    "doc": "nvrtcRemoveBundledHeaders removes previously installed bundled headers.\n\nThis function removes the headers installed by nvrtcInstallBundledHeaders, helping users manage disk space. It recursively removes all files and subdirectories within the installation directory.",
+    "signature": "nvrtcResult nvrtcRemoveBundledHeaders(const char *installPath, const char **errorLog)",
+    "parameters": {
+      "installPath": {
+        "doc": "Path where headers were previously installed. Must be the same path used with nvrtcInstallBundledHeaders."
+      },
+      "errorLog": {
+        "doc": "Optional pointer to receive detailed error message on failure. If non-NULL, *errorLog will be set to point to a string describing the error cause. Note: subsequent API calls from the same thread may overwrite this message. May be NULL if error details are not needed."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "NVRTC_ERROR_INVALID_INPUT": {
+          "doc": "(invalid path)."
+        },
+        "NVRTC_ERROR_BUILTIN_OPERATION_FAILURE": {
+          "doc": "(removal failed)."
+        }
+      },
+      "type": "nvrtcResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  }
+}

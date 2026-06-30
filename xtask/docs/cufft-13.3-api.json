@@ -1,0 +1,3103 @@
+{
+  "cufftPlan1d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftPlan1d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftPlan1d",
+    "signature": "cufftResult cufftPlan1d(cufftHandle *plan, int nx, cufftType type, int batch);",
+    "doc": "Creates a 1D FFT plan configuration for a specified signal size and data type. The `batch` input parameter tells cuFFT how many 1D transforms to configure.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.",
+    "parameters": {
+      "plan": {
+        "doc": "Pointer to an uninitialized `cufftHandle` object.\n\nContains a cuFFT 1D plan handle value."
+      },
+      "nx": {
+        "doc": "The transform size (e.g. 256 for a 256-point FFT)."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_C2C`] for single precision complex to complex)."
+      },
+      "batch": {
+        "doc": "Number of transforms of size `nx`. Please consider using `cufftPlanMany` for multiple transforms."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle. Handle is not valid when the plan is locked."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "The `nx` or `batch` parameter is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftPlan2d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftPlan2d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftPlan2d",
+    "signature": "cufftResult cufftPlan2d(cufftHandle *plan, int nx, int ny, cufftType type);",
+    "doc": "Creates a 2D FFT plan configuration according to specified signal sizes and data type.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.",
+    "parameters": {
+      "plan": {
+        "doc": "Pointer to an uninitialized `cufftHandle` object.\n\nContains a cuFFT 2D plan handle value."
+      },
+      "nx": {
+        "doc": "The transform size in the *x* dimension This is slowest changing dimension of a transform (strided in memory)."
+      },
+      "ny": {
+        "doc": "The transform size in the *y* dimension. This is fastest changing dimension of a transform (contiguous in memory)."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_C2R`] for single precision complex to real)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle. Handle is not valid when the plan is locked."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "Either or both of the `nx` or `ny` parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftPlan3d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftPlan3d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftPlan3d",
+    "signature": "cufftResult cufftPlan3d(cufftHandle *plan, int nx, int ny, int nz, cufftType type);",
+    "doc": "Creates a 3D FFT plan configuration according to specified signal sizes and data type. This function is the same as `cufftPlan2d()` except that it takes a third size parameter `nz`.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.",
+    "parameters": {
+      "plan": {
+        "doc": "Pointer to an uninitialized `cufftHandle` object.\n\nContains a cuFFT 3D plan handle value."
+      },
+      "nx": {
+        "doc": "The transform size in the *x* dimension. This is slowest changing dimension of a transform (strided in memory)."
+      },
+      "ny": {
+        "doc": "The transform size in the *y* dimension."
+      },
+      "nz": {
+        "doc": "The transform size in the *z* dimension. This is fastest changing dimension of a transform (contiguous in memory)."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle. Handle is not valid when the plan is locked."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the `nx`, `ny`, or `nz` parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftPlanMany": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftPlanMany",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftPlanMany",
+    "signature": "cufftResult cufftPlanMany(cufftHandle *plan, int rank, int *n, int *inembed, int istride, int idist, int *onembed, int ostride, int odist, cufftType type, int batch);",
+    "doc": "Creates a FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.\n\nThe `cufftPlanMany()` API supports more complicated input and output data layouts via the advanced data layout parameters: `inembed`, `istride`, `idist`, `onembed`, `ostride`, and `odist`.\n\nIf `inembed` and `onembed` are set to `NULL`, all other stride information is ignored, and default strides are used. The default assumes contiguous data arrays.\n\nAll arrays are assumed to be in CPU memory.\n\nPlease note that behavior of `cufftPlanMany` function when `inembed` and `onembed` is `NULL` is different than corresponding function in FFTW library `fftw_plan_many_dft`.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.",
+    "parameters": {
+      "plan": {
+        "doc": "Pointer to an uninitialized `cufftHandle` object.\n\nContains a cuFFT plan handle."
+      },
+      "rank": {
+        "doc": "Dimensionality of the transform (1, 2, or 3)."
+      },
+      "n": {
+        "doc": "Array of size `rank`, describing the size of each dimension, `n[0]` being the size of the outermost and `n[rank-1]` innermost (contiguous) dimension of a transform."
+      },
+      "inembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the input data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "istride": {
+        "doc": "Indicates the distance between two successive input elements in the least significant (i.e., innermost) dimension."
+      },
+      "idist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the input data."
+      },
+      "onembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the output data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "ostride": {
+        "doc": "Indicates the distance between two successive output elements in the output array in the least significant (i.e., innermost) dimension."
+      },
+      "odist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the output data."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex)."
+      },
+      "batch": {
+        "doc": "Batch size for this transform."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle. Handle is not valid when the plan is locked."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftCreate",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftCreate",
+    "signature": "cufftResult cufftCreate(cufftHandle *plan)",
+    "doc": "Creates only an opaque handle, and allocates small data structures on the host. The `cufftMakePlan*()` calls actually do the plan generation.",
+    "parameters": {
+      "plan": {
+        "doc": "Pointer to a `cufftHandle` object.\n\nContains a cuFFT plan handle value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftDestroy",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftDestroy",
+    "signature": "cufftResult cufftDestroy(cufftHandle plan)",
+    "doc": "Frees all GPU resources associated with a cuFFT plan and destroys the internal plan data structure. This function should be called once a plan is no longer needed, to avoid wasting GPU memory.\nIn the case of multi-GPU plans, the plan created first should be destroyed last.",
+    "parameters": {
+      "plan": {
+        "doc": "The `cufftHandle` object of the plan to be destroyed."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully destroyed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftMakePlan1d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftMakePlan1d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftMakePlan1d",
+    "signature": "cufftResult cufftMakePlan1d(cufftHandle plan, int nx, cufftType type, int batch, size_t *workSize);",
+    "doc": "Following a call to `cufftCreate()` makes a 1D FFT plan configuration for a specified signal size and data type. The `batch` input parameter tells cuFFT how many 1D transforms to configure.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.\n\nIf `cufftXtSetGPUs()` was called prior to this call with multiple GPUs, then `workSize` will contain multiple sizes. See sections on multiple GPUs for more details.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "nx": {
+        "doc": "The transform size (e.g. 256 for a 256-point FFT). For multiple GPUs, this must be a power of 2."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_C2C`] for single precision complex to complex). For multiple GPUs this must be a complex to complex transform."
+      },
+      "batch": {
+        "doc": "Number of transforms of size `nx`. Please consider using `cufftMakePlanMany` for multiple transforms."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size(s) of the work areas."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle. Handle is not valid when the plan is locked or multi-GPU restrictions are not met."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED`": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "The `nx` or `batch` parameter is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftMakePlan2d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftMakePlan2d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftMakePlan2d",
+    "signature": "cufftResult cufftMakePlan2d(cufftHandle plan, int nx, int ny, cufftType type, size_t *workSize);",
+    "doc": "Following a call to `cufftCreate()` makes a 2D FFT plan configuration according to specified signal sizes and data type.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.\n\nIf `cufftXtSetGPUs()` was called prior to this call with multiple GPUs, then `workSize` will contain multiple sizes. See sections on multiple GPUs for more details.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "nx": {
+        "doc": "The transform size in the *x* dimension. This is slowest changing dimension of a transform (strided in memory). For multiple GPUs, this must be factorable into primes less than or equal to 127."
+      },
+      "ny": {
+        "doc": "The transform size in the *y* dimension. This is fastest changing dimension of a transform (contiguous in memory). For 2 GPUs, this must be factorable into primes less than or equal to 127."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_C2R`] for single precision complex to real)."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size(s) of the work areas."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "Either or both of the `nx` or `ny` parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftMakePlan3d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftMakePlan3d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftMakePlan3d",
+    "signature": "cufftResult cufftMakePlan3d(cufftHandle plan, int nx, int ny, int nz, cufftType type, size_t *workSize);",
+    "doc": "Following a call to `cufftCreate()` makes a 3D FFT plan configuration according to specified signal sizes and data type. This function is the same as `cufftPlan2d()` except that it takes a third size parameter `nz`.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.\n\nIf `cufftXtSetGPUs()` was called prior to this call with multiple GPUs, then `workSize` will contain multiple sizes. See sections on multiple GPUs for more details.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "nx": {
+        "doc": "The transform size in the *x* dimension. This is slowest changing dimension of a transform (strided in memory). For multiple GPUs, this must be factorable into primes less than or equal to 127."
+      },
+      "ny": {
+        "doc": "The transform size in the *y* dimension. For multiple GPUs, this must be factorable into primes less than or equal to 127."
+      },
+      "nz": {
+        "doc": "The transform size in the *z* dimension. This is fastest changing dimension of a transform (contiguous in memory). For multiple GPUs, this must be factorable into primes less than or equal to 127."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex)."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size(s) of the work area(s)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the `nx`, `ny`, or `nz` parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftMakePlanMany": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftMakePlanMany",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftMakePlanMany",
+    "signature": "cufftResult cufftMakePlanMany(cufftHandle plan, int rank, int *n, int *inembed, int istride, int idist, int *onembed, int ostride, int odist, cufftType type, int batch, size_t *workSize);",
+    "doc": "Following a call to `cufftCreate()` makes a FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.\n\nThe `cufftPlanMany()` API supports more complicated input and output data layouts via the advanced data layout parameters: `inembed`, `istride`, `idist`, `onembed`, `ostride`, and `odist`.\n\nIf `inembed` and `onembed` are set to `NULL`, all other stride information is ignored, and default strides are used. The default assumes contiguous data arrays.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.\n\nIf `cufftXtSetGPUs()` was called prior to this call with multiple GPUs, then `workSize` will contain multiple sizes. See sections on multiple GPUs for more details.\n\nAll arrays are assumed to be in CPU memory.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "rank": {
+        "doc": "Dimensionality of the transform (1, 2, or 3)."
+      },
+      "n": {
+        "doc": "Array of size `rank`, describing the size of each dimension, `n[0]` being the size of the outermost and `n[rank-1]` innermost (contiguous) dimension of a transform. For multiple GPUs and rank equal to 1, the sizes must be a power of 2. For multiple GPUs and rank equal to 2 or 3, the sizes must be factorable into primes less than or equal to 127."
+      },
+      "inembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the input data in memory, `inembed[0]` being the storage dimension of the outermost dimension. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "istride": {
+        "doc": "Indicates the distance between two successive input elements in the least significant (i.e., innermost) dimension."
+      },
+      "idist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the input data."
+      },
+      "onembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the output data in memory, `onembed[0]` being the storage dimension of the outermost dimension. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "ostride": {
+        "doc": "Indicates the distance between two successive output elements in the output array in the least significant (i.e., innermost) dimension."
+      },
+      "odist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the output data."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex). For 2 GPUs this must be a complex to complex transform."
+      },
+      "batch": {
+        "doc": "Batch size for this transform."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size(s) of the work areas."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle. Handle is not valid when the plan is locked or multi-GPU restrictions are not met."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftMakePlanMany64": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftMakePlanMany64",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftMakePlanMany64",
+    "signature": "cufftResult cufftMakePlanMany64(cufftHandle plan, int rank, long long int *n, long long int *inembed, long long int istride, long long int idist, long long int *onembed, long long int ostride, long long int odist, cufftType type, long long int batch, size_t *workSize);",
+    "doc": "Following a call to `cufftCreate()` makes a FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.\n\nThis API is identical to `cufftMakePlanMany` except that the arguments specifying sizes and strides are 64 bit integers. This API makes very large transforms possible. cuFFT includes kernels that use 32 bit indexes, and kernels that use 64 bit indexes. cuFFT planning selects 32 bit kernels whenever possible to avoid any overhead due to 64 bit arithmetic.\n\nAll sizes and types of transform are supported by this interface, with two exceptions. For transforms whose size exceeds 4G elements, the dimensions specified in the array `n` must be factorable into primes that are less than or equal to 127. For real to complex and complex to real transforms whose size exceeds 4G elements, the fastest changing dimension must be even.\n\nThe `cufftPlanMany64()` API supports more complicated input and output data layouts via the advanced data layout parameters: `inembed`, `istride`, `idist`, `onembed`, `ostride`, and `odist`.\n\nIf `inembed` and `onembed` are set to `NULL`, all other stride information is ignored, and default strides are used. The default assumes contiguous data arrays.\n\nThis call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.\n\nIf `cufftXtSetGPUs()` was called prior to this call with multiple GPUs, then `workSize` will contain multiple sizes. See sections on multiple GPUs for more details.\n\nAll arrays are assumed to be in CPU memory.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "rank": {
+        "doc": "Dimensionality of the transform (1, 2, or 3)."
+      },
+      "n": {
+        "doc": "Array of size `rank`, describing the size of each dimension. For multiple GPUs and rank equal to 1, the sizes must be a power of 2. For multiple GPUs and rank equal to 2 or 3, the sizes must be factorable into primes less than or equal to 127."
+      },
+      "inembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the input data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "istride": {
+        "doc": "Indicates the distance between two successive input elements in the least significant (i.e., innermost) dimension."
+      },
+      "idist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the input data."
+      },
+      "onembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the output data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "ostride": {
+        "doc": "Indicates the distance between two successive output elements in the output array in the least significant (i.e., innermost) dimension."
+      },
+      "odist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the output data."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex). For 2 GPUs this must be a complex to complex transform."
+      },
+      "batch": {
+        "doc": "Batch size for this transform."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size(s) of the work areas."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle. Handle is not valid when the plan is locked or multi-GPU restrictions are not met."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtMakePlanMany": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtMakePlanMany",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtMakePlanMany",
+    "signature": "cufftResult cufftXtMakePlanMany(cufftHandle plan, int rank, long long int *n, long long int *inembed, long long int istride, long long int idist, cudaDataType inputtype, long long int *onembed, long long int ostride, long long int odist, cudaDataType outputtype, long long int batch, size_t *workSize, cudaDataType executiontype);",
+    "doc": "Following a call to `cufftCreate()` makes an FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.\n\nType specifiers `inputtype`, `outputtype` and `executiontype` dictate type and precision of transform to be performed. Not all combinations of parameters are supported. Currently all three parameters need to match precision. Parameters `inputtype` and `outputtype` need to match transform type complex-to-complex, real-to-complex or complex-to-real. Parameter `executiontype` needs to match precision and be of a complex type. Example: for a half-precision real-to-complex transform, parameters `inputtype`, `outputtype` and `executiontype` would have values of [`cudaDataType::CUDA_R_16F`], [`cudaDataType::CUDA_C_16F`] and [`cudaDataType::CUDA_C_16F`] respectively. Similarly, a bfloat16 complex-to-real transform would use [`cudaDataType::CUDA_C_16BF`] for `inputtype` and `executiontype`, and [`cudaDataType::CUDA_R_16BF`] for `outputtype`.\n\nThe `cufftXtMakePlanMany()` API supports more complicated input and output data layouts via the advanced data layout parameters: `inembed`, `istride`, `idist`, `onembed`, `ostride`, and `odist`.\n\nIf `inembed` and `onembed` are set to `NULL`, all other stride information is ignored, and default strides are used. The default assumes contiguous data arrays.\n\nIf `cufftXtSetGPUs()` was called prior to this call with multiple GPUs, then `workSize` will contain multiple sizes. See sections on multiple GPUs for more details.\n\nAll arrays are assumed to be in CPU memory.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "rank": {
+        "doc": "Dimensionality of the transform (1, 2, or 3)."
+      },
+      "n": {
+        "doc": "Array of size `rank`, describing the size of each dimension, `n[0]` being the size of the outermost and `n[rank-1]` innermost (contiguous) dimension of a transform. For multiple GPUs and rank equal to 1, the sizes must be a power of 2. For multiple GPUs and rank equal to 2 or 3, the sizes must be factorable into primes less than or equal to 127."
+      },
+      "inembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the input data in memory, `inembed[0]` being the storage dimension of the outermost dimension. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "istride": {
+        "doc": "Indicates the distance between two successive input elements in the least significant (i.e., innermost) dimension."
+      },
+      "idist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the input data."
+      },
+      "inputtype": {
+        "doc": "Type of input data."
+      },
+      "onembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the output data in memory, `onembed[0]` being the storage dimension of the outermost dimension. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "ostride": {
+        "doc": "Indicates the distance between two successive output elements in the output array in the least significant (i.e., innermost) dimension."
+      },
+      "odist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the output data."
+      },
+      "outputtype": {
+        "doc": "Type of output data."
+      },
+      "batch": {
+        "doc": "Batch size for this transform."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size(s) of the work areas."
+      },
+      "executiontype": {
+        "doc": "Type of data to be used for computations."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully created the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle. Handle is not valid when multi-GPU restrictions are not met."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftSetPlanPropertyInt64": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftSetPlanPropertyInt64",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftSetPlanPropertyInt64",
+    "signature": "cufftResult cufftSetPlanPropertyInt64(cufftHandle plan, cufftProperty property, const long long int propertyValueInt64);",
+    "doc": "Associates a cuFFT plan with a property identified by the key `property`. The value for the property is given by value `propertyValueInt64`, which is a signed long long integer.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "property": {
+        "doc": "The property identifier, of type `cufftPlanProperty`."
+      },
+      "propertyValueInt64": {
+        "doc": "Value to set for the property, a long long signed integer."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully set the property."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_NOT_SUPPORTED": {
+          "doc": "The property is not supported, or it cannot be set at the time (e.g. some properties cannot be set after calling a planning routine for the plan, see cuFFT Plan Properties)."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "Invalid property or value with which to set the property."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftGetPlanPropertyInt64": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetPlanPropertyInt64",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetPlanPropertyInt64",
+    "signature": "cufftResult cufftGetPlanPropertyInt64(cufftHandle plan, cufftProperty property, long long int *propertyValueInt64);",
+    "doc": "Retrieves the property value identified by the key `property` associated with the cuFFT plan `plan`. The value for the property, which is a signed long long integer, is set in the address space pointed by `propertyValueInt64`.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "property": {
+        "doc": "The property identifier, of type `cufftPlanProperty`."
+      },
+      "propertyValueInt64": {
+        "doc": "Pointer to the value to be set with the value of the property.\n\nPointer to property value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully retrieved the property value."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_NOT_SUPPORTED": {
+          "doc": "The property is not supported."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "Invalid property, or pointer `propertyValueInt64` is null."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftResetPlanProperty": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftResetPlanProperty",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftResetPlanProperty",
+    "signature": "cufftResult cufftResetPlanProperty(cufftHandle plan, cufftProperty property);",
+    "doc": "Resets the value of the property identified by the key `property`, associated with the cuFFT plan `plan`, to its default value.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "property": {
+        "doc": "The property identifier, of type `cufftPlanProperty`."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully reset the property value."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_NOT_SUPPORTED": {
+          "doc": "The property is not supported for `plan`, or cannot be reset at present time (see Behavior column on cuFFT Plan Properties)."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "Invalid property."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftEstimate1d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftEstimate1d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftEstimate1d",
+    "signature": "cufftResult cufftEstimate1d(int nx, cufftType type, int batch, size_t *workSize);",
+    "doc": "During plan execution, cuFFT requires a work area for temporary storage of intermediate results. This call returns an estimate for the size of the work area required, given the specified parameters, and assuming default plan settings.",
+    "parameters": {
+      "nx": {
+        "doc": "The transform size (e.g. 256 for a 256-point FFT)."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_C2C`] for single precision complex to complex)."
+      },
+      "batch": {
+        "doc": "Number of transforms of size `nx`. Please consider using `cufftEstimateMany` for multiple transforms."
+      },
+      "workSize": {
+        "doc": "Pointer to the size, in bytes, of the work space.\n\nPointer to the size of the work space."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "The `nx` parameter is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftEstimate2d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftEstimate2d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftEstimate2d",
+    "signature": "cufftResult cufftEstimate2d(int nx, int ny, cufftType type, size_t *workSize);",
+    "doc": "During plan execution, cuFFT requires a work area for temporary storage of intermediate results. This call returns an estimate for the size of the work area required, given the specified parameters, and assuming default plan settings. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.",
+    "parameters": {
+      "nx": {
+        "doc": "The transform size in the *x* dimension (number of rows)."
+      },
+      "ny": {
+        "doc": "The transform size in the *y* dimension (number of columns)."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_C2R`] for single precision complex to real)."
+      },
+      "workSize": {
+        "doc": "Pointer to the size, in bytes, of the work space.\n\nPointer to the size of the work space."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "Either or both of the `nx` or `ny` parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftEstimate3d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftEstimate3d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftEstimate3d",
+    "signature": "cufftResult cufftEstimate3d(int nx, int ny, int nz, cufftType type, size_t *workSize);",
+    "doc": "During plan execution, cuFFT requires a work area for temporary storage of intermediate results. This call returns an estimate for the size of the work area required, given the specified parameters, and assuming default plan settings. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.",
+    "parameters": {
+      "nx": {
+        "doc": "The transform size in the *x* dimension."
+      },
+      "ny": {
+        "doc": "The transform size in the *y* dimension."
+      },
+      "nz": {
+        "doc": "The transform size in the *z* dimension."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex)."
+      },
+      "workSize": {
+        "doc": "Pointer to the size, in bytes, of the work space.\n\nPointer to the size of the work space."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the `nx`, `ny`, or `nz` parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftEstimateMany": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftEstimateMany",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftEstimateMany",
+    "signature": "cufftResult cufftEstimateMany(int rank, int *n, int *inembed, int istride, int idist, int *onembed, int ostride, int odist, cufftType type, int batch, size_t *workSize);",
+    "doc": "During plan execution, cuFFT requires a work area for temporary storage of intermediate results. This call returns an estimate for the size of the work area required, given the specified parameters, and assuming default plan settings. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.\n\nThe `cufftEstimateMany()` API supports more complicated input and output data layouts via the advanced data layout parameters: `inembed`, `istride`, `idist`, `onembed`, `ostride`, and `odist`.\n\nAll arrays are assumed to be in CPU memory.",
+    "parameters": {
+      "rank": {
+        "doc": "Dimensionality of the transform (1, 2, or 3)."
+      },
+      "n": {
+        "doc": "Array of size `rank`, describing the size of each dimension."
+      },
+      "inembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the input data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "istride": {
+        "doc": "Indicates the distance between two successive input elements in the least significant (i.e., innermost) dimension."
+      },
+      "idist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the input data."
+      },
+      "onembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the output data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "ostride": {
+        "doc": "Indicates the distance between two successive output elements in the output array in the least significant (i.e., innermost) dimension."
+      },
+      "odist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the output data."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex)."
+      },
+      "batch": {
+        "doc": "Batch size for this transform."
+      },
+      "workSize": {
+        "doc": "Pointer to the size, in bytes, of the work space.\n\nPointer to the size of the work space."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the parameters is not a supported size."
+        },
+        "CUFFT_MISSING_DEPENDENCY": {
+          "doc": "The cuFFT library was unable to find a dependency either because it is missing or the version found is incompatible."
+        },
+        "CUFFT_NVRTC_FAILURE": {
+          "doc": "NVRTC encountered an error during planning."
+        },
+        "CUFFT_NVJITLINK_FAILURE": {
+          "doc": "nvJitLink encountered an error during planning."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftGetSize1d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetSize1d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetSize1d",
+    "signature": "cufftResult cufftGetSize1d(cufftHandle plan, int nx, cufftType type, int batch, size_t *workSize);",
+    "doc": "This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimate1d()`, given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "nx": {
+        "doc": "The transform size (e.g. 256 for a 256-point FFT)."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_C2C`] for single precision complex to complex)."
+      },
+      "batch": {
+        "doc": "Number of transforms of size `nx`. Please consider using `cufftGetSizeMany` for multiple transforms."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size of the work space."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "The `nx` parameter is not a supported size."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftGetSize2d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetSize2d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetSize2d",
+    "signature": "cufftResult cufftGetSize2d(cufftHandle plan, int nx, int ny, cufftType type, size_t *workSize);",
+    "doc": "This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimate2d()`, given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "nx": {
+        "doc": "The transform size in the *x* dimension (number of rows)."
+      },
+      "ny": {
+        "doc": "The transform size in the *y* dimension (number of columns)."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_C2R`] for single precision complex to real)."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size of the work space."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "Either or both of the `nx` or `ny` parameters is not a supported size."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftGetSize3d": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetSize3d",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetSize3d",
+    "signature": "cufftResult cufftGetSize3d(cufftHandle plan, int nx, int ny, int nz, cufftType type, size_t *workSize);",
+    "doc": "This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimate3d()`, given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "nx": {
+        "doc": "The transform size in the *x* dimension."
+      },
+      "ny": {
+        "doc": "The transform size in the *y* dimension."
+      },
+      "nz": {
+        "doc": "The transform size in the *z* dimension."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex)."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size of the work space."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the `nx`, `ny`, or `nz` parameters is not a supported size."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftGetSizeMany": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetSizeMany",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetSizeMany",
+    "signature": "cufftResult cufftGetSizeMany(cufftHandle plan, int rank, int *n, int *inembed, int istride, int idist, int *onembed, int ostride, int odist, cufftType type, int batch, size_t *workSize);",
+    "doc": "This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimateSizeMany()`, given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "rank": {
+        "doc": "Dimensionality of the transform (1, 2, or 3)."
+      },
+      "n": {
+        "doc": "Array of size `rank`, describing the size of each dimension."
+      },
+      "inembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the input data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "istride": {
+        "doc": "Indicates the distance between two successive input elements in the least significant (i.e., innermost) dimension."
+      },
+      "idist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the input data."
+      },
+      "onembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the output data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "ostride": {
+        "doc": "Indicates the distance between two successive output elements in the output array in the least significant (i.e., innermost) dimension."
+      },
+      "odist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the output data."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex)."
+      },
+      "batch": {
+        "doc": "Batch size for this transform."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size of the work area."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the parameters is not a supported size."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftGetSizeMany64": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetSizeMany64",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetSizeMany64",
+    "signature": "cufftResult cufftGetSizeMany64(cufftHandle plan, int rank, long long int *n, long long int *inembed, long long int istride, long long int idist, long long int *onembed, long long int ostride, long long int odist, cufftType type, long long int batch, size_t *workSize);",
+    "doc": "This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimateSizeMany()`, given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.\n\nThis API is identical to `cufftMakePlanMany` except that the arguments specifying sizes and strides are 64 bit integers. This API makes very large transforms possible. cuFFT includes kernels that use 32 bit indexes, and kernels that use 64 bit indexes. cuFFT planning selects 32 bit kernels whenever possible to avoid any overhead due to 64 bit arithmetic.\n\nAll sizes and types of transform are supported by this interface, with two exceptions. For transforms whose total size exceeds 4G elements, the dimensions specified in the array `n` must be factorable into primes that are less than or equal to 127. For real to complex and complex to real transforms whose total size exceeds 4G elements, the fastest changing dimension must be even.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "rank": {
+        "doc": "Dimensionality of the transform (1, 2, or 3)."
+      },
+      "n": {
+        "doc": "Array of size `rank`, describing the size of each dimension."
+      },
+      "inembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the input data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "istride": {
+        "doc": "Indicates the distance between two successive input elements in the least significant (i.e., innermost) dimension."
+      },
+      "idist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the input data."
+      },
+      "onembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the output data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "ostride": {
+        "doc": "Indicates the distance between two successive output elements in the output array in the least significant (i.e., innermost) dimension."
+      },
+      "odist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the output data."
+      },
+      "type": {
+        "doc": "The transform data type (e.g., [`cufftType::CUFFT_R2C`] for single precision real to complex)."
+      },
+      "batch": {
+        "doc": "Batch size for this transform."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size of the work area."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the parameters is not a supported size."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtGetSizeMany": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtGetSizeMany",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtGetSizeMany",
+    "signature": "cufftResult cufftXtGetSizeMany(cufftHandle plan, int rank, long long int *n, long long int *inembed, long long int istride, long long int idist, cudaDataType inputtype, long long int *onembed, long long int ostride, long long int odist, cudaDataType outputtype, long long int batch, size_t *workSize, cudaDataType executiontype);",
+    "doc": "This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimateSizeMany()`, given the specified parameters that match signature of `cufftXtMakePlanMany` function, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.\n\nFor more information about valid combinations of `inputtype`, `outputtype` and `executiontype` parameters please refer to documentation of `cufftXtMakePlanMany` function.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "rank": {
+        "doc": "Dimensionality of the transform (1, 2, or 3)."
+      },
+      "n": {
+        "doc": "Array of size `rank`, describing the size of each dimension."
+      },
+      "inembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the input data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "istride": {
+        "doc": "Indicates the distance between two successive input elements in the least significant (i.e., innermost) dimension."
+      },
+      "idist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the input data."
+      },
+      "onembed": {
+        "doc": "Pointer of size `rank` that indicates the storage dimensions of the output data in memory. If set to NULL all other advanced data layout parameters are ignored."
+      },
+      "ostride": {
+        "doc": "Indicates the distance between two successive output elements in the output array in the least significant (i.e., innermost) dimension."
+      },
+      "odist": {
+        "doc": "Indicates the distance between the first element of two consecutive signals in a batch of the output data."
+      },
+      "batch": {
+        "doc": "Batch size for this transform."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size of the work area."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "One or more of the parameters is not a supported size."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftGetSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetSize",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetSize",
+    "signature": "cufftResult cufftGetSize(cufftHandle plan, size_t *workSize);",
+    "doc": "Once plan generation has been done, either with the original API or the extensible API, this call returns the actual size of the work area required to support the plan. Callers who choose to manage work area allocation within their application must use this call after plan generation, and after any `cufftSet*()` calls subsequent to plan generation, if those calls might alter the required work space size.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "workSize": {
+        "doc": "Pointer to the size(s), in bytes, of the work areas. For example for two GPUs worksize must be declared to have two elements.\n\nPointer to the size of the work area."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftSetAutoAllocation": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftSetAutoAllocation",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftSetAutoAllocation",
+    "signature": "cufftResult cufftSetAutoAllocation(cufftHandle plan, int autoAllocate);",
+    "doc": "`cufftSetAutoAllocation()` indicates that the caller intends to allocate and manage work areas for plans that have been generated. cuFFT default behavior is to allocate the work area at plan generation time. If `cufftSetAutoAllocation()` has been called with autoAllocate set to 0 (\u201cfalse\u201d) prior to one of the `cufftMakePlan*()` calls, cuFFT does not allocate the work area. This is the preferred sequence for callers wishing to manage work area allocation.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "autoAllocate": {
+        "doc": "Indicates whether to allocate work area."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftSetWorkArea": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftSetWorkArea",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftSetWorkArea",
+    "signature": "cufftResult cufftSetWorkArea(cufftHandle plan, void *workArea);",
+    "doc": "`cufftSetWorkArea()` overrides the work area pointer associated with a plan. If the work area was auto-allocated, cuFFT frees the auto-allocated space. The `cufftExec*()` calls assume that the work area pointer is valid and that it points to a contiguous region in device memory that does not overlap with any other work area. If this is not the case, results are indeterminate.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "workArea": {
+        "doc": "Pointer to `workArea`. For multiple GPUs, multiple work area pointers must be given."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtSetWorkAreaPolicy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtSetWorkAreaPolicy",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtSetWorkAreaPolicy",
+    "signature": "cufftResult cufftXtSetWorkAreaPolicy(cufftHandle plan, cufftXtWorkAreaPolicy policy, size_t *workSize);",
+    "doc": "`cufftXtSetWorkAreaPolicy()` indicates that the caller intends to change work area size for a given plan handle. cuFFT\u2019s default behavior is to allocate the work area at plan generation time with a default size that depends on the plan type and other parameters. If `cufftXtSetWorkAreaPolicy()` has been called with the `policy` parameter set to `CUFFT_WORKAREA_MINIMAL`, cuFFT will attempt to re-plan the handle to use zero bytes of work area memory. If the `cufftXtSetWorkAreaPolicy()` call is successful the auto-allocated work area memory is released.\n\nCurrently the policies `CUFFT_WORKAREA_PERFORMANCE`, `CUFFT_WORKAREA_USER` and the `workSize` parameter are not supported and reserved for use in future cuFFT releases.\n\nThis function can be called once per lifetime of a plan handle.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "policy": {
+        "doc": "Type of work area policy to apply."
+      },
+      "workSize": {
+        "doc": "Reserved for future use."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "FFT size does not allow use of the selected policy."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftExecC2C": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftExecC2C",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftExecC2C",
+    "signature": "cufftResult cufftExecC2C(cufftHandle plan, cufftComplex *idata, cufftComplex *odata, int direction);",
+    "doc": "`cufftExecC2C()` (`cufftExecZ2Z()`) executes a single-precision (double-precision) complex-to-complex transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by the `idata` parameter as input data. This function stores the Fourier coefficients in the `odata` array. If `idata` and `odata` are the same, this method does an in-place transform.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "idata": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform."
+      },
+      "odata": {
+        "doc": "Pointer to the complex output data (in GPU memory).\n\nContains the complex Fourier coefficients."
+      },
+      "direction": {
+        "doc": "The transform direction: `CUFFT_FORWARD` or `CUFFT_INVERSE`."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `idata`, `odata`, and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftExecZ2Z": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftExecZ2Z",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftExecZ2Z",
+    "signature": "cufftResult cufftExecZ2Z(cufftHandle plan, cufftDoubleComplex *idata, cufftDoubleComplex *odata, int direction);",
+    "doc": "`cufftExecC2C()` (`cufftExecZ2Z()`) executes a single-precision (double-precision) complex-to-complex transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by the `idata` parameter as input data. This function stores the Fourier coefficients in the `odata` array. If `idata` and `odata` are the same, this method does an in-place transform.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "idata": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform."
+      },
+      "odata": {
+        "doc": "Pointer to the complex output data (in GPU memory).\n\nContains the complex Fourier coefficients."
+      },
+      "direction": {
+        "doc": "The transform direction: `CUFFT_FORWARD` or `CUFFT_INVERSE`."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `idata`, `odata`, and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftExecR2C": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftExecR2C",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftExecR2C",
+    "signature": "cufftResult cufftExecR2C(cufftHandle plan, cufftReal *idata, cufftComplex *odata);",
+    "doc": "`cufftExecR2C()` (`cufftExecD2Z()`) executes a single-precision (double-precision) real-to-complex, implicitly forward, cuFFT transform plan. cuFFT uses as input data the GPU memory pointed to by the `idata` parameter. This function stores the nonredundant Fourier coefficients in the `odata` array. Pointers to `idata` and `odata` are both required to be aligned to `cufftComplex` data type in single-precision transforms and `cufftDoubleComplex` data type in double-precision transforms. If `idata` and `odata` are the same, this method does an in-place transform. Note the data layout differences between in-place and out-of-place transforms as described in Parameter cufftType.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "idata": {
+        "doc": "Pointer to the real input data (in GPU memory) to transform."
+      },
+      "odata": {
+        "doc": "Pointer to the complex output data (in GPU memory).\n\nContains the complex Fourier coefficients."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `idata` and `odata` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftExecD2Z": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftExecD2Z",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftExecD2Z",
+    "signature": "cufftResult cufftExecD2Z(cufftHandle plan, cufftDoubleReal *idata, cufftDoubleComplex *odata);",
+    "doc": "`cufftExecR2C()` (`cufftExecD2Z()`) executes a single-precision (double-precision) real-to-complex, implicitly forward, cuFFT transform plan. cuFFT uses as input data the GPU memory pointed to by the `idata` parameter. This function stores the nonredundant Fourier coefficients in the `odata` array. Pointers to `idata` and `odata` are both required to be aligned to `cufftComplex` data type in single-precision transforms and `cufftDoubleComplex` data type in double-precision transforms. If `idata` and `odata` are the same, this method does an in-place transform. Note the data layout differences between in-place and out-of-place transforms as described in Parameter cufftType.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "idata": {
+        "doc": "Pointer to the real input data (in GPU memory) to transform."
+      },
+      "odata": {
+        "doc": "Pointer to the complex output data (in GPU memory).\n\nContains the complex Fourier coefficients."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully returned the size of the work space."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `idata` and `odata` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftExecC2R": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftExecC2R",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftExecC2R",
+    "signature": "cufftResult cufftExecC2R(cufftHandle plan, cufftComplex *idata, cufftReal *odata);",
+    "doc": "`cufftExecC2R()` (`cufftExecZ2D()`) executes a single-precision (double-precision) complex-to-real, implicitly inverse, cuFFT transform plan. cuFFT uses as input data the GPU memory pointed to by the `idata` parameter. The input array holds only the nonredundant complex Fourier coefficients. This function stores the real output values in the `odata` array. and pointers are both required to be aligned to `cufftComplex` data type in single-precision transforms and `cufftDoubleComplex` type in double-precision transforms. If `idata` and `odata` are the same, this method does an in-place transform.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "idata": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform."
+      },
+      "odata": {
+        "doc": "Pointer to the real output data (in GPU memory).\n\nContains the real output data."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `idata` and `odata` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftExecZ2D": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftExecZ2D",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftExecZ2D",
+    "signature": "cufftResult cufftExecZ2D(cufftHandle plan, cufftDoubleComplex *idata, cufftDoubleReal *odata);",
+    "doc": "`cufftExecC2R()` (`cufftExecZ2D()`) executes a single-precision (double-precision) complex-to-real, implicitly inverse, cuFFT transform plan. cuFFT uses as input data the GPU memory pointed to by the `idata` parameter. The input array holds only the nonredundant complex Fourier coefficients. This function stores the real output values in the `odata` array. and pointers are both required to be aligned to `cufftComplex` data type in single-precision transforms and `cufftDoubleComplex` type in double-precision transforms. If `idata` and `odata` are the same, this method does an in-place transform.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "idata": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform."
+      },
+      "odata": {
+        "doc": "Pointer to the real output data (in GPU memory).\n\nContains the real output data."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `idata` and `odata` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtExec": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtExec",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtExec",
+    "signature": "cufftResult cufftXtExec(cufftHandle plan, void *input, void *output, int direction);",
+    "doc": "Function `cufftXtExec` executes any cuFFT transform regardless of precision and type. In case of complex-to-real and real-to-complex transforms `direction` parameter is ignored. cuFFT uses the GPU memory pointed to by the `input` parameter as input data. This function stores the Fourier coefficients in the `output` array. If `input` and `output` are the same, this method does an in-place transform.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "input": {
+        "doc": "Pointer to the input data (in GPU memory) to transform."
+      },
+      "output": {
+        "doc": "Pointer to the output data (in GPU memory). Contains the complex Fourier coefficients.",
+        "output": true
+      },
+      "direction": {
+        "doc": "The transform direction: `CUFFT_FORWARD` or `CUFFT_INVERSE`. Ignored for complex-to-real and real-to-complex transforms."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `idata`, `odata`, and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtExecDescriptor": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtExecDescriptor",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtExecDescriptor",
+    "signature": "cufftResult cufftXtExecDescriptor(cufftHandle plan, cudaLibXtDesc *input, cudaLibXtDesc *output, int direction);",
+    "doc": "Function `cufftXtExecDescriptor()` executes any cuFFT transform regardless of precision and type. In case of complex-to-real and real-to-complex transforms `direction` parameter is ignored. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` descriptor as input data and `cudaLibXtDesc *output` as output data.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "input": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform."
+      },
+      "output": {
+        "doc": "Pointer to the complex output data (in GPU memory).\n\nContains the complex Fourier coefficients."
+      },
+      "direction": {
+        "doc": "The transform direction: `CUFFT_FORWARD` or `CUFFT_INVERSE`. Ignored for complex-to-real and real-to-complex transforms."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `idata` and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in a descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtSetGPUs": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtSetGPUs",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtSetGPUs",
+    "signature": "cufftResult cufftXtSetGPUs(cufftHandle plan, int nGPUs, int *whichGPUs);",
+    "doc": "`cufftXtSetGPUs()` identifies which GPUs are to be used with the plan. As in the single GPU case `cufftCreate()` creates a plan and `cufftMakePlan*()` does the plan generation. In cuFFT prior to 10.4.0, this call will return an error if a non-default stream has been associated with the plan.\n\nNote that the call to `cufftXtSetGPUs()` must occur after the call to `cufftCreate()` and prior to the call to `cufftMakePlan*()`. Parameter `whichGPUs` of `cufftXtSetGPUs()` function determines ordering of the GPUs with respect to data decomposition (first data chunk is placed on GPU denoted by first element of `whichGPUs`).",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "nGPUs": {
+        "doc": "Number of GPUs to use."
+      },
+      "whichGPUs": {
+        "doc": "The GPUs to use."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully set the GPUs to use."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle, or a non-default stream has been associated with the plan in cuFFT prior to 10.4.0."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "The requested number of GPUs was less than 2 or more than 8."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified."
+        },
+        "CUFFT_INVALID_SIZE": {
+          "doc": "Transform size that `plan` was created for does not meet minimum size criteria."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtSetWorkArea": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtSetWorkArea",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtSetWorkArea",
+    "signature": "cufftResult cufftXtSetWorkArea(cufftHandle plan, void **workArea);",
+    "doc": "`cufftXtSetWorkArea()` overrides the work areas associated with a plan. If the work area was auto-allocated, cuFFT frees the auto-allocated space. The `cufftXtExec*()` calls assume that the work area is valid and that it points to a contiguous region in each device memory that does not overlap with any other work area. If this is not the case, results are indeterminate.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "workArea": {
+        "doc": "Pointer to the pointers to workArea."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully set the GPUs to use."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "A GPU associated with the plan could not be selected."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtQueryPlan": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtQueryPlan",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtQueryPlan",
+    "signature": "cufftResult cufftXtQueryPlan(cufftHandle plan, void *queryStruct, cufftXtQueryType queryType);",
+    "doc": "`cufftXtQueryPlan()` query plan for internal information. Usage is currently limited to multiple-GPU 1D factorization. See Multiple-GPU Data Organization for Single 1D Transforms for usage examples.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "queryStruct": {
+        "doc": "Pointer to structure that hold information returned by `cufftXtQueryPlan`.\n\nContains query specific plan information."
+      },
+      "queryType": {
+        "doc": "Plan query type identifier specifying what plan information is being requested. See Type definitions for plan queries for list of supported query types."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully queried internal plan information."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "An invalid `queryStruct` or `queryType` was provided."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "An allocation of resources for the query failed."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "cuFFT encountered an unexpected error related to the plan properties."
+        },
+        "CUFFT_NOT_SUPPORTED": {
+          "doc": "The plan does not support the `queryType` provided."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtExecDescriptorC2C": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtExecDescriptorC2C",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtExecDescriptorC2C",
+    "signature": "cufftResult cufftXtExecDescriptorC2C(cufftHandle plan, cudaLibXtDesc *input, cudaLibXtDesc *output, int direction);",
+    "doc": "`cufftXtExecDescriptorC2C()` (`cufftXtExecDescriptorZ2Z()`) executes a single-precision (double-precision) complex-to-complex transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "input": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform.\n\nContains the complex Fourier coefficients."
+      },
+      "output": {
+        "doc": "Pointer to the complex output data (in GPU memory)."
+      },
+      "direction": {
+        "doc": "The transform direction: `CUFFT_FORWARD` or `CUFFT_INVERSE`."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `input` and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in a descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtExecDescriptorZ2Z": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtExecDescriptorZ2Z",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtExecDescriptorZ2Z",
+    "signature": "cufftResult cufftXtExecDescriptorZ2Z(cufftHandle plan, cudaLibXtDesc *input, cudaLibXtDesc *output, int direction);",
+    "doc": "`cufftXtExecDescriptorC2C()` (`cufftXtExecDescriptorZ2Z()`) executes a single-precision (double-precision) complex-to-complex transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "input": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform.\n\nContains the complex Fourier coefficients."
+      },
+      "output": {
+        "doc": "Pointer to the complex output data (in GPU memory)."
+      },
+      "direction": {
+        "doc": "The transform direction: `CUFFT_FORWARD` or `CUFFT_INVERSE`."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `input` and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in a descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtExecDescriptorR2C": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtExecDescriptorR2C",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtExecDescriptorR2C",
+    "signature": "cufftResult cufftXtExecDescriptorR2C(cufftHandle plan, cudaLibXtDesc *input, cudaLibXtDesc *output);",
+    "doc": "`cufftXtExecDescriptorR2C()` (`cufftXtExecDescriptorD2Z()`) executes a single-precision (double-precision) real-to-complex transform plan. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "input": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform.\n\nContains the complex Fourier coefficients."
+      },
+      "output": {
+        "doc": "Pointer to the complex output data (in GPU memory)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `input` and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in a descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtExecDescriptorD2Z": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtExecDescriptorD2Z",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtExecDescriptorD2Z",
+    "signature": "cufftResult cufftXtExecDescriptorD2Z(cufftHandle plan, cudaLibXtDesc *input, cudaLibXtDesc *output);",
+    "doc": "`cufftXtExecDescriptorR2C()` (`cufftXtExecDescriptorD2Z()`) executes a single-precision (double-precision) real-to-complex transform plan. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "input": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform.\n\nContains the complex Fourier coefficients."
+      },
+      "output": {
+        "doc": "Pointer to the complex output data (in GPU memory)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `input` and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in a descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtExecDescriptorC2R": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtExecDescriptorC2R",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtExecDescriptorC2R",
+    "signature": "cufftResult cufftXtExecDescriptorC2R(cufftHandle plan, cudaLibXtDesc *input, cudaLibXtDesc *output);",
+    "doc": "`cufftXtExecDescriptorC2R()` (`cufftXtExecDescriptorZ2D()`) executes a single-precision (double-precision) complex-to-real transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "input": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform.\n\nContains the complex Fourier coefficients."
+      },
+      "output": {
+        "doc": "Pointer to the complex output data (in GPU memory)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `input` and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in a descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtExecDescriptorZ2D": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtExecDescriptorZ2D",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtExecDescriptorZ2D",
+    "signature": "cufftResult cufftXtExecDescriptorZ2D(cufftHandle plan, cudaLibXtDesc *input, cudaLibXtDesc *output);",
+    "doc": "`cufftXtExecDescriptorC2R()` (`cufftXtExecDescriptorZ2D()`) executes a single-precision (double-precision) complex-to-real transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "input": {
+        "doc": "Pointer to the complex input data (in GPU memory) to transform.\n\nContains the complex Fourier coefficients."
+      },
+      "output": {
+        "doc": "Pointer to the complex output data (in GPU memory)."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully executed the FFT plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "At least one of the parameters `input` and `direction` is not valid."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_EXEC_FAILED": {
+          "doc": "cuFFT failed to execute the transform on the GPU."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in a descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtMalloc": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtMalloc",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtMalloc",
+    "signature": "cufftResult cufftXtMalloc(cufftHandle plan, cudaLibXtDesc **descriptor, cufftXtSubFormat format);",
+    "doc": "`cufftXtMalloc()` allocates a descriptor, and all memory for data in GPUs associated with the plan, and returns a pointer to the descriptor. Note the descriptor contains an array of device pointers so that the application may preprocess or postprocess the data on the GPUs. The enumerated parameter `cufftXtSubFormat_t` indicates if the buffer will be used for input or output.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "descriptor": {
+        "doc": "Pointer to a pointer to a `cudaLibXtDesc` object."
+      },
+      "format": {
+        "doc": "cufftXtSubFormat`` value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully allows user to allocate descriptor and GPU memory."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle or it is not a multiple GPU `plan`."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "The allocation of GPU resources for the plan failed."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in the descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtFree": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtFree",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtFree",
+    "signature": "cufftResult cufftXtFree(cudaLibXtDesc *descriptor);",
+    "doc": "`cufftXtFree()` frees the descriptor and all memory associated with it. The descriptor and memory must have been returned by a previous call to `cufftXtMalloc()`.",
+    "parameters": {
+      "descriptor": {
+        "doc": "Pointer to a `cudaLibXtDesc` object."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully allows user to free descriptor and associated GPU memory."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtMemcpy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtMemcpy",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtMemcpy",
+    "signature": "cufftResult cufftXtMemcpy(cufftHandle plan, void *dstPointer, void *srcPointer, cufftXtCopyType type);",
+    "doc": "`cufftXtMemcpy()` copies data between buffers on the host and GPUs or between GPUs. The enumerated parameter `cufftXtCopyType_t` indicates the type and direction of transfer. Calling `cufftXtMemcpy` function for multi-GPU batched FFT plans with [`cufftXtCopyType::CUFFT_COPY_DEVICE_TO_DEVICE`] transfer type is not supported.\n\nNote that starting from CUDA 11.2 (cuFFT 10.4.0), `cufftSetStream()` is supported on multi-GPU plans. When associating a stream with a plan, `cufftXtMemcpy()` remains synchronous across the multiple GPUs.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "dstPointer": {
+        "doc": "Pointer to the destination address(es)."
+      },
+      "srcPointer": {
+        "doc": "Pointer to the source address(es)."
+      },
+      "type": {
+        "doc": "`cufftXtCopyType `value."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully allows user to copy memory between host and GPUs or between GPUs."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "One or more invalid parameters were passed to the API."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        },
+        "CUFFT_INVALID_DEVICE": {
+          "doc": "An invalid GPU index was specified in a descriptor."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtSetJITCallback": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtSetJITCallback",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtSetJITCallback",
+    "signature": "cufftResult cufftXtSetJITCallback(cufftHandle plan, const char *callbackSymbolName, const void *callbackFatbin, size_t callbackFatbinSize, cufftXtCallbackType type, void **caller_info)",
+    "doc": "`cufftXtSetJITCallback()` specifies a load or store LTO callback to be used with the plan.\n\nThis call is valid only after a call to `cufftCreate()`, but before calling `cufftMakePlan*()`, which does the plan generation.\n\nIf there was already an LTO callback of this type associated with the plan, this new callback routine replaces it. If the new callback requires shared memory, you must call `cufftXtSetCallbackSharedSize` with the amount of shared memory the callback function needs. cuFFT will not retain the amount of shared memory associated with the previous callback if the callback function is changed.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "callbackSymbolName": {
+        "doc": "null-terminated C string containing the (unmangled) callback symbol name (i.e. the name of the LTO callback routine). This symbol name will be runtime-compiled, and modifiers such as `extern \"C\"` or `namespace` are not supported."
+      },
+      "callbackFatbin": {
+        "doc": "Pointer to the location in host memory where the callback device function is located, after being compiled into LTO-IR with nvcc or NVRTC."
+      },
+      "callbackFatbinSize": {
+        "doc": "Size in bytes of the data pointed at by `callbackFatbin`."
+      },
+      "type": {
+        "doc": "Type of callback routine."
+      },
+      "callerInfo": {
+        "doc": "Optional array of device pointers to caller specific information, one per GPU."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully associated the callback function with the plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not valid (e.g. the handle was already used to make a plan)."
+        },
+        "CUFFT_INVALID_TYPE": {
+          "doc": "The callback type is not valid."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "The pointer to the callback device function is invalid or the size is `0`."
+        },
+        "CUFFT_NOT_SUPPORTED": {
+          "doc": "The functionality is not supported yet (e.g. multi-GPU with LTO callbacks)."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "cuFFT encountered an unexpected error, likely in the runtime linking process; error codes will be expanded in a future release."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtSetCallback": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtSetCallback",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtSetCallback",
+    "signature": "cufftResult cufftXtSetCallback(cufftHandle plan, void **callbackRoutine, cufftXtCallbackType type, void **callerInfo)",
+    "doc": "`cufftXtSetCallback()` specifies a load or store legacy callback to be used with the plan. This call is valid only after a call to `cufftMakePlan*()`, which does the plan generation. If there was already a legacy callback of this type associated with the plan, this new callback routine replaces it. If the new callback requires shared memory, you must call `cufftXtSetCallbackSharedSize` with the amount of shared memory it needs. cuFFT will not retain the amount of shared memory associated with the previous callback.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "callbackRoutine": {
+        "doc": "Array of callback routine pointers, one per GPU."
+      },
+      "type": {
+        "doc": "Type of callback routine."
+      },
+      "callerInfo": {
+        "doc": "Optional array of device pointers to caller specific information, one per GPU."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully associated the callback function with the plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle, or a non-default stream has been associated with the plan in cuFFT prior to 10.4.0."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_SETUP_FAILED": {
+          "doc": "The cuFFT library failed to initialize."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtClearCallback": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtClearCallback",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtClearCallback",
+    "signature": "cufftResult cufftXtClearCallback(cufftHandle plan, cufftXtCallbackType type)",
+    "doc": "`cufftXtClearCallback()` instructs cuFFT to stop invoking the specified legacy callback type when executing the plan. Only the specified callback is cleared. If no callback of this type had been specified, the return code is [`cufftResult::CUFFT_SUCCESS`].\n\nNote that this method **does not work** with LTO callbacks.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "type": {
+        "doc": "Type of callback routine."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT successfully disassociated the callback function with the plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle, or a non-default stream has been associated with the plan in cuFFT prior to 10.4.0."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftXtSetCallbackSharedSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftXtSetCallbackSharedSize",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftXtSetCallbackSharedSize",
+    "signature": "cufftResult cufftXtSetCallbackSharedSize(cufftHandle plan, cufftXtCallbackType type, size_t sharedSize)",
+    "doc": "`cufftXtSetCallbackSharedSize()` instructs cuFFT to dynamically allocate shared memory at launch time, for use by the callback. The maximum allowable amount of shared memory is 16K bytes. cuFFT passes a pointer to this shared memory to the callback routine at execution time. This shared memory is only valid for the life of the load or store callback operation. During execution, cuFFT may overwrite shared memory for its own purposes.",
+    "parameters": {
+      "plan": {
+        "doc": "`cufftHandle` returned by `cufftCreate`."
+      },
+      "type": {
+        "doc": "Type of callback routine."
+      },
+      "sharedSize": {
+        "doc": "Amount of shared memory requested."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "cuFFT will invoke the callback routine with a pointer to the requested amount of shared memory."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle, or a non-default stream has been associated with the plan in cuFFT prior to 10.4.0."
+        },
+        "CUFFT_INTERNAL_ERROR": {
+          "doc": "An internal driver error was detected."
+        },
+        "CUFFT_ALLOC_FAILED": {
+          "doc": "cuFFT will not be able to allocate the requested amount of shared memory."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftSetStream": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftSetStream",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftSetStream",
+    "signature": "cufftResult cufftSetStream(cufftHandle plan, cudaStream_t stream);",
+    "doc": "Associates a CUDA stream with a cuFFT plan. All kernel launches made during plan execution are now done through the associated stream, enabling overlap with activity in other streams (e.g. data copying). The association remains until the plan is destroyed or the stream is changed with another call to `cufftSetStream()`.\n\nNote that starting from CUDA 11.2 (cuFFT 10.4.0), `cufftSetStream()` is supported on multi-GPU plans. When associating a stream with a plan, `cufftXtMemcpy()` remains synchronous across the multiple GPUs. For previous versions of cuFFT, `cufftSetStream()` will return an error in multiple GPU plans.\n\nNote that starting from CUDA 12.2 (cuFFT 11.0.8), on multi-GPU plans, `stream` can be associated with any context on any GPU. However, repeated calls to `cufftSetStream()` with streams from different contexts incur a small time penalty. Optimal performance is obtained when repeated calls to `cufftSetStream` use streams from the same CUDA context.",
+    "parameters": {
+      "plan": {
+        "doc": "The `cufftHandle` object to associate with the stream."
+      },
+      "stream": {
+        "doc": "A valid CUDA stream created with `cudaStreamCreate()`; `0` for the default stream."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "The stream was associated with the plan."
+        },
+        "CUFFT_INVALID_PLAN": {
+          "doc": "The `plan` parameter is not a valid handle, or plan is multi-gpu in cuFFT version prior to 10.4.0."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftGetVersion": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetVersion",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetVersion",
+    "signature": "cufftResult cufftGetVersion(int *version);",
+    "doc": "Returns the version number of cuFFT.",
+    "parameters": {
+      "version": {
+        "doc": "Pointer to the version number.\n\nContains the version number."
+      }
+    },
+    "deprecated": false
+  },
+  "cufftGetProperty": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "c.cufftGetProperty",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftGetProperty",
+    "signature": "cufftResult cufftGetProperty(libraryPropertyType type, int *value);",
+    "doc": "Return in `*value` the number for the property described by `type` of the dynamically linked CUFFT library.",
+    "parameters": {
+      "type": {
+        "doc": "CUDA library property."
+      },
+      "value": {
+        "doc": "Contains the integer value for the requested property."
+      }
+    },
+    "return_value": {
+      "variants": {
+        "CUFFT_SUCCESS": {
+          "doc": "The property value was successfully returned."
+        },
+        "CUFFT_INVALID_TYPE": {
+          "doc": "The property type is not recognized."
+        },
+        "CUFFT_INVALID_VALUE": {
+          "doc": "`value` is `NULL`."
+        }
+      },
+      "type": "cufftResult",
+      "kind": "enum",
+      "deprecated": false
+    },
+    "deprecated": false
+  },
+  "cufftHandle": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "c.cufftHandle",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#c.cufftHandle",
+    "doc": "A handle type used to store and access cuFFT plans. The user receives a handle after creating a cuFFT plan and uses this handle to execute the plan.",
+    "signature": "typedef unsigned int cufftHandle;",
+    "deprecated": false
+  },
+  "cufftResult": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "return-value-cufftresult",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#return-value-cufftresult",
+    "signature": "typedef enum cufftResult_t {\nCUFFT_SUCCESS = 0, // The cuFFT operation was successful\nCUFFT_INVALID_PLAN = 1, // cuFFT was passed an invalid plan handle\nCUFFT_ALLOC_FAILED = 2, // cuFFT failed to allocate GPU or CPU memory\nCUFFT_INVALID_TYPE = 3, // The cuFFT type provided is unsupported\nCUFFT_INVALID_VALUE = 4, // User specified an invalid pointer or parameter\nCUFFT_INTERNAL_ERROR = 5, // Driver or internal cuFFT library error\nCUFFT_EXEC_FAILED = 6, // Failed to execute an FFT on the GPU\nCUFFT_SETUP_FAILED = 7, // The cuFFT library failed to initialize\nCUFFT_INVALID_SIZE = 8, // User specified an invalid transform size\nCUFFT_UNALIGNED_DATA = 9, // Not currently in use\nCUFFT_INVALID_DEVICE = 11, // Execution of a plan was on different GPU than plan creation\nCUFFT_NO_WORKSPACE = 13 // No workspace has been provided prior to plan execution\nCUFFT_NOT_IMPLEMENTED = 14, // Function does not implement functionality for parameters given.\nCUFFT_NOT_SUPPORTED = 16, // Operation is not supported for parameters given.\nCUFFT_MISSING_DEPENDENCY = 17, // cuFFT is unable to find a dependency\nCUFFT_NVRTC_FAILURE = 18, // An NVRTC failure was encountered during a cuFFT operation\nCUFFT_NVJITLINK_FAILURE = 19, // An nvJitLink failure was encountered during a cuFFT operation\nCUFFT_NVSHMEM_FAILURE = 20, // An NVSHMEM failure was encountered during a cuFFT operation\n} cufftResult;",
+    "doc": "All cuFFT Library return values except for [`cufftResult::CUFFT_SUCCESS`] indicate that the current API call failed and the user should reconfigure to correct the problem. The possible return values are defined as follows.",
+    "members": {
+      "CUFFT_SUCCESS": {
+        "doc": "The cuFFT operation was successful."
+      },
+      "CUFFT_INVALID_PLAN": {
+        "doc": "cuFFT was passed an invalid plan handle."
+      },
+      "CUFFT_ALLOC_FAILED": {
+        "doc": "cuFFT failed to allocate GPU or CPU memory."
+      },
+      "CUFFT_INVALID_TYPE": {
+        "doc": "The cuFFT type provided is unsupported."
+      },
+      "CUFFT_INVALID_VALUE": {
+        "doc": "User specified an invalid pointer or parameter."
+      },
+      "CUFFT_INTERNAL_ERROR": {
+        "doc": "Driver or internal cuFFT library error."
+      },
+      "CUFFT_EXEC_FAILED": {
+        "doc": "Failed to execute an FFT on the GPU."
+      },
+      "CUFFT_SETUP_FAILED": {
+        "doc": "The cuFFT library failed to initialize."
+      },
+      "CUFFT_INVALID_SIZE": {
+        "doc": "User specified an invalid transform size."
+      },
+      "CUFFT_UNALIGNED_DATA": {
+        "doc": "Not currently in use."
+      },
+      "CUFFT_INVALID_DEVICE": {
+        "doc": "Execution of a plan was on different GPU than plan creation."
+      },
+      "CUFFT_NO_WORKSPACE": {
+        "doc": "No workspace has been provided prior to plan execution."
+      },
+      "CUFFT_NOT_IMPLEMENTED": {
+        "doc": "Function does not implement functionality for parameters given."
+      },
+      "CUFFT_NOT_SUPPORTED": {
+        "doc": "Operation is not supported for parameters given."
+      },
+      "CUFFT_MISSING_DEPENDENCY": {
+        "doc": "cuFFT is unable to find a dependency."
+      },
+      "CUFFT_NVRTC_FAILURE": {
+        "doc": "An NVRTC failure was encountered during a cuFFT operation."
+      },
+      "CUFFT_NVJITLINK_FAILURE": {
+        "doc": "An nvJitLink failure was encountered during a cuFFT operation."
+      },
+      "CUFFT_NVSHMEM_FAILURE": {
+        "doc": "An NVSHMEM failure was encountered during a cuFFT operation."
+      }
+    },
+    "deprecated": false
+  },
+  "cufftXtSubFormat": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "parameter-cufftxtsubformat",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#parameter-cufftxtsubformat",
+    "signature": "typedef enum cufftXtSubFormat_t {\nCUFFT_XT_FORMAT_INPUT, //by default input is in linear order across GPUs\nCUFFT_XT_FORMAT_OUTPUT, //by default output is in scrambled order depending on transform\nCUFFT_XT_FORMAT_INPLACE, //by default inplace is input order, which is linear across GPUs\nCUFFT_XT_FORMAT_INPLACE_SHUFFLED, //shuffled output order after execution of the transform\nCUFFT_XT_FORMAT_1D_INPUT_SHUFFLED, //shuffled input order prior to execution of 1D transforms\nCUFFT_XT_FORMAT_DISTRIBUTED_INPUT, //used for cuFFTMp only\nCUFFT_XT_FORMAT_DISTRIBUTED_OUTPUT, //used for cuFFTMp only\nCUFFT_FORMAT_UNDEFINED\n} cufftXtSubFormat;",
+    "doc": "`cufftXtSubFormat_t` is an enumerated type that indicates if the buffer will be used for input or output and the ordering of the data.",
+    "members": {
+      "CUFFT_XT_FORMAT_INPUT": {
+        "doc": "by default input is in linear order across GPUs."
+      },
+      "CUFFT_XT_FORMAT_OUTPUT": {
+        "doc": "by default output is in scrambled order depending on transform."
+      },
+      "CUFFT_XT_FORMAT_INPLACE": {
+        "doc": "by default inplace is input order, which is linear across GPUs."
+      },
+      "CUFFT_XT_FORMAT_INPLACE_SHUFFLED": {
+        "doc": "shuffled output order after execution of the transform."
+      },
+      "CUFFT_XT_FORMAT_1D_INPUT_SHUFFLED": {
+        "doc": "shuffled input order prior to execution of 1D transforms."
+      },
+      "CUFFT_XT_FORMAT_DISTRIBUTED_INPUT": {
+        "doc": "used for cuFFTMp only."
+      },
+      "CUFFT_XT_FORMAT_DISTRIBUTED_OUTPUT": {
+        "doc": "used for cuFFTMp only."
+      }
+    },
+    "deprecated": false
+  },
+  "cufftXtCopyType": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "parameter-cufftxtcopytype",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#parameter-cufftxtcopytype",
+    "signature": "typedef enum cufftXtCopyType_t {\nCUFFT_COPY_HOST_TO_DEVICE,\nCUFFT_COPY_DEVICE_TO_HOST,\nCUFFT_COPY_DEVICE_TO_DEVICE\n} cufftXtCopyType;",
+    "doc": "`cufftXtCopyType_t` is an enumerated type for multiple GPU functions that specifies the type of copy for `cufftXtMemcpy()`.\n\n[`cufftXtCopyType::CUFFT_COPY_HOST_TO_DEVICE`] copies data from a contiguous host buffer to multiple device buffers, in the layout cuFFT requires for input data. `dstPointer` must point to a `cudaLibXtDesc` structure, and `srcPointer` must point to a host memory buffer.\n\n[`cufftXtCopyType::CUFFT_COPY_DEVICE_TO_HOST`] copies data from multiple device buffers, in the layout cuFFT produces for output data, to a contiguous host buffer. `dstPointer` must point to a host memory buffer, and `srcPointer` must point to a `cudaLibXtDesc` structure.\n\n[`cufftXtCopyType::CUFFT_COPY_DEVICE_TO_DEVICE`] copies data from multiple device buffers, in the layout cuFFT produces for output data, to multiple device buffers, in the layout cuFFT requires for input data. `dstPointer` and `srcPointer` must point to different `cudaLibXtDesc` structures (and therefore memory locations). That is, the copy cannot be in-place. Note that device_to_device `cufftXtMemcpy()` for 2D and 3D data is not currently supported.",
+    "deprecated": false
+  },
+  "cufftType": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "parameter-cuffttype",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#parameter-cuffttype",
+    "signature": "typedef enum cufftType_t {\nCUFFT_R2C = 0x2a, // Real to complex(interleaved)\nCUFFT_C2R = 0x2c, // Complex(interleaved) to real\nCUFFT_C2C = 0x29, // Complex to complex(interleaved)\nCUFFT_D2Z = 0x6a, // Double to double-complex(interleaved)\nCUFFT_Z2D = 0x6c, // Double-complex(interleaved) to double\nCUFFT_Z2Z = 0x69 // Double-complex to double-complex(interleaved)\n} cufftType;",
+    "doc": "The cuFFT library supports complex- and real-data transforms. The `cufftType` data type is an enumeration of the types of transform data supported by cuFFT.",
+    "members": {
+      "CUFFT_R2C": {
+        "doc": "Real to complex (interleaved)."
+      },
+      "CUFFT_C2R": {
+        "doc": "Complex (interleaved) to real."
+      },
+      "CUFFT_C2C": {
+        "doc": "Complex to complex (interleaved)."
+      },
+      "CUFFT_D2Z": {
+        "doc": "Double to double-complex (interleaved)."
+      },
+      "CUFFT_Z2D": {
+        "doc": "Double-complex (interleaved) to double."
+      },
+      "CUFFT_Z2Z": {
+        "doc": "Double-complex to double-complex (interleaved)."
+      }
+    },
+    "deprecated": false
+  },
+  "cufftXtCallbackType": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "type-definitions-for-callbacks",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#type-definitions-for-callbacks",
+    "signature": "typedef enum cufftXtCallbackType_t {\nCUFFT_CB_LD_COMPLEX = 0x0,\nCUFFT_CB_LD_COMPLEX_DOUBLE = 0x1,\nCUFFT_CB_LD_REAL = 0x2,\nCUFFT_CB_LD_REAL_DOUBLE = 0x3,\nCUFFT_CB_ST_COMPLEX = 0x4,\nCUFFT_CB_ST_COMPLEX_DOUBLE = 0x5,\nCUFFT_CB_ST_REAL = 0x6,\nCUFFT_CB_ST_REAL_DOUBLE = 0x7,\nCUFFT_CB_UNDEFINED = 0x8\n} cufftXtCallbackType;",
+    "doc": "The cuFFT library supports callback funtions for all combinations of single or double precision, real or complex data, load or store. These are enumerated in the parameter `cufftXtCallbackType`.",
+    "deprecated": false
+  },
+  "cufftXtQueryType": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "type-definitions-for-plan-queries",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#type-definitions-for-plan-queries",
+    "signature": "typedef enum cufftXtQueryType_t {\nCUFFT_QUERY_1D_FACTORS = 0x00,\nCUFFT_QUERY_UNDEFINED = 0x01\n} cufftXtQueryType;",
+    "doc": "The cuFFT library supports querying internal plan information for a subset of supported plans via `cufftXtQueryPlan`. The supported query types are enumerated in `cufftXtQueryType`. Each query type has a corresponding structure used to hold plan information related to the query. These structures are enumerated below.",
+    "deprecated": false
+  },
+  "cufftReal": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "cufftreal",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#cufftreal",
+    "signature": "typedef float cufftReal;",
+    "doc": "A single-precision, floating-point real data type.",
+    "deprecated": false
+  },
+  "cufftDoubleReal": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "cufftdoublereal",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#cufftdoublereal",
+    "signature": "typedef double cufftDoubleReal;",
+    "doc": "A double-precision, floating-point real data type.",
+    "deprecated": false
+  },
+  "cufftComplex": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "cufftcomplex",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#cufftcomplex",
+    "signature": "typedef cuComplex cufftComplex;",
+    "doc": "A single-precision, floating-point complex data type that consists of interleaved real and imaginary components.",
+    "deprecated": false
+  },
+  "cufftDoubleComplex": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "cufftdoublecomplex",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#cufftdoublecomplex",
+    "signature": "typedef cuDoubleComplex cufftDoubleComplex;",
+    "doc": "A double-precision, floating-point complex data type that consists of interleaved real and imaginary components.",
+    "deprecated": false
+  },
+  "cudaDataType": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "cudadatatype",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#cudadatatype",
+    "signature": "typedef enum cudaDataType_t\n{\nCUDA_R_16F = 2, // 16 bit real\nCUDA_C_16F = 6, // 16 bit complex\nCUDA_R_16BF = 14, // 16 bit real as nv_bfloat16\nCUDA_C_16BF = 15, // 16 bit complex as pair of nv_bfloat16\nCUDA_R_32F = 0, // 32 bit real\nCUDA_C_32F = 4, // 32 bit complex\nCUDA_R_64F = 1, // 64 bit real\nCUDA_C_64F = 5, // 64 bit complex\nCUDA_R_8I = 3, // 8 bit real as a signed integer\nCUDA_C_8I = 7, // 8 bit complex as a pair of signed integers\nCUDA_R_8U = 8, // 8 bit real as an unsigned integer\nCUDA_C_8U = 9 // 8 bit complex as a pair of unsigned integers\n} cudaDataType;",
+    "doc": "The `cudaDataType` data type is an enumeration of the types supported by CUDA libraries.",
+    "members": {
+      "CUDA_R_16F": {
+        "doc": "16 bit real."
+      },
+      "CUDA_C_16F": {
+        "doc": "16 bit complex."
+      },
+      "CUDA_R_16BF": {
+        "doc": "16 bit real as nv_bfloat16."
+      },
+      "CUDA_C_16BF": {
+        "doc": "16 bit complex as pair of nv_bfloat16."
+      },
+      "CUDA_R_32F": {
+        "doc": "32 bit real."
+      },
+      "CUDA_C_32F": {
+        "doc": "32 bit complex."
+      },
+      "CUDA_R_64F": {
+        "doc": "64 bit real."
+      },
+      "CUDA_C_64F": {
+        "doc": "64 bit complex."
+      },
+      "CUDA_R_8I": {
+        "doc": "8 bit real as a signed integer."
+      },
+      "CUDA_C_8I": {
+        "doc": "8 bit complex as a pair of signed integers."
+      },
+      "CUDA_R_8U": {
+        "doc": "8 bit real as an unsigned integer."
+      },
+      "CUDA_C_8U": {
+        "doc": "8 bit complex as a pair of unsigned integers."
+      }
+    },
+    "deprecated": false
+  },
+  "libraryPropertyType": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "librarypropertytype",
+    "uri": "https://docs.nvidia.com/cuda/cufft/index.html#librarypropertytype",
+    "signature": "typedef enum libraryPropertyType_t\n{\nMAJOR_VERSION,\nMINOR_VERSION,\nPATCH_LEVEL\n} libraryPropertyType;",
+    "doc": "The `libraryPropertyType` data type is an enumeration of library property types. (ie. CUDA version X.Y.Z would yield `MAJOR_VERSION=X`, `MINOR_VERSION=Y`, `PATCH_LEVEL=Z`).",
+    "deprecated": false
+  }
+}

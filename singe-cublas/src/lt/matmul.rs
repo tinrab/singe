@@ -11,6 +11,7 @@ use singe_cuda::{
     stream::Stream,
     types::{Complex32, Complex64},
 };
+use singe_cuda_sys::library_types::cudaDataType_t;
 
 use crate::{
     error::{Error, Result, Status},
@@ -342,6 +343,18 @@ impl MatmulDescriptor {
     pub fn set_bias_pointer<T>(&mut self, bias: &DeviceMemory<T>) -> Result<()> {
         let pointer = bias.as_ptr();
         self.set_attribute(MatmulDescriptorAttribute::BiasPointer, &pointer)
+    }
+
+    /// Sets the bias data type for bias epilogues.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuBLASLt rejects the attribute.
+    pub fn set_bias_data_type(&mut self, data_type: DataType) -> Result<()> {
+        self.set_attribute(
+            MatmulDescriptorAttribute::BiasDataType,
+            &cudaDataType_t::from(data_type),
+        )
     }
 
     /// Sets the scale pointer for matrix A.
@@ -763,6 +776,24 @@ impl MatmulAlgorithm {
         Ok(unsafe { value.assume_init() })
     }
 
+    /// Returns whether this algorithm can be used with strided-batch matrix layouts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuBLASLt cannot report the capability.
+    pub fn supports_strided_batch(&self) -> Result<bool> {
+        Ok(self.cap_attribute::<i32>(MatmulAlgorithmCapAttribute::StridedBatchSupport)? != 0)
+    }
+
+    /// Returns whether this algorithm can be used with pointer-array batch matrix layouts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuBLASLt cannot report the capability.
+    pub fn supports_pointer_array_batch(&self) -> Result<bool> {
+        Ok(self.cap_attribute::<i32>(MatmulAlgorithmCapAttribute::PointerArrayBatchSupport)? != 0)
+    }
+
     /// Returns a reference to the raw cuBLASLt algorithm representation.
     ///
     /// The returned value is borrowed and remains valid only while the
@@ -805,7 +836,7 @@ impl MatmulHeuristicResult {
 ///
 /// Returns an error if the descriptors, pointer mode, algorithm, workspace, or device do not
 /// support the requested operation, or if execution fails.
-pub(crate) unsafe fn matmul_raw(
+pub unsafe fn matmul_raw(
     ctx: &Context,
     desc: &MatmulDescriptor,
     alpha: *const c_void,

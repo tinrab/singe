@@ -6,14 +6,14 @@
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-#[cfg(feature = "cufft_12_2")]
+#[cfg(feature = "cufft_12_3")]
 use singe_cuda_sys::{
     library_types::{cudaDataType, cudaDataType_t, libraryPropertyType},
     runtime::cudaStream_t,
 };
 
-#[cfg(feature = "cufft_12_2")]
-include!("sys_12200.rs");
+#[cfg(feature = "cufft_12_3")]
+include!("sys_12300.rs");
 
 #[cfg(test)]
 mod tests {

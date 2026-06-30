@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::error::{Error, Result};
 use singe_core::checked_int;
 

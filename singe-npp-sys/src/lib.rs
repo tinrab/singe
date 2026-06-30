@@ -9,7 +9,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_cuda_sys::runtime::cudaStream_t;
 
 #[cfg(feature = "npp_13_1")]
-include!("sys_13100.rs");
+include!("sys_13102.rs");
 
 #[cfg(test)]
 mod tests {

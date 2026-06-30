@@ -10,9 +10,27 @@ use crate::{
     engine::EngineIndex,
     error::{Error, Result},
     execution::{EngineConfig, ExecutionPlan, KernelCache, OperationGraph},
-    frontend::{graph::Graph, operation::CompileConfig, plan::built::BuiltPlanEntry},
+    frontend::{
+        graph::Graph,
+        operation::CompileConfig,
+        plan::{
+            built::BuiltPlanEntry,
+            metadata::{EngineConfigMetadata, workspace_limit_error},
+        },
+    },
     knob::BackendKnobType,
 };
+
+fn should_attempt_plan_build(
+    config: &EngineConfig,
+    compile_config: &CompileConfig,
+) -> Result<bool> {
+    Ok(workspace_limit_error(
+        config.workspace_size()?,
+        compile_config.max_workspace_size(),
+    )
+    .is_none())
+}
 
 pub(crate) fn build_execution_plan_entries(
     ctx: Option<&Context>,
@@ -21,7 +39,7 @@ pub(crate) fn build_execution_plan_entries(
     kernel_cache_json: Option<&str>,
     kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
     device_properties: Option<&DeviceProperties>,
-    configs: Vec<EngineConfig>,
+    candidates: Vec<(EngineConfig, EngineConfigMetadata)>,
     compile_config: &CompileConfig,
 ) -> Result<Vec<BuiltPlanEntry>> {
     let mut entries = Vec::new();
@@ -32,10 +50,8 @@ pub(crate) fn build_execution_plan_entries(
         kernel_cache_runtime,
     )?;
 
-    for config in configs {
-        if let Some(max_workspace_size) = compile_config.max_workspace_size()
-            && config.workspace_size()? > max_workspace_size
-        {
+    for (config, metadata) in candidates {
+        if !should_attempt_plan_build(&config, compile_config)? {
             continue;
         }
 
@@ -56,6 +72,7 @@ pub(crate) fn build_execution_plan_entries(
         match result {
             Ok(plan) => entries.push(BuiltPlanEntry {
                 engine_config: config,
+                engine_metadata: metadata,
                 execution_plan: Some(plan),
                 build_error: None,
                 support_error: None,
@@ -63,6 +80,7 @@ pub(crate) fn build_execution_plan_entries(
             Err(error) => {
                 entries.push(BuiltPlanEntry {
                     engine_config: config,
+                    engine_metadata: metadata,
                     execution_plan: None,
                     build_error: Some(error),
                     support_error: None,
@@ -85,9 +103,9 @@ pub(crate) fn build_execution_plan_choice(
     kernel_cache_json: Option<&str>,
     kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
     device_properties: Option<&DeviceProperties>,
-    configs: Vec<EngineConfig>,
+    candidates: Vec<(EngineConfig, EngineConfigMetadata)>,
     compile_config: &CompileConfig,
-) -> Result<(Vec<EngineConfig>, Vec<ExecutionPlan>)> {
+) -> Result<Vec<BuiltPlanEntry>> {
     let mut last_error = None;
     let kernel_cache = materialize_kernel_cache_state(
         operation_graph,
@@ -96,10 +114,8 @@ pub(crate) fn build_execution_plan_choice(
         kernel_cache_runtime,
     )?;
 
-    for config in configs {
-        if let Some(max_workspace_size) = compile_config.max_workspace_size()
-            && config.workspace_size()? > max_workspace_size
-        {
+    for (config, metadata) in candidates {
+        if !should_attempt_plan_build(&config, compile_config)? {
             continue;
         }
         let result = match ctx {
@@ -116,7 +132,15 @@ pub(crate) fn build_execution_plan_choice(
             ),
         };
         match result {
-            Ok(plan) => return Ok((vec![config], vec![plan])),
+            Ok(plan) => {
+                return Ok(vec![BuiltPlanEntry {
+                    engine_config: config,
+                    engine_metadata: metadata,
+                    execution_plan: Some(plan),
+                    build_error: None,
+                    support_error: None,
+                }]);
+            }
             Err(error) => {
                 last_error = Some(error);
             }
@@ -134,7 +158,7 @@ fn build_execution_plan_entries_parallel(
     kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
     device_properties_json: Option<&str>,
     device_properties: Option<&DeviceProperties>,
-    configs: Vec<EngineConfig>,
+    candidates: Vec<(EngineConfig, EngineConfigMetadata)>,
     compile_config: &CompileConfig,
 ) -> Result<Vec<BuiltPlanEntry>> {
     struct BuildRequest {
@@ -143,10 +167,8 @@ fn build_execution_plan_entries_parallel(
     }
 
     let mut filtered = Vec::new();
-    for config in configs {
-        if let Some(max_workspace_size) = compile_config.max_workspace_size()
-            && config.workspace_size()? > max_workspace_size
-        {
+    for (config, metadata) in candidates {
+        if !should_attempt_plan_build(&config, compile_config)? {
             continue;
         }
 
@@ -158,6 +180,7 @@ fn build_execution_plan_entries_parallel(
             .collect::<Vec<_>>();
         filtered.push((
             config,
+            metadata,
             BuildRequest {
                 engine_index,
                 knob_choices,
@@ -181,7 +204,7 @@ fn build_execution_plan_entries_parallel(
     let device_properties = device_properties.map(Arc::new);
     let results = thread::scope(|scope| {
         let mut tasks = Vec::with_capacity(filtered.len());
-        for (_, request) in &filtered {
+        for (_, _, request) in &filtered {
             let kernel_cache_json = kernel_cache_json.clone();
             let kernel_cache_runtime = kernel_cache_runtime.clone();
             let cuda_context = cuda_context.clone();
@@ -247,10 +270,11 @@ fn build_execution_plan_entries_parallel(
     });
 
     let mut entries = Vec::with_capacity(filtered.len());
-    for ((config, _), result) in filtered.into_iter().zip(results) {
+    for ((config, metadata, _), result) in filtered.into_iter().zip(results) {
         match result {
             Ok(plan) => entries.push(BuiltPlanEntry {
                 engine_config: config,
+                engine_metadata: metadata,
                 execution_plan: Some(plan),
                 build_error: None,
                 support_error: None,
@@ -258,6 +282,7 @@ fn build_execution_plan_entries_parallel(
             Err(error) => {
                 entries.push(BuiltPlanEntry {
                     engine_config: config,
+                    engine_metadata: metadata,
                     execution_plan: None,
                     build_error: Some(error),
                     support_error: None,
@@ -281,16 +306,16 @@ pub(crate) fn build_execution_plan_choice_parallel_window(
     kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
     device_properties_json: Option<&str>,
     device_properties: Option<&DeviceProperties>,
-    configs: Vec<EngineConfig>,
+    candidates: Vec<(EngineConfig, EngineConfigMetadata)>,
     compile_config: &CompileConfig,
     width: usize,
-) -> Result<(Vec<EngineConfig>, Vec<ExecutionPlan>)> {
+) -> Result<Vec<BuiltPlanEntry>> {
     let width = width.max(1);
     let mut last_error = None;
 
     let mut chunk = Vec::with_capacity(width);
-    for config in configs {
-        chunk.push(config);
+    for candidate in candidates {
+        chunk.push(candidate);
         if chunk.len() < width {
             continue;
         }
@@ -309,7 +334,10 @@ pub(crate) fn build_execution_plan_choice_parallel_window(
 
         for entry in entries {
             if let Some(execution_plan) = entry.execution_plan {
-                return Ok((vec![entry.engine_config], vec![execution_plan]));
+                return Ok(vec![BuiltPlanEntry {
+                    execution_plan: Some(execution_plan),
+                    ..entry
+                }]);
             }
             if let Some(error) = entry.build_error {
                 last_error = Some(error);
@@ -332,7 +360,10 @@ pub(crate) fn build_execution_plan_choice_parallel_window(
 
         for entry in entries {
             if let Some(execution_plan) = entry.execution_plan {
-                return Ok((vec![entry.engine_config], vec![execution_plan]));
+                return Ok(vec![BuiltPlanEntry {
+                    execution_plan: Some(execution_plan),
+                    ..entry
+                }]);
             }
             if let Some(error) = entry.build_error {
                 last_error = Some(error);

@@ -15,7 +15,7 @@ use singe_cuda_sys::{
 };
 
 #[cfg(feature = "cusolver_12_2")]
-include!("sys_12200.rs");
+include!("sys_12202.rs");
 
 #[cfg(test)]
 mod tests {
