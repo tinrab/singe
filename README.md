@@ -21,6 +21,7 @@ A machine learning framework that sets tensors ablaze.
 - [singe-cupti](./singe-cupti): Safe Rust wrappers for NVIDIA CUPTI profiling and callback APIs.
 - [singe-cusparse](./singe-cusparse): Safe Rust wrappers for the NVIDIA cuSPARSE sparse linear algebra library.
 - [singe-cutensor](./singe-cutensor): Safe Rust wrappers for NVIDIA cuTENSOR library.
+- [singe-kernel](./singe-kernel): Reusable CPU and GPU kernels.
 - [singe-nvml](./singe-nvml): Safe Rust wrappers for NVIDIA Management Library (NVML), monitoring, MIG, and vGPU APIs.
 - [singe-nccl](./singe-nccl): Safe Rust wrappers for the NVIDIA Collective Communications Library (NCCL).
 - [singe-npp](./singe-npp): Safe Rust wrappers for NVIDIA Performance Primitives library (NPP).

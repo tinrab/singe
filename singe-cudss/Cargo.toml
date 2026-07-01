@@ -1,7 +1,7 @@
 [package]
 name = "singe-cudss"
 description = "Safe Rust wrappers for the NVIDIA Direct Sparse Solvers (cuDSS) library."
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition.workspace = true
 repository.workspace = true
 license-file = "../LICENSE"

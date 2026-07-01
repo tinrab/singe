@@ -1,0 +1,1898 @@
+[[kernel]]
+name = "silu_mul"
+category = "pointwise"
+dtypes = ["bf16", "f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "silu(gate) * up"
+
+[[kernel]]
+name = "add_silu_mul"
+category = "pointwise"
+dtypes = ["bf16", "f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + silu(gate) * up"
+
+[[kernel]]
+name = "gelu_mul"
+category = "pointwise"
+dtypes = ["bf16", "f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "gelu(gate) * up"
+
+[[kernel]]
+name = "sigmoid_mul"
+category = "pointwise"
+dtypes = ["bf16", "f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "sigmoid(gate) * up"
+
+[[kernel]]
+name = "relu_mul"
+category = "pointwise"
+dtypes = ["bf16", "f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "relu(gate) * up"
+
+[[kernel]]
+name = "relu6_mul"
+category = "pointwise"
+dtypes = ["bf16", "f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "relu6(gate) * up"
+
+[[kernel]]
+name = "hard_sigmoid_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "hard_sigmoid(gate) * up"
+
+[[kernel]]
+name = "hard_swish_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "hard_swish(gate) * up"
+
+[[kernel]]
+name = "softsign_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "softsign(gate) * up"
+
+[[kernel]]
+name = "mish_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "mish(gate) * up"
+
+[[kernel]]
+name = "selu_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "selu(gate) * up"
+
+[[kernel]]
+name = "tanhshrink_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "tanhshrink(gate) * up"
+
+[[kernel]]
+name = "log_sigmoid_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "log_sigmoid(gate) * up"
+
+[[kernel]]
+name = "reciprocal_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "reciprocal(gate) * up"
+
+[[kernel]]
+name = "square_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "square(gate) * up"
+
+[[kernel]]
+name = "ceil_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "ceil(gate) * up"
+
+[[kernel]]
+name = "floor_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "floor(gate) * up"
+
+[[kernel]]
+name = "trunc_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "trunc(gate) * up"
+
+[[kernel]]
+name = "frac_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "frac(gate) * up"
+
+[[kernel]]
+name = "deg2rad_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "deg2rad(gate) * up"
+
+[[kernel]]
+name = "rad2deg_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "rad2deg(gate) * up"
+
+[[kernel]]
+name = "sin_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "sin(gate) * up"
+
+[[kernel]]
+name = "cos_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "cos(gate) * up"
+
+[[kernel]]
+name = "tan_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "tan(gate) * up"
+
+[[kernel]]
+name = "asin_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "asin(gate) * up"
+
+[[kernel]]
+name = "acos_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "acos(gate) * up"
+
+[[kernel]]
+name = "atan_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "atan(gate) * up"
+
+[[kernel]]
+name = "sinh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "sinh(gate) * up"
+
+[[kernel]]
+name = "cosh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "cosh(gate) * up"
+
+[[kernel]]
+name = "asinh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "asinh(gate) * up"
+
+[[kernel]]
+name = "acosh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "acosh(gate) * up"
+
+[[kernel]]
+name = "atanh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "atanh(gate) * up"
+
+[[kernel]]
+name = "tanh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "tanh(gate) * up"
+
+[[kernel]]
+name = "exp_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "exp(gate) * up"
+
+[[kernel]]
+name = "exp2_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "exp2(gate) * up"
+
+[[kernel]]
+name = "expm1_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "expm1(gate) * up"
+
+[[kernel]]
+name = "log_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "log(gate) * up"
+
+[[kernel]]
+name = "log2_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "log2(gate) * up"
+
+[[kernel]]
+name = "log10_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "log10(gate) * up"
+
+[[kernel]]
+name = "log1p_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "log1p(gate) * up"
+
+[[kernel]]
+name = "softplus_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "softplus(gate) * up"
+
+[[kernel]]
+name = "sqrt_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "sqrt(gate) * up"
+
+[[kernel]]
+name = "rsqrt_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "rsqrt(gate) * up"
+
+[[kernel]]
+name = "cbrt_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "cbrt(gate) * up"
+
+[[kernel]]
+name = "abs_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "abs(gate) * up"
+
+[[kernel]]
+name = "neg_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["gate", "up"]
+expr = "neg(gate) * up"
+
+[[kernel]]
+name = "add_gelu_mul"
+category = "pointwise"
+dtypes = ["bf16", "f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + gelu(gate) * up"
+
+[[kernel]]
+name = "add_sigmoid_mul"
+category = "pointwise"
+dtypes = ["bf16", "f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + sigmoid(gate) * up"
+
+[[kernel]]
+name = "add_relu_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + relu(gate) * up"
+
+[[kernel]]
+name = "add_relu6_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + relu6(gate) * up"
+
+[[kernel]]
+name = "add_hard_sigmoid_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + hard_sigmoid(gate) * up"
+
+[[kernel]]
+name = "add_hard_swish_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + hard_swish(gate) * up"
+
+[[kernel]]
+name = "add_softsign_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + softsign(gate) * up"
+
+[[kernel]]
+name = "add_mish_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + mish(gate) * up"
+
+[[kernel]]
+name = "add_selu_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + selu(gate) * up"
+
+[[kernel]]
+name = "add_tanhshrink_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + tanhshrink(gate) * up"
+
+[[kernel]]
+name = "add_log_sigmoid_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + log_sigmoid(gate) * up"
+
+[[kernel]]
+name = "add_reciprocal_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + reciprocal(gate) * up"
+
+[[kernel]]
+name = "add_square_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + square(gate) * up"
+
+[[kernel]]
+name = "add_ceil_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + ceil(gate) * up"
+
+[[kernel]]
+name = "add_floor_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + floor(gate) * up"
+
+[[kernel]]
+name = "add_trunc_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + trunc(gate) * up"
+
+[[kernel]]
+name = "add_frac_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + frac(gate) * up"
+
+[[kernel]]
+name = "add_deg2rad_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + deg2rad(gate) * up"
+
+[[kernel]]
+name = "add_rad2deg_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + rad2deg(gate) * up"
+
+[[kernel]]
+name = "add_sin_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + sin(gate) * up"
+
+[[kernel]]
+name = "add_cos_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + cos(gate) * up"
+
+[[kernel]]
+name = "add_tan_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + tan(gate) * up"
+
+[[kernel]]
+name = "add_asin_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + asin(gate) * up"
+
+[[kernel]]
+name = "add_acos_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + acos(gate) * up"
+
+[[kernel]]
+name = "add_atan_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + atan(gate) * up"
+
+[[kernel]]
+name = "add_sinh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + sinh(gate) * up"
+
+[[kernel]]
+name = "add_cosh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + cosh(gate) * up"
+
+[[kernel]]
+name = "add_asinh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + asinh(gate) * up"
+
+[[kernel]]
+name = "add_acosh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + acosh(gate) * up"
+
+[[kernel]]
+name = "add_atanh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + atanh(gate) * up"
+
+[[kernel]]
+name = "add_tanh_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + tanh(gate) * up"
+
+[[kernel]]
+name = "add_exp_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + exp(gate) * up"
+
+[[kernel]]
+name = "add_exp2_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + exp2(gate) * up"
+
+[[kernel]]
+name = "add_expm1_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + expm1(gate) * up"
+
+[[kernel]]
+name = "add_log_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + log(gate) * up"
+
+[[kernel]]
+name = "add_log2_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + log2(gate) * up"
+
+[[kernel]]
+name = "add_log10_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + log10(gate) * up"
+
+[[kernel]]
+name = "add_log1p_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + log1p(gate) * up"
+
+[[kernel]]
+name = "add_softplus_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + softplus(gate) * up"
+
+[[kernel]]
+name = "add_sqrt_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + sqrt(gate) * up"
+
+[[kernel]]
+name = "add_rsqrt_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + rsqrt(gate) * up"
+
+[[kernel]]
+name = "add_cbrt_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + cbrt(gate) * up"
+
+[[kernel]]
+name = "add_abs_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + abs(gate) * up"
+
+[[kernel]]
+name = "add_neg_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["residual", "gate", "up"]
+expr = "residual + neg(gate) * up"
+
+[[kernel]]
+name = "mul_add"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "a * b + c"
+
+[[kernel]]
+name = "add_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "(a + b) * c"
+
+[[kernel]]
+name = "sub_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "(a - b) * c"
+
+[[kernel]]
+name = "rsub_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "(b - a) * c"
+
+[[kernel]]
+name = "div_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "(a / b) * c"
+
+[[kernel]]
+name = "rdiv_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "(b / a) * c"
+
+[[kernel]]
+name = "min_add"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "min(a, b) + c"
+
+[[kernel]]
+name = "max_add"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "max(a, b) + c"
+
+[[kernel]]
+name = "min_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "min(a, b) * c"
+
+[[kernel]]
+name = "max_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["a", "b", "c"]
+expr = "max(a, b) * c"
+
+[[kernel]]
+name = "bias_add"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "x + bias"
+
+[[kernel]]
+name = "bias_sub"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "x - bias"
+
+[[kernel]]
+name = "bias_rsub"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "bias - x"
+
+[[kernel]]
+name = "bias_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "x * bias"
+
+[[kernel]]
+name = "bias_div"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "x / bias"
+
+[[kernel]]
+name = "bias_rdiv"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "bias / x"
+
+[[kernel]]
+name = "bias_scale_add"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "x * scale + bias"
+
+[[kernel]]
+name = "bias_scale_sub"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "x * scale - bias"
+
+[[kernel]]
+name = "bias_add_scale"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "(x + bias) * scale"
+
+[[kernel]]
+name = "bias_sub_scale"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "(x - bias) * scale"
+
+[[kernel]]
+name = "bias_scale_gelu"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "gelu(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_silu"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "silu(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_sigmoid"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "sigmoid(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_relu"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "relu(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_relu6"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "relu6(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_hard_sigmoid"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "hard_sigmoid(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_hard_swish"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "hard_swish(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_softsign"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "softsign(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_mish"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "mish(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_selu"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "selu(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_tanhshrink"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "tanhshrink(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_log_sigmoid"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "log_sigmoid(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_reciprocal"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "reciprocal(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_square"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "square(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_ceil"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "ceil(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_floor"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "floor(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_trunc"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "trunc(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_frac"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "frac(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_deg2rad"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "deg2rad(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_rad2deg"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "rad2deg(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_sin"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "sin(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_cos"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "cos(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_tan"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "tan(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_asin"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "asin(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_acos"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "acos(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_atan"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "atan(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_sinh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "sinh(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_cosh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "cosh(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_asinh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "asinh(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_acosh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "acosh(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_atanh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "atanh(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_tanh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "tanh(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_exp"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "exp(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_exp2"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "exp2(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_expm1"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "expm1(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_log"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "log(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_log2"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "log2(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_log10"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "log10(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_log1p"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "log1p(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_softplus"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "softplus(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_sqrt"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "sqrt(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_rsqrt"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "rsqrt(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_cbrt"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "cbrt(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_abs"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "abs(x * scale + bias)"
+
+[[kernel]]
+name = "bias_scale_neg"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_affine"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "scale", "bias"]
+expr = "neg(x * scale + bias)"
+
+[[kernel]]
+name = "bias_gelu"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "gelu(x + bias)"
+
+[[kernel]]
+name = "bias_silu"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "silu(x + bias)"
+
+[[kernel]]
+name = "bias_sigmoid"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "sigmoid(x + bias)"
+
+[[kernel]]
+name = "bias_relu"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "relu(x + bias)"
+
+[[kernel]]
+name = "bias_relu6"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "relu6(x + bias)"
+
+[[kernel]]
+name = "bias_hard_sigmoid"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "hard_sigmoid(x + bias)"
+
+[[kernel]]
+name = "bias_hard_swish"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "hard_swish(x + bias)"
+
+[[kernel]]
+name = "bias_softsign"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "softsign(x + bias)"
+
+[[kernel]]
+name = "bias_mish"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "mish(x + bias)"
+
+[[kernel]]
+name = "bias_selu"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "selu(x + bias)"
+
+[[kernel]]
+name = "bias_tanhshrink"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "tanhshrink(x + bias)"
+
+[[kernel]]
+name = "bias_log_sigmoid"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "log_sigmoid(x + bias)"
+
+[[kernel]]
+name = "bias_reciprocal"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "reciprocal(x + bias)"
+
+[[kernel]]
+name = "bias_square"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "square(x + bias)"
+
+[[kernel]]
+name = "bias_ceil"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "ceil(x + bias)"
+
+[[kernel]]
+name = "bias_floor"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "floor(x + bias)"
+
+[[kernel]]
+name = "bias_trunc"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "trunc(x + bias)"
+
+[[kernel]]
+name = "bias_frac"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "frac(x + bias)"
+
+[[kernel]]
+name = "bias_deg2rad"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "deg2rad(x + bias)"
+
+[[kernel]]
+name = "bias_rad2deg"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "rad2deg(x + bias)"
+
+[[kernel]]
+name = "bias_sin"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "sin(x + bias)"
+
+[[kernel]]
+name = "bias_cos"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "cos(x + bias)"
+
+[[kernel]]
+name = "bias_tan"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "tan(x + bias)"
+
+[[kernel]]
+name = "bias_asin"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "asin(x + bias)"
+
+[[kernel]]
+name = "bias_acos"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "acos(x + bias)"
+
+[[kernel]]
+name = "bias_atan"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "atan(x + bias)"
+
+[[kernel]]
+name = "bias_sinh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "sinh(x + bias)"
+
+[[kernel]]
+name = "bias_cosh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "cosh(x + bias)"
+
+[[kernel]]
+name = "bias_asinh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "asinh(x + bias)"
+
+[[kernel]]
+name = "bias_acosh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "acosh(x + bias)"
+
+[[kernel]]
+name = "bias_atanh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "atanh(x + bias)"
+
+[[kernel]]
+name = "bias_tanh"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "tanh(x + bias)"
+
+[[kernel]]
+name = "bias_exp"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "exp(x + bias)"
+
+[[kernel]]
+name = "bias_exp2"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "exp2(x + bias)"
+
+[[kernel]]
+name = "bias_expm1"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "expm1(x + bias)"
+
+[[kernel]]
+name = "bias_log"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "log(x + bias)"
+
+[[kernel]]
+name = "bias_log2"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "log2(x + bias)"
+
+[[kernel]]
+name = "bias_log10"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "log10(x + bias)"
+
+[[kernel]]
+name = "bias_log1p"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "log1p(x + bias)"
+
+[[kernel]]
+name = "bias_softplus"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "softplus(x + bias)"
+
+[[kernel]]
+name = "bias_sqrt"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "sqrt(x + bias)"
+
+[[kernel]]
+name = "bias_rsqrt"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "rsqrt(x + bias)"
+
+[[kernel]]
+name = "bias_cbrt"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "cbrt(x + bias)"
+
+[[kernel]]
+name = "bias_abs"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "abs(x + bias)"
+
+[[kernel]]
+name = "bias_neg"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "neg(x + bias)"
+
+[[kernel]]
+name = "bias_min"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "min(x, bias)"
+
+[[kernel]]
+name = "bias_max"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_bias"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "bias"]
+expr = "max(x, bias)"
+
+[[kernel]]
+name = "column_clamp"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_columns2"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "lower", "upper"]
+expr = "min(max(x, lower), upper)"
+
+[[kernel]]
+name = "column_lerp"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["2d_columns2"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["x", "target", "weight"]
+expr = "x + (target - x) * weight"
+
+[[kernel]]
+name = "where_mul_add"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["condition", "a", "b", "c"]
+expr = "where(condition, a * b + c, c)"
+
+[[kernel]]
+name = "where_add"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["condition", "a", "b", "c"]
+expr = "where(condition, a + b, c)"
+
+[[kernel]]
+name = "where_sub"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["condition", "a", "b", "c"]
+expr = "where(condition, a - b, c)"
+
+[[kernel]]
+name = "where_mul"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["condition", "a", "b", "c"]
+expr = "where(condition, a * b, c)"
+
+[[kernel]]
+name = "where_div"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["condition", "a", "b", "c"]
+expr = "where(condition, a / b, c)"
+
+[[kernel]]
+name = "where_min"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["condition", "a", "b", "c"]
+expr = "where(condition, min(a, b), c)"
+
+[[kernel]]
+name = "where_max"
+category = "pointwise"
+dtypes = ["f16", "f32", "f64"]
+ranks = ["1d", "2d"]
+tile_sizes = [128, 256, 512, 1024]
+inputs = ["condition", "a", "b", "c"]
+expr = "where(condition, max(a, b), c)"

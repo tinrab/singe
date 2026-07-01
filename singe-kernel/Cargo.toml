@@ -1,0 +1,103 @@
+[package]
+name = "singe-kernel"
+description = "Reusable CPU and GPU kernels."
+keywords = ["singe", "cuda", "kernel", "gpu"]
+version = "0.1.0-alpha.4"
+edition.workspace = true
+repository.workspace = true
+license-file = "../LICENSE"
+readme = "README.md"
+include.workspace = true
+
+[features]
+default = ["dtype-f32"]
+cutile = ["cuda_13_3", "dep:cutile", "dep:cutile-compiler", "dep:singe-cuda", "dep:cuda-core"]
+cuda_13_3 = ["dep:singe-cuda"]
+dtype-f32 = []
+dtype-f16 = []
+dtype-bf16 = []
+dtype-f64 = []
+dtype-f8 = []
+dtype-i8 = []
+dtype-u8 = []
+dtype-i32 = []
+dtype-u32 = []
+dtype-i64 = []
+dtype-u64 = []
+dtypes-all = [
+    "dtype-f32",
+    "dtype-f16",
+    "dtype-bf16",
+    "dtype-f64",
+    "dtype-f8",
+    "dtype-i8",
+    "dtype-u8",
+    "dtype-i32",
+    "dtype-u32",
+    "dtype-i64",
+    "dtype-u64",
+]
+kernel-activation = ["cutile"]
+kernel-attention = ["cutile"]
+kernel-audio = ["cutile", "dtype-f32", "kernel-shape"]
+kernel-cast = ["cutile"]
+kernel-conv = ["cutile"]
+kernel-creation = ["cutile"]
+kernel-elementwise = ["cutile"]
+kernel-embedding = ["cutile"]
+kernel-fft = ["cutile", "kernel-scalar"]
+kernel-fused = ["cutile", "kernel-positional"]
+kernel-gather = ["cutile"]
+kernel-matmul = ["cutile", "dtype-f32"]
+kernel-mask = ["cutile", "dtype-u8"]
+kernel-moe = ["cutile", "dtype-i32", "kernel-matmul", "kernel-gather"]
+kernel-normalization = ["cutile"]
+kernel-pooling = ["cutile"]
+kernel-positional = ["cutile"]
+kernel-quantization = ["cutile", "dtype-f32", "dtype-f8"]
+kernel-reduction = ["cutile"]
+kernel-recurrent = ["cutile", "dtype-f32"]
+kernel-scalar = ["cutile"]
+kernel-shape = ["cutile"]
+kernel-softmax = ["cutile"]
+kernel-unary = ["cutile"]
+kernels-all = [
+    "kernel-activation",
+    "kernel-attention",
+    "kernel-audio",
+    "kernel-cast",
+    "kernel-conv",
+    "kernel-creation",
+    "kernel-elementwise",
+    "kernel-embedding",
+    "kernel-fft",
+    "kernel-fused",
+    "kernel-gather",
+    "kernel-matmul",
+    "kernel-mask",
+    "kernel-moe",
+    "kernel-normalization",
+    "kernel-pooling",
+    "kernel-positional",
+    "kernel-quantization",
+    "kernel-reduction",
+    "kernel-recurrent",
+    "kernel-scalar",
+    "kernel-shape",
+    "kernel-softmax",
+    "kernel-unary",
+]
+full = ["cutile", "kernels-all", "dtypes-all"]
+
+[dependencies]
+thiserror.workspace = true
+half.workspace = true
+num-complex.workspace = true
+cutile = { workspace = true, optional = true }
+cutile-compiler = { workspace = true, optional = true }
+singe-cuda = { workspace = true, optional = true }
+# we need this because it exports `DriverError`
+cuda-core = { version = "0.2.0", optional = true }
+
+[dev-dependencies]
+singe-core.workspace = true

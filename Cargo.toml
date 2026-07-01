@@ -27,6 +27,7 @@ members = [
     "singe-cusparse-sys",
     "singe-cutensor",
     "singe-cutensor-sys",
+    "singe-kernel",
     "singe-nvml",
     "singe-nvml-sys",
     "singe-nccl",
@@ -44,39 +45,40 @@ repository = "https://github.com/tinrab/singe"
 include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*"]
 
 [workspace.dependencies]
-singe-core = { path = "singe-core", version = "0.1.0-alpha.6" }
-singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.7" }
-singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.7" }
-singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.8" }
-singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.8" }
-singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0-alpha.7" }
-singe-cuda-sys = { path = "singe-cuda-sys", version = "0.1.0-alpha.7" }
-singe-cufile = { path = "singe-cufile", version = "0.1.0-alpha.6" }
-singe-cufile-sys = { path = "singe-cufile-sys", version = "0.1.0-alpha.6" }
-singe-curand = { path = "singe-curand", version = "0.1.0-alpha.1" }
-singe-curand-sys = { path = "singe-curand-sys", version = "0.1.0-alpha.1" }
-singe-cudnn = { path = "singe-cudnn", version = "0.1.0-alpha.6" }
-singe-cudnn-sys = { path = "singe-cudnn-sys", version = "0.1.0-alpha.6" }
+singe-core = { path = "singe-core", version = "0.1.0-alpha.7" }
+singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.8" }
+singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.8" }
+singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.9" }
+singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.9" }
+singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0-alpha.8" }
+singe-cuda-sys = { path = "singe-cuda-sys", version = "0.1.0-alpha.8" }
+singe-cufile = { path = "singe-cufile", version = "0.1.0-alpha.7" }
+singe-cufile-sys = { path = "singe-cufile-sys", version = "0.1.0-alpha.7" }
+singe-curand = { path = "singe-curand", version = "0.1.0-alpha.2" }
+singe-curand-sys = { path = "singe-curand-sys", version = "0.1.0-alpha.2" }
+singe-cudnn = { path = "singe-cudnn", version = "0.1.0-alpha.7" }
+singe-cudnn-sys = { path = "singe-cudnn-sys", version = "0.1.0-alpha.7" }
 singe-cudss = { path = "singe-cudss", version = "0.1.0-alpha.2" }
 singe-cudss-sys = { path = "singe-cudss-sys", version = "0.1.0-alpha.2" }
-singe-cufft = { path = "singe-cufft", version = "0.1.0-alpha.6" }
-singe-cufft-sys = { path = "singe-cufft-sys", version = "0.1.0-alpha.6" }
-singe-cusolver = { path = "singe-cusolver", version = "0.1.0-alpha.6" }
-singe-cusolver-sys = { path = "singe-cusolver-sys", version = "0.1.0-alpha.6" }
-singe-cupti = { path = "singe-cupti", version = "0.1.0-alpha.7" }
-singe-cupti-sys = { path = "singe-cupti-sys", version = "0.1.0-alpha.6" }
-singe-cusparse = { path = "singe-cusparse", version = "0.1.0-alpha.6" }
-singe-cusparse-sys = { path = "singe-cusparse-sys", version = "0.1.0-alpha.6" }
-singe-cutensor = { path = "singe-cutensor", version = "0.1.0-alpha.6" }
-singe-cutensor-sys = { path = "singe-cutensor-sys", version = "0.1.0-alpha.6" }
-singe-nccl = { path = "singe-nccl", version = "0.1.0-alpha.7" }
-singe-nccl-sys = { path = "singe-nccl-sys", version = "0.1.0-alpha.6" }
-singe-npp = { path = "singe-npp", version = "0.1.0-alpha.9" }
-singe-npp-sys = { path = "singe-npp-sys", version = "0.1.0-alpha.7" }
-singe-nvml = { path = "singe-nvml", version = "0.1.0-alpha.8" }
-singe-nvml-sys = { path = "singe-nvml-sys", version = "0.1.0-alpha.6" }
-singe-onnx = { path = "singe-onnx", version = "0.1.0-alpha.6" }
-singe-ptx = { path = "singe-ptx", version = "0.1.0-alpha.6" }
+singe-cufft = { path = "singe-cufft", version = "0.1.0-alpha.7" }
+singe-cufft-sys = { path = "singe-cufft-sys", version = "0.1.0-alpha.7" }
+singe-cusolver = { path = "singe-cusolver", version = "0.1.0-alpha.7" }
+singe-cusolver-sys = { path = "singe-cusolver-sys", version = "0.1.0-alpha.7" }
+singe-cupti = { path = "singe-cupti", version = "0.1.0-alpha.8" }
+singe-cupti-sys = { path = "singe-cupti-sys", version = "0.1.0-alpha.7" }
+singe-cusparse = { path = "singe-cusparse", version = "0.1.0-alpha.7" }
+singe-cusparse-sys = { path = "singe-cusparse-sys", version = "0.1.0-alpha.7" }
+singe-cutensor = { path = "singe-cutensor", version = "0.1.0-alpha.7" }
+singe-cutensor-sys = { path = "singe-cutensor-sys", version = "0.1.0-alpha.7" }
+singe-kernel = { path = "singe-kernel", version = "0.1.0-alpha.4" }
+singe-nccl = { path = "singe-nccl", version = "0.1.0-alpha.8" }
+singe-nccl-sys = { path = "singe-nccl-sys", version = "0.1.0-alpha.7" }
+singe-npp = { path = "singe-npp", version = "0.1.0-alpha.10" }
+singe-npp-sys = { path = "singe-npp-sys", version = "0.1.0-alpha.8" }
+singe-nvml = { path = "singe-nvml", version = "0.1.0-alpha.9" }
+singe-nvml-sys = { path = "singe-nvml-sys", version = "0.1.0-alpha.7" }
+singe-onnx = { path = "singe-onnx", version = "0.1.0-alpha.7" }
+singe-ptx = { path = "singe-ptx", version = "0.1.0-alpha.7" }
 
 thiserror = "2.0.18"
 num-traits = "0.2.19"

@@ -1,7 +1,7 @@
 [package]
 name = "singe-cutensor"
 description = "Safe Rust wrappers for NVIDIA cuTENSOR library."
-version = "0.1.0-alpha.6"
+version = "0.1.0-alpha.7"
 edition.workspace = true
 repository.workspace = true
 license-file = "../LICENSE"
