@@ -1,4 +1,10 @@
-use std::{cmp::Ordering, mem::ManuallyDrop, ptr, sync::Arc};
+use std::{
+    cmp::Ordering,
+    fmt::{self, Display, Formatter},
+    mem::ManuallyDrop,
+    ptr,
+    sync::Arc,
+};
 
 use singe_cuda_sys::{driver, runtime};
 
@@ -20,12 +26,24 @@ bitflags::bitflags! {
     }
 }
 
+impl Display for EventFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
+    }
+}
+
 bitflags::bitflags! {
     /// Flags for `Event::record_raw`.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct EventRecordFlags: u32 {
         const DEFAULT = runtime::cudaEventRecordDefault;
         const EXTERNAL = runtime::cudaEventRecordExternal;
+    }
+}
+
+impl Display for EventRecordFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 

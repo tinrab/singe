@@ -1,6 +1,9 @@
 #![allow(deprecated, non_camel_case_types)]
 
-use std::ptr;
+use std::{
+    fmt::{self, Display, Formatter},
+    ptr,
+};
 
 pub use num_complex::{Complex, Complex32, Complex64};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -195,12 +198,24 @@ bitflags::bitflags! {
     }
 }
 
+impl Display for GraphicsRegisterFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
+    }
+}
+
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct GraphicsMapResourceFlags: u32 {
         const NONE = driver::CUgraphicsMapResourceFlags::CU_GRAPHICS_MAP_RESOURCE_FLAGS_NONE as _;
         const READ_ONLY = driver::CUgraphicsMapResourceFlags::CU_GRAPHICS_MAP_RESOURCE_FLAGS_READ_ONLY as _;
         const WRITE_DISCARD = driver::CUgraphicsMapResourceFlags::CU_GRAPHICS_MAP_RESOURCE_FLAGS_WRITE_DISCARD as _;
+    }
+}
+
+impl Display for GraphicsMapResourceFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 
@@ -264,6 +279,12 @@ bitflags::bitflags! {
         const INFINITY = library_types::cudaEmulationSpecialValuesSupport::CUDA_EMULATION_SPECIAL_VALUES_SUPPORT_INFINITY as _;
         const NAN = library_types::cudaEmulationSpecialValuesSupport::CUDA_EMULATION_SPECIAL_VALUES_SUPPORT_NAN as _;
         const DEFAULT = library_types::cudaEmulationSpecialValuesSupport::CUDA_EMULATION_SPECIAL_VALUES_SUPPORT_DEFAULT as _;
+    }
+}
+
+impl Display for EmulationSpecialValuesSupport {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 

@@ -2,6 +2,7 @@
 
 use std::{
     ffi::CString,
+    fmt::{self, Display, Formatter},
     mem::{self, MaybeUninit},
 };
 
@@ -74,6 +75,12 @@ bitflags::bitflags! {
     pub struct PeerAccessFlags: u32 {
         /// Default peer-access behavior.
         const DEFAULT = runtime::cudaPeerAccessDefault;
+    }
+}
+
+impl Display for PeerAccessFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 

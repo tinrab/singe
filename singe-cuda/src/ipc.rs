@@ -1,4 +1,7 @@
-use std::{mem, ptr};
+use std::{
+    fmt::{self, Display, Formatter},
+    mem, ptr,
+};
 
 use singe_cuda_sys::{driver, runtime};
 
@@ -12,6 +15,12 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct IpcMemoryFlags: u32 {
         const LAZY_ENABLE_PEER_ACCESS = driver::CUipcMem_flags::CU_IPC_MEM_LAZY_ENABLE_PEER_ACCESS as _;
+    }
+}
+
+impl Display for IpcMemoryFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 

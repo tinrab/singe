@@ -1,4 +1,5 @@
 use std::{
+    fmt::{self, Display, Formatter},
     marker::PhantomData,
     mem::{self, MaybeUninit},
     ptr, slice,
@@ -151,6 +152,12 @@ bitflags::bitflags! {
     }
 }
 
+impl Display for MemoryAttachFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -273,6 +280,12 @@ bitflags::bitflags! {
     }
 }
 
+impl Display for HostAllocationFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
+    }
+}
+
 bitflags::bitflags! {
     /// Flags for [`DeviceMemory::register_host`].
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -282,6 +295,12 @@ bitflags::bitflags! {
         const MAPPED = runtime::cudaHostRegisterMapped;
         const IO_MEMORY = runtime::cudaHostRegisterIoMemory;
         const READ_ONLY = runtime::cudaHostRegisterReadOnly;
+    }
+}
+
+impl Display for HostRegisterFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 

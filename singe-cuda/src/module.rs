@@ -34,27 +34,7 @@ bitflags::bitflags! {
 
 impl Display for OccupancyFlags {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        if self.is_empty() {
-            return Ok(());
-        }
-        let mut first = true;
-        let write_sep = |f: &mut Formatter<'_>, first: &mut bool, name: &str| -> fmt::Result {
-            if *first {
-                *first = false;
-            } else {
-                f.write_str(" | ")?;
-            }
-            f.write_str(name)
-        };
-
-        if self.contains(Self::DEFAULT) {
-            write_sep(f, &mut first, "CU_OCCUPANCY_DEFAULT")?;
-        }
-        if self.contains(Self::DISABLE_CACHING_OVERRIDE) {
-            write_sep(f, &mut first, "CU_OCCUPANCY_DISABLE_CACHING_OVERRIDE")?;
-        }
-
-        Ok(())
+        bitflags::parser::to_writer(self, f)
     }
 }
 

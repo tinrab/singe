@@ -2,6 +2,7 @@
 
 use std::{
     ffi::c_void,
+    fmt::{self, Display, Formatter},
     marker::PhantomData,
     mem::{self, size_of},
     ptr,
@@ -43,6 +44,12 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ExternalMemoryFlags: u32 {
         const DEDICATED = driver::CUDA_EXTERNAL_MEMORY_DEDICATED;
+    }
+}
+
+impl Display for ExternalMemoryFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 

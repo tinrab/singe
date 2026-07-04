@@ -47,9 +47,8 @@ prepare:
     )
     for crate in "${crates[@]}"; do
         mkdir -p "./${crate}/dist"
-        cp ./assets/katex_header.html "./${crate}/dist/"
+        cp ./dist/katex_header.html "./${crate}/dist/"
     done
-
 
 generate:
     #!/usr/bin/env bash

@@ -1,4 +1,9 @@
-use std::{ffi::CString, mem, ptr, sync::Arc};
+use std::{
+    ffi::CString,
+    fmt::{self, Display, Formatter},
+    mem, ptr,
+    sync::Arc,
+};
 
 use singe_cuda_sys::driver;
 
@@ -27,6 +32,12 @@ bitflags::bitflags! {
         const COREDUMP_ENABLE = driver::CUctx_flags::CU_CTX_COREDUMP_ENABLE as _;
         const USER_COREDUMP_ENABLE = driver::CUctx_flags::CU_CTX_USER_COREDUMP_ENABLE as _;
         const SYNC_MEMORY_OPERATIONS = driver::CUctx_flags::CU_CTX_SYNC_MEMOPS as _;
+    }
+}
+
+impl Display for ContextFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 

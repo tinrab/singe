@@ -282,27 +282,7 @@ impl_enum_display!(AtomicsMode, {
 
 impl Display for MathMode {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut parts = Vec::new();
-        let base = *self - Self::DISALLOW_REDUCED_PRECISION_REDUCTION;
-        if base.is_empty() || base == Self::DEFAULT {
-            parts.push("CUBLAS_DEFAULT_MATH");
-        } else if base == Self::TENSOR_OP {
-            parts.push("CUBLAS_TENSOR_OP_MATH");
-        } else if base == Self::PEDANTIC {
-            parts.push("CUBLAS_PEDANTIC_MATH");
-        } else if base == Self::TF32_TENSOR_OP {
-            parts.push("CUBLAS_TF32_TENSOR_OP_MATH");
-        } else if base == Self::FP32_EMULATED_BF16X9 {
-            parts.push("CUBLAS_FP32_EMULATED_BF16X9_MATH");
-        } else if base == Self::FP64_EMULATED_FIXED_POINT {
-            parts.push("CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH");
-        } else {
-            return write!(f, "CUBLAS_MATH_UNKNOWN({})", self.bits());
-        }
-        if self.contains(Self::DISALLOW_REDUCED_PRECISION_REDUCTION) {
-            parts.push("CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION");
-        }
-        f.write_str(&parts.join(" | "))
+        bitflags::parser::to_writer(self, f)
     }
 }
 

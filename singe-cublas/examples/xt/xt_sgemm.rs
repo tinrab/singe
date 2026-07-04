@@ -3,12 +3,9 @@ use singe_cublas::{
     types::Operation,
     xt::{blas::sgemm, context::Context},
 };
-use singe_cuda::device::Device;
 
 fn main() -> Result<()> {
-    let device = Device::new(0);
     let ctx = Context::create()?;
-    ctx.select_devices(&[device])?;
     ctx.set_block_dim(64)?;
 
     let alpha = 1.0_f32;

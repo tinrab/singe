@@ -10,7 +10,7 @@ use crate::{
     xt::types::{BlasOperation, OperationType, PinningMemoryMode},
 };
 
-/// A stateful cuBLASXt handle.
+/// A stateful cuBLASXt handle with a fixed device selection.
 ///
 /// cuBLASXt routines are blocking host APIs that distribute BLAS3 work across the devices selected for this context.
 #[derive(Debug)]
@@ -27,12 +27,41 @@ struct Handle {
 unsafe impl Send for Handle {}
 
 impl Context {
-    /// Creates a cuBLASXt context.
+    /// Creates a cuBLASXt context for the current CUDA device.
+    ///
+    /// This is the single-device convenience constructor. Use
+    /// [`Context::create_for`] to select an explicit set of devices.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASXt cannot allocate the handle or returns a null handle.
+    /// Returns an error if CUDA cannot query the current device, cuBLASXt cannot
+    /// initialize that device, cuBLASXt cannot allocate the handle, or cuBLASXt
+    /// returns a null handle.
     pub fn create() -> Result<Self> {
+        let device = Device::current()?;
+        Self::create_for(&[device])
+    }
+
+    /// Creates a cuBLASXt context for `devices`.
+    ///
+    /// cuBLASXt treats device selection as static for a handle, so the selected
+    /// device set is part of context construction. Create another context to use
+    /// a different device set.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `devices` is empty, too long for cuBLASXt, contains
+    /// invalid device IDs, cuBLASXt cannot initialize one of the devices,
+    /// cuBLASXt cannot allocate the handle, or cuBLASXt returns a null handle.
+    pub fn create_for(devices: &[Device]) -> Result<Self> {
+        if devices.is_empty() {
+            return Err(Error::LengthMismatch {
+                name: "devices".into(),
+                expected: 1,
+                actual: 0,
+            });
+        }
+
         let mut handle = ptr::null_mut();
         unsafe {
             try_ffi!(sys::cublasXtCreate(&raw mut handle))?;
@@ -42,16 +71,21 @@ impl Context {
             return Err(Error::NullHandle);
         }
 
-        Ok(Self {
+        let context = Self {
             handle: Handle { raw: handle },
-        })
+        };
+        context.select_devices(devices)?;
+        Ok(context)
     }
 
     /// Wraps an existing cuBLASXt handle and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuBLASXt handle and must not be destroyed elsewhere after calling this function.
+    /// `handle` must be a valid cuBLASXt handle whose devices have already
+    /// been selected exactly once with `cublasXtDeviceSelect`. It must not be
+    /// destroyed elsewhere or reconfigured with `cublasXtDeviceSelect` after
+    /// calling this function.
     pub unsafe fn from_raw(handle: sys::cublasXtHandle_t) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -62,24 +96,7 @@ impl Context {
         })
     }
 
-    /// Selects the CUDA devices used by subsequent cuBLASXt math routines.
-    ///
-    /// cuBLASXt treats device selection as static for a handle.
-    /// Create another context to use a different device set.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `devices` is empty, too long for cuBLASXt, contains
-    /// invalid device IDs, or cuBLASXt cannot initialize one of the devices.
-    pub fn select_devices(&self, devices: &[Device]) -> Result<()> {
-        if devices.is_empty() {
-            return Err(Error::LengthMismatch {
-                name: "devices".into(),
-                expected: 1,
-                actual: 0,
-            });
-        }
-
+    fn select_devices(&self, devices: &[Device]) -> Result<()> {
         let mut device_ids = devices
             .iter()
             .map(|device| to_i32(device.id(), "device id"))
@@ -230,5 +247,24 @@ impl Drop for Handle {
                 eprintln!("failed to destroy cuBLASXt context: {err}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{error::Error, xt::context::Context};
+
+    #[test]
+    fn create_for_rejects_empty_devices() {
+        let err = Context::create_for(&[]).unwrap_err();
+
+        assert!(matches!(
+            err,
+            Error::LengthMismatch {
+                ref name,
+                expected: 1,
+                actual: 0,
+            } if name == "devices"
+        ));
     }
 }

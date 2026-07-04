@@ -1,3 +1,5 @@
+use std::fmt::{self, Display, Formatter};
+
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_core::{impl_enum_conversion, impl_enum_display};
 use singe_cublas_sys as sys;
@@ -603,6 +605,12 @@ bitflags::bitflags! {
     }
 }
 
+impl Display for PointerModeMask {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
+    }
+}
+
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct NumericalImplFlags: u64 {
@@ -628,5 +636,11 @@ bitflags::bitflags! {
         const INPUT_8F_E5M2 = sys::CUBLASLT_NUMERICAL_IMPL_FLAGS_INPUT_8F_E5M2 as _;
         const OP_INPUT_TYPE_MASK = sys::CUBLASLT_NUMERICAL_IMPL_FLAGS_OP_INPUT_TYPE_MASK as _;
         const GAUSSIAN = sys::CUBLASLT_NUMERICAL_IMPL_FLAGS_GAUSSIAN as _;
+    }
+}
+
+impl Display for NumericalImplFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }

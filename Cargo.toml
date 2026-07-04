@@ -46,7 +46,7 @@ include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*"]
 
 [workspace.dependencies]
 singe-core = { path = "singe-core", version = "0.1.0-alpha.7" }
-singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.8" }
+singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.9" }
 singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.8" }
 singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.9" }
 singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.9" }

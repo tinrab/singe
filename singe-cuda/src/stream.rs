@@ -1,7 +1,14 @@
 #[allow(unused_imports)]
 use crate::error::Status;
 
-use std::{iter, marker::PhantomData, mem::ManuallyDrop, panic, ptr, sync::Arc};
+use std::{
+    fmt::{self, Display, Formatter},
+    iter,
+    marker::PhantomData,
+    mem::ManuallyDrop,
+    panic, ptr,
+    sync::Arc,
+};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_core::impl_enum_conversion;
@@ -24,6 +31,12 @@ bitflags::bitflags! {
     pub struct StreamFlags: u32 {
         const DEFAULT = runtime::cudaStreamDefault;
         const NON_BLOCKING = runtime::cudaStreamNonBlocking;
+    }
+}
+
+impl Display for StreamFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        bitflags::parser::to_writer(self, f)
     }
 }
 

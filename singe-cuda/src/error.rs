@@ -2,6 +2,7 @@
 
 use std::{
     ffi::{CStr, NulError},
+    fmt::{self, Display, Formatter},
     io,
 };
 
@@ -164,8 +165,8 @@ impl Status {
     }
 }
 
-impl std::fmt::Display for Status {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Status {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Success => f.write_str("CUDA_SUCCESS"),
             Self::InvalidValue => f.write_str("CUDA_ERROR_INVALID_VALUE"),
