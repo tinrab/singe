@@ -1,10 +1,15 @@
 //! Inference-oriented fused operations that combine common model steps.
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use half::f16;
 
+#[must_use]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 pub fn rms_norm_gated_silu(
     input: &[f32],
     gate: &[f32],
@@ -33,6 +38,11 @@ pub fn rms_norm_gated_silu(
     out
 }
 
+#[must_use]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 pub fn rms_norm(input: &[f32], weight: &[f32], rows: usize, cols: usize, eps: f32) -> Vec<f32> {
     let mut out = vec![0.0f32; rows * cols];
     for row in 0..rows {
@@ -51,6 +61,11 @@ pub fn rms_norm(input: &[f32], weight: &[f32], rows: usize, cols: usize, eps: f3
     out
 }
 
+#[must_use]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 pub fn rms_norm_weight_offset(
     input: &[f32],
     weight: &[f32],
@@ -76,6 +91,7 @@ pub fn rms_norm_weight_offset(
     out
 }
 
+#[must_use]
 pub fn silu_and_mul_packed(input: &[f32], rows: usize, hidden: usize) -> Vec<f32> {
     let mut out = vec![0.0f32; rows * hidden];
     for row in 0..rows {
@@ -90,6 +106,7 @@ pub fn silu_and_mul_packed(input: &[f32], rows: usize, hidden: usize) -> Vec<f32
     out
 }
 
+#[must_use]
 pub fn mhc_apply_residual_f32(
     x: &[f32],
     f_out: &[f32],
@@ -108,7 +125,7 @@ pub fn mhc_apply_residual_f32(
                 for source_token in 0..n {
                     let y_res = y[batch_index * y_row + 2 * n + token * n + source_token];
                     let x_value = x[batch_index * n * channels + source_token * channels + channel];
-                    sum += y_res * x_value;
+                    sum = y_res.mul_add(x_value, sum);
                 }
                 out[batch_index * n * channels + token * channels + channel] = sum;
             }
@@ -117,6 +134,7 @@ pub fn mhc_apply_residual_f32(
     out
 }
 
+#[must_use]
 pub fn mhc_sinkhorn_f32(y: &[f32], batch: usize, n: usize) -> Vec<f32> {
     let mut out = y.to_vec();
     let y_row = n * (n + 2);
@@ -149,6 +167,15 @@ pub fn mhc_sinkhorn_f32(y: &[f32], batch: usize, n: usize) -> Vec<f32> {
     out
 }
 
+#[must_use]
+#[expect(
+    clippy::many_single_char_names,
+    reason = "kernel operand names follow the mathematical formula"
+)]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 pub fn mhc_gemm_rms_scale_f32(
     x: &[f32],
     w: &[f32],
@@ -167,14 +194,14 @@ pub fn mhc_gemm_rms_scale_f32(
         let mut rms_sum = 0.0f32;
         for k in 0..reduction {
             let value = x[row * reduction + k];
-            rms_sum += value * value;
+            rms_sum = value.mul_add(value, rms_sum);
         }
         let rms = (rms_sum / reduction as f32).sqrt();
         r[row] = rms;
         for column in 0..columns {
             let mut dot = 0.0f32;
             for k in 0..reduction {
-                dot += x[row * reduction + k] * w[k * columns + column];
+                dot = x[row * reduction + k].mul_add(w[k * columns + column], dot);
             }
             let scale = if column < n {
                 alpha_pre
@@ -196,27 +223,27 @@ pub fn mhc_gemm_rms_scale_f32(
     (y, r)
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 pub fn half_vec(values: &[f32]) -> Vec<f16> {
     values.iter().copied().map(f16::from_f32).collect()
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 pub fn half_to_f32(values: &[f16]) -> Vec<f32> {
     values.iter().map(|value| value.to_f32()).collect()
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 pub fn bfloat_vec(values: &[f32]) -> Vec<bf16> {
     values.iter().copied().map(bf16::from_f32).collect()
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 pub fn bfloat_to_f32(values: &[bf16]) -> Vec<f32> {
     values.iter().map(|value| value.to_f32()).collect()
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 pub fn round_bfloat_vec(values: &[f32]) -> Vec<f32> {
     values
         .iter()
@@ -231,7 +258,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rms_norm_weight_offset_changes_outputs() {
+    fn test_rms_norm_weight_offset_changes_outputs() {
         let input = vec![0.5f32, -1.0, 2.0, -0.25, 1.5, -0.75];
         let weight = vec![0.25f32, -0.5, 0.75];
         let rows = 2usize;
@@ -263,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn gated_rms_norm_zero_offset_is_distinct_from_offset_one() {
+    fn test_gated_rms_norm_zero_offset_is_distinct_from_offset_one() {
         let input = vec![0.5f32, -1.0, 2.0];
         let gate = vec![1.0f32, -0.5, 0.25];
         let weight = vec![0.25f32, -0.5, 0.75];

@@ -1,37 +1,57 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{ChannelLayout, ImageView, ImageViewMut},
-    pipeline::{ImageAllocator, Workspace},
+    image::{
+        Image, SupportedImage,
+        view::{ChannelLayout, ImageOutputView, ImageWindow},
+    },
+    pipeline::image::{
+        ImageBacking, ImagePipeline,
+        filtering::{FilterAxis, IntegerSeparableFilterImage},
+    },
 };
 
-use super::{ImageBacking, ImagePipeline, filtering::*};
-
-#[path = "filtering_separable_border_methods.rs"]
 mod border_methods;
 
-#[path = "filtering_separable_sum_window_methods.rs"]
 mod sum_window_methods;
 
-#[path = "filtering_separable_sum_window_border_methods.rs"]
 mod sum_window_border_methods;
 
-#[path = "filtering_separable_double_methods.rs"]
 mod double_methods;
 
-#[path = "filtering_float_separable_methods.rs"]
 mod float_methods;
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
     Self: IntegerSeparableFilterImage<T, L>,
 {
+    /// Applies a one-dimensional vertical filter with `i32` coefficients.
+    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
+    /// zero-based kernel origin along the filtered axis. The result retains the image sample
+    /// type. Passes the slice address directly as a device pointer, without uploading it;
+    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// Divides the convolved sum by `divisor` before conversion to the output sample type.
+    /// The wrapper forwards `divisor` without validation.
+    /// The source window must retain the parent-image halo needed for the vertical window
+    /// and anchor. Source-window and destination dimensions must match.
+    /// AC4 destination alpha retains its previous initialization state; this call does not
+    /// initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
+    /// `0..kernel.len()`.
+    /// The source window must match the destination size and retain the required halo.
     pub fn filter_column_into(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[i32],
         anchor: i32,
         divisor: i32,
@@ -46,10 +66,31 @@ where
         )
     }
 
+    /// Applies a one-dimensional horizontal filter with `i32` coefficients.
+    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
+    /// zero-based kernel origin along the filtered axis. The result retains the image sample
+    /// type. Passes the slice address directly as a device pointer, without uploading it;
+    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// Divides the convolved sum by `divisor` before conversion to the output sample type.
+    /// The wrapper forwards `divisor` without validation.
+    /// The source window must retain the parent-image halo needed for the horizontal window
+    /// and anchor. Source-window and destination dimensions must match.
+    /// AC4 destination alpha retains its previous initialization state; this call does not
+    /// initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
+    /// `0..kernel.len()`.
+    /// The source window must match the destination size and retain the required halo.
     pub fn filter_row_into(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[i32],
         anchor: i32,
         divisor: i32,
@@ -65,15 +106,36 @@ where
     }
 }
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
-    T: Copy,
+    T: Copy + SupportedImage<L>,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
     Self: IntegerSeparableFilterImage<T, L>,
 {
+    /// Applies a one-dimensional vertical filter with `i32` coefficients.
+    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
+    /// zero-based kernel origin along the filtered axis. The result retains the image sample
+    /// type. Passes the slice address directly as a device pointer, without uploading it;
+    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// Divides the convolved sum by `divisor` before conversion to the output sample type.
+    /// The wrapper forwards `divisor` without validation.
+    /// Allocates a new owned image for the valid source window. Reduces height by
+    /// `kernel.len() - 1` and preserves width.
+    /// Preserves AC4 alpha from the corresponding source window.
+    /// Prepares participating image regions, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
+    /// `0..kernel.len()`.
+    /// The source must contain the complete filter window and its valid output window.
+    /// Image allocation or view construction, including alpha preservation copies, can also fail.
     pub fn filter_column(self, kernel: &[i32], anchor: i32, divisor: i32) -> Result<Self> {
         self.integer_separable_filter(
+            FilterAxis::Column,
             kernel,
             anchor,
             divisor,
@@ -81,8 +143,30 @@ where
         )
     }
 
+    /// Applies a one-dimensional horizontal filter with `i32` coefficients.
+    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
+    /// zero-based kernel origin along the filtered axis. The result retains the image sample
+    /// type. Passes the slice address directly as a device pointer, without uploading it;
+    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// Divides the convolved sum by `divisor` before conversion to the output sample type.
+    /// The wrapper forwards `divisor` without validation.
+    /// Allocates a new owned image for the valid source window. Reduces width by
+    /// `kernel.len() - 1` and preserves height.
+    /// Preserves AC4 alpha from the corresponding source window.
+    /// Prepares participating image regions, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
+    /// `0..kernel.len()`.
+    /// The source must contain the complete filter window and its valid output window.
+    /// Image allocation or view construction, including alpha preservation copies, can also fail.
     pub fn filter_row(self, kernel: &[i32], anchor: i32, divisor: i32) -> Result<Self> {
         self.integer_separable_filter(
+            FilterAxis::Row,
             kernel,
             anchor,
             divisor,
@@ -92,23 +176,23 @@ where
 
     fn integer_separable_filter(
         self,
+        axis: FilterAxis,
         kernel: &[i32],
         anchor: i32,
         divisor: i32,
-        filter: fn(
-            &StreamContext,
-            &ImageView<'_, T, L>,
-            &mut ImageViewMut<'_, T, L>,
-            &[i32],
-            i32,
-            i32,
-        ) -> Result<()>,
+        filter: IntegerSeparableFilterCallback<L, T>,
     ) -> Result<Self> {
-        let mut destination = self.workspace.image::<T, L>(self.size())?;
+        self.ensure_eager()?;
+        let (mask, origin) = axis.geometry(kernel.len(), anchor)?;
+        let source = self.view()?.valid_window(mask, origin)?;
+        let mut destination =
+            Image::<T, L>::create_uninit(self.stream_context.cuda_context(), source.size())?;
 
         {
-            let source = self.view()?;
-            let mut destination_view = destination.view_mut()?;
+            let mut destination_view = destination.output()?;
+            if L::IGNORES_ALPHA {
+                destination_view.copy_from(&source.view())?;
+            }
             filter(
                 self.stream_context,
                 &source,
@@ -122,7 +206,17 @@ where
         Ok(Self {
             stream_context: self.stream_context,
             workspace: self.workspace,
-            backing: ImageBacking::Owned(destination),
+            // SAFETY: the completed operation above wrote every element.
+            backing: ImageBacking::Owned(unsafe { destination.assume_init() }),
         })
     }
 }
+
+type IntegerSeparableFilterCallback<L, T> = fn(
+    &StreamContext,
+    &ImageWindow<'_, T, L>,
+    &mut ImageOutputView<'_, T, L>,
+    &[i32],
+    i32,
+    i32,
+) -> Result<()>;

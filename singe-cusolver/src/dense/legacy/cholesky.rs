@@ -1,6 +1,8 @@
+use std::ptr;
+
 use singe_cuda::{
-    memory::DeviceMemory,
     types::{Complex32, Complex64},
+    view::{DeviceOutputView, DeviceViewMut},
 };
 
 use crate::{
@@ -11,7 +13,7 @@ use crate::{
         validate_square_matrix,
     },
     error::{Error, Result},
-    layout::{BatchedMatrixRef, BatchedVectorRef},
+    layout::{BatchedMatrixRef, BatchedVectorRef, MatrixLayout},
     sys, try_ffi,
     types::FillMode,
     utility::{to_i32, to_usize},
@@ -45,19 +47,25 @@ use crate::{
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions, leading dimension, or batch size are invalid, or if
 /// cuSOLVER reports an internal failure.
-pub fn spotrf_batched(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn spotrf_batched(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     a: BatchedMatrixRef<'_, f32>,
-    info: &mut DeviceMemory<i32>,
+    mut info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&info)?;
+    context.validate_region(&a.pointers)?;
     validate_batched_square_matrix_pointers(n, a)?;
-    require_info_entries(info, a.len())?;
+    require_info_entries(info.len(), a.len())?;
+    // SAFETY: `cusolverDnSpotrfBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSpotrfBatched(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr(),
@@ -97,19 +105,25 @@ pub fn spotrf_batched(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions, leading dimension, or batch size are invalid, or if
 /// cuSOLVER reports an internal failure.
-pub fn dpotrf_batched(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn dpotrf_batched(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     a: BatchedMatrixRef<'_, f64>,
-    info: &mut DeviceMemory<i32>,
+    mut info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&info)?;
+    context.validate_region(&a.pointers)?;
     validate_batched_square_matrix_pointers(n, a)?;
-    require_info_entries(info, a.len())?;
+    require_info_entries(info.len(), a.len())?;
+    // SAFETY: `cusolverDnDpotrfBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDpotrfBatched(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr(),
@@ -149,19 +163,25 @@ pub fn dpotrf_batched(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions, leading dimension, or batch size are invalid, or if
 /// cuSOLVER reports an internal failure.
-pub fn cpotrf_batched(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn cpotrf_batched(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     a: BatchedMatrixRef<'_, Complex32>,
-    info: &mut DeviceMemory<i32>,
+    mut info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&info)?;
+    context.validate_region(&a.pointers)?;
     validate_batched_square_matrix_pointers(n, a)?;
-    require_info_entries(info, a.len())?;
+    require_info_entries(info.len(), a.len())?;
+    // SAFETY: `cusolverDnCpotrfBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCpotrfBatched(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -201,19 +221,25 @@ pub fn cpotrf_batched(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions, leading dimension, or batch size are invalid, or if
 /// cuSOLVER reports an internal failure.
-pub fn zpotrf_batched(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn zpotrf_batched(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     a: BatchedMatrixRef<'_, Complex64>,
-    info: &mut DeviceMemory<i32>,
+    mut info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&info)?;
+    context.validate_region(&a.pointers)?;
     validate_batched_square_matrix_pointers(n, a)?;
-    require_info_entries(info, a.len())?;
+    require_info_entries(info.len(), a.len())?;
+    // SAFETY: `cusolverDnZpotrfBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZpotrfBatched(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -252,24 +278,31 @@ pub fn zpotrf_batched(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions, right-hand-side count, leading dimensions, or batch
 /// size are invalid, or if cuSOLVER reports an internal failure.
-pub fn spotrs_batched(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn spotrs_batched(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     a: BatchedMatrixRef<'_, f32>,
     b: BatchedVectorRef<'_, f32>,
-    info: &mut DeviceMemory<i32>,
+    mut info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&info)?;
+    context.validate_region(&a.pointers)?;
+    context.validate_region(&b.pointers)?;
     validate_batched_square_matrix_pointers(n, a)?;
     validate_batched_vector_pointers(n, b)?;
-    require_info_buffer(info)?;
+    require_info_buffer(info.len())?;
     if a.len() != b.len() {
         return Err(Error::InvalidMatrixShape);
     }
+    // SAFETY: `cusolverDnSpotrsBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSpotrsBatched(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             1,
@@ -311,24 +344,31 @@ pub fn spotrs_batched(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions, right-hand-side count, leading dimensions, or batch
 /// size are invalid, or if cuSOLVER reports an internal failure.
-pub fn dpotrs_batched(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn dpotrs_batched(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     a: BatchedMatrixRef<'_, f64>,
     b: BatchedVectorRef<'_, f64>,
-    info: &mut DeviceMemory<i32>,
+    mut info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&info)?;
+    context.validate_region(&a.pointers)?;
+    context.validate_region(&b.pointers)?;
     validate_batched_square_matrix_pointers(n, a)?;
     validate_batched_vector_pointers(n, b)?;
-    require_info_buffer(info)?;
+    require_info_buffer(info.len())?;
     if a.len() != b.len() {
         return Err(Error::InvalidMatrixShape);
     }
+    // SAFETY: `cusolverDnDpotrsBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDpotrsBatched(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             1,
@@ -370,24 +410,31 @@ pub fn dpotrs_batched(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions, right-hand-side count, leading dimensions, or batch
 /// size are invalid, or if cuSOLVER reports an internal failure.
-pub fn zpotrs_batched(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn zpotrs_batched(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     a: BatchedMatrixRef<'_, Complex64>,
     b: BatchedVectorRef<'_, Complex64>,
-    info: &mut DeviceMemory<i32>,
+    mut info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&info)?;
+    context.validate_region(&a.pointers)?;
+    context.validate_region(&b.pointers)?;
     validate_batched_square_matrix_pointers(n, a)?;
     validate_batched_vector_pointers(n, b)?;
-    require_info_buffer(info)?;
+    require_info_buffer(info.len())?;
     if a.len() != b.len() {
         return Err(Error::InvalidMatrixShape);
     }
+    // SAFETY: `cusolverDnZpotrsBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZpotrsBatched(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             1,
@@ -402,22 +449,77 @@ pub fn zpotrs_batched(
     Ok(())
 }
 
-pub fn spotri_buffer_size(
-    ctx: &Context,
+/// Solves one right-hand side for each complex single-precision Cholesky factor.
+///
+/// `info` produces one status for the call. Each right-hand side is overwritten
+/// by its solution; the unused triangle of each factor may be used as scratch.
+///
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, batch metadata or related pointer-table lengths are invalid, or cuSOLVER rejects the configuration or returns an error while submitting execution.
+pub unsafe fn cpotrs_batched(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<f32>,
+    a: BatchedMatrixRef<'_, Complex32>,
+    b: BatchedVectorRef<'_, Complex32>,
+    mut info: DeviceOutputView<'_, i32>,
+) -> Result<()> {
+    context.bind()?;
+    context.validate_region(&info)?;
+    context.validate_region(&a.pointers)?;
+    context.validate_region(&b.pointers)?;
+    validate_batched_square_matrix_pointers(n, a)?;
+    validate_batched_vector_pointers(n, b)?;
+    require_info_buffer(info.len())?;
+    if a.len() != b.len() {
+        return Err(Error::InvalidMatrixShape);
+    }
+    // SAFETY: `cusolverDnCpotrsBatched` receives live handles owned by the wrappers and valid output locations.
+    unsafe {
+        try_ffi!(sys::cusolverDnCpotrsBatched(
+            context.as_raw(),
+            fill_mode.into(),
+            to_i32(n, "n")?,
+            1,
+            a.as_mut_ptr().cast(),
+            to_i32(a.leading_dimension, "lda")?,
+            b.as_mut_ptr().cast(),
+            to_i32(b.leading_dimension, "ldb")?,
+            info.as_mut_ptr(),
+            to_i32(a.len(), "batch_size")?,
+        ))?;
+    }
+    Ok(())
+}
+
+/// Queries device workspace capacity in elements for `f32` Cholesky inversion.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn spotri_buffer_size(
+    context: &Context,
+    fill_mode: FillMode,
+    n: usize,
     lda: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_square_matrix(n, a.len(), lda)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(n, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnSpotri_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSpotri_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
-            a.as_mut_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
             &raw mut lwork,
         ))?;
@@ -425,22 +527,29 @@ pub fn spotri_buffer_size(
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for `f64` Cholesky inversion.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn dpotri_buffer_size(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<f64>,
     lda: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_square_matrix(n, a.len(), lda)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(n, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnDpotri_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDpotri_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
-            a.as_mut_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
             &raw mut lwork,
         ))?;
@@ -448,22 +557,29 @@ pub fn dpotri_buffer_size(
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for complex single-precision Cholesky inversion.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn cpotri_buffer_size(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<Complex32>,
     lda: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_square_matrix(n, a.len(), lda)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(n, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnCpotri_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCpotri_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
-            a.as_mut_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
             &raw mut lwork,
         ))?;
@@ -471,22 +587,29 @@ pub fn cpotri_buffer_size(
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for complex double-precision Cholesky inversion.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn zpotri_buffer_size(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<Complex64>,
     lda: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_square_matrix(n, a.len(), lda)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(n, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnZpotri_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZpotri_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
-            a.as_mut_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
             &raw mut lwork,
         ))?;
@@ -524,23 +647,30 @@ pub fn zpotri_buffer_size(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn spotri(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn spotri(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<f32>,
+    mut a: DeviceViewMut<'_, f32>,
     lda: usize,
-    workspace: &mut DeviceMemory<f32>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: DeviceOutputView<'_, f32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_square_matrix(n, a.len(), lda)?;
-    require_info_buffer(dev_info)?;
-    let lwork = spotri_buffer_size(ctx, fill_mode, n, a, lda)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = spotri_buffer_size(context, fill_mode, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnSpotri` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSpotri(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -583,23 +713,30 @@ pub fn spotri(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn dpotri(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn dpotri(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<f64>,
+    mut a: DeviceViewMut<'_, f64>,
     lda: usize,
-    workspace: &mut DeviceMemory<f64>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: DeviceOutputView<'_, f64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_square_matrix(n, a.len(), lda)?;
-    require_info_buffer(dev_info)?;
-    let lwork = dpotri_buffer_size(ctx, fill_mode, n, a, lda)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = dpotri_buffer_size(context, fill_mode, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnDpotri` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDpotri(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -642,23 +779,30 @@ pub fn dpotri(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn cpotri(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn cpotri(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<Complex32>,
+    mut a: DeviceViewMut<'_, Complex32>,
     lda: usize,
-    workspace: &mut DeviceMemory<Complex32>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: DeviceOutputView<'_, Complex32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_square_matrix(n, a.len(), lda)?;
-    require_info_buffer(dev_info)?;
-    let lwork = cpotri_buffer_size(ctx, fill_mode, n, a, lda)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = cpotri_buffer_size(context, fill_mode, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnCpotri` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCpotri(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -701,23 +845,30 @@ pub fn cpotri(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn zpotri(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn zpotri(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<Complex64>,
+    mut a: DeviceViewMut<'_, Complex64>,
     lda: usize,
-    workspace: &mut DeviceMemory<Complex64>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: DeviceOutputView<'_, Complex64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_square_matrix(n, a.len(), lda)?;
-    require_info_buffer(dev_info)?;
-    let lwork = zpotri_buffer_size(ctx, fill_mode, n, a, lda)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = zpotri_buffer_size(context, fill_mode, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnZpotri` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZpotri(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),

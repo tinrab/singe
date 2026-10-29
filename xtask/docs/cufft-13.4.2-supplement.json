@@ -1,0 +1,232 @@
+{
+  "CUDA_C_16BF": {
+    "doc": "16 bit complex as pair of nv_bfloat16",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_C_16F": {
+    "doc": "16 bit complex",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_C_32F": {
+    "doc": "32 bit complex",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_C_64F": {
+    "doc": "64 bit complex",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_C_8I": {
+    "doc": "8 bit complex as a pair of signed integers",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_C_8U": {
+    "doc": "8 bit complex as a pair of unsigned integers",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_R_16BF": {
+    "doc": "16 bit real as nv_bfloat16",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_R_16F": {
+    "doc": "16 bit real",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_R_32F": {
+    "doc": "32 bit real",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_R_64F": {
+    "doc": "64 bit real",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_R_8I": {
+    "doc": "8 bit real as a signed integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUDA_R_8U": {
+    "doc": "8 bit real as an unsigned integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_ALLOC_FAILED": {
+    "doc": "cuFFT failed to allocate GPU or CPU memory",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_C2C": {
+    "doc": "Complex to complex (interleaved)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_C2R": {
+    "doc": "Complex (interleaved) to real",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_D2Z": {
+    "doc": "Double to double-complex (interleaved)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_EXEC_FAILED": {
+    "doc": "Failed to execute an FFT on the GPU",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_INTERNAL_ERROR": {
+    "doc": "Driver or internal cuFFT library error",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_INVALID_DEVICE": {
+    "doc": "Execution of a plan was on different GPU than plan creation",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_INVALID_PLAN": {
+    "doc": "cuFFT was passed an invalid plan handle",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_INVALID_SIZE": {
+    "doc": "User specified an invalid transform size",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_INVALID_TYPE": {
+    "doc": "The cuFFT type provided is unsupported",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_INVALID_VALUE": {
+    "doc": "User specified an invalid pointer or parameter",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_MISSING_DEPENDENCY": {
+    "doc": "cuFFT is unable to find a dependency",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_NOT_IMPLEMENTED": {
+    "doc": "Function does not implement functionality for parameters given.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_NOT_SUPPORTED": {
+    "doc": "Operation is not supported for parameters given.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_NO_WORKSPACE": {
+    "doc": "No workspace has been provided prior to plan execution",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_NVJITLINK_FAILURE": {
+    "doc": "An nvJitLink failure was encountered during a cuFFT operation",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_NVRTC_FAILURE": {
+    "doc": "An NVRTC failure was encountered during a cuFFT operation",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_NVSHMEM_FAILURE": {
+    "doc": "An NVSHMEM failure was encountered during a cuFFT operation",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_R2C": {
+    "doc": "Real to complex (interleaved)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_SETUP_FAILED": {
+    "doc": "The cuFFT library failed to initialize",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_SUCCESS": {
+    "doc": "The cuFFT operation was successful",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_UNALIGNED_DATA": {
+    "doc": "Not currently in use",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_XT_FORMAT_1D_INPUT_SHUFFLED": {
+    "doc": "shuffled input order prior to execution of 1D transforms",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_XT_FORMAT_DISTRIBUTED_INPUT": {
+    "doc": "used for cuFFTMp only",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_XT_FORMAT_DISTRIBUTED_OUTPUT": {
+    "doc": "used for cuFFTMp only",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_XT_FORMAT_INPLACE": {
+    "doc": "by default inplace is input order, which is linear across GPUs",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_XT_FORMAT_INPLACE_SHUFFLED": {
+    "doc": "shuffled output order after execution of the transform",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_XT_FORMAT_INPUT": {
+    "doc": "by default input is in linear order across GPUs",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_XT_FORMAT_OUTPUT": {
+    "doc": "by default output is in scrambled order depending on transform",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_Z2D": {
+    "doc": "Double-complex (interleaved) to double",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "CUFFT_Z2Z": {
+    "doc": "Double-complex to double-complex (interleaved)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "NVFFT_PLAN_PROPERTY_INT64_BLUESTEIN_ONLY": {
+    "doc": "long long int",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "NVFFT_PLAN_PROPERTY_INT64_DISABLE_FMA": {
+    "doc": "long long int",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  },
+  "NVFFT_PLAN_PROPERTY_INT64_PATIENT_JIT": {
+    "doc": "long long int",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cufft/v13.4.2"
+  }
+}

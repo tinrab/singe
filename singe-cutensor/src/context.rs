@@ -1,4 +1,6 @@
-use std::{mem::ManuallyDrop, path::Path, ptr, sync::Arc};
+use std::{
+    cell::Cell, marker::PhantomData, mem, path::Path, ptr, result::Result as StdResult, sync::Arc,
+};
 
 use singe_core::path_to_cstring;
 use singe_cuda::{context::Context as CudaContext, stream::Stream};
@@ -6,7 +8,6 @@ use singe_cuda::{context::Context as CudaContext, stream::Stream};
 use crate::{
     error::{Error, Result},
     sys, try_ffi,
-    types::{LoggerLevel, LoggerMask},
     utility::to_u32,
 };
 
@@ -16,25 +17,42 @@ use crate::{
 /// between threads, but it is intentionally not `Clone` or `Sync`.
 #[derive(Debug)]
 pub struct Context {
-    handle: Handle,
+    handle: Arc<Handle>,
+    _not_sync: PhantomData<Cell<()>>,
 }
 
 #[derive(Debug)]
 struct Handle {
     raw: sys::cutensorHandle_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct ContextRef {
-    raw: sys::cutensorHandle_t,
-    cuda_ctx: Arc<CudaContext>,
+    handle: Arc<Handle>,
+    _not_sync: PhantomData<Cell<()>>,
 }
 
-// cuTENSOR handles own mutable plan-cache state. The owning wrapper and
+// SAFETY: cuTENSOR handles own mutable plan-cache state. The owning wrapper and
 // lightweight references may move between threads, but are not shared as Sync.
 unsafe impl Send for Handle {}
-unsafe impl Send for ContextRef {}
+
+// The private ownership record is immutable and native shared operations are thread-safe.
+// Cache resizing requires unique ownership; public wrappers remain !Sync through their markers.
+unsafe impl Sync for Handle {}
+
+/// A uniquely transferred cuTENSOR handle and the CUDA context needed to destroy it.
+/// Destroy `handle` before dropping this value, or reclaim it with `Context::from_raw`.
+#[derive(Debug)]
+pub struct RawContext {
+    /// Transferred native cuTENSOR handle; destroy it before releasing its CUDA context.
+    pub handle: sys::cutensorHandle_t,
+    /// Actual CUDA context required for using and destroying the transferred handle.
+    pub cuda_context: Arc<CudaContext>,
+}
+
+// SAFETY: transfer carries unique native ownership and its actual CUDA context.
+unsafe impl Send for RawContext {}
 
 impl Context {
     /// Initializes the cuTENSOR library and allocates the memory for the library context.
@@ -54,10 +72,11 @@ impl Context {
     ///
     /// Returns an error if the CUDA context cannot be bound, if cuTENSOR cannot
     /// create a handle, or if cuTENSOR returns a null handle.
-    pub fn create(cuda_ctx: &Arc<CudaContext>) -> Result<Self> {
-        cuda_ctx.bind()?;
+    pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
+        cuda_context.bind()?;
 
         let mut handle = ptr::null_mut();
+        // SAFETY: `cutensorCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cutensorCreate(&raw mut handle))?;
         }
@@ -67,10 +86,11 @@ impl Context {
         }
 
         Ok(Self {
-            handle: Handle {
+            handle: Arc::new(Handle {
                 raw: handle,
-                cuda_ctx: Arc::clone(cuda_ctx),
-            },
+                cuda_context: Arc::clone(cuda_context),
+            }),
+            _not_sync: PhantomData,
         })
     }
 
@@ -78,37 +98,49 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSOR handle associated with `cuda_ctx`.
+    /// `handle` must be a valid cuTENSOR handle associated with `cuda_context`.
     /// Ownership of `handle` is transferred to the returned context, and the
     /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw_parts(
         handle: sys::cutensorHandle_t,
-        cuda_ctx: Arc<CudaContext>,
+        cuda_context: Arc<CudaContext>,
     ) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
-            handle: Handle {
+            handle: Arc::new(Handle {
                 raw: handle,
-                cuda_ctx,
-            },
+                cuda_context,
+            }),
+            _not_sync: PhantomData,
         })
     }
 
+    /// Returns the actual CUDA context retained by this library handle.
+    #[must_use]
     pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.handle.cuda_ctx
+        &self.handle.cuda_context
     }
 
+    /// Makes this handle's retained CUDA context current.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA cannot bind the context.
     pub fn bind(&self) -> Result<()> {
         Ok(self.cuda_context().bind()?)
     }
 
     pub(crate) fn as_context_ref(&self) -> ContextRef {
         ContextRef {
-            raw: self.handle.raw,
-            cuda_ctx: Arc::clone(&self.handle.cuda_ctx),
+            handle: Arc::clone(&self.handle),
+            _not_sync: PhantomData,
         }
     }
 
@@ -126,11 +158,15 @@ impl Context {
     ///
     /// Returns an error if the context cannot be bound, `entry_count` cannot
     /// be represented for cuTENSOR, or cuTENSOR rejects the new cache size.
-    pub fn resize_plan_cache(&self, entry_count: usize) -> Result<()> {
+    pub fn resize_plan_cache(&mut self, entry_count: usize) -> Result<()> {
+        if Arc::get_mut(&mut self.handle).is_none() {
+            return Err(Error::OwnershipShared);
+        }
         self.bind()?;
 
         let entry_count = to_u32(entry_count, "entry_count")?;
 
+        // SAFETY: `cutensorHandleResizePlanCache` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cutensorHandleResizePlanCache(
                 self.as_raw(),
@@ -153,6 +189,7 @@ impl Context {
         self.bind()?;
 
         let path = path_to_cstring(path.as_ref())?;
+        // SAFETY: `cutensorHandleWritePlanCacheToFile` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorHandleWritePlanCacheToFile(
                 self.as_raw(),
@@ -180,6 +217,7 @@ impl Context {
 
         let path = path_to_cstring(path.as_ref())?;
         let mut cachelines_read = 0;
+        // SAFETY: `cutensorHandleReadPlanCacheFromFile` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorHandleReadPlanCacheFromFile(
                 self.as_raw(),
@@ -207,6 +245,7 @@ impl Context {
         self.bind()?;
 
         let path = path_to_cstring(path.as_ref())?;
+        // SAFETY: `cutensorWriteKernelCacheToFile` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorWriteKernelCacheToFile(
                 self.as_raw(),
@@ -234,6 +273,7 @@ impl Context {
         self.bind()?;
 
         let path = path_to_cstring(path.as_ref())?;
+        // SAFETY: `cutensorReadKernelCacheFromFile` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorReadKernelCacheFromFile(
                 self.as_raw(),
@@ -243,129 +283,76 @@ impl Context {
         Ok(())
     }
 
+    /// Checks that `stream` belongs to this handle's actual CUDA context and binds that context.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stream context differs or CUDA cannot bind the context.
     pub fn ensure_stream(&self, stream: &Stream) -> Result<()> {
-        if self.cuda_context().as_ref() != stream.context() {
+        if self.cuda_context() != stream.context() {
             return Err(Error::StreamContextMismatch);
         }
 
         self.bind()
     }
 
-    /// Sets the logging callback.
-    ///
-    /// # Safety
-    ///
-    /// `callback` must remain valid for every later cuTENSOR log event that may
-    /// call it and must follow cuTENSOR's callback requirements.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if cuTENSOR rejects the callback.
-    pub unsafe fn set_logger_callback(callback: sys::cutensorLoggerCallback_t) -> Result<()> {
-        unsafe {
-            try_ffi!(sys::cutensorLoggerSetCallback(callback))?;
-        }
-        Ok(())
-    }
-
-    /// Sets the logging level.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if cuTENSOR rejects the logging level.
-    pub fn set_logger_level(level: LoggerLevel) -> Result<()> {
-        unsafe {
-            try_ffi!(sys::cutensorLoggerSetLevel(level.as_raw()))?;
-        }
-        Ok(())
-    }
-
-    /// Sets the log mask.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if cuTENSOR rejects the logging mask.
-    pub fn set_logger_mask(mask: LoggerMask) -> Result<()> {
-        unsafe {
-            try_ffi!(sys::cutensorLoggerSetMask(mask.bits()))?;
-        }
-        Ok(())
-    }
-
-    /// Sets the logging output file.
-    ///
-    /// # Safety
-    ///
-    /// `file` must be a valid C `FILE` pointer for every later cuTENSOR log write
-    /// that may use it, or a null pointer if cuTENSOR accepts that for the active
-    /// logger configuration.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if cuTENSOR rejects the file pointer.
-    pub unsafe fn set_logger_file(file: *mut sys::FILE) -> Result<()> {
-        unsafe {
-            try_ffi!(sys::cutensorLoggerSetFile(file))?;
-        }
-        Ok(())
-    }
-
-    /// Sets the logging output file by path.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `path` cannot be converted to a C string or if
-    /// cuTENSOR cannot open the log file.
-    pub fn set_logger_path(path: impl AsRef<Path>) -> Result<()> {
-        let path = path_to_cstring(path.as_ref())?;
-        unsafe {
-            try_ffi!(sys::cutensorLoggerOpenFile(path.as_ptr()))?;
-        }
-        Ok(())
-    }
-
-    /// Disables logging for the entire run.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if cuTENSOR cannot disable logging.
-    pub fn disable_logger() -> Result<()> {
-        unsafe {
-            try_ffi!(sys::cutensorLoggerForceDisable())?;
-        }
-        Ok(())
-    }
-
     /// Returns the raw cuTENSOR handle.
     ///
     /// The returned handle is borrowed and remains valid only while this
     /// context and its underlying CUDA context are alive.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cutensorHandle_t {
         self.handle.raw
     }
 
-    /// Consumes the context and returns the raw cuTENSOR handle without
-    /// destroying it.
+    /// Reclaims a uniquely owned native handle and its actual CUDA context.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with cuTENSOR.
-    pub fn into_raw(self) -> sys::cutensorHandle_t {
-        let context = ManuallyDrop::new(self);
-        context.handle.raw
+    /// # Safety
+    ///
+    /// `handle` must remain valid and uniquely owned in the retained CUDA context.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(raw: RawContext) -> Result<Self> {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { Self::from_raw_parts(raw.handle, raw.cuda_context) }
+    }
+
+    /// Transfers the native handle and context if no dependent resources retain the handle.
+    /// Returns the original context when descriptors or plans still share ownership.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original context as `Err` if descriptors, operations, plans, or other dependent resources still retain the library handle.
+    pub fn into_raw(self) -> StdResult<RawContext, Self> {
+        match Arc::try_unwrap(self.handle) {
+            Ok(mut owner) => {
+                let handle = mem::replace(&mut owner.raw, ptr::null_mut());
+                Ok(RawContext {
+                    handle,
+                    cuda_context: Arc::clone(&owner.cuda_context),
+                })
+            }
+            Err(handle) => Err(Self {
+                handle,
+                _not_sync: PhantomData,
+            }),
+        }
     }
 }
 
 impl ContextRef {
     pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.cuda_ctx
+        &self.handle.cuda_context
     }
 
     pub fn bind(&self) -> Result<()> {
-        Ok(self.cuda_ctx.bind()?)
+        Ok(self.handle.cuda_context.bind()?)
     }
 
     pub fn ensure_stream(&self, stream: &Stream) -> Result<()> {
-        if self.cuda_context().as_ref() != stream.context() {
+        if self.cuda_context() != stream.context() {
             return Err(Error::StreamContextMismatch);
         }
 
@@ -373,7 +360,7 @@ impl ContextRef {
     }
 
     pub(crate) fn same_handle(&self, other: &Self) -> bool {
-        self.raw == other.raw
+        Arc::ptr_eq(&self.handle, &other.handle)
     }
 
     /// Returns the raw cuTENSOR handle.
@@ -381,7 +368,7 @@ impl ContextRef {
     /// The returned handle is borrowed and remains valid only while this
     /// context reference and its underlying CUDA context are alive.
     pub fn as_raw(&self) -> sys::cutensorHandle_t {
-        self.raw
+        self.handle.raw
     }
 }
 
@@ -391,22 +378,28 @@ pub(crate) fn validate_same_context(
     name: &str,
 ) -> Result<()> {
     if !expected.same_handle(actual) {
-        return Err(Error::ContextMismatch { name: name.into() });
+        return Err(Error::ContextMismatch {
+            name: name.to_owned().into(),
+        });
     }
     Ok(())
 }
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        if let Err(err) = self.cuda_ctx.bind() {
+        if self.raw.is_null() {
+            return;
+        }
+        if let Err(error) = self.cuda_context.bind() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying cutensor handle: {err}");
+            eprintln!("failed to bind cuda context before destroying cutensor handle: {error}");
         }
 
+        // SAFETY: `cutensorDestroy` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cutensorDestroy(self.raw)) {
+            if let Err(error) = try_ffi!(sys::cutensorDestroy(self.raw)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensor context: {err}");
+                eprintln!("failed to destroy cutensor context: {error}");
             }
         }
     }

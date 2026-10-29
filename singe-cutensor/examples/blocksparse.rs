@@ -1,4 +1,7 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, types::DevicePtr};
+use singe_cuda::{
+    context::Context as CudaContext, data_type::DataType, memory::DeviceMemory,
+    stream::StreamBinding, types::DevicePtr,
+};
 use singe_cutensor::{
     context::Context,
     error::Result,
@@ -38,6 +41,7 @@ fn block_elements(section_extents: &[Vec<u64>], modes: &[char], coordinates: &[i
 fn make_block_pointers<T>(memory: &DeviceMemory<T>, offsets: &[usize]) -> Vec<DevicePtr> {
     offsets
         .iter()
+        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
         .map(|&offset| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().add(offset).cast::<()>()) })
         .collect()
 }
@@ -93,10 +97,10 @@ fn main() -> Result<()> {
         .collect::<Vec<_>>();
     let host_c = vec![0.0_f32; c_offsets.last().copied().unwrap()];
 
-    let device_a = DeviceMemory::from_slice(&host_a)?;
-    let device_b = DeviceMemory::from_slice(&host_b)?;
-    let device_c_input = DeviceMemory::from_slice(&host_c)?;
-    let device_c_output = DeviceMemory::from_slice(&host_c)?;
+    let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
+    let device_b = DeviceMemory::from_slice(&cuda_context, &host_b)?;
+    let device_c_input = DeviceMemory::from_slice(&cuda_context, &host_c)?;
+    let device_c_output = DeviceMemory::from_slice(&cuda_context, &host_c)?;
 
     let descriptor_a = BlockSparseTensorDescriptor::create(
         &context,
@@ -105,7 +109,7 @@ fn main() -> Result<()> {
         2,
         &coordinates_a,
         None,
-        singe_cuda::data_type::DataType::F32,
+        DataType::F32,
     )?;
     let descriptor_b = BlockSparseTensorDescriptor::create(
         &context,
@@ -114,7 +118,7 @@ fn main() -> Result<()> {
         2,
         &coordinates_b,
         None,
-        singe_cuda::data_type::DataType::F32,
+        DataType::F32,
     )?;
     let descriptor_c = BlockSparseTensorDescriptor::create(
         &context,
@@ -123,7 +127,7 @@ fn main() -> Result<()> {
         2,
         &coordinates_c,
         None,
-        singe_cuda::data_type::DataType::F32,
+        DataType::F32,
     )?;
 
     let operation = OperationDescriptor::block_sparse_contraction(
@@ -143,7 +147,8 @@ fn main() -> Result<()> {
     )?;
     let plan = Plan::create(&context, &operation, &preference, workspace_size)?;
     let mut workspace = if plan.required_workspace_size() > 0 {
-        Some(DeviceMemory::<u8>::create(
+        Some(DeviceMemory::<u8>::create_uninit(
+            &cuda_context,
             plan.required_workspace_size_bytes()?,
         )?)
     } else {
@@ -158,17 +163,21 @@ fn main() -> Result<()> {
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
-    plan.block_sparse_contract(
-        &alpha,
-        &pointers_a,
-        &pointers_b,
-        &beta,
-        &pointers_c_input,
-        &mut pointers_c_output,
-        workspace.as_mut(),
-        &stream,
-    )?;
-    stream.synchronize()?;
+    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+        unsafe {
+            plan.block_sparse_contract(
+                &alpha,
+                &pointers_a,
+                &pointers_b,
+                &beta,
+                &pointers_c_input,
+                &mut pointers_c_output,
+                workspace.as_mut(),
+                &stream,
+            )
+        }
+    })?;
 
     let result = device_c_output.copy_to_host_vec()?;
     let mut expected = vec![0.0_f32; result.len()];

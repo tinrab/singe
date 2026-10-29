@@ -1,0 +1,3622 @@
+{
+  "NVML_AGGREGATE_ECC": {
+    "doc": "Aggregate counts persist across reboots (i.e. for the lifetime of the device).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlEccCounterType_t"
+  },
+  "NVML_CLOCK_COUNT": {
+    "doc": "Count of clock types.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv415nvmlClockType_t"
+  },
+  "NVML_CLOCK_GRAPHICS": {
+    "doc": "Graphics clock domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv415nvmlClockType_t"
+  },
+  "NVML_CLOCK_ID_APP_CLOCK_DEFAULT": {
+    "doc": "Default application clock target Deprecated, do not use.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlClockId_t"
+  },
+  "NVML_CLOCK_ID_APP_CLOCK_TARGET": {
+    "doc": "Target application clock. Deprecated, do not use.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlClockId_t"
+  },
+  "NVML_CLOCK_ID_COUNT": {
+    "doc": "Count of Clock Ids.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlClockId_t"
+  },
+  "NVML_CLOCK_ID_CURRENT": {
+    "doc": "Current actual clock value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlClockId_t"
+  },
+  "NVML_CLOCK_ID_CUSTOMER_BOOST_MAX": {
+    "doc": "OEM-defined maximum clock rate.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlClockId_t"
+  },
+  "NVML_CLOCK_MEM": {
+    "doc": "Memory clock domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv415nvmlClockType_t"
+  },
+  "NVML_CLOCK_SM": {
+    "doc": "SM clock domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv415nvmlClockType_t"
+  },
+  "NVML_CLOCK_VIDEO": {
+    "doc": "Video encoder/decoder clock domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv415nvmlClockType_t"
+  },
+  "NVML_COMPUTEMODE_DEFAULT": {
+    "doc": "Default compute mode — multiple contexts per device.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlComputeMode_t"
+  },
+  "NVML_COMPUTEMODE_EXCLUSIVE_PROCESS": {
+    "doc": "Compute-exclusive-process mode — only one context per device, usable from multiple threads at a time.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlComputeMode_t"
+  },
+  "NVML_COMPUTEMODE_EXCLUSIVE_THREAD": {
+    "doc": "Support Removed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlComputeMode_t"
+  },
+  "NVML_COMPUTEMODE_PROHIBITED": {
+    "doc": "Compute-prohibited mode — no contexts per device.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlComputeMode_t"
+  },
+  "NVML_CPER_ACCESS_TYPE_GPU": {
+    "doc": "Access GPU CPER records.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlCPER.html#_CPPv414nvmlCPERType_t"
+  },
+  "NVML_DEC_UTILIZATION_SAMPLES": {
+    "doc": "To represent percent of time during which NVDEC remains busy.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_DEVICE_ADDRESSING_MODE_ATS": {
+    "doc": "Address Translation Services mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv430nvmlDeviceAddressingModeType_t"
+  },
+  "NVML_DEVICE_ADDRESSING_MODE_HMM": {
+    "doc": "Heterogeneous Memory Management mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv430nvmlDeviceAddressingModeType_t"
+  },
+  "NVML_DEVICE_ADDRESSING_MODE_NONE": {
+    "doc": "No active mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv430nvmlDeviceAddressingModeType_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_COMPUTE_MEDIA_ENGINE_GPU": {
+    "doc": "Set/Get support for compute media engine vGPU profiles.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_DEVICE_STREAMING": {
+    "doc": "Query whether the vGPU profiles on the GPU supports migration data streaming.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_FRACTIONAL_MULTI_VGPU": {
+    "doc": "Query whether the fractional vGPU profiles on this GPU can be used in multi-vGPU configurations.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_HETEROGENEOUS_TIMESLICE_PROFILES": {
+    "doc": "Query whether the GPU support concurrent execution of timesliced vGPU profiles of differing types.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_HETEROGENEOUS_TIMESLICE_SIZES": {
+    "doc": "Query whether the GPU support concurrent execution of timesliced vGPU profiles of differing framebuffer sizes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_HOMOGENEOUS_PLACEMENTS": {
+    "doc": "Query whether the GPU supports reporting of placements of timesliced vGPU profiles with identical framebuffer sizes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_MIG_TIMESLICING_ENABLED": {
+    "doc": "Set/Get MIG timesliced mode reporting, without impacting the underlying functionality.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_MIG_TIMESLICING_SUPPORTED": {
+    "doc": "Query whether the GPU supports timesliced vGPU on MIG.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_MINI_QUARTER_GPU": {
+    "doc": "Set/Get support for mini-quarter vGPU profiles.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_READ_DEVICE_BUFFER_BW": {
+    "doc": "Query the GPU’s read_device_buffer expected bandwidth capacity in megabytes per second.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_WARM_UPDATE": {
+    "doc": "Query whether the GPU supports FSR and warm update.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DEVICE_VGPU_CAP_WRITE_DEVICE_BUFFER_BW": {
+    "doc": "Query the GPU’s write_device_buffer expected bandwidth capacity in megabytes per second.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlDeviceVgpuCapability_t"
+  },
+  "NVML_DRIVER_MCDM": {
+    "doc": "MCDM driver model — GPU treated as a Microsoft compute device.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlDriverModel_t"
+  },
+  "NVML_DRIVER_WDDM": {
+    "doc": "WDDM driver model — GPU treated as a display device.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlDriverModel_t"
+  },
+  "NVML_DRIVER_WDM": {
+    "doc": "WDM (TCC) model (deprecated) — GPU treated as a generic compute device.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlDriverModel_t"
+  },
+  "NVML_ECC_COUNTER_TYPE_COUNT": {
+    "doc": "Count of memory counter types.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlEccCounterType_t"
+  },
+  "NVML_ENCODER_QUERY_AV1": {
+    "doc": "AV1 encoder.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEncoderStructs.html#_CPPv417nvmlEncoderType_t"
+  },
+  "NVML_ENCODER_QUERY_H264": {
+    "doc": "H264 encoder.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEncoderStructs.html#_CPPv417nvmlEncoderType_t"
+  },
+  "NVML_ENCODER_QUERY_HEVC": {
+    "doc": "HEVC encoder.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEncoderStructs.html#_CPPv417nvmlEncoderType_t"
+  },
+  "NVML_ENCODER_QUERY_UNKNOWN": {
+    "doc": "Unknown encoder.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEncoderStructs.html#_CPPv417nvmlEncoderType_t"
+  },
+  "NVML_ENC_UTILIZATION_SAMPLES": {
+    "doc": "To represent percent of time during which NVENC remains busy.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_ERROR_ALREADY_INITIALIZED": {
+    "doc": "Multiple initializations are now allowed through ref counting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_ARGUMENT_VERSION_MISMATCH": {
+    "doc": "The provided version is invalid/unsupported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_CORRUPTED_INFOROM": {
+    "doc": "infoROM is corrupted.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_DEPRECATED": {
+    "doc": "The requested functionality has been deprecated.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_DRIVER_NOT_LOADED": {
+    "doc": "NVIDIA driver is not loaded.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_FREQ_NOT_SUPPORTED": {
+    "doc": "Ran out of critical resources, other than memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_FUNCTION_NOT_FOUND": {
+    "doc": "Local version of NVML doesn’t implement this function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_GPU_IS_LOST": {
+    "doc": "The GPU has fallen off the bus or has otherwise become inaccessible.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_GPU_NOT_FOUND": {
+    "doc": "No GPUs were found.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_INSUFFICIENT_POWER": {
+    "doc": "A device’s external power cables are not properly attached.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_INSUFFICIENT_RESOURCES": {
+    "doc": "Ran out of critical resources, other than memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_INSUFFICIENT_SIZE": {
+    "doc": "An input argument is not large enough.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_INVALID_ARGUMENT": {
+    "doc": "A supplied argument is invalid.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_INVALID_STATE": {
+    "doc": "Resource not in correct state to perform requested operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_IN_USE": {
+    "doc": "An operation cannot be performed because the GPU is currently in use.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_IRQ_ISSUE": {
+    "doc": "NVIDIA Kernel detected an interrupt issue with a GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_LIBRARY_NOT_FOUND": {
+    "doc": "NVML Shared Library couldn’t be found or loaded.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_LIB_RM_VERSION_MISMATCH": {
+    "doc": "RM detects a driver/library version mismatch.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_MEMORY": {
+    "doc": "Insufficient memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_NOT_FOUND": {
+    "doc": "A query to find an object was unsuccessful.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_NOT_READY": {
+    "doc": "The system is not ready for the request.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_NOT_SUPPORTED": {
+    "doc": "The requested operation is not available on target device.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_NO_DATA": {
+    "doc": "No data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_NO_PERMISSION": {
+    "doc": "The current user does not have permission for operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_OPERATING_SYSTEM": {
+    "doc": "The GPU control device has been blocked by the operating system/cgroups.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_RESET_REQUIRED": {
+    "doc": "The GPU requires a reset before it can be used again.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_RESET_TYPE_NOT_SUPPORTED": {
+    "doc": "Reset not supported for given device/parameters.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_TIMEOUT": {
+    "doc": "User provided timeout passed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_UNINITIALIZED": {
+    "doc": "NVML was not first initialized with nvmlInit().",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_UNKNOWN": {
+    "doc": "An internal driver error occurred.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_ERROR_VGPU_ECC_NOT_SUPPORTED": {
+    "doc": "The requested vgpu operation is not available on target device, becasue ECC is enabled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_EVENT_DATA_TYPE_GPU_OPERATIONAL_EVENT": {
+    "doc": "Structured GPU Operational Event data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv419nvmlEventDataType_t"
+  },
+  "NVML_EVENT_DATA_TYPE_NVML_EVENT": {
+    "doc": "NVML event-bit data. `eventType` contains an NVML event bit.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv419nvmlEventDataType_t"
+  },
+  "NVML_FAN_FAILED": {
+    "doc": "Fan has failed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlUnitStructs.html#_CPPv414nvmlFanState_t"
+  },
+  "NVML_FAN_NORMAL": {
+    "doc": "Fan is working properly.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlUnitStructs.html#_CPPv414nvmlFanState_t"
+  },
+  "NVML_FBC_SESSION_TYPE_CUDA": {
+    "doc": "CUDA.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlFBCStructs.html#_CPPv420nvmlFBCSessionType_t"
+  },
+  "NVML_FBC_SESSION_TYPE_HWENC": {
+    "doc": "HEnc.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlFBCStructs.html#_CPPv420nvmlFBCSessionType_t"
+  },
+  "NVML_FBC_SESSION_TYPE_TOSYS": {
+    "doc": "ToSys.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlFBCStructs.html#_CPPv420nvmlFBCSessionType_t"
+  },
+  "NVML_FBC_SESSION_TYPE_UNKNOWN": {
+    "doc": "Unknown.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlFBCStructs.html#_CPPv420nvmlFBCSessionType_t"
+  },
+  "NVML_FBC_SESSION_TYPE_VID": {
+    "doc": "Vid.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlFBCStructs.html#_CPPv420nvmlFBCSessionType_t"
+  },
+  "NVML_FEATURE_DISABLED": {
+    "doc": "Feature disabled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlEnableState_t"
+  },
+  "NVML_FEATURE_ENABLED": {
+    "doc": "Feature enabled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv417nvmlEnableState_t"
+  },
+  "NVML_GOM_ALL_ON": {
+    "doc": "Everything is enabled and running at full speed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv422nvmlGpuOperationMode_t"
+  },
+  "NVML_GOM_COMPUTE": {
+    "doc": "Designed for running only compute tasks. Graphics operations are not allowed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv422nvmlGpuOperationMode_t"
+  },
+  "NVML_GOM_LOW_DP": {
+    "doc": "Designed for running graphics applications that don’t require high bandwidth double precision.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv422nvmlGpuOperationMode_t"
+  },
+  "NVML_GPM_METRIC_ANY_TENSOR_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing ANY tensor operations. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_DATA_RX_PER_SEC": {
+    "doc": "C2C data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_DATA_TX_PER_SEC": {
+    "doc": "C2C data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK0_DATA_RX_PER_SEC": {
+    "doc": "C2C link 0 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK0_DATA_TX_PER_SEC": {
+    "doc": "C2C link 0 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK0_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 0 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK0_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 0 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK10_DATA_RX_PER_SEC": {
+    "doc": "C2C link 10 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK10_DATA_TX_PER_SEC": {
+    "doc": "C2C link 10 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK10_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 10 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK10_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 10 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK11_DATA_RX_PER_SEC": {
+    "doc": "C2C link 11 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK11_DATA_TX_PER_SEC": {
+    "doc": "C2C link 11 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK11_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 11 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK11_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 11 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK12_DATA_RX_PER_SEC": {
+    "doc": "C2C link 12 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK12_DATA_TX_PER_SEC": {
+    "doc": "C2C link 12 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK12_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 12 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK12_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 12 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK13_DATA_RX_PER_SEC": {
+    "doc": "C2C link 13 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK13_DATA_TX_PER_SEC": {
+    "doc": "C2C link 13 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK13_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 13 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK13_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 13 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK1_DATA_RX_PER_SEC": {
+    "doc": "C2C link 1 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK1_DATA_TX_PER_SEC": {
+    "doc": "C2C link 1 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK1_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 1 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK1_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 1 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK2_DATA_RX_PER_SEC": {
+    "doc": "C2C link 2 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK2_DATA_TX_PER_SEC": {
+    "doc": "C2C link 2 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK2_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 2 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK2_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 2 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK3_DATA_RX_PER_SEC": {
+    "doc": "C2C link 3 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK3_DATA_TX_PER_SEC": {
+    "doc": "C2C link 3 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK3_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 3 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK3_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 3 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK4_DATA_RX_PER_SEC": {
+    "doc": "C2C link 4 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK4_DATA_TX_PER_SEC": {
+    "doc": "C2C link 4 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK4_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 4 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK4_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 4 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK5_DATA_RX_PER_SEC": {
+    "doc": "C2C link 5 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK5_DATA_TX_PER_SEC": {
+    "doc": "C2C link 5 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK5_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 5 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK5_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 5 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK6_DATA_RX_PER_SEC": {
+    "doc": "C2C link 6 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK6_DATA_TX_PER_SEC": {
+    "doc": "C2C link 6 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK6_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 6 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK6_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 6 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK7_DATA_RX_PER_SEC": {
+    "doc": "C2C link 7 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK7_DATA_TX_PER_SEC": {
+    "doc": "C2C link 7 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK7_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 7 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK7_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 7 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK8_DATA_RX_PER_SEC": {
+    "doc": "C2C link 8 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK8_DATA_TX_PER_SEC": {
+    "doc": "C2C link 8 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK8_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 8 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK8_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 8 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK9_DATA_RX_PER_SEC": {
+    "doc": "C2C link 9 data receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK9_DATA_TX_PER_SEC": {
+    "doc": "C2C link 9 data transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK9_TOTAL_RX_PER_SEC": {
+    "doc": "C2C link 9 total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_LINK9_TOTAL_TX_PER_SEC": {
+    "doc": "C2C link 9 total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_TOTAL_RX_PER_SEC": {
+    "doc": "C2C total receive bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_C2C_TOTAL_TX_PER_SEC": {
+    "doc": "C2C total transmit bandwidth in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_DFMA_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM DFMA tensor activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_DFMA_TENSOR_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing DFMA tensor operations. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_DMMA_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM DMMA tensor activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_DMMA_TENSOR_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing DMMA tensor operations. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_DRAM_BW_UTIL": {
+    "doc": "Percentage of DRAM bw used vs theoretical maximum. 0.0 - 100.0 \\*/.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_DRAM_CACHE_HIT": {
+    "doc": "Percentage of DRAM cache hits. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_DRAM_CACHE_MISS": {
+    "doc": "Percentage of DRAM cache misses. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_FP16_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM FP16 activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_FP16_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing non-tensor FP16 math. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_FP32_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM FP32 activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_FP32_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing non-tensor FP32 math. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_FP64_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM FP64 activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_FP64_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing non-tensor FP64 math. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR0_CTXSW_ACTIVE_PCT": {
+    "doc": "Percentage of time GR engine 0 context switches were active. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR0_CTXSW_CYCLES_ACTIVE": {
+    "doc": "Active context switch cycles for GR engine 0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR0_CTXSW_CYCLES_ELAPSED": {
+    "doc": "Total context switch cycles elapsed for GR engine 0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR0_CTXSW_CYCLES_PER_REQ": {
+    "doc": "Average context switch cycles per request for GR engine 0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR0_CTXSW_REQUESTS": {
+    "doc": "Number of context switch requests for GR engine 0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR1_CTXSW_ACTIVE_PCT": {
+    "doc": "Percentage of time GR engine 1 context switches were active. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR1_CTXSW_CYCLES_ACTIVE": {
+    "doc": "Active context switch cycles for GR engine 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR1_CTXSW_CYCLES_ELAPSED": {
+    "doc": "Total context switch cycles elapsed for GR engine 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR1_CTXSW_CYCLES_PER_REQ": {
+    "doc": "Average context switch cycles per request for GR engine 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR1_CTXSW_REQUESTS": {
+    "doc": "Number of context switch requests for GR engine 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR2_CTXSW_ACTIVE_PCT": {
+    "doc": "Percentage of time GR engine 2 context switches were active. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR2_CTXSW_CYCLES_ACTIVE": {
+    "doc": "Active context switch cycles for GR engine 2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR2_CTXSW_CYCLES_ELAPSED": {
+    "doc": "Total context switch cycles elapsed for GR engine 2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR2_CTXSW_CYCLES_PER_REQ": {
+    "doc": "Average context switch cycles per request for GR engine 2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR2_CTXSW_REQUESTS": {
+    "doc": "Number of context switch requests for GR engine 2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR3_CTXSW_ACTIVE_PCT": {
+    "doc": "Percentage of time GR engine 3 context switches were active. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR3_CTXSW_CYCLES_ACTIVE": {
+    "doc": "Active context switch cycles for GR engine 3.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR3_CTXSW_CYCLES_ELAPSED": {
+    "doc": "Total context switch cycles elapsed for GR engine 3.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR3_CTXSW_CYCLES_PER_REQ": {
+    "doc": "Average context switch cycles per request for GR engine 3.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR3_CTXSW_REQUESTS": {
+    "doc": "Number of context switch requests for GR engine 3.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR4_CTXSW_ACTIVE_PCT": {
+    "doc": "Percentage of time GR engine 4 context switches were active. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR4_CTXSW_CYCLES_ACTIVE": {
+    "doc": "Active context switch cycles for GR engine 4.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR4_CTXSW_CYCLES_ELAPSED": {
+    "doc": "Total context switch cycles elapsed for GR engine 4.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR4_CTXSW_CYCLES_PER_REQ": {
+    "doc": "Average context switch cycles per request for GR engine 4.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR4_CTXSW_REQUESTS": {
+    "doc": "Number of context switch requests for GR engine 4.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR5_CTXSW_ACTIVE_PCT": {
+    "doc": "Percentage of time GR engine 5 context switches were active. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR5_CTXSW_CYCLES_ACTIVE": {
+    "doc": "Active context switch cycles for GR engine 5.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR5_CTXSW_CYCLES_ELAPSED": {
+    "doc": "Total context switch cycles elapsed for GR engine 5.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR5_CTXSW_CYCLES_PER_REQ": {
+    "doc": "Average context switch cycles per request for GR engine 5.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR5_CTXSW_REQUESTS": {
+    "doc": "Number of context switch requests for GR engine 5.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR6_CTXSW_ACTIVE_PCT": {
+    "doc": "Percentage of time GR engine 6 context switches were active. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR6_CTXSW_CYCLES_ACTIVE": {
+    "doc": "Active context switch cycles for GR engine 6.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR6_CTXSW_CYCLES_ELAPSED": {
+    "doc": "Total context switch cycles elapsed for GR engine 6.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR6_CTXSW_CYCLES_PER_REQ": {
+    "doc": "Average context switch cycles per request for GR engine 6.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR6_CTXSW_REQUESTS": {
+    "doc": "Number of context switch requests for GR engine 6.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR7_CTXSW_ACTIVE_PCT": {
+    "doc": "Percentage of time GR engine 7 context switches were active. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR7_CTXSW_CYCLES_ACTIVE": {
+    "doc": "Active context switch cycles for GR engine 7.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR7_CTXSW_CYCLES_ELAPSED": {
+    "doc": "Total context switch cycles elapsed for GR engine 7.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR7_CTXSW_CYCLES_PER_REQ": {
+    "doc": "Average context switch cycles per request for GR engine 7.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GR7_CTXSW_REQUESTS": {
+    "doc": "Number of context switch requests for GR engine 7.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_GRAPHICS_UTIL": {
+    "doc": "Percentage of time any compute/graphics app was active on the GPU. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_HMMA_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM HMMA tensor activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_HMMA_TENSOR_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing HMMA tensor operations. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_HOSTMEM_CACHE_HIT": {
+    "doc": "Percentage of host memory cache hits. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_HOSTMEM_CACHE_MISS": {
+    "doc": "Percentage of host memory cache misses. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_IMMA_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM IMMA tensor activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_IMMA_TENSOR_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing IMMA tensor operations. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_INTEGER_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM integer activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_INTEGER_UTIL": {
+    "doc": "Percentage of time the GPU’s SMs were doing integer operations. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_MAX": {
+    "doc": "Maximum value above +1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_MMA_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM MMA tensor activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVDEC_0_UTIL": {
+    "doc": "Percent utilization of NVDEC 0. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVDEC_1_UTIL": {
+    "doc": "Percent utilization of NVDEC 1. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVDEC_2_UTIL": {
+    "doc": "Percent utilization of NVDEC 2. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVDEC_3_UTIL": {
+    "doc": "Percent utilization of NVDEC 3. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVDEC_4_UTIL": {
+    "doc": "Percent utilization of NVDEC 4. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVDEC_5_UTIL": {
+    "doc": "Percent utilization of NVDEC 5. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVDEC_6_UTIL": {
+    "doc": "Percent utilization of NVDEC 6. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVDEC_7_UTIL": {
+    "doc": "Percent utilization of NVDEC 7. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVENC_0_UTIL": {
+    "doc": "Percent utilization of NVENC 0. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVENC_1_UTIL": {
+    "doc": "Percent utilization of NVENC 1. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVENC_2_UTIL": {
+    "doc": "Percent utilization of NVENC 2. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVENC_3_UTIL": {
+    "doc": "Percent utilization of NVENC 3. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVJPG_0_UTIL": {
+    "doc": "Percent utilization of NVJPG 0. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVJPG_1_UTIL": {
+    "doc": "Percent utilization of NVJPG 1. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVJPG_2_UTIL": {
+    "doc": "Percent utilization of NVJPG 2. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVJPG_3_UTIL": {
+    "doc": "Percent utilization of NVJPG 3. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVJPG_4_UTIL": {
+    "doc": "Percent utilization of NVJPG 4. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVJPG_5_UTIL": {
+    "doc": "Percent utilization of NVJPG 5. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVJPG_6_UTIL": {
+    "doc": "Percent utilization of NVJPG 6. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVJPG_7_UTIL": {
+    "doc": "Percent utilization of NVJPG 7. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L0_RX": {
+    "doc": "NvLink read for link 0 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L0_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 0 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L0_TX": {
+    "doc": "NvLink write for link 0 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L0_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 0 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L10_RX": {
+    "doc": "NvLink read for link 10 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L10_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 10 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L10_TX": {
+    "doc": "NvLink write for link 10 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L10_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 10 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L11_RX": {
+    "doc": "NvLink read for link 11 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L11_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 11 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L11_TX": {
+    "doc": "NvLink write for link 11 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L11_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 11 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L12_RX": {
+    "doc": "NvLink read for link 12 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L12_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 12 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L12_TX": {
+    "doc": "NvLink write for link 12 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L12_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 12 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L13_RX": {
+    "doc": "NvLink read for link 13 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L13_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 13 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L13_TX": {
+    "doc": "NvLink write for link 13 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L13_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 13 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L14_RX": {
+    "doc": "NvLink read for link 14 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L14_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 14 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L14_TX": {
+    "doc": "NvLink write for link 14 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L14_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 14 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L15_RX": {
+    "doc": "NvLink read for link 15 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L15_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 15 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L15_TX": {
+    "doc": "NvLink write for link 15 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L15_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 15 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L16_RX": {
+    "doc": "NvLink read for link 16 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L16_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 16 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L16_TX": {
+    "doc": "NvLink write for link 16 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L16_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 16 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L17_RX": {
+    "doc": "NvLink read for link 17 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L17_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 17 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L17_TX": {
+    "doc": "NvLink write for link 17 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L17_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 17 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L18_RX": {
+    "doc": "NvLink read for link 18 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L18_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 18 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L18_TX": {
+    "doc": "NvLink write for link 18 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L18_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 18 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L19_RX": {
+    "doc": "NvLink read for link 19 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L19_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 19 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L19_TX": {
+    "doc": "NvLink write for link 19 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L19_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 19 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L1_RX": {
+    "doc": "NvLink read for link 1 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L1_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 1 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L1_TX": {
+    "doc": "NvLink write for link 1 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L1_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 1 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L20_RX": {
+    "doc": "NvLink read for link 20 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L20_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 20 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L20_TX": {
+    "doc": "NvLink write for link 20 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L20_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 20 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L21_RX": {
+    "doc": "NvLink read for link 21 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L21_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 21 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L21_TX": {
+    "doc": "NvLink write for link 21 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L21_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 21 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L22_RX": {
+    "doc": "NvLink read for link 22 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L22_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 22 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L22_TX": {
+    "doc": "NvLink write for link 22 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L22_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 22 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L23_RX": {
+    "doc": "NvLink read for link 23 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L23_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 23 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L23_TX": {
+    "doc": "NvLink write for link 23 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L23_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 23 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L24_RX": {
+    "doc": "NvLink read for link 24 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L24_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 24 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L24_TX": {
+    "doc": "NvLink write for link 24 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L24_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 24 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L25_RX": {
+    "doc": "NvLink read for link 25 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L25_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 25 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L25_TX": {
+    "doc": "NvLink write for link 25 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L25_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 25 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L26_RX": {
+    "doc": "NvLink read for link 26 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L26_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 26 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L26_TX": {
+    "doc": "NvLink write for link 26 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L26_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 26 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L27_RX": {
+    "doc": "NvLink read for link 27 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L27_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 27 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L27_TX": {
+    "doc": "NvLink write for link 27 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L27_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 27 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L28_RX": {
+    "doc": "NvLink read for link 28 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L28_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 28 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L28_TX": {
+    "doc": "NvLink write for link 28 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L28_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 28 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L29_RX": {
+    "doc": "NvLink read for link 29 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L29_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 29 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L29_TX": {
+    "doc": "NvLink write for link 29 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L29_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 29 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L2_RX": {
+    "doc": "NvLink read for link 2 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L2_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 2 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L2_TX": {
+    "doc": "NvLink write for link 2 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L2_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 2 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L30_RX": {
+    "doc": "NvLink read for link 30 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L30_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 30 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L30_TX": {
+    "doc": "NvLink write for link 30 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L30_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 30 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L31_RX": {
+    "doc": "NvLink read for link 31 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L31_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 31 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L31_TX": {
+    "doc": "NvLink write for link 31 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L31_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 31 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L32_RX": {
+    "doc": "NvLink read for link 32 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L32_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 32 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L32_TX": {
+    "doc": "NvLink write for link 32 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L32_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 32 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L33_RX": {
+    "doc": "NvLink read for link 33 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L33_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 33 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L33_TX": {
+    "doc": "NvLink write for link 33 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L33_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 33 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L34_RX": {
+    "doc": "NvLink read for link 34 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L34_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 34 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L34_TX": {
+    "doc": "NvLink write for link 34 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L34_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 34 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L35_RX": {
+    "doc": "NvLink read for link 35 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L35_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 35 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L35_TX": {
+    "doc": "NvLink write for link 35 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L35_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 35 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L36_RX": {
+    "doc": "NvLink read for link 36 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L36_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 36 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L36_TX": {
+    "doc": "NvLink write for link 36 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L36_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 36 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L37_RX": {
+    "doc": "NvLink read for link 37 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L37_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 37 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L37_TX": {
+    "doc": "NvLink write for link 37 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L37_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 37 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L38_RX": {
+    "doc": "NvLink read for link 38 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L38_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 38 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L38_TX": {
+    "doc": "NvLink write for link 38 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L38_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 38 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L39_RX": {
+    "doc": "NvLink read for link 39 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L39_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 39 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L39_TX": {
+    "doc": "NvLink write for link 39 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L39_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 39 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L3_RX": {
+    "doc": "NvLink read for link 3 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L3_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 3 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L3_TX": {
+    "doc": "NvLink write for link 3 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L3_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 3 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L40_RX": {
+    "doc": "NvLink read for link 40 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L40_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 40 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L40_TX": {
+    "doc": "NvLink write for link 40 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L40_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 40 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L41_RX": {
+    "doc": "NvLink read for link 41 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L41_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 41 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L41_TX": {
+    "doc": "NvLink write for link 41 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L41_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 41 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L42_RX": {
+    "doc": "NvLink read for link 42 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L42_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 42 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L42_TX": {
+    "doc": "NvLink write for link 42 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L42_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 42 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L43_RX": {
+    "doc": "NvLink read for link 43 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L43_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 43 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L43_TX": {
+    "doc": "NvLink write for link 43 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L43_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 43 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L44_RX": {
+    "doc": "NvLink read for link 44 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L44_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 44 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L44_TX": {
+    "doc": "NvLink write for link 44 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L44_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 44 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L45_RX": {
+    "doc": "NvLink read for link 45 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L45_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 45 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L45_TX": {
+    "doc": "NvLink write for link 45 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L45_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 45 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L46_RX": {
+    "doc": "NvLink read for link 46 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L46_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 46 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L46_TX": {
+    "doc": "NvLink write for link 46 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L46_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 46 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L47_RX": {
+    "doc": "NvLink read for link 47 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L47_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 47 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L47_TX": {
+    "doc": "NvLink write for link 47 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L47_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 47 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L48_RX": {
+    "doc": "NvLink read for link 48 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L48_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 48 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L48_TX": {
+    "doc": "NvLink write for link 48 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L48_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 48 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L49_RX": {
+    "doc": "NvLink read for link 49 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L49_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 49 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L49_TX": {
+    "doc": "NvLink write for link 49 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L49_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 49 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L4_RX": {
+    "doc": "NvLink read for link 4 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L4_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 4 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L4_TX": {
+    "doc": "NvLink write for link 4 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L4_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 4 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L50_RX": {
+    "doc": "NvLink read for link 50 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L50_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 50 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L50_TX": {
+    "doc": "NvLink write for link 50 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L50_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 50 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L51_RX": {
+    "doc": "NvLink read for link 51 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L51_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 51 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L51_TX": {
+    "doc": "NvLink write for link 51 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L51_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 51 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L52_RX": {
+    "doc": "NvLink read for link 52 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L52_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 52 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L52_TX": {
+    "doc": "NvLink write for link 52 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L52_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 52 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L53_RX": {
+    "doc": "NvLink read for link 53 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L53_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 53 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L53_TX": {
+    "doc": "NvLink write for link 53 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L53_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 53 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L54_RX": {
+    "doc": "NvLink read for link 54 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L54_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 54 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L54_TX": {
+    "doc": "NvLink write for link 54 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L54_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 54 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L55_RX": {
+    "doc": "NvLink read for link 55 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L55_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 55 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L55_TX": {
+    "doc": "NvLink write for link 55 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L55_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 55 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L56_RX": {
+    "doc": "NvLink read for link 56 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L56_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 56 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L56_TX": {
+    "doc": "NvLink write for link 56 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L56_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 56 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L57_RX": {
+    "doc": "NvLink read for link 57 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L57_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 57 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L57_TX": {
+    "doc": "NvLink write for link 57 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L57_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 57 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L58_RX": {
+    "doc": "NvLink read for link 58 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L58_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 58 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L58_TX": {
+    "doc": "NvLink write for link 58 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L58_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 58 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L59_RX": {
+    "doc": "NvLink read for link 59 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L59_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 59 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L59_TX": {
+    "doc": "NvLink write for link 59 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L59_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 59 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L5_RX": {
+    "doc": "NvLink read for link 5 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L5_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 5 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L5_TX": {
+    "doc": "NvLink write for link 5 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L5_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 5 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L60_RX": {
+    "doc": "NvLink read for link 60 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L60_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 60 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L60_TX": {
+    "doc": "NvLink write for link 60 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L60_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 60 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L61_RX": {
+    "doc": "NvLink read for link 61 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L61_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 61 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L61_TX": {
+    "doc": "NvLink write for link 61 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L61_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 61 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L62_RX": {
+    "doc": "NvLink read for link 62 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L62_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 62 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L62_TX": {
+    "doc": "NvLink write for link 62 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L62_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 62 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L63_RX": {
+    "doc": "NvLink read for link 63 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L63_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 63 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L63_TX": {
+    "doc": "NvLink write for link 63 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L63_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 63 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L64_RX": {
+    "doc": "NvLink read for link 64 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L64_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 64 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L64_TX": {
+    "doc": "NvLink write for link 64 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L64_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 64 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L65_RX": {
+    "doc": "NvLink read for link 65 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L65_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 65 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L65_TX": {
+    "doc": "NvLink write for link 65 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L65_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 65 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L66_RX": {
+    "doc": "NvLink read for link 66 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L66_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 66 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L66_TX": {
+    "doc": "NvLink write for link 66 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L66_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 66 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L67_RX": {
+    "doc": "NvLink read for link 67 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L67_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 67 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L67_TX": {
+    "doc": "NvLink write for link 67 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L67_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 67 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L68_RX": {
+    "doc": "NvLink read for link 68 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L68_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 68 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L68_TX": {
+    "doc": "NvLink write for link 68 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L68_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 68 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L69_RX": {
+    "doc": "NvLink read for link 69 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L69_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 69 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L69_TX": {
+    "doc": "NvLink write for link 69 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L69_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 69 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L6_RX": {
+    "doc": "NvLink read for link 6 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L6_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 6 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L6_TX": {
+    "doc": "NvLink write for link 6 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L6_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 6 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L70_RX": {
+    "doc": "NvLink read for link 70 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L70_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 70 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L70_TX": {
+    "doc": "NvLink write for link 70 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L70_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 70 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L71_RX": {
+    "doc": "NvLink read for link 71 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L71_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 71 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L71_TX": {
+    "doc": "NvLink write for link 71 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L71_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 71 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L7_RX": {
+    "doc": "NvLink read for link 7 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L7_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 7 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L7_TX": {
+    "doc": "NvLink write for link 7 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L7_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 7 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L8_RX": {
+    "doc": "NvLink read for link 8 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L8_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 8 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L8_TX": {
+    "doc": "NvLink write for link 8 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L8_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 8 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L9_RX": {
+    "doc": "NvLink read for link 9 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L9_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for link 9 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L9_TX": {
+    "doc": "NvLink write for link 9 in bytes since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_L9_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for link 9 in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_TOTAL_RX_PER_SEC": {
+    "doc": "NvLink read bandwidth for all links in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVLINK_TOTAL_TX_PER_SEC": {
+    "doc": "NvLink write bandwidth for all links in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVOFA_0_UTIL": {
+    "doc": "Percent utilization of NVOFA 0. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_NVOFA_1_UTIL": {
+    "doc": "Percent utilization of NVOFA 1. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_PCIE_RX": {
+    "doc": "The PCIe RX traffic since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_PCIE_RX_PER_SEC": {
+    "doc": "PCIe traffic to this GPU in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_PCIE_TX": {
+    "doc": "The PCIe TX traffic since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_PCIE_TX_PER_SEC": {
+    "doc": "PCIe traffic from this GPU in MiB/sec.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_PEERMEM_CACHE_HIT": {
+    "doc": "Percentage of peer memory cache hits. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_PEERMEM_CACHE_MISS": {
+    "doc": "Percentage of peer memory cache misses. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_SM_CYCLES_ACTIVE": {
+    "doc": "The GPU’s SM activity since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_SM_CYCLES_ELAPSED": {
+    "doc": "The GPU’s SM cycles elapsed since reboot.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_SM_OCCUPANCY": {
+    "doc": "Percentage of warps that were active vs theoretical maximum. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPM_METRIC_SM_UTIL": {
+    "doc": "Percentage of SMs that were busy. 0.0 - 100.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGpmEnums.html#_CPPv417nvmlGpmMetricId_t"
+  },
+  "NVML_GPU_OPERATIONAL_EVENT_CONTEXT_TYPE_LEGACY_XID": {
+    "doc": "Context payload can be decoded with [nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#group__nvmlevents_1ga96ab45e65d7bf89398b05e4bb51abd10).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv436nvmlGpuOperationalEventContextType_t"
+  },
+  "NVML_GPU_OPERATIONAL_EVENT_CONTEXT_TYPE_UNKNOWN": {
+    "doc": "No NVML public interpretation is defined for this context payload.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv436nvmlGpuOperationalEventContextType_t"
+  },
+  "NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_ALL": {
+    "doc": "Matches all GPU Operational Event log levels.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv433nvmlGpuOperationalEventLogLevel_t"
+  },
+  "NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_DIAG": {
+    "doc": "Diagnostic events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv433nvmlGpuOperationalEventLogLevel_t"
+  },
+  "NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_ERROR": {
+    "doc": "Error events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv433nvmlGpuOperationalEventLogLevel_t"
+  },
+  "NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_NOTICE": {
+    "doc": "Notable operational events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv433nvmlGpuOperationalEventLogLevel_t"
+  },
+  "NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_TELEMETRY": {
+    "doc": "High-volume telemetry events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv433nvmlGpuOperationalEventLogLevel_t"
+  },
+  "NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_WARNING": {
+    "doc": "Warning events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv433nvmlGpuOperationalEventLogLevel_t"
+  },
+  "NVML_GPU_RECOVERY_ACTION_BUS_RESET": {
+    "doc": "Reset the GPU’s PCIe bus.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#_CPPv429nvmlDeviceGpuRecoveryAction_t"
+  },
+  "NVML_GPU_RECOVERY_ACTION_DRAIN_AND_RESET": {
+    "doc": "Drain P2P and Reset Gpu.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#_CPPv429nvmlDeviceGpuRecoveryAction_t"
+  },
+  "NVML_GPU_RECOVERY_ACTION_DRAIN_P2P": {
+    "doc": "Drain P2P.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#_CPPv429nvmlDeviceGpuRecoveryAction_t"
+  },
+  "NVML_GPU_RECOVERY_ACTION_GPU_RESET": {
+    "doc": "Reset Gpu.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#_CPPv429nvmlDeviceGpuRecoveryAction_t"
+  },
+  "NVML_GPU_RECOVERY_ACTION_NODE_REBOOT": {
+    "doc": "Reboot Node.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#_CPPv429nvmlDeviceGpuRecoveryAction_t"
+  },
+  "NVML_GPU_RECOVERY_ACTION_NONE": {
+    "doc": "No action needed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#_CPPv429nvmlDeviceGpuRecoveryAction_t"
+  },
+  "NVML_GPU_RECOVERY_ACTION_RECOVER_IMEX_DOMAIN": {
+    "doc": "Recover IMEX Domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#_CPPv429nvmlDeviceGpuRecoveryAction_t"
+  },
+  "NVML_GPU_RECOVERY_ACTION_SYSTEM_REBOOT": {
+    "doc": "Reboot the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#_CPPv429nvmlDeviceGpuRecoveryAction_t"
+  },
+  "NVML_GPU_UTILIZATION_DOMAIN_BUS": {
+    "doc": "Bus interface domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv428nvmlGpuUtilizationDomainId_t"
+  },
+  "NVML_GPU_UTILIZATION_DOMAIN_FB": {
+    "doc": "Frame buffer domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv428nvmlGpuUtilizationDomainId_t"
+  },
+  "NVML_GPU_UTILIZATION_DOMAIN_GPU": {
+    "doc": "Graphics engine domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv428nvmlGpuUtilizationDomainId_t"
+  },
+  "NVML_GPU_UTILIZATION_DOMAIN_VID": {
+    "doc": "Video engine domain.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv428nvmlGpuUtilizationDomainId_t"
+  },
+  "NVML_GPU_UTILIZATION_SAMPLES": {
+    "doc": "To represent percent of time during which one or more kernels was executing on the GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_GPU_VIRTUALIZATION_MODE_HOST_VGPU": {
+    "doc": "Device is associated with VGX hypervisor in vGPU mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv427nvmlGpuVirtualizationMode_t"
+  },
+  "NVML_GPU_VIRTUALIZATION_MODE_HOST_VSGA": {
+    "doc": "Device is associated with VGX hypervisor in vSGA mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv427nvmlGpuVirtualizationMode_t"
+  },
+  "NVML_GPU_VIRTUALIZATION_MODE_NONE": {
+    "doc": "Represents Bare Metal GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv427nvmlGpuVirtualizationMode_t"
+  },
+  "NVML_GPU_VIRTUALIZATION_MODE_PASSTHROUGH": {
+    "doc": "Device is associated with GPU-Passthorugh.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv427nvmlGpuVirtualizationMode_t"
+  },
+  "NVML_GPU_VIRTUALIZATION_MODE_VGPU": {
+    "doc": "Device is associated with vGPU inside virtual machine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv427nvmlGpuVirtualizationMode_t"
+  },
+  "NVML_GRID_LICENSE_FEATURE_CODE_COMPUTE": {
+    "doc": "Compute.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv428nvmlGridLicenseFeatureCode_t"
+  },
+  "NVML_GRID_LICENSE_FEATURE_CODE_GAMING": {
+    "doc": "Gaming.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv428nvmlGridLicenseFeatureCode_t"
+  },
+  "NVML_GRID_LICENSE_FEATURE_CODE_NVIDIA_RTX": {
+    "doc": "Nvidia RTX.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv428nvmlGridLicenseFeatureCode_t"
+  },
+  "NVML_GRID_LICENSE_FEATURE_CODE_UNKNOWN": {
+    "doc": "Unknown.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv428nvmlGridLicenseFeatureCode_t"
+  },
+  "NVML_GRID_LICENSE_FEATURE_CODE_VGAMEDEV": {
+    "doc": "vGameDev.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv428nvmlGridLicenseFeatureCode_t"
+  },
+  "NVML_GRID_LICENSE_FEATURE_CODE_VGPU": {
+    "doc": "Virtual GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv428nvmlGridLicenseFeatureCode_t"
+  },
+  "NVML_GRID_LICENSE_FEATURE_CODE_VWORKSTATION": {
+    "doc": "do not use.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv428nvmlGridLicenseFeatureCode_t"
+  },
+  "NVML_HOST_VGPU_MODE_NON_SRIOV": {
+    "doc": "Non SR-IOV mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv418nvmlHostVgpuMode_t"
+  },
+  "NVML_HOST_VGPU_MODE_SRIOV": {
+    "doc": "SR-IOV mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv418nvmlHostVgpuMode_t"
+  },
+  "NVML_INFOROM_COUNT": {
+    "doc": "This counts the number of infoROM objects the driver knows about.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv419nvmlInforomObject_t"
+  },
+  "NVML_INFOROM_DEN": {
+    "doc": "DRAM Encryption object.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv419nvmlInforomObject_t"
+  },
+  "NVML_INFOROM_ECC": {
+    "doc": "The ECC object determining the level of ECC support.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv419nvmlInforomObject_t"
+  },
+  "NVML_INFOROM_OEM": {
+    "doc": "An object defined by OEM.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv419nvmlInforomObject_t"
+  },
+  "NVML_INFOROM_POWER": {
+    "doc": "The power management object.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv419nvmlInforomObject_t"
+  },
+  "NVML_JPG_UTILIZATION_SAMPLES": {
+    "doc": "To represent percent of time during which NVJPG remains busy.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_LED_COLOR_AMBER": {
+    "doc": "AMBER, indicates problem.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlUnitStructs.html#_CPPv414nvmlLedColor_t"
+  },
+  "NVML_LED_COLOR_GREEN": {
+    "doc": "GREEN, indicates good health.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlUnitStructs.html#_CPPv414nvmlLedColor_t"
+  },
+  "NVML_MEMORY_CLK_SAMPLES": {
+    "doc": "To represent memory clock samples.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_MEMORY_ERROR_TYPE_CORRECTED": {
+    "doc": "A memory error that was corrected.\n\nFor ECC errors, these are single bit errors For Texture memory, these are errors fixed by resend.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv421nvmlMemoryErrorType_t"
+  },
+  "NVML_MEMORY_ERROR_TYPE_COUNT": {
+    "doc": "Count of memory error types.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv421nvmlMemoryErrorType_t"
+  },
+  "NVML_MEMORY_ERROR_TYPE_UNCORRECTED": {
+    "doc": "A memory error that was not corrected.\n\nFor ECC errors, these are double bit errors For Texture memory, these are errors where the resend fails.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv421nvmlMemoryErrorType_t"
+  },
+  "NVML_MEMORY_LOCATION_CBU": {
+    "doc": "CBU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_COUNT": {
+    "doc": "This counts the number of memory locations the driver knows about.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_DEVICE_MEMORY": {
+    "doc": "GPU Device Memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_DRAM": {
+    "doc": "Turing+ DRAM.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_L1_CACHE": {
+    "doc": "GPU L1 Cache.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_L2_CACHE": {
+    "doc": "GPU L2 Cache.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_REGISTER_FILE": {
+    "doc": "GPU Register File.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_SRAM": {
+    "doc": "Turing+ SRAM.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_TEXTURE_MEMORY": {
+    "doc": "GPU Texture Memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_LOCATION_TEXTURE_SHM": {
+    "doc": "Shared memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlMemoryLocation_t"
+  },
+  "NVML_MEMORY_UTILIZATION_SAMPLES": {
+    "doc": "To represent percent of time during which global (device) memory was being read or written.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_MODULE_POWER_SAMPLES": {
+    "doc": "To represent module power samples for total module starting Grace Hopper.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_NVLINK_TELEMETRY_SAMPLE_TYPE_COUNT": {
+    "doc": "Number of valid sample types.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv431nvmlNvlinkTelemetrySampleType_t"
+  },
+  "NVML_NVLINK_TELEMETRY_SAMPLE_TYPE_THROUGHPUT_RAW_RX": {
+    "doc": "Raw RX flit counter for a single link.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv431nvmlNvlinkTelemetrySampleType_t"
+  },
+  "NVML_NVLINK_TELEMETRY_SAMPLE_TYPE_THROUGHPUT_RAW_TX": {
+    "doc": "Raw TX flit counter for a single link.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv431nvmlNvlinkTelemetrySampleType_t"
+  },
+  "NVML_NVLINK_VERSION_1_0": {
+    "doc": "NVLink Version 1.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_NVLINK_VERSION_2_0": {
+    "doc": "NVLink Version 2.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_NVLINK_VERSION_2_2": {
+    "doc": "NVLink Version 2.2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_NVLINK_VERSION_3_0": {
+    "doc": "NVLink Version 3.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_NVLINK_VERSION_3_1": {
+    "doc": "NVLink Version 3.1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_NVLINK_VERSION_4_0": {
+    "doc": "NVLink Version 4.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_NVLINK_VERSION_5_0": {
+    "doc": "NVLink Version 5.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_NVLINK_VERSION_6_0": {
+    "doc": "NVLink Version 6.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_NVLINK_VERSION_INVALID": {
+    "doc": "NVLink version is invalid.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__NvLink.html#_CPPv419nvmlNvlinkVersion_t"
+  },
+  "NVML_OFA_UTILIZATION_SAMPLES": {
+    "doc": "To represent percent of time during which NVOFA remains busy.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_OPERATIONAL_EVENT_SEVERITY_ALL": {
+    "doc": "Matches all Operational Event severities.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv430nvmlOperationalEventSeverity_t"
+  },
+  "NVML_OPERATIONAL_EVENT_SEVERITY_CORRECTED": {
+    "doc": "Corrected error event.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv430nvmlOperationalEventSeverity_t"
+  },
+  "NVML_OPERATIONAL_EVENT_SEVERITY_FATAL": {
+    "doc": "Fatal error event.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv430nvmlOperationalEventSeverity_t"
+  },
+  "NVML_OPERATIONAL_EVENT_SEVERITY_INFORMATIONAL": {
+    "doc": "Informational event.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv430nvmlOperationalEventSeverity_t"
+  },
+  "NVML_OPERATIONAL_EVENT_SEVERITY_RECOVERABLE": {
+    "doc": "Recoverable error event.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlEvents.html#_CPPv430nvmlOperationalEventSeverity_t"
+  },
+  "NVML_PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR": {
+    "doc": "Page was retired due to double bit ECC error.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv425nvmlPageRetirementCause_t"
+  },
+  "NVML_PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS": {
+    "doc": "Page was retired due to multiple single bit ECC error.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv425nvmlPageRetirementCause_t"
+  },
+  "NVML_PERF_POLICY_BOARD_LIMIT": {
+    "doc": "How long did the board limit cause the GPU to be below application clocks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv420nvmlPerfPolicyType_t"
+  },
+  "NVML_PERF_POLICY_LOW_UTILIZATION": {
+    "doc": "How long did low utilization cause the GPU to be below application clocks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv420nvmlPerfPolicyType_t"
+  },
+  "NVML_PERF_POLICY_POWER": {
+    "doc": "How long did power violations cause the GPU to be below application clocks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv420nvmlPerfPolicyType_t"
+  },
+  "NVML_PERF_POLICY_RELIABILITY": {
+    "doc": "How long did the board reliability limit cause the GPU to be below application clocks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv420nvmlPerfPolicyType_t"
+  },
+  "NVML_PERF_POLICY_SYNC_BOOST": {
+    "doc": "How long did sync boost cause the GPU to be below application clocks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv420nvmlPerfPolicyType_t"
+  },
+  "NVML_PERF_POLICY_THERMAL": {
+    "doc": "How long did thermal violations cause the GPU to be below application clocks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv420nvmlPerfPolicyType_t"
+  },
+  "NVML_PERF_POLICY_TOTAL_APP_CLOCKS": {
+    "doc": "Total time the GPU was held below application clocks by any limiter (0 - 5 above).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv420nvmlPerfPolicyType_t"
+  },
+  "NVML_PERF_POLICY_TOTAL_BASE_CLOCKS": {
+    "doc": "Total time the GPU was held below base clocks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv420nvmlPerfPolicyType_t"
+  },
+  "NVML_POWER_PROFILE_OPERATION_CLEAR": {
+    "doc": "Remove the requested profiles from the existing list of requested profiles.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlPowerProfiles.html#_CPPv427nvmlPowerProfileOperation_t"
+  },
+  "NVML_POWER_PROFILE_OPERATION_MAX": {
+    "doc": "Max value above +1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlPowerProfiles.html#_CPPv427nvmlPowerProfileOperation_t"
+  },
+  "NVML_POWER_PROFILE_OPERATION_SET": {
+    "doc": "Add the requested profiles to the existing list of requested profiles.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlPowerProfiles.html#_CPPv427nvmlPowerProfileOperation_t"
+  },
+  "NVML_POWER_PROFILE_OPERATION_SET_AND_OVERWRITE": {
+    "doc": "Overwrite the existing list of requested profiles with just the requested profiles.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlPowerProfiles.html#_CPPv427nvmlPowerProfileOperation_t"
+  },
+  "NVML_PRM_COUNTER_ID_NONE": {
+    "doc": "Sentinel.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PHYSICAL_LAYER_CTRS_LINK_DOWN_EVENTS": {
+    "doc": "PPCNT group 0x12, link_down_events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PHYSICAL_LAYER_CTRS_SUCCESSFUL_RECOVERY_EVENTS": {
+    "doc": "PPCNT group 0x12, successful_recovery_events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PLR_RCV_CODES": {
+    "doc": "PPCNT group 0x22, plr_rcv_codes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PLR_RCV_CODE_ERR": {
+    "doc": "PPCNT group 0x22, plr_rcv_code_err.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PLR_RCV_UNCORRECTABLE_CODE": {
+    "doc": "PPCNT group 0x22, plr_rcv_uncorrectable_code.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PLR_SYNC_EVENTS": {
+    "doc": "PPCNT group 0x22, plr_sync_events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PLR_XMIT_CODES": {
+    "doc": "PPCNT group 0x22, plr_xmit_codes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PLR_XMIT_RETRY_CODES": {
+    "doc": "PPCNT group 0x22, plr_xmit_retry_codes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PLR_XMIT_RETRY_EVENTS": {
+    "doc": "PPCNT group 0x22, plr_xmit_retry_events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_PORTCOUNTERS_PORT_XMIT_WAIT": {
+    "doc": "PPCNT group 0x20, port_xmit_wait.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_LAST_HOST_SERDES_FEQ_ATTEMPTS_COUNT": {
+    "doc": "PPCNT group 0x1A, last_host_serdes_feq_attempts_count.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_LAST_SUCCESSFUL_RECOVERY_STEP_ATTEMPTS": {
+    "doc": "PPCNT group 0x1A, last_successful_recovery_step_attempts.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_LAST_SUCCESSFUL_RECOVERY_TIME": {
+    "doc": "PPCNT group 0x1A, last_successful_recovery_time.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TIME_BETWEEN_LAST_TWO_RECOVERIES": {
+    "doc": "PPCNT group 0x1A, time_between_last_two_recoveries.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TIME_IN_LAST_HOST_SERDES_FEQ_RECOVERY": {
+    "doc": "PPCNT group 0x1A, time_in_last_host_serdes_feq_recovery.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TIME_SINCE_LAST_RECOVERY": {
+    "doc": "PPCNT group 0x1A, time_since_last_recovery.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_HOST_SERDES_FEQ_RECOVERY_COUNT": {
+    "doc": "PPCNT group 0x1A, total_host_serdes_feq_recovery_count.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_HOST_SERDES_FEQ_SUCCESSFUL_RECOVERY_COUNT": {
+    "doc": "PPCNT group 0x1A, total_host_serdes_feq_successful_recovery_count.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_SUCCESSFUL_RECOVERY_EVENTS": {
+    "doc": "PPCNT group 0x1A, total_successful_recovery_events.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_SUCCESSFUL_RECOVERY_TIME": {
+    "doc": "PPCNT group 0x1A, total_successful_recovery_time.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPCNT_RECOVERY_CTRS_TOTAL_TIME_IN_HOST_SERDES_FEQ_RECOVERY": {
+    "doc": "PPCNT group 0x1A, total_time_in_host_serdes_feq_recovery.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PRM_COUNTER_ID_PPRM_OPER_RECOVERY": {
+    "doc": "PPRM, oper_recovery.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlGPUPRMAccess.html#_CPPv418nvmlPRMCounterId_t"
+  },
+  "NVML_PROCESSOR_CLK_SAMPLES": {
+    "doc": "To represent processor clock samples.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_PROCESS_MODE_ALL": {
+    "doc": "All processes running on the GPU (compute, graphics, MPS, and other types).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv417nvmlProcessMode_t"
+  },
+  "NVML_PROCESS_MODE_COMPUTE": {
+    "doc": "Processes with a compute context.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv417nvmlProcessMode_t"
+  },
+  "NVML_PROCESS_MODE_GRAPHICS": {
+    "doc": "Processes with a graphics context.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv417nvmlProcessMode_t"
+  },
+  "NVML_PROCESS_MODE_MAX": {
+    "doc": "Maximum value for bounds checking.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv417nvmlProcessMode_t"
+  },
+  "NVML_PROCESS_MODE_MPS": {
+    "doc": "Processes with a MPS (Multi-Process Service) compute context.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv417nvmlProcessMode_t"
+  },
+  "NVML_PSTATE_0": {
+    "doc": "Performance state 0 — Maximum Performance.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_1": {
+    "doc": "Performance state 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_10": {
+    "doc": "Performance state 10.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_11": {
+    "doc": "Performance state 11.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_12": {
+    "doc": "Performance state 12.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_13": {
+    "doc": "Performance state 13.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_14": {
+    "doc": "Performance state 14.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_15": {
+    "doc": "Performance state 15 — Minimum Performance.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_2": {
+    "doc": "Performance state 2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_3": {
+    "doc": "Performance state 3.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_4": {
+    "doc": "Performance state 4.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_5": {
+    "doc": "Performance state 5.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_6": {
+    "doc": "Performance state 6.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_7": {
+    "doc": "Performance state 7.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_8": {
+    "doc": "Performance state 8.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_9": {
+    "doc": "Performance state 9.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_PSTATE_UNKNOWN": {
+    "doc": "Unknown performance state.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv413nvmlPstates_t"
+  },
+  "NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS": {
+    "doc": "APIs that change application clocks, see nvmlDeviceSetApplicationsClocks and see nvmlDeviceResetApplicationsClocks. Deprecated, keeping definition for backward compatibility.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv419nvmlRestrictedAPI_t"
+  },
+  "NVML_RESTRICTED_API_SET_AUTO_BOOSTED_CLOCKS": {
+    "doc": "APIs that enable/disable Auto Boosted clocks see nvmlDeviceSetAutoBoostedClocksEnabled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv419nvmlRestrictedAPI_t"
+  },
+  "NVML_SUCCESS": {
+    "doc": "The operation was successful.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv412nvmlReturn_t"
+  },
+  "NVML_TEMPERATURE_GPU": {
+    "doc": "Temperature sensor for the GPU die.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv424nvmlTemperatureSensors_t"
+  },
+  "NVML_TEMPERATURE_GPU_MAX": {
+    "doc": "Temperature from the hottest part of the GPU die.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv424nvmlTemperatureSensors_t"
+  },
+  "NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR": {
+    "doc": "Current temperature that is set as acoustic threshold.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv427nvmlTemperatureThresholds_t"
+  },
+  "NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX": {
+    "doc": "Maximum GPU temperature that can be set as acoustic threshold.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv427nvmlTemperatureThresholds_t"
+  },
+  "NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN": {
+    "doc": "Minimum GPU Temperature that can be set as acoustic threshold.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv427nvmlTemperatureThresholds_t"
+  },
+  "NVML_TEMPERATURE_THRESHOLD_GPS_CURR": {
+    "doc": "Current temperature that is set as gps threshold.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv427nvmlTemperatureThresholds_t"
+  },
+  "NVML_TEMPERATURE_THRESHOLD_GPU_MAX": {
+    "doc": "GPU Temperature at which the GPU can be throttled below base clock.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv427nvmlTemperatureThresholds_t"
+  },
+  "NVML_TEMPERATURE_THRESHOLD_MEM_MAX": {
+    "doc": "Memory Temperature at which the GPU will begin SW slowdown.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv427nvmlTemperatureThresholds_t"
+  },
+  "NVML_TEMPERATURE_THRESHOLD_SHUTDOWN": {
+    "doc": "Temperature at which the GPU will shut down for HW protection.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv427nvmlTemperatureThresholds_t"
+  },
+  "NVML_TEMPERATURE_THRESHOLD_SLOWDOWN": {
+    "doc": "Temperature at which the GPU will begin HW slowdown.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv427nvmlTemperatureThresholds_t"
+  },
+  "NVML_THERMAL_COOLER_SIGNAL_NONE": {
+    "doc": "This cooler has no control signal.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlCoolerControl_t"
+  },
+  "NVML_THERMAL_COOLER_SIGNAL_TOGGLE": {
+    "doc": "This cooler can only be toggled either ON or OFF (eg a switch).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlCoolerControl_t"
+  },
+  "NVML_THERMAL_COOLER_SIGNAL_VARIABLE": {
+    "doc": "This cooler’s level can be adjusted from some minimum to some maximum (eg a knob).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlCoolerControl_t"
+  },
+  "NVML_THERMAL_COOLER_TARGET_GPU": {
+    "doc": "This cooler can cool the GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlCoolerTarget_t"
+  },
+  "NVML_THERMAL_COOLER_TARGET_GPU_RELATED": {
+    "doc": "This cooler cools all of the components related to its target gpu. GPU_RELATED = GPU | MEMORY | POWER_SUPPLY.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlCoolerTarget_t"
+  },
+  "NVML_THERMAL_COOLER_TARGET_MEMORY": {
+    "doc": "This cooler can cool the memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlCoolerTarget_t"
+  },
+  "NVML_THERMAL_COOLER_TARGET_NONE": {
+    "doc": "This cooler cools nothing.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlCoolerTarget_t"
+  },
+  "NVML_THERMAL_COOLER_TARGET_POWER_SUPPLY": {
+    "doc": "This cooler can cool the power supply.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlCoolerTarget_t"
+  },
+  "NVML_THERMAL_TARGET_BOARD": {
+    "doc": "GPU board ambient temperature requires NvPhysicalGpuHandle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlThermalTarget_t"
+  },
+  "NVML_THERMAL_TARGET_GPU": {
+    "doc": "GPU core temperature requires NvPhysicalGpuHandle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlThermalTarget_t"
+  },
+  "NVML_THERMAL_TARGET_MEMORY": {
+    "doc": "GPU memory temperature requires NvPhysicalGpuHandle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlThermalTarget_t"
+  },
+  "NVML_THERMAL_TARGET_POWER_SUPPLY": {
+    "doc": "GPU power supply temperature requires NvPhysicalGpuHandle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlThermalTarget_t"
+  },
+  "NVML_THERMAL_TARGET_VCD_BOARD": {
+    "doc": "Visual Computing Device Board temperature requires NvVisualComputingDeviceHandle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlThermalTarget_t"
+  },
+  "NVML_THERMAL_TARGET_VCD_INLET": {
+    "doc": "Visual Computing Device Inlet temperature requires NvVisualComputingDeviceHandle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlThermalTarget_t"
+  },
+  "NVML_THERMAL_TARGET_VCD_OUTLET": {
+    "doc": "Visual Computing Device Outlet temperature requires NvVisualComputingDeviceHandle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv419nvmlThermalTarget_t"
+  },
+  "NVML_TOTAL_POWER_SAMPLES": {
+    "doc": "To represent total power drawn by GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv418nvmlSamplingType_t"
+  },
+  "NVML_UUID_TYPE_ASCII": {
+    "doc": "ASCII format type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv414nvmlUUIDType_t"
+  },
+  "NVML_UUID_TYPE_BINARY": {
+    "doc": "Binary format type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv414nvmlUUIDType_t"
+  },
+  "NVML_UUID_TYPE_NONE": {
+    "doc": "Undefined type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#_CPPv414nvmlUUIDType_t"
+  },
+  "NVML_VGPU_CAP_EXCLUSIVE_SIZE": {
+    "doc": "vGPU profile cannot run on a GPU alongside other profiles of different size.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv420nvmlVgpuCapability_t"
+  },
+  "NVML_VGPU_CAP_EXCLUSIVE_TYPE": {
+    "doc": "vGPU profile cannot run on a GPU alongside other profiles of different type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv420nvmlVgpuCapability_t"
+  },
+  "NVML_VGPU_CAP_GPUDIRECT": {
+    "doc": "GPUDirect capability is supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv420nvmlVgpuCapability_t"
+  },
+  "NVML_VGPU_CAP_MULTI_VGPU_EXCLUSIVE": {
+    "doc": "vGPU profile cannot be mixed with other vGPU profiles in same VM.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv420nvmlVgpuCapability_t"
+  },
+  "NVML_VGPU_CAP_NVLINK_P2P": {
+    "doc": "P2P over NVLink is supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv420nvmlVgpuCapability_t"
+  },
+  "NVML_VGPU_COMPATIBILITY_LIMIT_GPU": {
+    "doc": "Compatibility is limited by GPU hardware.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv436nvmlVgpuPgpuCompatibilityLimitCode_t"
+  },
+  "NVML_VGPU_COMPATIBILITY_LIMIT_GUEST_DRIVER": {
+    "doc": "Compatibility is limited by guest driver version.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv436nvmlVgpuPgpuCompatibilityLimitCode_t"
+  },
+  "NVML_VGPU_COMPATIBILITY_LIMIT_HOST_DRIVER": {
+    "doc": "ompatibility is limited by host driver version.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv436nvmlVgpuPgpuCompatibilityLimitCode_t"
+  },
+  "NVML_VGPU_COMPATIBILITY_LIMIT_NONE": {
+    "doc": "Compatibility is not limited.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv436nvmlVgpuPgpuCompatibilityLimitCode_t"
+  },
+  "NVML_VGPU_COMPATIBILITY_LIMIT_OTHER": {
+    "doc": "Compatibility is limited by an undefined factor.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv436nvmlVgpuPgpuCompatibilityLimitCode_t"
+  },
+  "NVML_VGPU_DRIVER_CAP_HETEROGENEOUS_MULTI_VGPU": {
+    "doc": "Supports mixing of different vGPU profiles within one guest VM.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlVgpuDriverCapability_t"
+  },
+  "NVML_VGPU_DRIVER_CAP_WARM_UPDATE": {
+    "doc": "Supports FSR and warm update of vGPU host driver without terminating the running guest VM.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv426nvmlVgpuDriverCapability_t"
+  },
+  "NVML_VGPU_INSTANCE_GUEST_INFO_STATE_INITIALIZED": {
+    "doc": "Guest-dependent fields initialized.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv424nvmlVgpuGuestInfoState_t"
+  },
+  "NVML_VGPU_INSTANCE_GUEST_INFO_STATE_UNINITIALIZED": {
+    "doc": "Guest-dependent fields uninitialized.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv424nvmlVgpuGuestInfoState_t"
+  },
+  "NVML_VGPU_VM_COMPATIBILITY_COLD": {
+    "doc": "vGPU is runnable from a cold / powered-off state (ACPI S5).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv425nvmlVgpuVmCompatibility_t"
+  },
+  "NVML_VGPU_VM_COMPATIBILITY_HIBERNATE": {
+    "doc": "vGPU is runnable from a hibernated state (ACPI S4).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv425nvmlVgpuVmCompatibility_t"
+  },
+  "NVML_VGPU_VM_COMPATIBILITY_LIVE": {
+    "doc": "vGPU is runnable from a live/paused (ACPI S0).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv425nvmlVgpuVmCompatibility_t"
+  },
+  "NVML_VGPU_VM_COMPATIBILITY_NONE": {
+    "doc": "vGPU is not runnable.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv425nvmlVgpuVmCompatibility_t"
+  },
+  "NVML_VGPU_VM_COMPATIBILITY_SLEEP": {
+    "doc": "vGPU is runnable from a sleeped state (ACPI S3).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#_CPPv425nvmlVgpuVmCompatibility_t"
+  },
+  "NVML_VGPU_VM_ID_DOMAIN_ID": {
+    "doc": "VM ID represents DOMAIN ID.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv418nvmlVgpuVmIdType_t"
+  },
+  "NVML_VGPU_VM_ID_UUID": {
+    "doc": "VM ID represents UUID.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVirtualGpuEnums.html#_CPPv418nvmlVgpuVmIdType_t"
+  },
+  "NVML_VOLATILE_ECC": {
+    "doc": "Volatile counts are reset each time the driver loads.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#_CPPv420nvmlEccCounterType_t"
+  }
+}

@@ -1,4 +1,6 @@
-use singe_cuda::memory::DeviceMemory;
+use std::sync::Arc;
+
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
 use singe_npp_sys as sys;
 
 use crate::{
@@ -6,8 +8,8 @@ use crate::{
     image::{
         color::{ColorTwistBatchConstantsMatrix4, ColorTwistMatrix},
         view::{
-            C1, C2, C4, ChannelLayout, ImageView, ImageViewMut, PlanarImageView, image_descriptors,
-            image_descriptors_mut,
+            C1, C2, C4, ChannelLayout, ImageOutputView, ImageView, ImageViewMut, PlanarImageView,
+            image_descriptors, image_descriptors_mut,
         },
     },
     types::{ColorTwistBatchDescriptor, Rectangle, Size},
@@ -30,7 +32,7 @@ type ColorPlanarBatchDescriptors<const C: usize> = (
     [DeviceMemory<sys::NppiImageDescriptor>; C],
 );
 
-pub(super) fn validate_same_size(source: Size, destination: Size) -> Result<()> {
+pub fn validate_same_size(source: Size, destination: Size) -> Result<()> {
     if source == destination {
         return Ok(());
     }
@@ -42,29 +44,19 @@ pub(super) fn validate_same_size(source: Size, destination: Size) -> Result<()> 
     })
 }
 
-pub(super) fn validate_cfa_roi(
-    source: Size,
-    source_roi: Rectangle,
-    destination: Size,
-) -> Result<()> {
+pub fn validate_cfa_roi(source: Size, source_roi: Rectangle, destination: Size) -> Result<()> {
     if source_roi.x < 0 || source_roi.y < 0 || source_roi.width <= 0 || source_roi.height <= 0 {
-        return Err(Error::OutOfRange {
-            name: "source roi".into(),
-        });
+        return Err(Error::out_of_range("source roi"));
     }
 
     let right = source_roi
         .x
         .checked_add(source_roi.width)
-        .ok_or_else(|| Error::OutOfRange {
-            name: "source roi".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("source roi"))?;
     let bottom = source_roi
         .y
         .checked_add(source_roi.height)
-        .ok_or_else(|| Error::OutOfRange {
-            name: "source roi".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("source roi"))?;
 
     if right > source.width || bottom > source.height {
         return Err(Error::SizeMismatch {
@@ -83,7 +75,7 @@ pub(super) fn validate_cfa_roi(
     )
 }
 
-pub(super) fn validate_lookup_table(value_count: usize, level_count: usize) -> Result<i32> {
+pub fn validate_lookup_table(value_count: usize, level_count: usize) -> Result<i32> {
     if value_count != level_count {
         return Err(Error::LengthMismatch {
             name: "lookup table".into(),
@@ -92,16 +84,12 @@ pub(super) fn validate_lookup_table(value_count: usize, level_count: usize) -> R
         });
     }
     if level_count < 2 {
-        return Err(Error::OutOfRange {
-            name: "lookup table levels".into(),
-        });
+        return Err(Error::out_of_range("lookup table levels"));
     }
-    i32::try_from(level_count).map_err(|_| Error::OutOfRange {
-        name: "lookup table levels".into(),
-    })
+    i32::try_from(level_count).map_err(|_| Error::out_of_range("lookup table levels"))
 }
 
-pub(super) fn lookup_table_channel_descriptors<const C: usize>(
+pub fn lookup_table_channel_descriptors<const C: usize>(
     values: &[&DeviceMemory<i32>; C],
     levels: &[&DeviceMemory<i32>; C],
 ) -> Result<([*const i32; C], [*const i32; C], [i32; C])> {
@@ -114,7 +102,7 @@ pub(super) fn lookup_table_channel_descriptors<const C: usize>(
     Ok((value_pointers, level_pointers, level_counts))
 }
 
-pub(super) fn lookup_table_channel_descriptors_f32<const C: usize>(
+pub fn lookup_table_channel_descriptors_f32<const C: usize>(
     values: &[&DeviceMemory<f32>; C],
     levels: &[&DeviceMemory<f32>; C],
 ) -> Result<([*const f32; C], [*const f32; C], [i32; C])> {
@@ -127,7 +115,7 @@ pub(super) fn lookup_table_channel_descriptors_f32<const C: usize>(
     Ok((value_pointers, level_pointers, level_counts))
 }
 
-pub(super) fn validate_lookup_table_palette(
+pub fn validate_lookup_table_palette(
     table_length: usize,
     bit_size: i32,
     max_bit_size: i32,
@@ -135,29 +123,22 @@ pub(super) fn validate_lookup_table_palette(
     validate_lookup_table_palette_entries(table_length, bit_size, max_bit_size, 1)
 }
 
-pub(super) fn validate_lookup_table_palette_entries(
+pub fn validate_lookup_table_palette_entries(
     table_length: usize,
     bit_size: i32,
     max_bit_size: i32,
     values_per_index: usize,
 ) -> Result<i32> {
     if !(1..=max_bit_size).contains(&bit_size) {
-        return Err(Error::OutOfRange {
-            name: "lookup table palette bit size".into(),
-        });
+        return Err(Error::out_of_range("lookup table palette bit size"));
     }
 
-    let required_length =
-        1_usize
-            .checked_shl(bit_size as u32)
-            .ok_or_else(|| Error::OutOfRange {
-                name: "lookup table palette bit size".into(),
-            })?;
+    let required_length = 1_usize
+        .checked_shl(bit_size as u32)
+        .ok_or_else(|| Error::out_of_range("lookup table palette bit size"))?;
     let required_length = required_length
         .checked_mul(values_per_index)
-        .ok_or_else(|| Error::OutOfRange {
-            name: "lookup table palette".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("lookup table palette"))?;
     if table_length < required_length {
         return Err(Error::LengthMismatch {
             name: "lookup table palette".into(),
@@ -169,7 +150,7 @@ pub(super) fn validate_lookup_table_palette_entries(
     Ok(bit_size)
 }
 
-pub(super) fn validate_lookup_table_palette_channels<T, const C: usize>(
+pub fn validate_lookup_table_palette_channels<T, const C: usize>(
     tables: &[&DeviceMemory<T>; C],
     bit_size: i32,
     max_bit_size: i32,
@@ -181,7 +162,7 @@ pub(super) fn validate_lookup_table_palette_channels<T, const C: usize>(
     Ok(bit_size)
 }
 
-pub(super) fn lookup_table_trilinear_descriptors(
+pub fn lookup_table_trilinear_descriptors(
     value_count: usize,
     levels: [&[u8]; 3],
 ) -> Result<([*mut u8; 3], [i32; 3])> {
@@ -189,19 +170,13 @@ pub(super) fn lookup_table_trilinear_descriptors(
     let mut expected_values = 1_usize;
     for (index, level) in levels.iter().enumerate() {
         if level.len() < 2 {
-            return Err(Error::OutOfRange {
-                name: "lookup table trilinear levels".into(),
-            });
+            return Err(Error::out_of_range("lookup table trilinear levels"));
         }
-        level_counts[index] = i32::try_from(level.len()).map_err(|_| Error::OutOfRange {
-            name: "lookup table trilinear levels".into(),
-        })?;
-        expected_values =
-            expected_values
-                .checked_mul(level.len())
-                .ok_or_else(|| Error::OutOfRange {
-                    name: "lookup table trilinear values".into(),
-                })?;
+        level_counts[index] = i32::try_from(level.len())
+            .map_err(|_| Error::out_of_range("lookup table trilinear levels"))?;
+        expected_values = expected_values
+            .checked_mul(level.len())
+            .ok_or_else(|| Error::out_of_range("lookup table trilinear values"))?;
     }
 
     if value_count < expected_values {
@@ -216,32 +191,28 @@ pub(super) fn lookup_table_trilinear_descriptors(
     Ok((level_pointers, level_counts))
 }
 
-pub(super) fn validate_equal_step(left: i32, right: i32, name: &str) -> Result<()> {
+pub fn validate_equal_step(left: i32, right: i32, name: &str) -> Result<()> {
     if left == right {
         return Ok(());
     }
 
     Err(Error::LengthMismatch {
-        name: name.into(),
+        name: name.to_owned().into(),
         expected: left as usize,
         actual: right as usize,
     })
 }
 
-pub(super) fn subsampled_size(
+pub fn subsampled_size(
     size: Size,
     horizontal_subsampling: i32,
     vertical_subsampling: i32,
 ) -> Result<Size> {
     if size.width % horizontal_subsampling != 0 {
-        return Err(Error::OutOfRange {
-            name: "image width".into(),
-        });
+        return Err(Error::out_of_range("image width"));
     }
     if size.height % vertical_subsampling != 0 {
-        return Err(Error::OutOfRange {
-            name: "image height".into(),
-        });
+        return Err(Error::out_of_range("image height"));
     }
 
     Ok(Size {
@@ -250,7 +221,7 @@ pub(super) fn subsampled_size(
     })
 }
 
-pub(super) fn validate_rgb_source_planes<T>(
+pub fn validate_rgb_source_planes<T>(
     source_0: &ImageView<'_, T, C1>,
     source_1: &ImageView<'_, T, C1>,
     source_2: &ImageView<'_, T, C1>,
@@ -262,11 +233,11 @@ pub(super) fn validate_rgb_source_planes<T>(
     Ok(source_0.size())
 }
 
-pub(super) fn validate_rgb_destination_planes<T>(
+pub fn validate_rgb_destination_planes<T>(
     roi: Size,
-    destination_0: &ImageViewMut<'_, T, C1>,
-    destination_1: &ImageViewMut<'_, T, C1>,
-    destination_2: &ImageViewMut<'_, T, C1>,
+    destination_0: &ImageOutputView<'_, T, C1>,
+    destination_1: &ImageOutputView<'_, T, C1>,
+    destination_2: &ImageOutputView<'_, T, C1>,
 ) -> Result<()> {
     validate_same_size(roi, destination_0.size())?;
     validate_same_size(roi, destination_1.size())?;
@@ -284,41 +255,41 @@ pub(super) fn validate_rgb_destination_planes<T>(
     Ok(())
 }
 
-pub(super) fn validate_jpeg_subsampled_source_planes<T>(
+pub fn validate_jpeg_subsampled_source_planes<T>(
     source_y: &ImageView<'_, T, C1>,
-    source_cb: &ImageView<'_, T, C1>,
-    source_cr: &ImageView<'_, T, C1>,
+    blue_chroma: &ImageView<'_, T, C1>,
+    red_chroma: &ImageView<'_, T, C1>,
     horizontal_subsampling: i32,
     vertical_subsampling: i32,
 ) -> Result<Size> {
-    validate_same_size(source_cb.size(), source_cr.size())?;
+    validate_same_size(blue_chroma.size(), red_chroma.size())?;
 
     let expected_chroma = subsampled_size(
         source_y.size(),
         horizontal_subsampling,
         vertical_subsampling,
     )?;
-    validate_same_size(expected_chroma, source_cb.size())?;
+    validate_same_size(expected_chroma, blue_chroma.size())?;
     Ok(source_y.size())
 }
 
-pub(super) fn validate_jpeg_subsampled_destination_planes<T>(
+pub fn validate_jpeg_subsampled_destination_planes<T>(
     roi: Size,
-    destination_y: &ImageViewMut<'_, T, C1>,
-    destination_cb: &ImageViewMut<'_, T, C1>,
-    destination_cr: &ImageViewMut<'_, T, C1>,
+    destination_y: &ImageOutputView<'_, T, C1>,
+    blue_chroma_output: &ImageOutputView<'_, T, C1>,
+    red_chroma_output: &ImageOutputView<'_, T, C1>,
     horizontal_subsampling: i32,
     vertical_subsampling: i32,
 ) -> Result<()> {
     validate_same_size(roi, destination_y.size())?;
-    validate_same_size(destination_cb.size(), destination_cr.size())?;
+    validate_same_size(blue_chroma_output.size(), red_chroma_output.size())?;
 
     let expected_chroma = subsampled_size(roi, horizontal_subsampling, vertical_subsampling)?;
-    validate_same_size(expected_chroma, destination_cb.size())?;
+    validate_same_size(expected_chroma, blue_chroma_output.size())?;
     Ok(())
 }
 
-pub(super) fn validate_nv12_source_planes<T>(
+pub fn validate_nv12_source_planes<T>(
     source_y: &ImageView<'_, T, C1>,
     source_uv: &ImageView<'_, T, C2>,
 ) -> Result<Size> {
@@ -328,7 +299,7 @@ pub(super) fn validate_nv12_source_planes<T>(
     Ok(source_y.size())
 }
 
-pub(super) fn validate_subsampled_p2_source_planes<T>(
+pub fn validate_subsampled_p2_source_planes<T>(
     source_y: &ImageView<'_, T, C1>,
     source_cbcr: &ImageView<'_, T, C2>,
     horizontal_subsampling: i32,
@@ -343,23 +314,23 @@ pub(super) fn validate_subsampled_p2_source_planes<T>(
     Ok(source_y.size())
 }
 
-pub(super) fn validate_subsampled_p2_destination_planes<T>(
+pub fn validate_subsampled_p2_destination_planes<T>(
     roi: Size,
-    destination_y: &ImageViewMut<'_, T, C1>,
-    destination_cbcr: &ImageViewMut<'_, T, C2>,
+    destination_y: &ImageOutputView<'_, T, C1>,
+    blue_chroma_outputcr: &ImageOutputView<'_, T, C2>,
     horizontal_subsampling: i32,
     vertical_subsampling: i32,
 ) -> Result<()> {
     validate_same_size(roi, destination_y.size())?;
     let expected_cbcr = subsampled_size(roi, horizontal_subsampling, vertical_subsampling)?;
-    validate_same_size(expected_cbcr, destination_cbcr.size())?;
+    validate_same_size(expected_cbcr, blue_chroma_outputcr.size())?;
     Ok(())
 }
 
-pub(super) fn validate_nv12_destination_planes<T>(
+pub fn validate_nv12_destination_planes<T>(
     roi: Size,
-    destination_y: &ImageViewMut<'_, T, C1>,
-    destination_uv: &ImageViewMut<'_, T, C2>,
+    destination_y: &ImageOutputView<'_, T, C1>,
+    destination_uv: &ImageOutputView<'_, T, C2>,
 ) -> Result<()> {
     validate_same_size(roi, destination_y.size())?;
     let expected_uv = subsampled_size(roi, 2, 2)?;
@@ -367,9 +338,10 @@ pub(super) fn validate_nv12_destination_planes<T>(
     Ok(())
 }
 
-pub(super) fn color_batch_descriptors<T, L>(
+pub fn color_batch_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     sources: &[ImageView<'_, T, L>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<(
     i32,
     Size,
@@ -391,14 +363,19 @@ where
     Ok((
         batch_size,
         roi,
-        DeviceMemory::from_slice(&source_descriptors)?,
-        DeviceMemory::from_slice(&destination_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &source_descriptors) }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(allocation_context, &destination_descriptors)
+        }?,
     ))
 }
 
-pub(super) fn color_batch_advanced_descriptors<T, L>(
+pub fn color_batch_advanced_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     sources: &[ImageView<'_, T, L>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<(
     i32,
     Size,
@@ -413,27 +390,32 @@ where
         validate_same_size(source.size(), destination.size())?;
     }
 
-    let max_roi = largest_color_size(destinations.iter().map(ImageViewMut::size))?;
+    let max_roi = largest_color_size(destinations.iter().map(ImageOutputView::size))?;
     let source_descriptors = image_descriptors(sources);
     let destination_descriptors = image_descriptors_mut(destinations);
 
     Ok((
         batch_size,
         max_roi,
-        DeviceMemory::from_slice(&source_descriptors)?,
-        DeviceMemory::from_slice(&destination_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &source_descriptors) }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(allocation_context, &destination_descriptors)
+        }?,
     ))
 }
 
-pub(super) fn color_batch_size(source_len: usize, destination_len: usize) -> Result<i32> {
+pub fn color_batch_size(source_len: usize, destination_len: usize) -> Result<i32> {
     batch_size_i32(source_len, destination_len)
 }
 
-pub(super) fn subsampled_color_batch_descriptors<T, L>(
+pub fn subsampled_color_batch_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     source_plane_0: &[ImageView<'_, T, C1>],
     source_plane_1: &[ImageView<'_, T, C1>],
     source_plane_2: &[ImageView<'_, T, C1>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
     horizontal_subsampling: i32,
     vertical_subsampling: i32,
 ) -> Result<SubsampledColorBatchDescriptors>
@@ -474,44 +456,60 @@ where
 
     let roi = smallest_color_size(source_plane_0.iter().map(ImageView::size))?;
     let source_descriptor_memory = [
-        DeviceMemory::from_slice(
-            &source_plane_0
-                .iter()
-                .map(ImageView::descriptor)
-                .collect::<Vec<_>>(),
-        )?,
-        DeviceMemory::from_slice(
-            &source_plane_1
-                .iter()
-                .map(ImageView::descriptor)
-                .collect::<Vec<_>>(),
-        )?,
-        DeviceMemory::from_slice(
-            &source_plane_2
-                .iter()
-                .map(ImageView::descriptor)
-                .collect::<Vec<_>>(),
-        )?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(
+                allocation_context,
+                &source_plane_0
+                    .iter()
+                    .map(ImageView::descriptor)
+                    .collect::<Vec<_>>(),
+            )
+        }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(
+                allocation_context,
+                &source_plane_1
+                    .iter()
+                    .map(ImageView::descriptor)
+                    .collect::<Vec<_>>(),
+            )
+        }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(
+                allocation_context,
+                &source_plane_2
+                    .iter()
+                    .map(ImageView::descriptor)
+                    .collect::<Vec<_>>(),
+            )
+        }?,
     ];
     let source_batch_list = source_descriptor_memory
         .each_ref()
-        .map(|plane| plane.as_ptr());
+        .map(DeviceMemory::as_ptr);
     let destination_descriptors = image_descriptors_mut(destinations);
 
     Ok((
         batch_size,
         roi,
         source_batch_list,
-        DeviceMemory::from_slice(&destination_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(allocation_context, &destination_descriptors)
+        }?,
         source_descriptor_memory,
     ))
 }
 
-pub(super) fn subsampled_color_batch_advanced_descriptors<T, L>(
+pub fn subsampled_color_batch_advanced_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     source_plane_0: &[ImageView<'_, T, C1>],
     source_plane_1: &[ImageView<'_, T, C1>],
     source_plane_2: &[ImageView<'_, T, C1>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
     horizontal_subsampling: i32,
     vertical_subsampling: i32,
 ) -> Result<SubsampledColorBatchDescriptors>
@@ -550,45 +548,61 @@ where
         validate_same_size(roi, destination.size())?;
     }
 
-    let max_roi = largest_color_size(destinations.iter().map(ImageViewMut::size))?;
+    let max_roi = largest_color_size(destinations.iter().map(ImageOutputView::size))?;
     let source_descriptor_memory = [
-        DeviceMemory::from_slice(
-            &source_plane_0
-                .iter()
-                .map(ImageView::descriptor)
-                .collect::<Vec<_>>(),
-        )?,
-        DeviceMemory::from_slice(
-            &source_plane_1
-                .iter()
-                .map(ImageView::descriptor)
-                .collect::<Vec<_>>(),
-        )?,
-        DeviceMemory::from_slice(
-            &source_plane_2
-                .iter()
-                .map(ImageView::descriptor)
-                .collect::<Vec<_>>(),
-        )?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(
+                allocation_context,
+                &source_plane_0
+                    .iter()
+                    .map(ImageView::descriptor)
+                    .collect::<Vec<_>>(),
+            )
+        }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(
+                allocation_context,
+                &source_plane_1
+                    .iter()
+                    .map(ImageView::descriptor)
+                    .collect::<Vec<_>>(),
+            )
+        }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(
+                allocation_context,
+                &source_plane_2
+                    .iter()
+                    .map(ImageView::descriptor)
+                    .collect::<Vec<_>>(),
+            )
+        }?,
     ];
     let source_batch_list = source_descriptor_memory
         .each_ref()
-        .map(|plane| plane.as_ptr());
+        .map(DeviceMemory::as_ptr);
     let destination_descriptors = image_descriptors_mut(destinations);
 
     Ok((
         batch_size,
         max_roi,
         source_batch_list,
-        DeviceMemory::from_slice(&destination_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(allocation_context, &destination_descriptors)
+        }?,
         source_descriptor_memory,
     ))
 }
 
-pub(super) fn color_twist_batch_descriptors<T, L>(
+pub fn color_twist_batch_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     sources: &[ImageView<'_, T, L>],
     twists: &[ColorTwistMatrix],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<(
     i32,
     Size,
@@ -616,7 +630,7 @@ where
         .iter()
         .flat_map(|twist| twist.iter().flat_map(|row| row.iter().copied()))
         .collect::<Vec<_>>();
-    let twist_memory = DeviceMemory::from_slice(&twist_values)?;
+    let twist_memory = DeviceMemory::from_slice(allocation_context, &twist_values)?;
     let twist_base = twist_memory.as_ptr().cast_mut();
 
     let batch_descriptors = sources
@@ -628,19 +642,21 @@ where
             source_step: source.step(),
             destination: destination.as_mut_ptr().cast(),
             destination_step: destination.step(),
-            twist: unsafe { twist_base.add(index * 12) },
+            twist: twist_base.wrapping_add(index * 12),
         })
         .collect::<Vec<_>>();
 
     Ok((
         batch_size,
         roi,
-        DeviceMemory::from_slice(&batch_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &batch_descriptors) }?,
         twist_memory,
     ))
 }
 
-pub(super) fn color_twist_batch_in_place_descriptors<T, L>(
+pub fn color_twist_batch_in_place_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     images: &mut [ImageViewMut<'_, T, L>],
     twists: &[ColorTwistMatrix],
 ) -> Result<(
@@ -666,7 +682,7 @@ where
         .iter()
         .flat_map(|twist| twist.iter().flat_map(|row| row.iter().copied()))
         .collect::<Vec<_>>();
-    let twist_memory = DeviceMemory::from_slice(&twist_values)?;
+    let twist_memory = DeviceMemory::from_slice(allocation_context, &twist_values)?;
     let twist_base = twist_memory.as_ptr().cast_mut();
 
     let batch_descriptors = images
@@ -679,7 +695,7 @@ where
                 source_step: image.step(),
                 destination: ptr,
                 destination_step: image.step(),
-                twist: unsafe { twist_base.add(index * 12) },
+                twist: twist_base.wrapping_add(index * 12),
             }
         })
         .collect::<Vec<_>>();
@@ -687,15 +703,17 @@ where
     Ok((
         batch_size,
         roi,
-        DeviceMemory::from_slice(&batch_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &batch_descriptors) }?,
         twist_memory,
     ))
 }
 
-pub(super) fn color_twist_batch_with_constants_descriptors<T>(
+pub fn color_twist_batch_with_constants_descriptors<T>(
+    allocation_context: &Arc<CudaContext>,
     sources: &[ImageView<'_, T, C4>],
     twists: &[ColorTwistBatchConstantsMatrix4],
-    destinations: &mut [ImageViewMut<'_, T, C4>],
+    destinations: &mut [ImageOutputView<'_, T, C4>],
 ) -> Result<(
     i32,
     Size,
@@ -720,7 +738,7 @@ pub(super) fn color_twist_batch_with_constants_descriptors<T>(
         .iter()
         .flat_map(|twist| twist.iter().flat_map(|row| row.iter().copied()))
         .collect::<Vec<_>>();
-    let twist_memory = DeviceMemory::from_slice(&twist_values)?;
+    let twist_memory = DeviceMemory::from_slice(allocation_context, &twist_values)?;
     let twist_base = twist_memory.as_ptr().cast_mut();
 
     let batch_descriptors = sources
@@ -732,19 +750,21 @@ pub(super) fn color_twist_batch_with_constants_descriptors<T>(
             source_step: source.step(),
             destination: destination.as_mut_ptr().cast(),
             destination_step: destination.step(),
-            twist: unsafe { twist_base.add(index * 20) },
+            twist: twist_base.wrapping_add(index * 20),
         })
         .collect::<Vec<_>>();
 
     Ok((
         batch_size,
         roi,
-        DeviceMemory::from_slice(&batch_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &batch_descriptors) }?,
         twist_memory,
     ))
 }
 
-pub(super) fn color_twist_batch_with_constants_in_place_descriptors<T>(
+pub fn color_twist_batch_with_constants_in_place_descriptors<T>(
+    allocation_context: &Arc<CudaContext>,
     images: &mut [ImageViewMut<'_, T, C4>],
     twists: &[ColorTwistBatchConstantsMatrix4],
 ) -> Result<(
@@ -767,7 +787,7 @@ pub(super) fn color_twist_batch_with_constants_in_place_descriptors<T>(
         .iter()
         .flat_map(|twist| twist.iter().flat_map(|row| row.iter().copied()))
         .collect::<Vec<_>>();
-    let twist_memory = DeviceMemory::from_slice(&twist_values)?;
+    let twist_memory = DeviceMemory::from_slice(allocation_context, &twist_values)?;
     let twist_base = twist_memory.as_ptr().cast_mut();
 
     let batch_descriptors = images
@@ -780,7 +800,7 @@ pub(super) fn color_twist_batch_with_constants_in_place_descriptors<T>(
                 source_step: image.step(),
                 destination: ptr,
                 destination_step: image.step(),
-                twist: unsafe { twist_base.add(index * 20) },
+                twist: twist_base.wrapping_add(index * 20),
             }
         })
         .collect::<Vec<_>>();
@@ -788,38 +808,36 @@ pub(super) fn color_twist_batch_with_constants_in_place_descriptors<T>(
     Ok((
         batch_size,
         roi,
-        DeviceMemory::from_slice(&batch_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &batch_descriptors) }?,
         twist_memory,
     ))
 }
 
-pub(super) fn smallest_color_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
+pub fn smallest_color_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
     sizes
         .into_iter()
         .reduce(|left, right| Size {
             width: left.width.min(right.width),
             height: left.height.min(right.height),
         })
-        .ok_or_else(|| Error::OutOfRange {
-            name: "batch size".into(),
-        })
+        .ok_or_else(|| Error::out_of_range("batch size"))
 }
 
-pub(super) fn largest_color_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
+pub fn largest_color_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
     sizes
         .into_iter()
         .reduce(|left, right| Size {
             width: left.width.max(right.width),
             height: left.height.max(right.height),
         })
-        .ok_or_else(|| Error::OutOfRange {
-            name: "batch size".into(),
-        })
+        .ok_or_else(|| Error::out_of_range("batch size"))
 }
 
-pub(super) fn color_planar_batch_descriptors<T, L, const C: usize>(
+pub fn color_planar_batch_descriptors<T, L, const C: usize>(
+    allocation_context: &Arc<CudaContext>,
     sources: &[PlanarImageView<'_, T, C>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<ColorPlanarBatchDescriptors<C>>
 where
     L: ChannelLayout,
@@ -836,31 +854,35 @@ where
             .iter()
             .map(|source| source.planes()[plane_index].descriptor())
             .collect::<Vec<_>>();
-        source_descriptor_memory.push(DeviceMemory::from_slice(&descriptors)?);
+        source_descriptor_memory
+            // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+            .push(unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors) }?);
     }
     let source_descriptor_memory: [DeviceMemory<sys::NppiImageDescriptor>; C] =
         source_descriptor_memory
             .try_into()
-            .map_err(|_| Error::OutOfRange {
-                name: "plane count".into(),
-            })?;
+            .map_err(|_| Error::out_of_range("plane count"))?;
     let source_batch_list = source_descriptor_memory
         .each_ref()
-        .map(|plane| plane.as_ptr());
+        .map(DeviceMemory::as_ptr);
     let destination_descriptors = image_descriptors_mut(destinations);
 
     Ok((
         batch_size,
         roi,
         source_batch_list,
-        DeviceMemory::from_slice(&destination_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(allocation_context, &destination_descriptors)
+        }?,
         source_descriptor_memory,
     ))
 }
 
-pub(super) fn color_planar_batch_advanced_descriptors<T, L, const C: usize>(
+pub fn color_planar_batch_advanced_descriptors<T, L, const C: usize>(
+    allocation_context: &Arc<CudaContext>,
     sources: &[PlanarImageView<'_, T, C>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<ColorPlanarBatchDescriptors<C>>
 where
     L: ChannelLayout,
@@ -870,31 +892,34 @@ where
         validate_same_size(source.planes()[0].size(), destination.size())?;
     }
 
-    let max_roi = largest_color_size(destinations.iter().map(ImageViewMut::size))?;
+    let max_roi = largest_color_size(destinations.iter().map(ImageOutputView::size))?;
     let mut source_descriptor_memory = Vec::with_capacity(C);
     for plane_index in 0..C {
         let descriptors = sources
             .iter()
             .map(|source| source.planes()[plane_index].descriptor())
             .collect::<Vec<_>>();
-        source_descriptor_memory.push(DeviceMemory::from_slice(&descriptors)?);
+        source_descriptor_memory
+            // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+            .push(unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors) }?);
     }
     let source_descriptor_memory: [DeviceMemory<sys::NppiImageDescriptor>; C] =
         source_descriptor_memory
             .try_into()
-            .map_err(|_| Error::OutOfRange {
-                name: "plane count".into(),
-            })?;
+            .map_err(|_| Error::out_of_range("plane count"))?;
     let source_batch_list = source_descriptor_memory
         .each_ref()
-        .map(|plane| plane.as_ptr());
+        .map(DeviceMemory::as_ptr);
     let destination_descriptors = image_descriptors_mut(destinations);
 
     Ok((
         batch_size,
         max_roi,
         source_batch_list,
-        DeviceMemory::from_slice(&destination_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(allocation_context, &destination_descriptors)
+        }?,
         source_descriptor_memory,
     ))
 }

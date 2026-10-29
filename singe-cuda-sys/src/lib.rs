@@ -2,16 +2,37 @@
 //!
 //! Prefer the safe `singe-cuda` crate unless direct NVIDIA ABI access is required.
 
-#![allow(deprecated, warnings, unused_qualifications, clippy::all)]
+#![allow(
+    deprecated,
+    non_camel_case_types,
+    non_snake_case,
+    unnecessary_transmutes,
+    unused_imports,
+    unused_qualifications,
+    non_upper_case_globals,
+    unsafe_op_in_unsafe_fn,
+    unpredictable_function_pointer_comparisons,
+    clippy::all,
+    clippy::correctness,
+    clippy::suspicious,
+    clippy::complexity,
+    clippy::perf,
+    clippy::style,
+    clippy::absolute_paths,
+    clippy::pedantic,
+    clippy::nursery,
+    reason = "generated bindings preserve upstream ABI conventions and documentation"
+)]
 
 #[cfg(feature = "driver")]
+/// CUDA Driver API declarations for contexts, memory, kernels, and graphs.
 pub mod driver {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    #[cfg(feature = "driver_13_3")]
-    include!("driver_sys_13030.rs");
+    #[cfg(feature = "driver_13_4")]
+    include!("driver_sys_13040.rs");
 
-    #[cfg(feature = "driver_13_3")]
+    #[cfg(feature = "driver_13_4")]
     pub use self::{
         cuArray3DCreate_v2 as cuArray3DCreate, cuArray3DGetDescriptor_v2 as cuArray3DGetDescriptor,
         cuArrayCreate_v2 as cuArrayCreate, cuArrayGetDescriptor_v2 as cuArrayGetDescriptor,
@@ -67,35 +88,46 @@ pub mod driver {
 }
 
 #[cfg(feature = "driver")]
+/// CUDA profiler start and stop declarations.
 pub mod profiler {
-    #[cfg(feature = "driver_13_3")]
-    include!("profiler_sys_13030.rs");
+    #[cfg(feature = "driver_13_4")]
+    include!("profiler_sys_13040.rs");
 }
 
+/// Scalar data types and library property enums shared by NVIDIA libraries.
 pub mod library_types {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    #[cfg(feature = "runtime_13_3")]
-    include!("library_types_sys_13030.rs");
+    #[cfg(feature = "runtime_13_4")]
+    include!("library_types_sys_13040.rs");
+}
+
+/// CUDA runtime linking library.
+#[cfg(feature = "nvjitlink_13_4")]
+pub mod nvjitlink {
+    include!("nvjitlink_sys_13040.rs");
 }
 
 #[cfg(feature = "nvrtc")]
+/// NVRTC runtime compilation declarations.
 pub mod nvrtc {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    #[cfg(feature = "nvrtc_13_3")]
-    include!("nvrtc_sys_13030.rs");
+    #[cfg(feature = "nvrtc_13_4")]
+    include!("nvrtc_sys_13040.rs");
 }
 
 #[cfg(feature = "nvvm")]
+/// NVVM IR compilation and version-query declarations.
 pub mod nvvm {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    #[cfg(feature = "nvvm_13_3")]
-    include!("nvvm_sys_13030.rs");
+    #[cfg(feature = "nvvm_13_4")]
+    include!("nvvm_sys_13040.rs");
 }
 
 #[cfg(feature = "nvtx")]
+/// NVTX event annotation declarations.
 pub mod nvtx {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
@@ -104,11 +136,12 @@ pub mod nvtx {
 }
 
 #[cfg(feature = "runtime")]
+/// CUDA Runtime API declarations and driver-compatible handle aliases.
 pub mod runtime {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
     // These types have type definitions in `driver_types.h`.
-    #[cfg(feature = "driver_13_3")]
+    #[cfg(feature = "driver_13_4")]
     #[rustfmt::skip]
     pub use crate::driver::{
         // --- Core handles & pointers ---
@@ -144,7 +177,7 @@ pub mod runtime {
 
     // These types are defined both in `driver_types.h` and `cuda.h` and might not be interchangeable.
     // Types of different layouts should not be imported here.
-    #[cfg(feature = "driver_13_3")]
+    #[cfg(feature = "driver_13_4")]
     #[rustfmt::skip]
     pub use crate::driver::{
         // --- Core Handles & Pointers ---
@@ -206,14 +239,20 @@ pub mod runtime {
         // CUextent3D as cudaExtent,
     };
 
+    /// Pointer to a CUDA array handle in this runtime binding.
     pub type cudaArray_const_t = *const crate::driver::CUarray;
+
+    /// Pointer to an immutable native CUDA mipmapped-array object.
     pub type cudaMipmappedArray_const_t = *const crate::driver::CUmipmappedArray_st;
+
+    /// Stream capture status used by graph recapture operations.
     pub type cudaGraphRecaptureStatus = cudaStreamCaptureStatus;
 
-    #[cfg(feature = "runtime_13_3")]
-    include!("driver_types_sys_13030.rs");
-    #[cfg(feature = "runtime_13_3")]
-    include!("runtime_sys_13030.rs");
+    #[cfg(feature = "runtime_13_4")]
+    include!("driver_types_sys_13040.rs");
+
+    #[cfg(feature = "runtime_13_4")]
+    include!("runtime_sys_13040.rs");
 }
 
 #[cfg(test)]
@@ -221,10 +260,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    fn test_it_works() {
         #[cfg(feature = "driver")]
         {
             let mut version = 0;
+            // SAFETY: the version query writes only into the local output locations.
             unsafe {
                 driver::cuDriverGetVersion(&mut version);
             }
@@ -235,6 +275,7 @@ mod tests {
         #[cfg(feature = "runtime")]
         {
             let mut version = 0;
+            // SAFETY: the version query writes only into the local output locations.
             unsafe {
                 runtime::cudaRuntimeGetVersion(&mut version);
             }
@@ -246,6 +287,7 @@ mod tests {
         {
             let mut major = 0;
             let mut minor = 0;
+            // SAFETY: the version query writes only into the local output locations.
             unsafe {
                 nvrtc::nvrtcVersion(&mut major, &mut minor);
             }

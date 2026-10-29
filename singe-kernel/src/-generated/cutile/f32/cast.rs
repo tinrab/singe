@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     #[cutile::entry()]
     pub fn cast_f32_f16<const B: i32>(
@@ -22,7 +27,7 @@ mod kernels {
         let values: Tile<f64, { [B] }> = convert_tile(values);
         out.store(values);
     }
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub fn cast_f32_bf16<const B: i32>(
         out: &mut Tensor<bf16, { [B] }>,
@@ -148,16 +153,18 @@ mod kernels {
         let input_base: PointerTile<*mut f32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<f32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0.0f32),
-            None,
-            Latency::<0>,
-        );
-        let zero = constant(0.0f32, tile_shape);
+        let input_result: (Tile<f32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0.0f32),
+                None,
+                Latency::<0>,
+            )
+        };
+        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         let nonzero = cmpf(
             input_result.0,
             zero,
@@ -171,15 +178,17 @@ mod kernels {
         let out_base: PointerTile<*mut u8, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut u8, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut u8, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 pub use kernels::*;

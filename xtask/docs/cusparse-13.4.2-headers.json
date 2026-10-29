@@ -1,0 +1,275 @@
+{
+  "CUSPARSE_COLOR_ALG0": {
+    "doc": "default",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_FORMAT_BLOCKED_ELL": {
+    "doc": "Blocked ELL",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_FORMAT_BSR": {
+    "doc": "Blocked Compressed Sparse Row (BSR)",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_FORMAT_COO": {
+    "doc": "Coordinate (COO) - Structure of Arrays",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_FORMAT_CSC": {
+    "doc": "Compressed Sparse Column (CSC)",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_FORMAT_CSR": {
+    "doc": "Compressed Sparse Row (CSR)",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_FORMAT_SLICED_ELLPACK": {
+    "doc": "Sliced ELL",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_INDEX_16U": {
+    "doc": "16-bit unsigned integer for matrix/vector indices",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_INDEX_32I": {
+    "doc": "32-bit signed integer for matrix/vector indices",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_INDEX_64I": {
+    "doc": "64-bit signed integer for matrix/vector indices",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_ORDER_COL": {
+    "doc": "Column-Major Order - Matrix memory layout",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_ORDER_ROW": {
+    "doc": "Row-Major Order - Matrix memory layout",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_VERSION": {
+    "doc": "Compile-time cuSPARSE version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.",
+    "kind": "constant",
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_VER_BUILD": {
+    "doc": "Build component of the cuSPARSE version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_VER_MAJOR": {
+    "doc": "Major component of the cuSPARSE version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_VER_MINOR": {
+    "doc": "Minor component of the cuSPARSE version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cusparse.h"
+  },
+  "CUSPARSE_VER_PATCH": {
+    "doc": "Patch component of the cuSPARSE version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cusparse.h"
+  },
+  "cusparseContext": {
+    "doc": "############################################################################## # OPAQUE DATA STRUCTURES ##############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreate": {
+    "doc": "############################################################################## # INITIALIZATION AND MANAGEMENT ROUTINES ##############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateBlockedEll": {
+    "doc": "------------------------------------------------------------------------------ ### BLOCKED ELL ###",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateBsr": {
+    "doc": "------------------------------------------------------------------------------ ### BSR ###",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateCoo": {
+    "doc": "------------------------------------------------------------------------------ ### COO ###",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateCsr": {
+    "doc": "------------------------------------------------------------------------------ ### CSR ###",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateDnMat": {
+    "doc": "############################################################################# # DENSE MATRIX DESCRIPTOR #############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateDnVec": {
+    "doc": "############################################################################# # DENSE VECTOR DESCRIPTOR #############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateIdentityPermutation": {
+    "doc": "############################################################################## # SPARSE MATRIX SORTING ##############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateMatDescr": {
+    "doc": "############################################################################## # HELPER ROUTINES ##############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateSlicedEll": {
+    "doc": "------------------------------------------------------------------------------ ### Sliced ELLPACK ###",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCreateSpVec": {
+    "doc": "############################################################################# # SPARSE VECTOR DESCRIPTOR #############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseCsr2CscAlg_t": {
+    "doc": "############################################################################## # CSR2CSC ##############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseDenseToSparseAlg_t": {
+    "doc": "############################################################################# # DENSE TO SPARSE #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseDestroySpMat": {
+    "doc": "############################################################################# # SPARSE MATRIX DESCRIPTOR #############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseFormat_t": {
+    "doc": "############################################################################# # GENERIC APIs - Enumerators and Opaque Data Structures #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseLoggerCallback_t": {
+    "doc": "############################################################################## # LOGGING APIs ##############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSDDMMAlg_t": {
+    "doc": "############################################################################# # SAMPLED DENSE-DENSE MATRIX MULTIPLICATION #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseScsrcolor": {
+    "doc": "############################################################################## # SPARSE MATRIX REORDERING ##############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseScsrgeam2_bufferSizeExt": {
+    "doc": "############################################################################## # EXTRA ROUTINES ##############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseScsrilu02_numericBoost": {
+    "doc": "############################################################################## # PRECONDITIONERS ##############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSnnz": {
+    "doc": "############################################################################## # SPARSE FORMAT CONVERSION ##############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSnnz_compress": {
+    "doc": "############################################################################## # SPARSE FORMAT CONVERSION ##############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpGEAMAlg_t": {
+    "doc": "############################################################################# # SPARSE MATRIX - SPARSE MATRIX ADDITION (SpGEAM) #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpGEMMAlg_t": {
+    "doc": "############################################################################# # SPARSE MATRIX - SPARSE MATRIX MULTIPLICATION (SpGEMM) #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpGEMMreuse_workEstimation": {
+    "doc": "############################################################################# # SPARSE MATRIX - SPARSE MATRIX MULTIPLICATION (SpGEMM) STRUCTURE REUSE #############################################################################",
+    "kind": "function",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpMMAlg_t": {
+    "doc": "############################################################################# # SPARSE MATRIX-MATRIX MULTIPLICATION #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpMMOpPlan": {
+    "doc": "############################################################################# # GENERIC APIs WITH CUSTOM OPERATORS (PREVIEW) #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpMVAlg_t": {
+    "doc": "############################################################################# # SPARSE MATRIX-VECTOR MULTIPLICATION #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpSMAlg_t": {
+    "doc": "############################################################################# # SPARSE TRIANGULAR MATRIX SOLVE #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpSVAlg_t": {
+    "doc": "############################################################################# # SPARSE TRIANGULAR VECTOR SOLVE #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSpVecDescr": {
+    "doc": "------------------------------------------------------------------------------",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseSparseToDenseAlg_t": {
+    "doc": "############################################################################# # SPARSE TO DENSE #############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  },
+  "cusparseStatus_t": {
+    "doc": "############################################################################## # ENUMERATORS ##############################################################################",
+    "members": {},
+    "source": "cusparse.h"
+  }
+}

@@ -1,29 +1,40 @@
 use crate::{
     error::Result,
-    image::view::C1,
-    pipeline::{ImageAllocator, Workspace},
+    image::{Image, SupportedImage, view::C1},
+    pipeline::image::{
+        ImageBacking, ImagePipeline,
+        threshold_dispatch::{ThresholdImage, ValueThresholdImage},
+    },
     types::ComparisonOperation,
 };
 
-use super::{
-    ImageBacking, ImagePipeline,
-    threshold_dispatch::{ThresholdImage, ValueThresholdImage},
-};
-
-#[path = "thresholding_fixed_methods.rs"]
 mod fixed_methods;
-#[path = "thresholding_fixed_value_methods.rs"]
 mod fixed_value_methods;
-#[path = "thresholding_into_methods.rs"]
 mod into_methods;
 
-impl<'a, T> ImagePipeline<'a, T, C1>
+impl<T> ImagePipeline<'_, T, C1>
 where
-    T: Copy,
-    Workspace: ImageAllocator<T, C1>,
+    T: Copy + SupportedImage<C1>,
     Self: ThresholdImage<T>,
 {
+    /// Replaces samples satisfying the selected native comparison with the corresponding threshold.
+    /// Compares each source sample with its threshold. NPP supports `ComparisonOperation::Less`
+    /// and `ComparisonOperation::Greater`; the wrapper forwards other selectors without
+    /// validation. Samples not satisfying the comparison retain their source value.
+    /// Uses scalar parameters for C1 images.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Prepares participating image regions, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer
+    /// waits, native threshold execution, or stream synchronization fail.
+    /// NPP may reject unsupported comparison or threshold parameters.
+    /// Image allocation, view construction can also fail.
     pub fn threshold(mut self, threshold: T, operation: ComparisonOperation) -> Result<Self> {
+        self.ensure_eager()?;
+
         match &mut self.backing {
             ImageBacking::Owned(image) => {
                 let mut image_view = image.view_mut()?;
@@ -35,8 +46,11 @@ where
                 )?;
             }
             ImageBacking::Borrowed(source) => {
-                let mut destination = self.workspace.image::<T, C1>(source.size())?;
-                let mut destination_view = destination.view_mut()?;
+                let mut destination = Image::<T, C1>::create_uninit(
+                    self.stream_context.cuda_context(),
+                    source.size(),
+                )?;
+                let mut destination_view = destination.output()?;
                 <Self as ThresholdImage<T>>::threshold_image(
                     self.stream_context,
                     source,
@@ -44,7 +58,8 @@ where
                     threshold,
                     operation,
                 )?;
-                self.backing = ImageBacking::Owned(destination);
+                // SAFETY: the completed operation above wrote every element.
+                self.backing = ImageBacking::Owned(unsafe { destination.assume_init() });
             }
         }
 
@@ -52,18 +67,34 @@ where
     }
 }
 
-impl<'a, T> ImagePipeline<'a, T, C1>
+impl<T> ImagePipeline<'_, T, C1>
 where
-    T: Copy,
-    Workspace: ImageAllocator<T, C1>,
+    T: Copy + SupportedImage<C1>,
     Self: ValueThresholdImage<T>,
 {
+    /// Replaces samples satisfying the selected native comparison with the corresponding replacement value.
+    /// Compares each source sample with its threshold. NPP supports `ComparisonOperation::Less`
+    /// and `ComparisonOperation::Greater`; the wrapper forwards other selectors without
+    /// validation. Samples not satisfying the comparison retain their source value.
+    /// Uses scalar parameters for C1 images.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Prepares participating image regions, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer
+    /// waits, native threshold execution, or stream synchronization fail.
+    /// NPP may reject unsupported comparison or threshold parameters.
+    /// Image allocation, view construction can also fail.
     pub fn threshold_value(
         mut self,
         threshold: T,
         value: T,
         operation: ComparisonOperation,
     ) -> Result<Self> {
+        self.ensure_eager()?;
+
         match &mut self.backing {
             ImageBacking::Owned(image) => {
                 let mut image_view = image.view_mut()?;
@@ -76,8 +107,11 @@ where
                 )?;
             }
             ImageBacking::Borrowed(source) => {
-                let mut destination = self.workspace.image::<T, C1>(source.size())?;
-                let mut destination_view = destination.view_mut()?;
+                let mut destination = Image::<T, C1>::create_uninit(
+                    self.stream_context.cuda_context(),
+                    source.size(),
+                )?;
+                let mut destination_view = destination.output()?;
                 <Self as ValueThresholdImage<T>>::threshold_value_image(
                     self.stream_context,
                     source,
@@ -86,7 +120,8 @@ where
                     value,
                     operation,
                 )?;
-                self.backing = ImageBacking::Owned(destination);
+                // SAFETY: the completed operation above wrote every element.
+                self.backing = ImageBacking::Owned(unsafe { destination.assume_init() });
             }
         }
 

@@ -1,0 +1,255 @@
+{
+  "CUFFT_C2C": {
+    "doc": "Complex to Complex, interleaved",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "CUFFT_C2R": {
+    "doc": "Complex (interleaved) to Real",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "CUFFT_COMPATIBILITY_FFTW_PADDING": {
+    "doc": "The default value",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "CUFFT_D2Z": {
+    "doc": "Double to Double-Complex",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "CUFFT_DEVICE_VERSION": {
+    "doc": "Compile-time cuFFT experimental device API version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.",
+    "kind": "constant",
+    "source": "cufft_device.h"
+  },
+  "CUFFT_DEVICE_VER_MAJOR": {
+    "doc": "Major component of the cuFFT experimental device API version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cufft_device.h"
+  },
+  "CUFFT_DEVICE_VER_MINOR": {
+    "doc": "Minor component of the cuFFT experimental device API version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cufft_device.h"
+  },
+  "CUFFT_DEVICE_VER_PATCH": {
+    "doc": "Patch component of the cuFFT experimental device API version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cufft_device.h"
+  },
+  "CUFFT_R2C": {
+    "doc": "Real to Complex (interleaved)",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "CUFFT_VERSION": {
+    "doc": "Compile-time cuFFT version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.",
+    "kind": "constant",
+    "source": "cufft.h"
+  },
+  "CUFFT_VER_BUILD": {
+    "doc": "Build component of the cuFFT version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cufft.h"
+  },
+  "CUFFT_VER_MAJOR": {
+    "doc": "Major component of the cuFFT version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cufft.h"
+  },
+  "CUFFT_VER_MINOR": {
+    "doc": "Minor component of the cuFFT version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cufft.h"
+  },
+  "CUFFT_VER_PATCH": {
+    "doc": "Patch component of the cuFFT version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cufft.h"
+  },
+  "CUFFT_WORKAREA_MINIMAL": {
+    "doc": "maximum reduction",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "CUFFT_WORKAREA_PERFORMANCE": {
+    "doc": "default - 1x overhead or more, maximum performance",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "CUFFT_WORKAREA_USER": {
+    "doc": "use workSize parameter as limit",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "CUFFT_XT_FORMAT_1D_INPUT_SHUFFLED": {
+    "doc": "shuffled input order prior to execution of 1D transforms",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "CUFFT_XT_FORMAT_INPLACE": {
+    "doc": "by default inplace is input order, which is linear across GPUs",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "CUFFT_XT_FORMAT_INPLACE_SHUFFLED": {
+    "doc": "shuffled output order after execution of the transform",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "CUFFT_XT_FORMAT_INPUT": {
+    "doc": "by default input is in linear order across GPUs",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "CUFFT_XT_FORMAT_OUTPUT": {
+    "doc": "by default output is in scrambled order depending on transform",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "CUFFT_Z2D": {
+    "doc": "Double-Complex to Double",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "CUFFT_Z2Z": {
+    "doc": "Double-Complex to Double-Complex",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftCallbackLoadC": {
+    "doc": "Legacy callbacks",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftCompatibility": {
+    "doc": "CUFFT supports the following data layouts",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftCompatibility_t": {
+    "doc": "CUFFT supports the following data layouts",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftComplex": {
+    "doc": "cufftComplex is a single-precision, floating-point complex data type that consists of interleaved real and imaginary components. cufftDoubleComplex is the double-precision equivalent.",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftHandle": {
+    "doc": "cufftHandle is a handle type used to store and access CUFFT plans.",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftJITCallbackLoadC": {
+    "doc": "LTO callbacks (notice the different offset type vs. legacy callbacks)",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftProperty": {
+    "doc": "Set/Get PlanProperty APIs configures per-plan behavior",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftProperty_t": {
+    "doc": "Set/Get PlanProperty APIs configures per-plan behavior",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftReal": {
+    "doc": "cufftReal is a single-precision, floating-point real data type. cufftDoubleReal is a double-precision, real data type.",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftResult": {
+    "doc": "CUFFT API function return values",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftResult_t": {
+    "doc": "CUFFT API function return values",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftSetStream": {
+    "doc": "utility functions",
+    "kind": "function",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftType": {
+    "doc": "CUFFT supports the following transform types",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftType_t": {
+    "doc": "CUFFT supports the following transform types",
+    "members": {},
+    "source": "cufft.h"
+  },
+  "cufftXtCallbackType": {
+    "doc": "callbacks",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtCallbackType_t": {
+    "doc": "callbacks",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtCopyType": {
+    "doc": "cufftXtCopyType specifies the type of copy for cufftXtMemcpy",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtCopyType_t": {
+    "doc": "cufftXtCopyType specifies the type of copy for cufftXtMemcpy",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtQueryPlan": {
+    "doc": "Utility functions",
+    "kind": "function",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtQueryType": {
+    "doc": "cufftXtQueryType specifies the type of query for cufftXtQueryPlan",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtQueryType_t": {
+    "doc": "cufftXtQueryType specifies the type of query for cufftXtQueryPlan",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtSetGPUs": {
+    "doc": "multi-GPU routines",
+    "kind": "function",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtSubFormat": {
+    "doc": "cufftXtSubFormat identifies the data layout of a memory descriptor owned by cufft. note that multi GPU cufft does not yet support out-of-place transforms",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtSubFormat_t": {
+    "doc": "cufftXtSubFormat identifies the data layout of a memory descriptor owned by cufft. note that multi GPU cufft does not yet support out-of-place transforms",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtWorkAreaPolicy": {
+    "doc": "cufftXtWorkAreaPolicy specifies policy for cufftXtSetWorkAreaPolicy",
+    "members": {},
+    "source": "cufftXt.h"
+  },
+  "cufftXtWorkAreaPolicy_t": {
+    "doc": "cufftXtWorkAreaPolicy specifies policy for cufftXtSetWorkAreaPolicy",
+    "members": {},
+    "source": "cufftXt.h"
+  }
+}

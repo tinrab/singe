@@ -1,19 +1,23 @@
-use super::*;
+use crate::{image::Image, pipeline::tests::*};
 
 #[test]
-fn fluent_pipelines_expose_owned_backing_after_first_allocating_operation() -> Result<()> {
+fn test_fluent_pipelines_expose_owned_backing_after_first_allocating_operation() -> Result<()> {
     let (stream, stream_context) = create_stream_context()?;
-    let source_image_memory = DeviceMemory::from_slice(&[0u8; 12])?;
-    let source_image = ImageView::<_, C3>::from_memory(&source_image_memory, Size::new(2, 2))?;
-    let source_c4_image_memory = DeviceMemory::from_slice(&[0u8; 16])?;
+    let source_image_memory = DeviceMemory::from_slice(stream.context(), &[0u8; 12])?;
+    let source_image = ImageView::<_, C3>::from_buffer(&source_image_memory, Size::new(2, 2))?;
+    let source_c4_image_memory = DeviceMemory::from_slice(stream.context(), &[0u8; 16])?;
     let source_c4_image =
-        ImageView::<_, C4>::from_memory(&source_c4_image_memory, Size::new(2, 2))?;
-    let source_signal_memory = DeviceMemory::from_slice(&[1.0f32, 2.0, 4.0])?;
-    let source_signal = SignalView::from_memory(&source_signal_memory, source_signal_memory.len())?;
+        ImageView::<_, C4>::from_buffer(&source_c4_image_memory, Size::new(2, 2))?;
+    let source_signal_memory = DeviceMemory::from_slice(stream.context(), &[1.0f32, 2.0, 4.0])?;
+    let source_signal = SignalView::from_view(
+        source_signal_memory
+            .view()
+            .slice(..source_signal_memory.len())?,
+    )?;
 
     let mut image_workspace = Workspace::create();
     let image_pipeline =
-        ImagePipeline::from_view(&stream_context, &mut image_workspace, source_image)
+        ImagePipeline::from_view(&stream_context, &mut image_workspace, source_image)?
             .threshold_channels([1, 2, 3], ComparisonOperation::Greater)?;
 
     assert!(image_pipeline.is_owned());
@@ -25,7 +29,7 @@ fn fluent_pipelines_expose_owned_backing_after_first_allocating_operation() -> R
 
     let mut c4_image_workspace = Workspace::create();
     let c4_image_pipeline =
-        ImagePipeline::from_view(&stream_context, &mut c4_image_workspace, source_c4_image)
+        ImagePipeline::from_view(&stream_context, &mut c4_image_workspace, source_c4_image)?
             .extract_channel(3)?;
 
     assert!(c4_image_pipeline.is_owned());
@@ -37,7 +41,7 @@ fn fluent_pipelines_expose_owned_backing_after_first_allocating_operation() -> R
 
     let mut signal_workspace = Workspace::create();
     let signal_pipeline =
-        SignalPipeline::from_view(&stream_context, &mut signal_workspace, source_signal)
+        SignalPipeline::from_view(&stream_context, &mut signal_workspace, source_signal)?
             .multiply_constant(3.0)?;
 
     assert!(signal_pipeline.is_owned());
@@ -51,11 +55,11 @@ fn fluent_pipelines_expose_owned_backing_after_first_allocating_operation() -> R
 }
 
 #[test]
-fn fluent_image_pipeline_can_start_from_allocation_and_resize_with_roi() -> Result<()> {
+fn test_fluent_image_pipeline_can_start_from_allocation_and_resize_with_roi() -> Result<()> {
     let (stream, stream_context) = create_stream_context()?;
     let mut workspace = Workspace::create();
 
-    let image = ImagePipeline::<u8, C1>::create(
+    let image = ImagePipeline::<u8, C1>::create_uninit(
         &stream_context,
         &mut workspace,
         Size {
@@ -64,21 +68,24 @@ fn fluent_image_pipeline_can_start_from_allocation_and_resize_with_roi() -> Resu
         },
     )?
     .set(7)?
-    .resize_with(geometry::Resize {
-        source_roi: Rectangle {
-            x: 0,
-            y: 0,
-            width: 4,
-            height: 4,
+    .resize_with(
+        geometry::Resize {
+            source_roi: Rectangle {
+                x: 0,
+                y: 0,
+                width: 4,
+                height: 4,
+            },
+            destination_roi: Rectangle {
+                x: 0,
+                y: 0,
+                width: 2,
+                height: 2,
+            },
+            interpolation: InterpolationMode::Nearest,
         },
-        destination_roi: Rectangle {
-            x: 0,
-            y: 0,
-            width: 2,
-            height: 2,
-        },
-        interpolation: InterpolationMode::Nearest,
-    })?
+        Image::<u8, C1>::filled(&stream_context, Size::new(2, 2), 0)?,
+    )?
     .finish()?;
 
     stream.synchronize()?;
@@ -96,13 +103,13 @@ fn fluent_image_pipeline_can_start_from_allocation_and_resize_with_roi() -> Resu
 }
 
 #[test]
-fn fluent_signal_pipeline_can_start_from_memory_and_write_integral_into() -> Result<()> {
+fn test_fluent_signal_pipeline_can_start_from_memory_and_write_integral_into() -> Result<()> {
     let (stream, stream_context) = create_stream_context()?;
     let source_host = [1i32, 2, 3];
-    let source_memory = DeviceMemory::from_slice(&source_host)?;
+    let source_memory = DeviceMemory::from_slice(stream.context(), &source_host)?;
     let mut workspace = Workspace::create();
 
-    let signal = SignalPipeline::<i32>::from_memory(
+    let signal = SignalPipeline::<i32>::from_buffer(
         &stream_context,
         &mut workspace,
         &source_memory,
@@ -111,29 +118,34 @@ fn fluent_signal_pipeline_can_start_from_memory_and_write_integral_into() -> Res
     .integral()?
     .finish()?;
 
-    let source = SignalView::from_memory(&source_memory, source_host.len())?;
-    let mut destination = Signal::<i32>::create(source_host.len() + 1)?;
+    let source = SignalView::from_view(source_memory.view().slice(..source_host.len())?)?;
+    let mut destination =
+        Signal::<i32>::create_uninit(stream_context.cuda_context(), source_host.len() + 1)?;
     {
-        let mut destination_view = destination.view_mut()?;
+        let mut destination_view = destination.output();
         SignalPipeline::<i32>::integral_into(&stream_context, &source, &mut destination_view)?;
     }
 
     stream.synchronize()?;
 
     assert_eq!(signal.len(), source_host.len() + 1);
+    // SAFETY: the call above completed and wrote every element.
+    let destination = unsafe { destination.assume_init() };
     assert_eq!(destination.len(), source_host.len() + 1);
 
     Ok(())
 }
 
 #[test]
-fn signal_pipeline_static_helpers_can_update_float_signal_in_place() -> Result<()> {
+fn test_signal_pipeline_static_helpers_can_update_float_signal_in_place() -> Result<()> {
     let (stream, stream_context) = create_stream_context()?;
-    let mut signal = Signal::<f32>::create(4)?;
+    let mut signal = Signal::<f32>::create_uninit(stream_context.cuda_context(), 4)?;
 
     {
-        let mut signal_view = signal.view_mut()?;
+        let mut signal_view = signal.output();
         SignalPipeline::<f32>::set_into(&stream_context, 2.0, &mut signal_view)?;
+        // SAFETY: the completed set initialized every element before read-write operations.
+        let mut signal_view = unsafe { signal_view.assume_init() };
         SignalPipeline::<f32>::add_constant_in_place(&stream_context, &mut signal_view, 1.0)?;
         SignalPipeline::<f32>::multiply_constant_in_place(&stream_context, &mut signal_view, 3.0)?;
         SignalPipeline::<f32>::square_root_in_place(&stream_context, &mut signal_view)?;
@@ -153,13 +165,15 @@ fn signal_pipeline_static_helpers_can_update_float_signal_in_place() -> Result<(
 }
 
 #[test]
-fn signal_pipeline_static_helpers_can_update_integer_signal_in_place() -> Result<()> {
+fn test_signal_pipeline_static_helpers_can_update_integer_signal_in_place() -> Result<()> {
     let (stream, stream_context) = create_stream_context()?;
-    let mut signal = Signal::<u8>::create(8)?;
+    let mut signal = Signal::<u8>::create_uninit(stream_context.cuda_context(), 8)?;
 
     {
-        let mut signal_view = signal.view_mut()?;
+        let mut signal_view = signal.output();
         SignalPipeline::<u8>::set_into(&stream_context, 4, &mut signal_view)?;
+        // SAFETY: the completed set initialized every element before read-write operations.
+        let mut signal_view = unsafe { signal_view.assume_init() };
         SignalPipeline::<u8>::add_constant_scaled_in_place(
             &stream_context,
             &mut signal_view,

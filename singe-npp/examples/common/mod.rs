@@ -5,13 +5,20 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
+    result::Result as StdResult,
+    sync::Arc,
 };
 
 use image::{GrayImage, ImageBuffer};
-use singe_cuda::{context::Context, memory::DeviceMemory, stream::Stream};
+use singe_cuda::{
+    context::Context,
+    memory::DeviceMemory,
+    stream::Stream,
+    view::{AnyBitPatternDeviceRepr, DeviceRepr},
+};
 use singe_npp::{context::StreamContext, types::Size};
 
-pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
+pub type Result<T> = StdResult<T, Box<dyn Error>>;
 
 pub fn create_stream() -> Result<(Stream, StreamContext)> {
     let context = Context::create()?;
@@ -59,11 +66,11 @@ pub fn write_png(path: impl AsRef<Path>, data: &[u8], size: Size) -> Result<()> 
     Ok(())
 }
 
-pub fn upload<T: Copy>(host: &[T]) -> Result<DeviceMemory<T>> {
-    Ok(DeviceMemory::from_slice(host)?)
+pub fn upload<T: DeviceRepr>(context: &Arc<Context>, host: &[T]) -> Result<DeviceMemory<T>> {
+    Ok(DeviceMemory::from_slice(context, host)?)
 }
 
-pub fn download<T: Copy>(device: &DeviceMemory<T>) -> Result<Vec<T>> {
+pub fn download<T: AnyBitPatternDeviceRepr>(device: &DeviceMemory<T>) -> Result<Vec<T>> {
     Ok(device.copy_to_host_vec()?)
 }
 
@@ -87,7 +94,7 @@ pub fn normalize_f32_to_u8(data: &[f32]) -> Vec<u8> {
 }
 
 pub fn normalize_i16_c2_magnitude_to_u8(data: &[i16]) -> Vec<u8> {
-    normalize_f64(data.chunks_exact(2).map(|xy| {
+    normalize_f64(data.as_chunks::<2>().0.iter().map(|xy| {
         let x = xy[0] as f64;
         let y = xy[1] as f64;
         x.hypot(y)

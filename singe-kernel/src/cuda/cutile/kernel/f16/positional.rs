@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     #[cutile::entry()]
     pub unsafe fn rotary_embedding_f16(
         out: *mut f16,
@@ -74,74 +76,86 @@ mod kernels {
             + pair * broadcast_scalar(cos_stride1, tile_shape);
         let sin_offsets: Tile<i32, { [128] }> = coord2 * broadcast_scalar(sin_stride0, tile_shape)
             + pair * broadcast_scalar(sin_stride1, tile_shape);
+        let zero: f16 = convert_scalar(0.0f32);
+        let one: f16 = convert_scalar(1.0f32);
 
         let input_base: PointerTile<*mut f16, { [] }> = pointer_to_tile(input);
         let input_base: PointerTile<*mut f16, { [1] }> = input_base.reshape(const_shape![1]);
-        let current_ptrs: PointerTile<*mut f16, { [128] }> = input_base
-            .broadcast(tile_shape)
-            .offset_tile(select(output_mask, current_offsets, zero_offsets));
-        let current_result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            current_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(output_mask),
-            Some(f16::from_f32(0.0)),
-            None,
-            Latency::<0>,
-        );
-        let even_ptrs: PointerTile<*mut f16, { [128] }> = input_base
-            .broadcast(tile_shape)
-            .offset_tile(select(in_rotary, even_offsets, zero_offsets));
-        let even_result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            even_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(in_rotary),
-            Some(f16::from_f32(0.0)),
-            None,
-            Latency::<0>,
-        );
-        let odd_ptrs: PointerTile<*mut f16, { [128] }> = input_base
-            .broadcast(tile_shape)
-            .offset_tile(select(in_rotary, odd_offsets, zero_offsets));
-        let odd_result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            odd_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(in_rotary),
-            Some(f16::from_f32(0.0)),
-            None,
-            Latency::<0>,
-        );
+        let current_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(tile_shape);
+        let current_ptrs: PointerTile<*mut f16, { [128] }> =
+            current_ptrs.offset_tile(select(output_mask, current_offsets, zero_offsets));
+        let current_result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                current_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(output_mask),
+                Some(zero),
+                None,
+                Latency::<0>,
+            )
+        };
+        let even_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(tile_shape);
+        let even_ptrs: PointerTile<*mut f16, { [128] }> =
+            even_ptrs.offset_tile(select(in_rotary, even_offsets, zero_offsets));
+        let even_result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                even_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(in_rotary),
+                Some(zero),
+                None,
+                Latency::<0>,
+            )
+        };
+        let odd_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(tile_shape);
+        let odd_ptrs: PointerTile<*mut f16, { [128] }> =
+            odd_ptrs.offset_tile(select(in_rotary, odd_offsets, zero_offsets));
+        let odd_result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                odd_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(in_rotary),
+                Some(zero),
+                None,
+                Latency::<0>,
+            )
+        };
 
         let cos_base: PointerTile<*mut f16, { [] }> = pointer_to_tile(cos);
         let cos_base: PointerTile<*mut f16, { [1] }> = cos_base.reshape(const_shape![1]);
-        let cos_ptrs: PointerTile<*mut f16, { [128] }> = cos_base
-            .broadcast(tile_shape)
-            .offset_tile(select(in_rotary, trig_offsets, zero_offsets));
-        let cos_result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            cos_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(in_rotary),
-            Some(f16::from_f32(1.0)),
-            None,
-            Latency::<0>,
-        );
+        let cos_ptrs: PointerTile<*mut f16, { [128] }> = cos_base.broadcast(tile_shape);
+        let cos_ptrs: PointerTile<*mut f16, { [128] }> =
+            cos_ptrs.offset_tile(select(in_rotary, trig_offsets, zero_offsets));
+        let cos_result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                cos_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(in_rotary),
+                Some(one),
+                None,
+                Latency::<0>,
+            )
+        };
         let sin_base: PointerTile<*mut f16, { [] }> = pointer_to_tile(sin);
         let sin_base: PointerTile<*mut f16, { [1] }> = sin_base.reshape(const_shape![1]);
-        let sin_ptrs: PointerTile<*mut f16, { [128] }> = sin_base
-            .broadcast(tile_shape)
-            .offset_tile(select(in_rotary, sin_offsets, zero_offsets));
-        let sin_result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            sin_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(in_rotary),
-            Some(f16::from_f32(0.0)),
-            None,
-            Latency::<0>,
-        );
+        let sin_ptrs: PointerTile<*mut f16, { [128] }> = sin_base.broadcast(tile_shape);
+        let sin_ptrs: PointerTile<*mut f16, { [128] }> =
+            sin_ptrs.offset_tile(select(in_rotary, sin_offsets, zero_offsets));
+        let sin_result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                sin_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(in_rotary),
+                Some(zero),
+                None,
+                Latency::<0>,
+            )
+        };
 
         let even_rotated = even_result.0 * cos_result.0 - odd_result.0 * sin_result.0;
         let odd_rotated = odd_result.0 * cos_result.0 + even_result.0 * sin_result.0;
@@ -152,15 +166,17 @@ mod kernels {
         let out_base: PointerTile<*mut f16, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(output_mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(output_mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 

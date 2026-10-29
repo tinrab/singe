@@ -1,4 +1,5 @@
 use singe_cublas::{blas::level3::cgemm3m, context::Context, error::Result, types::Operation};
+
 use singe_cuda::{
     context::Context as CudaContext, device::Device, memory::DeviceMemory, types::Complex32,
 };
@@ -7,19 +8,25 @@ fn main() -> Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&[
-        Complex32::new(1.1, 1.2),
-        Complex32::new(3.5, 3.6),
-        Complex32::new(2.3, 2.4),
-        Complex32::new(4.7, 4.8),
-    ])?;
-    let b = DeviceMemory::from_slice(&[
-        Complex32::new(1.1, 1.2),
-        Complex32::new(3.5, 3.6),
-        Complex32::new(2.3, 2.4),
-        Complex32::new(4.7, 4.8),
-    ])?;
-    let mut c = DeviceMemory::<Complex32>::zeroes(4)?;
+    let a = DeviceMemory::from_slice(
+        &cuda,
+        &[
+            Complex32::new(1.1, 1.2),
+            Complex32::new(3.5, 3.6),
+            Complex32::new(2.3, 2.4),
+            Complex32::new(4.7, 4.8),
+        ],
+    )?;
+    let b = DeviceMemory::from_slice(
+        &cuda,
+        &[
+            Complex32::new(1.1, 1.2),
+            Complex32::new(3.5, 3.6),
+            Complex32::new(2.3, 2.4),
+            Complex32::new(4.7, 4.8),
+        ],
+    )?;
+    let mut c = DeviceMemory::<Complex32>::zeroed(&cuda, 4)?;
 
     cgemm3m(
         &cublas,

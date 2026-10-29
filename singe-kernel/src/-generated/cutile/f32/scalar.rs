@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     pub fn scalar_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f32, { [B] }>,

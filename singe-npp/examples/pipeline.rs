@@ -1,7 +1,10 @@
 mod common;
 
 use singe_npp::{
-    image::view::{C3, ImageView},
+    image::{
+        Image,
+        view::{C1, C3, ImageView},
+    },
     pipeline::{ImagePipeline, Resize, Workspace},
     types::{
         BorderType, ComparisonOperation, ImageNormalization, InterpolationMode, Point, Size,
@@ -15,6 +18,7 @@ const OUTPUT_SIZE: Size = Size {
     width: 768,
     height: 768,
 };
+
 const WATERSHED_SIZE: Size = Size {
     width: 384,
     height: 384,
@@ -27,24 +31,30 @@ fn main() -> Result<()> {
     let size = Size::new(image.width() as i32, image.height() as i32);
 
     let (stream, stream_context) = create_stream()?;
-    let source_device = upload(image.as_raw())?;
-    let source = ImageView::<u8, C3>::from_memory(&source_device, size)?;
+    let source_device = upload(stream.context(), image.as_raw())?;
+    let source = ImageView::<u8, C3>::from_buffer(&source_device, size)?;
 
     let mut workspace = Workspace::create();
     let crop = size.centered_rectangle();
 
-    let output_image = ImagePipeline::from_view(&stream_context, &mut workspace, source)
-        .resize_with(Resize {
-            source_roi: crop,
-            destination_roi: OUTPUT_SIZE.rectangle(),
-            interpolation: InterpolationMode::Lanczos,
-        })?
+    let output_image = ImagePipeline::from_view(&stream_context, &mut workspace, source)?
+        .resize_with(
+            Resize {
+                source_roi: crop,
+                destination_roi: OUTPUT_SIZE.rectangle(),
+                interpolation: InterpolationMode::Lanczos,
+            },
+            Image::<u8, C3>::filled(&stream_context, OUTPUT_SIZE, 0)?,
+        )?
         .rgb_to_gray()?
-        .resize(WATERSHED_SIZE, InterpolationMode::Linear)?
+        .resize(
+            InterpolationMode::Linear,
+            Image::<u8, C1>::filled(&stream_context, WATERSHED_SIZE, 0)?,
+        )?
         .threshold_less_greater_value(24, 0, 235, 255)?
         .threshold_value(92, 32, ComparisonOperation::Less)?
-        .erode_3x3()?
-        .dilate_3x3()?
+        .erode_3x3_border(Point::ZERO, BorderType::Replicate)?
+        .dilate_3x3_border(Point::ZERO, BorderType::Replicate)?
         .segment_watershed(
             None, // marker_labels
             ImageNormalization::Infinity,

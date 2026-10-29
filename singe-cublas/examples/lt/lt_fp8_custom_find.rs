@@ -8,10 +8,10 @@ use singe_cublas::{
             MatmulDescriptor, check_matmul_algorithm, matmul, matmul_algorithm,
             matmul_algorithm_ids,
         },
-        types::{MatmulAlgorithmCapAttribute, MatmulAlgorithmConfigAttribute},
     },
     types::{ComputeType, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext,
     data_type::DataType,
@@ -34,15 +34,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let stop = cuda.create_event()?;
     let lt = LtContext::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&vec![f8e4m3::from_bits(1); (M * K) as usize])?;
-    let b = DeviceMemory::from_slice(&vec![f8e4m3::from_bits(1); (K * N) as usize])?;
-    let c = DeviceMemory::<bf16>::zeroes((M * N) as usize)?;
-    let mut d = DeviceMemory::<f8e4m3>::zeroes((M * N) as usize)?;
-    let a_scale = DeviceMemory::from_slice(&[1.0_f32])?;
-    let b_scale = DeviceMemory::from_slice(&[1.0_f32])?;
-    let c_scale = DeviceMemory::from_slice(&[1.0_f32])?;
-    let d_scale = DeviceMemory::from_slice(&[1.0_f32])?;
-    let mut amax_d = DeviceMemory::<f32>::zeroes(1)?;
+    let a = DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); (M * K) as usize])?;
+    let b = DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); (K * N) as usize])?;
+    let c = DeviceMemory::<bf16>::zeroed(&cuda, (M * N) as usize)?;
+    let mut d = DeviceMemory::<f8e4m3>::zeroed(&cuda, (M * N) as usize)?;
+    let a_scale = DeviceMemory::from_slice(&cuda, &[1.0_f32])?;
+    let b_scale = DeviceMemory::from_slice(&cuda, &[1.0_f32])?;
+    let c_scale = DeviceMemory::from_slice(&cuda, &[1.0_f32])?;
+    let d_scale = DeviceMemory::from_slice(&cuda, &[1.0_f32])?;
+    let mut amax_d = DeviceMemory::<f32>::zeroed(&cuda, 1)?;
 
     let a_layout = MatrixLayout::create(DataType::F8E4M3, M, K, M as i64)?;
     let b_layout = MatrixLayout::create(DataType::F8E4M3, K, N, K as i64)?;
@@ -83,13 +83,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             DataType::F8E4M3,
             id,
         )?;
-        let splitk_support =
-            algorithm.cap_attribute::<i32>(MatmulAlgorithmCapAttribute::SplitKSupport)? != 0;
+        let splitk_support = algorithm.supports_split_k()?;
         for splitk in [1_i32, 2_i32] {
             if splitk > 1 && !splitk_support {
                 continue;
             }
-            algorithm.set_config_attribute(MatmulAlgorithmConfigAttribute::SplitKCount, &splitk)?;
+            algorithm.set_split_k_count(splitk as usize)?;
             let heuristic = match check_matmul_algorithm(
                 &lt, &desc, &a_layout, &b_layout, &c_layout, &d_layout, &algorithm,
             ) {
@@ -97,26 +96,29 @@ fn main() -> Result<(), Box<dyn Error>> {
                 _ => continue,
             };
 
-            let mut workspace = DeviceMemory::<u8>::create(heuristic.workspace_size)?;
+            let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, heuristic.workspace_size)?;
             start.record(&stream, EventRecordFlags::DEFAULT)?;
             for _ in 0..REPEATS {
-                matmul(
-                    &lt,
-                    &desc,
-                    &alpha,
-                    &a,
-                    &a_layout,
-                    &b,
-                    &b_layout,
-                    &beta,
-                    &c,
-                    &c_layout,
-                    &mut d,
-                    &d_layout,
-                    Some(&algorithm),
-                    Some(&mut workspace),
-                    Some(&stream),
-                )?;
+                // SAFETY: descriptors match these buffers, which remain live until the completion wait below.
+                unsafe {
+                    matmul(
+                        &lt,
+                        &desc,
+                        &alpha,
+                        &a,
+                        &a_layout,
+                        &b,
+                        &b_layout,
+                        &beta,
+                        &c,
+                        &c_layout,
+                        &mut d,
+                        &d_layout,
+                        Some(&algorithm),
+                        Some(&mut workspace),
+                        Some(&stream),
+                    )
+                }?;
             }
             stop.record(&stream, EventRecordFlags::DEFAULT)?;
             stop.synchronize()?;

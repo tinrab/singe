@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     #[cutile::entry()]
     pub unsafe fn embedding_lookup_f16(
         out: *mut f16,
@@ -27,15 +29,17 @@ mod kernels {
         let ids_base: PointerTile<*mut u32, { [1] }> = ids_base.reshape(const_shape![1]);
         let id_ptrs: PointerTile<*mut u32, { [128] }> = ids_base.broadcast(tile_shape);
         let id_ptrs: PointerTile<*mut u32, { [128] }> = id_ptrs.offset_tile(token_offsets);
-        let id_result: (Tile<u32, { [128] }>, Token) = load_ptr_tko(
-            id_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0u32),
-            None,
-            Latency::<0>,
-        );
+        let id_result: (Tile<u32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                id_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0u32),
+                None,
+                Latency::<0>,
+            )
+        };
         let rows: Tile<i32, { [128] }> = bitcast(id_result.0);
         let source_offsets: Tile<i32, { [128] }> = rows * width_tile + columns;
 
@@ -43,29 +47,33 @@ mod kernels {
         let table_base: PointerTile<*mut f16, { [1] }> = table_base.reshape(const_shape![1]);
         let table_ptrs: PointerTile<*mut f16, { [128] }> = table_base.broadcast(tile_shape);
         let table_ptrs: PointerTile<*mut f16, { [128] }> = table_ptrs.offset_tile(source_offsets);
-        let values: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            table_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let values: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                table_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
 
         let out_base: PointerTile<*mut f16, { [] }> = pointer_to_tile(out);
         let out_base: PointerTile<*mut f16, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values.0,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values.0,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 

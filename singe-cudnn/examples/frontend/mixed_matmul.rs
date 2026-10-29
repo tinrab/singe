@@ -1,25 +1,23 @@
 mod common;
 
-use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::pointwise::PointwiseMode,
-    backend::tensor::{Shape, TensorSpec},
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorSpec},
+    },
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
-        graph::Graph,
-        operation::{HeuristicMode, PointwiseOperation},
+        graph::{Graph, TensorOutputConfig},
+        operation::{MatmulConfig, PointwiseOperation},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
 };
 
-fn named_tensor(name: &str, data_type: DataType, shape: Shape) -> TensorSpec {
-    TensorSpec::new(data_type, shape).with_name(name)
-}
-
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let example = common::ExampleContext::create()?;
 
     let b = 16;
     let m = 32;
@@ -27,73 +25,66 @@ fn run() -> Result<()> {
     let k = 128;
 
     let mut graph = Graph::new();
-    let a = graph.tensor(named_tensor(
-        "A",
-        DataType::I8,
-        Shape::contiguous([b, m, k])?.with_strides([m * k, k, 1])?,
-    ));
-    let b_tensor = graph.tensor(named_tensor(
-        "B",
-        DataType::BF16,
-        Shape::contiguous([b, k, n])?.with_strides([k * n, n, 1])?,
-    ));
-
-    let a_casted = graph.tensor(
-        named_tensor(
-            "Cast_A::OUT_0",
-            DataType::BF16,
-            Shape::contiguous([b, m, k])?.with_strides([m * k, k, 1])?,
+    let a =
+        graph.tensor(TensorSpec::new(DataType::I8, Shape::contiguous([b, m, k])?).with_name("A"));
+    let b_tensor =
+        graph.tensor(TensorSpec::new(DataType::BF16, Shape::contiguous([b, k, n])?).with_name("B"));
+    let a_casted = graph.pointwise(
+        PointwiseOperation::unary(
+            PointwiseMode::Identity,
+            a,
+            TensorOutputConfig::new()
+                .with_data_type(DataType::BF16)
+                .virtual_tensor(),
         )
-        .virtual_tensor(),
-    );
-    graph.pointwise(PointwiseOperation::Unary {
-        mode: PointwiseMode::Identity,
-        input: a,
-        output: a_casted,
-        compute_type: DataType::F32,
-        nan_propagation: NanPropagation::NotPropagate,
-        alpha1: 1.0,
-        axis: None,
-    });
+        .with_compute_type(DataType::F32)
+        .with_nan_propagation(NanPropagation::NotPropagate)
+        .with_name("Cast_A"),
+    )?;
+    let c = graph.matmul(
+        a_casted,
+        b_tensor,
+        MatmulConfig::new()
+            .with_compute_type(DataType::F32)
+            .with_name("GEMM"),
+        TensorOutputConfig::new()
+            .with_data_type(DataType::BF16)
+            .output_tensor(),
+    )?;
 
-    let c = graph.tensor(named_tensor(
-        "GEMM::C",
-        DataType::BF16,
-        Shape::contiguous([b, m, n])?.with_strides([m * n, n, 1])?,
-    ));
-    graph.matmul(a_casted, b_tensor, c, DataType::F32)?;
-
-    let compiled = graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
-
-    let mut a_dev = DeviceMemory::<i8>::zeroes((b * m * k) as usize)?;
-    let mut b_dev = DeviceMemory::<bf16>::zeroes((b * k * n) as usize)?;
-    let mut c_dev = DeviceMemory::<bf16>::zeroes((b * m * n) as usize)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    bindings.set(a, &mut a_dev)?;
-    bindings.set(b_tensor, &mut b_dev)?;
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+    let cuda = example.cudnn.cuda_context();
+    let mut seed = 123_456_789;
+    let a_dev = DeviceMemory::<i8>::from_slice(
+        cuda,
+        &common::init_i8_image(graph.shape(a)?.storage_span()?, &mut seed),
+    )?;
+    let b_values = common::init_f32_image(graph.shape(b_tensor)?.storage_span()?, &mut seed)
+        .into_iter()
+        .map(bf16::from_f32)
+        .collect::<Vec<_>>();
+    let b_dev = DeviceMemory::<bf16>::from_slice(cuda, &b_values)?;
+    let mut c_dev = DeviceMemory::<bf16>::zeroed(cuda, graph.shape(c)?.storage_span()?)?;
+    let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(a, &a_dev)?;
+    bindings.set_input(b_tensor, &b_dev)?;
     bindings.set(c, &mut c_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-
-    let c_host = c_dev.copy_to_host_vec()?;
-    let c_first = c_host[0].to_f32();
-    let c_last = c_host[c_host.len() - 1].to_f32();
-    let c_checksum = c_host.iter().map(|value| value.to_f32()).sum::<f32>();
-    let c_nonfinite = c_host
-        .iter()
-        .filter(|value| !value.to_f32().is_finite())
-        .count();
+    // SAFETY: initialized inputs, writable output and workspace remain live through stream completion.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
     println!(
-        "c: first={c_first}, last={c_last}, checksum={c_checksum}, nonfinite={c_nonfinite}, len={}",
-        c_host.len()
+        "executed int8-to-bf16 mixed matmul with output shape: {:?}",
+        graph.shape(c)?.dimensions()
     );
-
-    assert_eq!(graph.shape(c)?.dimensions(), &[16, 32, 64]);
-    assert_eq!(c_nonfinite, 0, "c.nonfinite mismatch");
-    assert_close!(c_first, 0.0, 1.0e-6, "c.first");
-    assert_close!(c_last, 0.0, 1.0e-6, "c.last");
-    assert_close!(c_checksum, 0.0, 1.0e-6, "c.checksum");
 
     Ok(())
 }

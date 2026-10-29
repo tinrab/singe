@@ -1,0 +1,2150 @@
+{
+  "CUTENSORMG_ALGO_DEFAULT": {
+    "doc": "Lets the internal heuristic choose",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSORMG_CONTRACTION_FIND_ATTRIBUTE_MAX": {
+    "doc": "Not an actual attribute, but the maximum value that the enum takes on",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSORMP_ALGO_DEFAULT": {
+    "doc": "Default algorithm",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSORMP_PLAN_REQUIRED_WORKSPACE_DEVICE": {
+    "doc": "uint64_t: exact required workspace in bytes that is needed to execute the plan",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSORMP_PLAN_REQUIRED_WORKSPACE_HOST": {
+    "doc": "uint64_t: exact required workspace in bytes that is needed to execute the plan",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_BLOCK_SIZE": {
+    "doc": "int64_t[numModes]: realized local block sizes, in elements",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_BLOCK_STRIDE": {
+    "doc": "int64_t[numModes]: realized local block strides, in elements",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_ELEMENT_STRIDE": {
+    "doc": "int64_t[numModes]: realized local element strides, in elements",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_EXTENT": {
+    "doc": "int64_t[numModes]: valid logical elements owned by the calling rank",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_STORAGE_SIZE": {
+    "doc": "uint64_t: minimum local storage span, in bytes",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSORMP_TENSOR_DESCRIPTOR_NUM_MODES": {
+    "doc": "uint32_t: number of descriptor modes",
+    "members": {},
+    "source": "types.h"
+  },
+  "CUTENSOR_COMPUTE_16BF": {
+    "doc": "floating-point: 8-bit exponent and 7-bit mantissa (aka bfloat)",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_16F": {
+    "doc": "floating-point: 5-bit exponent and 10-bit mantissa (aka half)",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_32F": {
+    "doc": "floating-point: 8-bit exponent and 23-bit mantissa (aka float)",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_32I": {
+    "doc": "32-bit signed integer",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_32U": {
+    "doc": "32-bit unsigned integer",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_3XTF32": {
+    "doc": "floating-point: More precise than TF32, but less precise than float",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_64F": {
+    "doc": "floating-point: 11-bit exponent and 52-bit mantissa (aka double)",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_8I": {
+    "doc": "8-bit signed integer",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_8U": {
+    "doc": "8-bit unsigned integer",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_COMPUTE_TF32": {
+    "doc": "floating-point: 8-bit exponent and 10-bit mantissa (aka tensor-float-32)",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_MAJOR": {
+    "doc": "Major component of the cuTENSOR version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cutensor.h"
+  },
+  "CUTENSOR_MG_DEVICE_HOST": {
+    "doc": "The memory is located on the host in regular memory",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_MG_DEVICE_HOST_PINNED": {
+    "doc": "The memory is located on the host in pinned memory",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "CUTENSOR_MINOR": {
+    "doc": "Minor component of the cuTENSOR version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cutensor.h"
+  },
+  "CUTENSOR_PATCH": {
+    "doc": "Patch component of the cuTENSOR version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cutensor.h"
+  },
+  "CUTENSOR_VERSION": {
+    "doc": "Compile-time cuTENSOR version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.",
+    "kind": "constant",
+    "source": "cutensor.h"
+  },
+  "cutensorBlockSparseContract": {
+    "doc": "This routine computes the block-sparse tensor contraction\n\n\n\n```text\n D = alpha * A * B + beta * C \n```\n\n.\n\n\n\n\n\n\n\n```text\n \\mathcal{D}_{{modes}_\\mathcal{D}} \\gets \\alpha * \\mathcal{A}_{{modes}_\\mathcal{A}} B_{{modes}_\\mathcal{B}} + \\beta \\mathcal{C}_{{modes}_\\mathcal{C}} \n```\n\nThe active CUDA device must match the CUDA device that was active at the time at which the plan was created.\n\nThe array-parameters `A`, `B`, `C`, and `D` are host-arrays containing pointers to GPU-accessible memory. For example, `A` is a host-array whose size equals the number of non-zero blocks in tensor\n\n\n\n```text\n\\mathcal{A}\n```\n\n. `A[i]` is a pointer to the GPU-accessible memory location of block number `i` of\n\n\n\n```text\n\\mathcal{A}\n```\n\n. The blocks are numbered in the same way as in the construction of\n\n\n\n```text\n\\mathcal{A}\n```\n\n's block-sparse tensor descriptor. The same analogously holds for the other array-parameters `B`, `C`, and `D`.\n\n\n\n\n\nretval: if operation is not supported.\n\nretval: if some input data is invalid (this typically indicates an user error).\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if the plan was created for a different device than the currently active device.\n\nretval: if the driver is insufficient.\n\nretval: if some unknown CUDA error has occurred (e.g., out of memory).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "A": {
+        "doc": "Host-array of size numNonZeroBlocks(A), containing pointers to GPU-accessible memory, corresponding the blocks of A. The data accessed via these pointers must not overlap with the elements written to D."
+      },
+      "B": {
+        "doc": "Host-array of size numNonZeroBlocks(B), containing pointers to GPU-accessible memory, corresponding the blocks of B. The data accessed via these pointers must not overlap with the elements written to D."
+      },
+      "C": {
+        "doc": "Host-array of size numNonZeroBlocks(C), containing pointers to GPU-accessible memory, corresponding the blocks of C."
+      },
+      "D": {
+        "doc": "Host-array of size numNonZeroBlocks(D), containing pointers to GPU-accessible memory, corresponding the blocks of D."
+      },
+      "alpha": {
+        "doc": "Scaling for A*B. Its data type is determined by 'descCompute' (see `cutensorCreateBlockSparseContraction)`. Pointer to host memory."
+      },
+      "beta": {
+        "doc": "Scaling for C. Its data type is determined by 'descCompute' (see `cutensorCreateBlockSparseContraction)`. Pointer to host memory."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "plan": {
+        "doc": "Opaque handle holding the contraction execution plan (created by `cutensorCreateBlockSparseContraction` followed by `cutensorCreatePlan)`."
+      },
+      "stream": {
+        "doc": "The CUDA stream to which all of the computation is synchronised. The stream must belong to the device associated with `handle`, and that device must be active."
+      },
+      "workspace": {
+        "doc": "This pointer provides the required workspace in device memory. The workspace must be aligned to 256 bytes (i.e., the default alignment of cudaMalloc)."
+      },
+      "workspaceSize": {
+        "doc": "Size of the workspace array in bytes; please refer to `cutensorEstimateWorkspaceSize` to query the required workspace. For block-sparse contractions, this estimate is exact."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorComputeType_t": {
+    "doc": "Encodes cuTENSOR's compute type (see \"User Guide - Accuracy Guarantees\" for details).",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorContract": {
+    "doc": "This routine computes the tensor contraction\n\n\n\n```text\n D = alpha * A * B + beta * C \n```\n\n.\n\n\n\n\n\n\n\n```text\n \\mathcal{D}_{{modes}_\\mathcal{D}} \\gets \\alpha * \\mathcal{A}_{{modes}_\\mathcal{A}} B_{{modes}_\\mathcal{B}} + \\beta \\mathcal{C}_{{modes}_\\mathcal{C}} \n```\n\nThe active CUDA device must match the CUDA device that was active at the time at which the plan was created.\n\n\n\n\n\nSee https://github.com/NVIDIA/CUDALibrarySamples/tree/master/cuTENSOR/contraction.cu for a concrete example.\n\n\n\nretval: if operation is not supported.\n\nretval: if some input data is invalid (this typically indicates an user error).\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if the plan was created for a different device than the currently active device.\n\nretval: if the driver is insufficient.\n\nretval: if some unknown CUDA error has occurred (e.g., out of memory).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "A": {
+        "doc": "Pointer to the data corresponding to A. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "B": {
+        "doc": "Pointer to the data corresponding to B. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "C": {
+        "doc": "Pointer to the data corresponding to C. Pointer to the GPU-accessible memory."
+      },
+      "D": {
+        "doc": "Pointer to the data corresponding to D. Pointer to the GPU-accessible memory."
+      },
+      "alpha": {
+        "doc": "Scaling for A*B. Its data type is determined by 'descCompute' (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE)). Pointer to the host memory."
+      },
+      "beta": {
+        "doc": "Scaling for C. Its data type is determined by 'descCompute' (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE)). Pointer to the host memory."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "plan": {
+        "doc": "Opaque handle holding the contraction execution plan (created by `cutensorCreateContraction` followed by `cutensorCreatePlan)`."
+      },
+      "stream": {
+        "doc": "The CUDA stream in which all the computation is performed."
+      },
+      "workspace": {
+        "doc": "Optional parameter that may be NULL. This pointer provides additional workspace, in device memory, to the library for additional optimizations; the workspace must be aligned to 256 bytes (i.e., the default alignment of cudaMalloc)."
+      },
+      "workspaceSize": {
+        "doc": "Size of the workspace array in bytes; please refer to `cutensorEstimateWorkspaceSize` to query the required workspace. While `cutensorContract` does not strictly require a workspace for the contraction, it is still recommended to provided some small workspace (e.g., 128 MB)."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorContractTrinary": {
+    "doc": "This routine computes the tensor contraction\n\n\n\n```text\n E = alpha * A * B * C + beta * D \n```\n\n.\n\n\n\n\n\n\n\n```text\n \\mathcal{E}_{{modes}_\\mathcal{E}} \\gets \\alpha * \\mathcal{A}_{{modes}_\\mathcal{A}} \\mathcal{B}_{{modes}_\\mathcal{B}} \\mathcal{C}_{{modes}_\\mathcal{C}} + \\beta \\mathcal{D}_{{modes}_\\mathcal{D}} \n```\n\nThe active CUDA device must match the CUDA device that was active at the time at which the plan was created.\n\n\n\n\n\nSee https://github.com/NVIDIA/CUDALibrarySamples/tree/master/cuTENSOR/contraction_trinary.cu for a concrete example.\n\n\n\nretval: if operation is not supported.\n\nretval: if some input data is invalid (this typically indicates an user error).\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if the plan was created for a different device than the currently active device.\n\nretval: if the driver is insufficient.\n\nretval: if some unknown CUDA error has occurred (e.g., out of memory).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "A": {
+        "doc": "Pointer to the data corresponding to A. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to E."
+      },
+      "B": {
+        "doc": "Pointer to the data corresponding to B. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to E."
+      },
+      "C": {
+        "doc": "Pointer to the data corresponding to C. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to E."
+      },
+      "D": {
+        "doc": "Pointer to the data corresponding to D. Pointer to the GPU-accessible memory."
+      },
+      "E": {
+        "doc": "Pointer to the data corresponding to E. Pointer to the GPU-accessible memory."
+      },
+      "alpha": {
+        "doc": "Scaling for A*B*C. Its data type is determined by 'descCompute' (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE)). Pointer to the host memory."
+      },
+      "beta": {
+        "doc": "Scaling for D. Its data type is determined by 'descCompute' (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE)). Pointer to the host memory."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "plan": {
+        "doc": "Opaque handle holding the contraction execution plan (created by `cutensorCreateContractionTrinary` followed by `cutensorCreatePlan)`."
+      },
+      "stream": {
+        "doc": "The CUDA stream in which all the computation is performed."
+      },
+      "workspace": {
+        "doc": "Optional parameter that may be NULL. This pointer provides additional workspace, in device memory, to the library for additional optimizations; the workspace must be aligned to 256 bytes (i.e., the default alignment of cudaMalloc)."
+      },
+      "workspaceSize": {
+        "doc": "Size of the workspace array in bytes; please refer to `cutensorEstimateWorkspaceSize` to query the required workspace. While `cutensorContract` does not strictly require a workspace for the contraction, it is still recommended to provided some small workspace (e.g., 128 MB)."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreate": {
+    "doc": "Initializes the cuTENSOR library and allocates the memory for the library context.\n\n\n\nThe device associated with a particular cuTENSOR handle is assumed to remain unchanged after the `cutensorCreate` call. In order for the cuTENSOR library to use a different device, the application must set the new device to be used by calling cudaSetDevice and then create another cuTENSOR handle, which will be associated with the new device, by calling `cutensorCreate`.\n\nMoreover, each handle by default has a plan cache that can store the least recently used `cutensorPlan_t`; its default capacity is 64, but it can be changed via `cutensorHandleResizePlanCache` if this is too little storage space. See the <a ['name', 'href']=\"['value', '../plan_cache.html']\">Plan Cache Guide</a> for more information.\n\nThe user is responsible for calling  `cutensorDestroy` to free the resources associated with the handle.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "Pointer to cutensorHandle_t"
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreateBlockSparseContraction": {
+    "doc": "This function allocates a cutensorOperationDescriptor_t object that encodes a block-sparse tensor contraction of the form\n\n\n\n```text\n D = \\alpha \\mathcal{A}  \\mathcal{B} + \\beta \\mathcal{C} \n```\n\n.\n\n\n\nAllocates data for `desc` to be used to perform a block-sparse tensor contraction of the form\n\n\n\n```text\n \\mathcal{D}_{{modes}_\\mathcal{D}} \\gets \n     \\alpha op_\\mathcal{A}(\\mathcal{A}_{{modes}_\\mathcal{A}}) \n            op_\\mathcal{B}(B_{{modes}_\\mathcal{B}}) + \n     \\beta  op_\\mathcal{C}(\\mathcal{C}_{{modes}_\\mathcal{C}}). \n```\n\n\n\nOnly the predefined non-zero blocks of\n\n\n\n```text\n\\mathcal{D}\n```\n\nthat were specified in cutensorCreateBlockSparseTensorDescriptor() are actually computed. The other blocks are omitted, even if the true result of the contraction would be non-zero. Conversely, if a predefined non-zero block of\n\n\n\n```text\n\\mathcal{D}\n```\n\nis present, but the result of the contraction is zero for this block, explicit zeros will be stored.\n\nCurrently, the data-types for the tensors `A`, `B`, `C`, and `D`, as well as the scalars\n\n\n\n```text\n \\alpha \n```\n\nand\n\n\n\n```text\n \\beta \n```\n\nmust all be identical, and the only supported types are CUDA_C_64F, CUDA_C_32F, CUDA_R_64F, and CUDA_R_32F. The compute-type needs to match as well, that is, we currently only support:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n +---------------+---------------+---------------+---------------+------------------------------+---------------+\n |     typeA     |     typeB     |     typeC     |     typeD     |        descCompute           |  typeScalar   |\n +===============+===============+===============+===============+==============================+===============+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_32F   |  CUDA_R_32F   |\n +---------------+---------------+---------------+---------------+------------------------------+---------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_64F   |  CUDA_R_64F   |\n +---------------+---------------+---------------+---------------+------------------------------+---------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_32F   |  CUDA_C_32F   |\n +---------------+---------------+---------------+---------------+------------------------------+---------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F   |  CUDA_C_64F   |\n +---------------+---------------+---------------+---------------+------------------------------+---------------+\n```\n\nFor every mode, the segmentation of that mode must be identical in all tensors that it occurs in. For example, if modeA[i] = modeB[j] for some i and j, then numSectionsPerMode[i] of tensor A must have the same value as numSectionsPerMode[j] of tensor B, and the corresponding section extents must be identical.\n\nFor example, let A, B, and C be block matrices and consider the ordinary matrix-matrix product\n\n\n\n```text\nC_{mn}=A_{mk}B_{kn}\n```\n\n. Then:\n- Mode 'm': C and A need to have the same number of block-rows, and each block-row of C needs to contain the same number of rows as the corresponding block-row of A.\n- Mode 'n': C and B need to have the same number of block-columns of matching size\n- Mode 'k': A needs to have the same number of block-columns as B has block-rows, and each block-column of A needs to consist of the same number of columns as the number of rows in the corresponding block-row of B.\n\nAt the moment, descC and descD must be identical, i.e., the same opaque pointer needs to be passed and the layouts of the C and the D tensors need to be identical.\n\nSee `cutensorCreatePlan` to create the plan, `cutensorEstimateWorkspaceSize` to compute the required workspace, and finally `cutensorBlockSparseContract` to perform the actual contraction.\n\nThe user is responsible for calling `cutensorDestroyOperationDescriptor` to free the resources associated with the descriptor.\n\nBy default, the results of a block-sparse contraction are not bitwise reproducible across runs; this default is chosen for performance. If bitwise-reproducible results are required, set the `CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE` attribute on the descriptor returned by this function (via `cutensorOperationDescriptorSetAttribute)` to a non-zero value before creating the plan. The performance cost of reproducibility depends on the workload: it is largest when there are only a few small output blocks with a large K-dimension (dot-product-like cases), or when the K-dimension varies strongly across output blocks. For workloads with many output blocks of comparable K-extent the cost is small.\n\n\n\nretval: if the combination of data types or operations is not supported\n\nretval: if tensor dimensions or modes or section sizes have an illegal value\n\nretval: The operation completed successfully without error\n\nretval: if the handle is not initialized.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct gets allocated and filled with the information that encodes the tensor contraction operation."
+      },
+      "descA": {
+        "doc": "The descriptor that holds the information about the data type, modes, sections, section extents, strides, and non-zero blocks of A."
+      },
+      "descB": {
+        "doc": "The descriptor that holds information about the the data type, modes, sections, section extents, strides, and non-zero blocks of B."
+      },
+      "descC": {
+        "doc": "The descriptor that holds information about the data type, modes, sections, section extents, strides, and non-zero blocks of C. Note that the block-sparsity pattern of C (the nonZeroCoordinates[] array used to create the decriptor) of C must be identical to that of D; and it is this block-sparsity pattern that determines which parts of the results are computed; no fill-in is allocated or computed."
+      },
+      "descD": {
+        "doc": "For now, this must be the same opaque pointer as descC, and the layouts of C and D must be identical."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "modeA": {
+        "doc": "Array with 'nmodeA' entries that represent the modes of A. Sections, i.e., block-sizes, must match among the involved block-sparse tensors."
+      },
+      "modeB": {
+        "doc": "Array with 'nmodeB' entries that represent the modes of B. Sections, i.e., block-sizes, must match among the involved block-sparse tensors."
+      },
+      "modeC": {
+        "doc": "Array with 'nmodeC' entries that represent the modes of C. Sections, i.e., block-sizes, must match among the involved block-sparse tensors."
+      },
+      "modeD": {
+        "doc": "Array with 'nmodeD' entries that represent the modes of D (must be identical to modeC for now)."
+      },
+      "opA": {
+        "doc": "Unary operator that will be applied to each element of A before it is further processed. The original data of this tensor remains unchanged. Currently, only CUTENSOR_OP_IDENTITY is supported."
+      },
+      "opB": {
+        "doc": "Unary operator that will be applied to each element of B before it is further processed. The original data of this tensor remains unchanged. Currently, only CUTENSOR_OP_IDENTITY is supported."
+      },
+      "opC": {
+        "doc": "Unary operator that will be applied to each element of C before it is further processed. The original data of this tensor remains unchanged. Currently, only CUTENSOR_OP_IDENTITY is supported."
+      },
+      "typeCompute": {
+        "doc": "Datatype of for the intermediate computation of typeCompute T = A * B."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreateBlockSparseTensorDescriptor": {
+    "doc": "Create a block-sparse tensor descriptor\n\n\n\nA block-sparse tensor descriptor fully specifies the data layout of a block-sparse tensor (currently limited to up to 32 modes).\n\nLet us consider an example for a block-sparse tensor of order 2, i.e., a block-sparse matrix `A`.  Its first mode (`rows`) is subdivided into 5 sections (with extents 4, 2, 3, 4, 5, respectively), and its second mode (`columns`) is subdivided into 3 sections (with extents 2, 3, 7). The matrix has 8 non-zero blocks:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n +-------+-------+-------+\n | 4 x 2 |       | 4 x 7 |\n +-------+-------+-------+\n |       | 2 x 3 |       |\n +-------+-------+-------+\n |       | 3 x 3 | 3 x 7 |\n +-------+-------+-------+\n | 4 x 2 |       |       |\n +-------+-------+-------+\n |       | 5 x 3 | 5 x 7 |\n +-------+-------+-------+\n```\n\nNotice that we require the same extent of each sub section across the entire mode, i.e., every block within the same section of a mode has the same extent. For example, in the above picture every block on the right has 7 colums, and all blocks on the bottom have 5 rows.\n\nMoreover, we only store the non-zero blocks (blocks that are zero are left blank in the above representation).\n\nTo be precise, the above block-sparse tensor could be created via:\n\n\n\n\n\n```text\n{.cpp}\n uint32_t numModes = 2;\n uint64_t numNonZeroBlocks = 8;\n const uint32_t sectionsPerMode[] = {5, 3}; // Array of size numModes\n const int64_t extent[] =                   // Array of size Sum(sectionsPerMode)\n {\n      4, 2, 3, 4, 5, // extents of sections of first  mode\n      2, 3, 7        // extents of sections of second mode\n };\n\n const int32_t nonZeroCoordinates[] = // Array of size numModes x numNonZeroBlocks\n {\n      0, 0, // Block 0.     List of non-zero blocks in the block-sparse tensor.\n      3, 0, // Block 1.     Blocks may be listed in an arbitrary order, however,\n      1, 1, // Block 2.     this order must remain the same for every subsequent \n      2, 1, // Block 3.     operation.\n      4, 1, // Block 4.     For example, when calling cutensorBlockSparseContract,\n      0, 2, // Block 5.     pointers to the blocks need to be given in this order.\n      2, 2, // Block 6.     The strides of the blocks in the stride[] array also     \n      4, 2  // Block 7.     need to be given the same order as in this list. \n };\n      ^  ^\n      |  |\n      |  \\--- Section number of second mode,  block-column number\n      \\------ Section number of first  mode,  block-row number\n\n\n const int64_t stride[] = // Either nullptr or an array of size numModes x numNonZeroBlocks\n {\n      1, 4,  // Block 0.   Strides for each block, given in the same order as in\n      1, 4,  // Block 1.   the array nonZeroCoordinates.  \n      1, 2,  // Block 2.   \n      1, 3,  // Block 3.   In this example, each block is stored contiguously in\n      1, 5,  // Block 4.   column-major order; this is equivalent to passing stride=nullptr.\n      1, 4,  // Block 5.   \n      1, 3,  // Block 6.   However, other memory layouts are also allowed, see documentation\n      1, 5   // Block 7.   below.\n };\n\n cudaDataType_t dataType = CUDA_C_64F; // For example: complex-valued double-precision.\n```\n\n\n\nAs an example:\n- strides of block #0: 5, 1, 10, 20. Sorted strides would be: 1, 5, 10, 20. The permutation to sort the strides in this case is to swap the first two elements.\n- strides of block #1: 10, 1, 30, 60. Applying the permutation would result in: 1, 10, 30, 60. The result is sorted in ascending order, this is allowed.\n- strides of block #2: 1, 5, 50, 100. Applying permuation would result in: 5, 1, 50, 100. The result is _not_ sorted in ascending order, this is _not_ allowed.\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "dataType": {
+        "doc": "Data type of the stored entries. We assume the same datatype for each block. Currently, the only supported values are CUDA_C_64F, CUDA_C_32F, CUDA_R_64F, and CUDA_R_32F."
+      },
+      "desc": {
+        "doc": "The resulting block-sparse tensor descriptor."
+      },
+      "extent": {
+        "doc": "The extents of the sections of each mode (host array of size `_i^numModes(numSectionsPerMode[i])`). First come the extents of the sections of the first mode, then the extents of the sections of the second mode, and so forth."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "nonZeroCoordinates": {
+        "doc": "Block-coordinates of each non-zero block (host array of size `numModes` x `numNonZeroBlocks` Blocks can be specified in any order, however, that order must be consistent with stride and alignmentRequirement arrays."
+      },
+      "numModes": {
+        "doc": "The number of modes. Currently, a maximum of 32 modes is supported."
+      },
+      "numNonZeroBlocks": {
+        "doc": "The number of non-zero blocks in the block-sparse tensor."
+      },
+      "numSectionsPerMode": {
+        "doc": "The number of sections of each mode (host array of size `numModes`)."
+      },
+      "stride": {
+        "doc": "The strides of each dense block (either nullptr or a host array of size `numModes` x `numNonZeroBlocks`). First the strides of the first block, then the strides of the second block, with the blocks in the same order as in nonZeroCoordinates. Passing nullptr means contiguous column-major order for each block. Moreover, the strides need to be compatible in the following sense: Suppose you sort the strides of the first block, such that they are ascending; this sorting results in a permutation. If you apply this permutation to the strides of any other block, the result needs to be sorted as well."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreateContraction": {
+    "doc": "This function allocates a cutensorOperationDescriptor_t object that encodes a tensor contraction of the form\n\n\n\n```text\n D = \\alpha \\mathcal{A}  \\mathcal{B} + \\beta \\mathcal{C} \n```\n\n.\n\n\n\nAllocates data for `desc` to be used to perform a tensor contraction of the form\n\n\n\n```text\n \\mathcal{D}_{{modes}_\\mathcal{D}} \\gets \\alpha op_\\mathcal{A}(\\mathcal{A}_{{modes}_\\mathcal{A}}) op_\\mathcal{B}(B_{{modes}_\\mathcal{B}}) + \\beta op_\\mathcal{C}(\\mathcal{C}_{{modes}_\\mathcal{C}}). \n```\n\nSee `cutensorCreatePlan` (or `cutensorCreatePlanAutotuned)` to create the plan (i.e., to select the kernel) followed by a call to `cutensorContract` to perform the actual contraction.\n\nThe user is responsible for calling `cutensorDestroyOperationDescriptor` to free the resources associated with the descriptor.\n\nSupported data-type combinations are:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |     typeA     |     typeB     |     typeC     |        descCompute            |  typeScalar   | Tensor Core |\n +===============+===============+===============+===============================+===============+=============+\n |  CUDA_R_16F   |  CUDA_R_16F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_R_32F   | Volta+      |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_R_32F   | Ampere+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_R_32F   | No          |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_TF32   |  CUDA_R_32F   | Ampere+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_3XTF32 |  CUDA_R_32F   | Ampere+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_16BF   |  CUDA_R_32F   | Ampere+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_16F    |  CUDA_R_32F   | Volta+      |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_64F    |  CUDA_R_64F   | Ampere+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_R_64F   | No          |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_C_32F   | No          |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_TF32   |  CUDA_C_32F   | Ampere+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_3XTF32 |  CUDA_C_32F   | Ampere+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F    |  CUDA_C_64F   | Ampere+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_C_64F   | No          |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F    |  CUDA_C_64F   | No          |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_64F   |  CUDA_R_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F    |  CUDA_C_64F   | No          |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_8XINT8 |  CUDA_R_64F   | Hopper+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_8XINT8 |  CUDA_C_64F   | Hopper+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_9X16BF |  CUDA_R_32F   | Hopper+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_9X16BF |  CUDA_C_32F   | Hopper+     |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_4X16F  |  CUDA_R_32F   | Blackwell+  |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_4X16F  |  CUDA_C_32F   | Blackwell+  |\n +---------------+---------------+---------------+-------------------------------+---------------+-------------+\n```\n\n\n\nretval: if the combination of data types or operations is not supported\n\nretval: if tensor dimensions or modes have an illegal value\n\nretval: The operation completed successfully without error\n\nretval: if the handle is not initialized.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct gets allocated and filled with the information that encodes the tensor contraction operation."
+      },
+      "descA": {
+        "doc": "The descriptor that holds the information about the data type, modes and strides of A."
+      },
+      "descB": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of B."
+      },
+      "descC": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of C."
+      },
+      "descCompute": {
+        "doc": "Determines the precision in which this operations is performed."
+      },
+      "descD": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of D (must be identical to `descC` for now)."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "modeA": {
+        "doc": "Array with 'nmodeA' entries that represent the modes of A. The modeA[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "modeB": {
+        "doc": "Array with 'nmodeB' entries that represent the modes of B. The modeB[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "modeC": {
+        "doc": "Array with 'nmodeC' entries that represent the modes of C. The modeC[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "modeD": {
+        "doc": "Array with 'nmodeD' entries that represent the modes of D (must be identical to modeC for now). The modeD[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "opA": {
+        "doc": "Unary operator that will be applied to each element of A before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opB": {
+        "doc": "Unary operator that will be applied to each element of B before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opC": {
+        "doc": "Unary operator applied to each element of C before it is further processed. Currently only `CUTENSOR_OP_IDENTITY` is supported. The original data of this tensor remains unchanged."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreateContractionTrinary": {
+    "doc": "This function allocates a cutensorOperationDescriptor_t object that encodes a tensor contraction of the form\n\n\n\n```text\n \\mathcal{E} = \\alpha \\mathcal{A} \\mathcal{B} \\mathcal{C} + \\beta \\mathcal{D} \n```\n\n.\n\n\n\nAllocates data for `desc` to be used to perform a tensor contraction of the form\n\n\n\n```text\n \\mathcal{E}_{{modes}_\\mathcal{E}} \\gets \\alpha op_\\mathcal{A}(\\mathcal{A}_{{modes}_\\mathcal{A}}) op_\\mathcal{B}(\\mathcal{B}_{{modes}_\\mathcal{B}}) op_\\mathcal{C}(\\mathcal{C}_{{modes}_\\mathcal{C}}) + \\beta op_\\mathcal{D}(\\mathcal{D}_{{modes}_\\mathcal{D}}). \n```\n\nSee `cutensorCreatePlan` (or `cutensorCreatePlanAutotuned)` to create the plan (i.e., to select the kernel) followed by a call to `cutensorContractTrinary` to perform the actual contraction.\n\nThe user is responsible for calling `cutensorDestroyOperationDescriptor` to free the resources associated with the descriptor.\n\nThe performance improvements due to this API are currently especially high if your data resides on the host (i.e. out-of-core), targeting Grace-based systems.\n\nSupported data-type combinations are:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |     typeA     |     typeB     |     typeC     |     typeD     |        descCompute            |  typeScalar   | Tensor Core |\n +===============+===============+===============+===============+===============================+===============+=============+\n |  CUDA_R_16F   |  CUDA_R_16F   |  CUDA_R_16F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_R_32F   | Volta+      |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_R_32F   | Ampere+     |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_R_32F   | No          |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_TF32   |  CUDA_R_32F   | Ampere+     |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_3XTF32 |  CUDA_R_32F   | Ampere+     |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_16BF   |  CUDA_R_32F   | Ampere+     |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_16F    |  CUDA_R_32F   | Volta+      |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_64F    |  CUDA_R_64F   | Ampere+     |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_R_64F   | No          |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_C_32F   | No          |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_TF32   |  CUDA_C_32F   | Ampere+     |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_3XTF32 |  CUDA_C_32F   | Ampere+     |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F    |  CUDA_C_64F   | Ampere+     |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_32F    |  CUDA_C_64F   | No          |\n +---------------+---------------+---------------+---------------+-------------------------------+---------------+-------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_8XINT8 |  CUDA_R_64F   | Hopper+     |\n +---------------+---------------+---------------+-------------------------------+---------------+---------------+-------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_8XINT8 |  CUDA_C_64F   | Hopper+     |\n +---------------+---------------+---------------+-------------------------------+---------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_9X16BF |  CUDA_R_32F   | Hopper+     |\n +---------------+---------------+---------------+-------------------------------+---------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_9X16BF |  CUDA_C_32F   | Hopper+     |\n +---------------+---------------+---------------+-------------------------------+---------------+---------------+-------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_4X16F  |  CUDA_R_32F   | Blackwell+  |\n +---------------+---------------+---------------+-------------------------------+---------------+---------------+-------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_4X16F  |  CUDA_C_32F   | Blackwell+  |\n +---------------+---------------+---------------+-------------------------------+---------------+---------------+-------------+\n```\n\n\n\nretval: if the combination of data types or operations is not supported\n\nretval: if tensor dimensions or modes have an illegal value\n\nretval: The operation completed successfully without error\n\nretval: if the handle is not initialized.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct gets allocated and filled with the information that encodes the tensor contraction operation."
+      },
+      "descA": {
+        "doc": "The descriptor that holds the information about the data type, modes and strides of A."
+      },
+      "descB": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of B."
+      },
+      "descC": {
+        "doc": "The escriptor that holds information about the data type, modes, and strides of C."
+      },
+      "descCompute": {
+        "doc": "Determines the precision in which this operations is performed."
+      },
+      "descD": {
+        "doc": "The escriptor that holds information about the data type, modes, and strides of D."
+      },
+      "descE": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of E (must be identical to `descD` for now)."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "modeA": {
+        "doc": "Array with 'nmodeA' entries that represent the modes of A. The modeA[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "modeB": {
+        "doc": "Array with 'nmodeB' entries that represent the modes of B. The modeB[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "modeC": {
+        "doc": "Array with 'nmodeC' entries that represent the modes of C. The modeC[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "modeD": {
+        "doc": "Array with 'nmodeD' entries that represent the modes of D. The modeD[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "modeE": {
+        "doc": "Array with 'nmodeE' entries that represent the modes of E (must be identical to modeD for now). The modeE[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to cutensorInitTensorDescriptor."
+      },
+      "opA": {
+        "doc": "Unary operator that will be applied to each element of A before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opB": {
+        "doc": "Unary operator that will be applied to each element of B before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opC": {
+        "doc": "Unary operator that will be applied to each element of C before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opD": {
+        "doc": "Unary operator that will be applied to each element of D before it is further processed. The original data of this tensor remains unchanged."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreateElementwiseBinary": {
+    "doc": "This function creates an operation descriptor for an elementwise binary operation.\n\n\n\nThe binary operation has the following general form:\n\n\n\n```text\n D_{\\Pi^C(i_0,i_1,...,i_n)} = \\Phi_{AC}(\\alpha op_A(A_{\\Pi^A(i_0,i_1,...,i_n)}), \\gamma op_C(C_{\\Pi^C(i_0,i_1,...,i_n)})) \n```\n\nCall `cutensorElementwiseBinaryExecute` to perform the actual operation.\n\nSupported data-type combinations are:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n +---------------+---------------+------------------------------+\n |     typeA     |     typeC     |  descCompute                 |\n +===============+===============+==============================+\n |  CUDA_R_16F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_16F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_16F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUTENSOR_COMPUTE_DESC_16BF  |\n +---------------+---------------+------------------------------+\n |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_32F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_64F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n |  CUDA_C_64F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n```\n\n\n\n\n\n```text\n\\Phi_{AC}\n```\n\nabove).\n\nretval: if the combination of data types or operations is not supported\n\nretval: if tensor dimensions or modes have an illegal value\n\nretval: The operation completed successfully without error\n\nretval: if the handle is not initialized.\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct gets allocated and filled with the information that encodes the requested elementwise operation."
+      },
+      "descA": {
+        "doc": "The descriptor that holds the information about the data type, modes, and strides of A."
+      },
+      "descC": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of C."
+      },
+      "descCompute": {
+        "doc": "Determines the precision in which this operations is performed."
+      },
+      "descD": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of D. Notice that we currently request descD and descC to be identical."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "modeA": {
+        "doc": "Array (in host memory) of size descA->numModes that holds the names of the modes of A (e.g., if A_{a,b,c} => modeA = {'a','b','c'}). The modeA[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to `cutensorCreateTensorDescriptor`."
+      },
+      "modeC": {
+        "doc": "Array (in host memory) of size descC->numModes that holds the names of the modes of C. The modeC[i] corresponds to extent[i] and stride[i] of the `cutensorCreateTensorDescriptor`."
+      },
+      "modeD": {
+        "doc": "Array (in host memory) of size descD->numModes that holds the names of the modes of D. The modeD[i] corresponds to extent[i] and stride[i] of the `cutensorCreateTensorDescriptor`."
+      },
+      "opA": {
+        "doc": "Unary operator that will be applied to each element of A before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opAC": {
+        "doc": "Element-wise binary operator (corresponding to"
+      },
+      "opC": {
+        "doc": "Unary operator that will be applied to each element of C before it is further processed. The original data of this tensor remains unchanged."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreateElementwiseTrinary": {
+    "doc": "This function creates an operation descriptor that encodes an elementwise trinary operation.\n\n\n\nSaid trinary operation has the following general form:\n\n\n\n```text\n D_{\\Pi^C(i_0,i_1,...,i_n)} = \\Phi_{ABC}(\\Phi_{AB}(\\alpha op_A(A_{\\Pi^A(i_0,i_1,...,i_n)}), \\beta op_B(B_{\\Pi^B(i_0,i_1,...,i_n)})), \\gamma op_C(C_{\\Pi^C(i_0,i_1,...,i_n)})) \n```\n\nWhere\n- A,B,C,D are multi-mode tensors (of arbitrary data types).\n-\n\n\n\n```text\n\\Pi^A, \\Pi^B, \\Pi^C \n```\n\nare permutation operators that permute the modes of A, B, and C respectively.\n-\n\n\n\n```text\nop_{A},op_{B},op_{C}\n```\n\nare unary element-wise operators (e.g., IDENTITY, CONJUGATE).\n-\n\n\n\n```text\n\\Phi_{ABC}, \\Phi_{AB}\n```\n\nare binary element-wise operators (e.g., ADD, MUL, MAX, MIN).\n\nNotice that the broadcasting (of a mode) can be achieved by simply omitting that mode from the respective tensor.\n\nMoreover, modes may appear in any order, giving users a greater flexibility. The only <b>restrictions</b> are:\n- modes that appear in A or B _must_ also appear in the output tensor; a mode that only appears in the input would be contracted and such an operation would be covered by either `cutensorContract` or `cutensorReduce`.\n- each mode may appear in each tensor at most once.\n\nInput tensors may be read even if the value of the corresponding scalar is zero.\n\nExamples:\n-\n\n\n\n```text\n D_{a,b,c,d} = A_{b,d,a,c}\n```\n\n-\n\n\n\n```text\n D_{a,b,c,d} = 2.2 * A_{b,d,a,c} + 1.3 * B_{c,b,d,a}\n```\n\n-\n\n\n\n```text\n D_{a,b,c,d} = 2.2 * A_{b,d,a,c} + 1.3 * B_{c,b,d,a} + C_{a,b,c,d}\n```\n\n-\n\n\n\n```text\n D_{a,b,c,d} = min((2.2 * A_{b,d,a,c} + 1.3 * B_{c,b,d,a}), C_{a,b,c,d})\n```\n\nCall `cutensorElementwiseTrinaryExecute` to perform the actual operation.\n\nPlease use `cutensorDestroyOperationDescriptor` to deallocated the descriptor once it is no longer used.\n\nSupported data-type combinations are:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n +---------------+---------------+---------------+----------------------------+\n |     typeA     |     typeB     |     typeC     |  descCompute               |\n +===============+===============+===============+============================+\n |  CUDA_R_16F   |  CUDA_R_16F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_16F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_R_16F   |  CUDA_R_16F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_32F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUTENSOR_COMPUTE_DESC_16BF|\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUTENSOR_COMPUTE_DESC_32F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_32F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_64F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_32F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_32F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_64F |\n +---------------+---------------+---------------+----------------------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_64F |\n +---------------+---------------+---------------+----------------------------+\n```\n\n\n\n\n\n```text\nA_{a,b,c}\n```\n\nthen modeA = {'a','b','c'}). The modeA[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to `cutensorCreateTensorDescriptor`.\n\n\n\n```text\n\\Phi_{AB}\n```\n\nabove).\n\n\n\n```text\n\\Phi_{ABC}\n```\n\nabove).\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if some input data is invalid (this typically indicates an user error).\n\nretval: if the device is either not ready, or the target architecture is not supported.\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct gets allocated and filled with the information that encodes the requested elementwise operation."
+      },
+      "descA": {
+        "doc": "A descriptor that holds the information about the data type, modes, and strides of A."
+      },
+      "descB": {
+        "doc": "A descriptor that holds information about the data type, modes, and strides of B."
+      },
+      "descC": {
+        "doc": "A descriptor that holds information about the data type, modes, and strides of C."
+      },
+      "descCompute": {
+        "doc": "Determines the precision in which this operations is performed."
+      },
+      "descD": {
+        "doc": "A descriptor that holds information about the data type, modes, and strides of D. Notice that we currently request descD and descC to be identical."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "modeA": {
+        "doc": "Array (in host memory) of size descA->numModes that holds the names of the modes of A (e.g., if"
+      },
+      "modeB": {
+        "doc": "Array (in host memory) of size descB->numModes that holds the names of the modes of B. modeB[i] corresponds to extent[i] and stride[i] of the `cutensorCreateTensorDescriptor`"
+      },
+      "modeC": {
+        "doc": "Array (in host memory) of size descC->numModes that holds the names of the modes of C. The modeC[i] corresponds to extent[i] and stride[i] of the `cutensorCreateTensorDescriptor`."
+      },
+      "modeD": {
+        "doc": "Array (in host memory) of size descD->numModes that holds the names of the modes of D. The modeD[i] corresponds to extent[i] and stride[i] of the `cutensorCreateTensorDescriptor`."
+      },
+      "opA": {
+        "doc": "Unary operator that will be applied to each element of A before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opAB": {
+        "doc": "Element-wise binary operator (see"
+      },
+      "opABC": {
+        "doc": "Element-wise binary operator (see"
+      },
+      "opB": {
+        "doc": "Unary operator that will be applied to each element of B before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opC": {
+        "doc": "Unary operator that will be applied to each element of C before it is further processed. The original data of this tensor remains unchanged."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreatePermutation": {
+    "doc": "This function creates an operation descriptor for a tensor permutation.\n\n\n\nThe tensor permutation has the following general form:\n\n\n\n```text\n B_{\\Pi^B(i_0,i_1,...,i_n)} = \\alpha op_A(A_{\\Pi^A(i_0,i_1,...,i_n)}) \n```\n\nConsequently, this function performs an out-of-place tensor permutation and is a specialization of `cutensorCreateElementwiseBinary`.\n\nWhere\n- A and B are multi-mode tensors (of arbitrary data types),\n-\n\n\n\n```text\n\\Pi^A, \\Pi^B\n```\n\nare permutation operators that permute the modes of A, B respectively,\n-\n\n\n\n```text\nop_A\n```\n\nis an unary element-wise operators (e.g., IDENTITY, SQR, CONJUGATE), and\n\nBroadcasting (of a mode) can be achieved by simply omitting that mode from the respective tensor.\n\nModes may appear in any order. The only <b>restrictions</b> are:\n- modes that appear in A _must_ also appear in the output tensor.\n- each mode may appear in each tensor at most once.\n\nSupported data-type combinations are:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n +---------------+---------------+------------------------------+\n |     typeA     |     typeB     |  descCompute                 |\n +===============+===============+==============================+\n |  CUDA_R_16F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_16F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_16F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_16F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_32F   |  CUDA_R_16F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUTENSOR_COMPUTE_DESC_16BF  |\n +---------------+---------------+------------------------------+\n |  CUDA_R_16BF  |  CUDA_R_16BF  |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_32F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_64F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_32F   |  CUDA_R_64F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n |  CUDA_R_64F   |  CUDA_R_32F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n |  CUDA_C_32F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_32F   |\n +---------------+---------------+------------------------------+\n |  CUDA_C_64F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n |  CUDA_C_32F   |  CUDA_C_64F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n |  CUDA_C_64F   |  CUDA_C_32F   |  CUTENSOR_COMPUTE_DESC_64F   |\n +---------------+---------------+------------------------------+\n```\n\n\n\nretval: if the combination of data types or operations is not supported\n\nretval: if tensor dimensions or modes have an illegal value\n\nretval: The operation completed successfully without error\n\nretval: if the handle is not initialized.\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct gets allocated and filled with the information that encodes the requested permutation."
+      },
+      "descA": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of A."
+      },
+      "descB": {
+        "doc": "The descriptor that holds information about the data type, modes, and strides of B."
+      },
+      "descCompute": {
+        "doc": "Determines the precision in which this operations is performed."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "modeA": {
+        "doc": "Array of size descA->numModes that holds the names of the modes of A (e.g., if A_{a,b,c} => modeA = {'a','b','c'})"
+      },
+      "modeB": {
+        "doc": "Array of size descB->numModes that holds the names of the modes of B"
+      },
+      "opA": {
+        "doc": "Unary operator that will be applied to each element of A before it is further processed. The original data of this tensor remains unchanged."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreatePlan": {
+    "doc": "This function allocates a cutensorPlan_t object, selects an appropriate kernel for a given operation (encoded by `desc`) and prepares a plan that encodes the execution.\n\n\n\nThis function applies cuTENSOR's heuristic to select a candidate/kernel for a given operation (created by either `cutensorCreateContraction`, `cutensorCreateReduction`, `cutensorCreatePermutation`, `*` cutensorCreateElementwiseBinary, `cutensorCreateElementwiseTrinary`, `cutensorCreateContractionTrinary`, or `cutensorCreateBlockSparseContraction)`. The created plan can then be be passed to either `cutensorContract`, `cutensorReduce`, `cutensorPermute`, `cutensorElementwiseBinaryExecute`, `cutensorElementwiseTrinaryExecute`, or `cutensorContractTrinary` to perform the actual operation.\n\nThe plan is created for the active CUDA device.\n\nNote: `cutensorCreatePlan` must not be captured via CUDA graphs if Just-In-Time compilation is enabled (i.e., `cutensorJitMode_t` is not `CUTENSOR_JIT_MODE_NONE`).\n\n\n\n\n\nretval: If a viable candidate has been found.\n\nretval: If no viable candidate could be found.\n\nretval: if the handle is not initialized.\n\nretval: if The provided workspace was insufficient.\n\nretval: if some input data is invalid (this typically indicates an user error).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct encodes the given operation (see `cutensorCreateContraction`, `cutensorCreateReduction`, `cutensorCreatePermutation`, `cutensorCreateElementwiseBinary`, `cutensorCreateElementwiseTrinary`, or `cutensorCreateContractionTrinary)`."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "plan": {
+        "doc": "Pointer to the data structure created by this function that holds all information (e.g., selected kernel) necessary to perform the desired operation."
+      },
+      "pref": {
+        "doc": "This opaque struct is used to restrict the space of applicable candidates/kernels (see `cutensorCreatePlanPreference` or `cutensorPlanPreferenceAttribute_t)`. May be `nullptr`, in that case default choices are assumed. Block-sparse contractions currently only support these default settings and ignore other supplied preferences."
+      },
+      "workspaceSizeLimit": {
+        "doc": "Denotes the maximal workspace that the corresponding operation is allowed to use (see `cutensorEstimateWorkspaceSize)`"
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreatePlanPreference": {
+    "doc": "Allocates the cutensorPlanPreference_t, enabling users to limit the applicable kernels for a given plan/operation.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "algo": {
+        "doc": "Allows users to select a specific algorithm. CUTENSOR_ALGO_DEFAULT lets the heuristic choose the algorithm. Any value >= 0 selects a specific GEMM-like algorithm and deactivates the heuristic. If a specified algorithm is not supported CUTENSOR_STATUS_NOT_SUPPORTED is returned. See `cutensorAlgo_t` for additional choices."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "jitMode": {
+        "doc": "Determines if cuTENSOR is allowed to use JIT-compiled kernels (leading to a longer plan-creation phase); see `cutensorJitMode_t`."
+      },
+      "pref": {
+        "doc": "Pointer to the structure holding the `cutensorPlanPreference_t` allocated by this function. See `cutensorPlanPreference_t`."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreateReduction": {
+    "doc": "Creates a cutensorOperatorDescriptor_t object that encodes a tensor reduction of the form\n\n\n\n```text\n D = alpha * opReduce(opA(A)) + beta * opC(C) \n```\n\n.\n\n\n\nFor example this function enables users to reduce an entire tensor to a scalar: C[] = alpha * A[i,j,k];\n\nThis function is also able to perform partial reductions; for instance: C[i,j] = alpha * A[k,j,i]; in this case only elements along the k-mode are contracted.\n\nThe binary opReduce operator provides extra control over what kind of a reduction ought to be performed. For instance, setting opReduce to `CUTENSOR_OP_ADD` reduces element of A via a summation while `CUTENSOR_OP_MAX` would find the largest element in A.\n\nSupported data-type combinations are:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n +---------------+---------------+---------------+-----------------------------+\n |     typeA     |     typeB     |     typeC     |       typeCompute           |\n +===============+===============+===============+=============================+\n | `CUDA_R_16F ` | `CUDA_R_16F`  | `CUDA_R_16F`  | `CUTENSOR_COMPUTE_DESC_16F` |\n +---------------+---------------+---------------+-----------------------------+\n | `CUDA_R_16F`  | `CUDA_R_16F`  | `CUDA_R_16F`  | `CUTENSOR_COMPUTE_DESC_32F` |\n +---------------+---------------+---------------+-----------------------------+\n | `CUDA_R_16BF` | `CUDA_R_16BF` | `CUDA_R_16BF` | `CUTENSOR_COMPUTE_DESC_16BF`|\n +---------------+---------------+---------------+-----------------------------+\n | `CUDA_R_16BF` | `CUDA_R_16BF` | `CUDA_R_16BF` | `CUTENSOR_COMPUTE_DESC_32F` |\n +---------------+---------------+---------------+-----------------------------+\n | `CUDA_R_32F`  | `CUDA_R_32F`  | `CUDA_R_32F`  | `CUTENSOR_COMPUTE_DESC_32F` |\n +---------------+---------------+---------------+-----------------------------+\n | `CUDA_R_64F`  | `CUDA_R_64F`  | `CUDA_R_64F`  | `CUTENSOR_COMPUTE_DESC_64F` |\n +---------------+---------------+---------------+-----------------------------+\n | `CUDA_C_32F`  | `CUDA_C_32F`  | `CUDA_C_32F`  | `CUTENSOR_COMPUTE_DESC_32F` |\n +---------------+---------------+---------------+-----------------------------+\n | `CUDA_C_64F`  | `CUDA_C_64F`  | `CUDA_C_64F`  | `CUTENSOR_COMPUTE_DESC_64F` |\n +---------------+---------------+---------------+-----------------------------+\n```\n\n\n\n\n\nretval: if operation is not supported.\n\nretval: if some input data is invalid (this typically indicates an user error).\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct gets allocated and filled with the information that encodes the requested tensor reduction operation."
+      },
+      "descA": {
+        "doc": "The descriptor that holds the information about the data type, modes and strides of A."
+      },
+      "descC": {
+        "doc": "The descriptor that holds the information about the data type, modes and strides of C."
+      },
+      "descD": {
+        "doc": "Must be identical to descC for now."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "modeA": {
+        "doc": "Array with 'nmodeA' entries that represent the modes of A. modeA[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to `cutensorCreateTensorDescriptor`. Modes that only appear in modeA but not in modeC are reduced (contracted)."
+      },
+      "modeC": {
+        "doc": "Array with 'nmodeC' entries that represent the modes of C. modeC[i] corresponds to extent[i] and stride[i] w.r.t. the arguments provided to `cutensorCreateTensorDescriptor`."
+      },
+      "modeD": {
+        "doc": "Must be identical to modeC for now."
+      },
+      "opA": {
+        "doc": "Unary operator that will be applied to each element of A before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opC": {
+        "doc": "Unary operator that will be applied to each element of C before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opReduce": {
+        "doc": "binary operator used to reduce elements of A."
+      },
+      "typeCompute": {
+        "doc": "All arithmetic is performed using this data type (i.e., it affects the accuracy and performance)."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorCreateTensorDescriptor": {
+    "doc": "Creates a tensor descriptor.\n\n\n\nThis allocates a small amount of host-memory.\n\nThe user is responsible for calling cutensorDestroyTensorDescriptor() to free the associated resources once the tensor descriptor is no longer used.\n\n\n\n\n\npre: extent and stride arrays must each contain at least sizeof(int64_t) * numModes bytes\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if the requested descriptor is not supported (e.g., due to non-supported data type).\n\nretval: if some input data is invalid (this typically indicates an user error).\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "alignmentRequirement": {
+        "doc": "Alignment (in bytes) to the base pointer that will be used in conjunction with this tensor descriptor (e.g., `cudaMalloc` has a default alignment of 256 bytes)."
+      },
+      "dataType": {
+        "doc": "Data type of the stored entries."
+      },
+      "desc": {
+        "doc": "Pointer to the address where the allocated tensor descriptor object will be stored."
+      },
+      "extent": {
+        "doc": "Extent of each mode (must be larger than zero)."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "numModes": {
+        "doc": "Number of modes."
+      },
+      "stride": {
+        "doc": "stride[i] denotes the displacement (a.k.a. stride)--in elements of the base type--between two consecutive elements in the ith-mode. If stride is NULL, a packed generalized column-major memory layout is assumed (i.e., the strides increase monotonically from left to right). Each stride must be larger than zero; to be precise, a stride of zero can be achieved by omitting this mode entirely; for instance instead of writing C[a,b] = A[b,a] with strideA(a) = 0, you can write C[a,b] = A[b] directly; cuTENSOR will then automatically infer that the a-mode in A should be broadcasted."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorDestroy": {
+    "doc": "Frees all resources related to the provided library handle.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "Pointer to cutensorHandle_t"
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorDestroyBlockSparseTensorDescriptor": {
+    "doc": "Frees all resources related to the provided block-sparse tensor descriptor.\n\n\n\nretval: on success and an error code otherwise.\n\nremarks: blocking, no reentrant, and thread-safe.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The cutensorBlockSparseTensorDescrptor_t object that will be deallocated."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorDestroyOperationDescriptor": {
+    "doc": "Frees all resources related to the provided descriptor.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The cutensorOperationDescriptor_t object that will be deallocated."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorDestroyPlan": {
+    "doc": "Frees all resources related to the provided plan.\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "plan": {
+        "doc": "The cutensorPlan_t object that will be deallocated."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorDestroyPlanPreference": {
+    "doc": "Frees all resources related to the provided preference.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "pref": {
+        "doc": "The cutensorPlanPreference_t object that will be deallocated."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorDestroyTensorDescriptor": {
+    "doc": "Frees all resources related to the provided tensor descriptor.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The cutensorTensorDescriptor_t object that will be deallocated."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorElementwiseBinaryExecute": {
+    "doc": "Performs an element-wise tensor operation for two input tensors (see `cutensorCreateElementwiseBinary)`\n\n\n\nThis function performs a element-wise tensor operation of the form:\n\n\n\n```text\n D_{\\Pi^C(i_0,i_1,...,i_n)} = \\Phi_{AC}(\\alpha op_A(A_{\\Pi^A(i_0,i_1,...,i_n)}), \\gamma op_C(C_{\\Pi^C(i_0,i_1,...,i_n)})) \n```\n\nSee `cutensorCreateElementwiseBinary()` for details.\n\n\n\nretval: if the combination of data types or operations is not supported\n\nretval: if tensor dimensions or modes have an illegal value\n\nretval: The operation completed successfully without error\n\nretval: if the handle is not initialized.\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "A": {
+        "doc": "Multi-mode tensor (described by `descA` as part of `cutensorCreateElementwiseBinary)`. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "C": {
+        "doc": "Multi-mode tensor (described by `descC` as part of `cutensorCreateElementwiseBinary)`. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "D": {
+        "doc": "Multi-mode tensor (described by `descD` as part of `cutensorCreateElementwiseBinary)`. Pointer to the GPU-accessible memory (`C` and `D` may be identical, if and only if `descC == descD`)."
+      },
+      "alpha": {
+        "doc": "Scaling factor for A (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE) to query the expected data type). Pointer to the host memory. If alpha is zero, A is not read and the corresponding unary operator is not applied."
+      },
+      "gamma": {
+        "doc": "Scaling factor for C (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE) to query the expected data type). Pointer to the host memory. If gamma is zero, C is not read and the corresponding unary operator is not applied."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "plan": {
+        "doc": "Opaque handle holding all information about the desired elementwise operation (created by `cutensorCreateElementwiseBinary` followed by `cutensorCreatePlan)`."
+      },
+      "stream": {
+        "doc": "The CUDA stream used to perform the operation."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorElementwiseTrinaryExecute": {
+    "doc": "Performs an element-wise tensor operation for three input tensors (see `cutensorCreateElementwiseTrinary)`\n\n\n\nThis function performs a element-wise tensor operation of the form:\n\n\n\n```text\n D_{\\Pi^C(i_0,i_1,...,i_n)} = \\Phi_{ABC}(\\Phi_{AB}(\\alpha op_A(A_{\\Pi^A(i_0,i_1,...,i_n)}), \\beta op_B(B_{\\Pi^B(i_0,i_1,...,i_n)})), \\gamma op_C(C_{\\Pi^C(i_0,i_1,...,i_n)})) \n```\n\nSee `cutensorCreateElementwiseTrinary()` for details.\n\n\n\nretval: if the combination of data types or operations is not supported\n\nretval: if tensor dimensions or modes have an illegal value\n\nretval: The operation completed successfully without error\n\nretval: if the handle is not initialized.\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "A": {
+        "doc": "Multi-mode tensor (described by `descA` as part of `cutensorCreateElementwiseTrinary)`. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "B": {
+        "doc": "Multi-mode tensor (described by `descB` as part of `cutensorCreateElementwiseTrinary)`. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "C": {
+        "doc": "Multi-mode tensor (described by `descC` as part of `cutensorCreateElementwiseTrinary)`. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "D": {
+        "doc": "Multi-mode tensor (described by `descD` as part of `cutensorCreateElementwiseTrinary)`. Pointer to the GPU-accessible memory (`C` and `D` may be identical, if and only if `descC == descD`)."
+      },
+      "alpha": {
+        "doc": "Scaling factor for A (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE) to query the expected data type). Pointer to the host memory. If alpha is zero, A is not read and the corresponding unary operator is not applied."
+      },
+      "beta": {
+        "doc": "Scaling factor for B (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE) to query the expected data type). Pointer to the host memory. If beta is zero, B is not read and the corresponding unary operator is not applied."
+      },
+      "gamma": {
+        "doc": "Scaling factor for C (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE) to query the expected data type). Pointer to the host memory. If gamma is zero, C is not read and the corresponding unary operator is not applied."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "plan": {
+        "doc": "Opaque handle holding all information about the desired elementwise operation (created by `cutensorCreateElementwiseTrinary` followed by `cutensorCreatePlan)`."
+      },
+      "stream": {
+        "doc": "The CUDA stream used to perform the operation."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorEstimateWorkspaceSize": {
+    "doc": "Determines the required workspaceSize for the given operation encoded by `desc`.\n\n\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if some input data is invalid (this typically indicates an user error).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "This opaque struct encodes the operation."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "planPref": {
+        "doc": "This opaque struct restricts the space of viable candidates."
+      },
+      "workspacePref": {
+        "doc": "This parameter influences the size of the workspace; see `cutensorWorksizePreference_t` for details."
+      },
+      "workspaceSizeEstimate": {
+        "doc": "The workspace size (in bytes) that is required for the given operation."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorGetCudartVersion": {
+    "doc": "Returns version number of the CUDA runtime that cuTENSOR was compiled against\n\nCan be compared against the CUDA runtime version from cudaRuntimeGetVersion().",
+    "kind": "function",
+    "members": {},
+    "source": "cutensor.h"
+  },
+  "cutensorGetErrorString": {
+    "doc": "Returns the description string for an error code\n\nretval: null-terminated error string.\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "error": {
+        "doc": "Error code to convert to string."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorGetVersion": {
+    "doc": "Returns Version number of the CUTENSOR library",
+    "kind": "function",
+    "members": {},
+    "source": "cutensor.h"
+  },
+  "cutensorHandleReadPlanCacheFromFile": {
+    "doc": "Reads a Plan-Cache from file and overwrites the cachelines of the provided handle.\n\nA cache is only valid for the same cuTENSOR version and CUDA version; moreover, the GPU architecture (incl. multiprocessor count) must match, otherwise CUTENSOR_STATUS_INVALID_VALUE will be returned.\n\n\n\n\n\nretval: The operation completed successfully.\n\nretval: if the stored cache was created by a different cuTENSOR- or CUDA-version or if the GPU architecture (incl. multiprocessor count) doesn't match\n\nretval: if the stored cache requires more cachelines than those that are currently attached to the handle\n\nretval: if the file cannot be read\n\nretval: if the handle is not initialized.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "filename": {
+        "doc": "Specifies the filename (including the absolute path) to the file that holds all the cache information that have previously been written by `cutensorHandleWritePlanCacheToFile`."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "numCachelinesRead": {
+        "doc": "On exit, this variable will hold the number of successfully-read cachelines, if CUTENSOR_STATUS_SUCCESS is returned. Otherwise, this variable will hold the number of cachelines that are required to read all cachelines associated to the cache pointed to by `filename`; in that case CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE is returned."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorHandleResizePlanCache": {
+    "doc": "Resizes the plan cache.\n\nThis function changes the number of plans that can be stored in the plan cache of the handle.\n\nResizing invalidates the cache.\n\nWhile this function is not thread-safe, the resulting cache can be shared across different threads in a thread-safe manner.\n\n\n\n\n\nretval: if the handle is not initialized.\n\nretval: The operation completed successfully.\n\nretval: if some input data is invalid (this typically indicates an user error).\n\nremarks: non-blocking, no reentrant, and not thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context. The cache will be attached to the handle"
+      },
+      "numEntries": {
+        "doc": "Number of entries the cache will support."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorHandleWritePlanCacheToFile": {
+    "doc": "Writes the Plan-Cache (that belongs to the provided handle) to file.\n\n\n\nretval: if the handle is not initialized.\n\nretval: The operation completed successfully.\n\nretval: if the no cache has been attached\n\nretval: if the file cannot be written to\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "filename": {
+        "doc": "Specifies the filename (including the absolute path) to the file that should hold all the cache information. Warning: an existing file will be overwritten."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorLoggerForceDisable": {
+    "doc": "This function disables logging for the entire run.",
+    "kind": "function",
+    "members": {},
+    "source": "cutensor.h"
+  },
+  "cutensorLoggerOpenFile": {
+    "doc": "This function opens a logging output file in the given path.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "logFile": {
+        "doc": "Path to the logging output file."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorLoggerSetCallback": {
+    "doc": "This function sets the logging callback routine.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "callback": {
+        "doc": "Pointer to a callback function. Check cutensorLoggerCallback_t."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorLoggerSetFile": {
+    "doc": "This function sets the logging output file.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "file": {
+        "doc": "An open file with write permission."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorLoggerSetLevel": {
+    "doc": "This function sets the value of the logging level.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "level": {
+        "doc": "Log level, should be one of the following: <ul> <li>0.  Off</li> <li>1.  Errors</li> <li>2.  Performance Trace</li> <li>3.  Performance Hints</li> <li>4.  Heuristics Trace</li> <li>5.  API Trace</li> </ul>"
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorLoggerSetMask": {
+    "doc": "This function sets the value of the log mask.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "mask": {
+        "doc": "Log mask, the bitwise OR of the following: <ul> <li>0.  Off</li> <li>1.  Errors</li> <li>2.  Performance Trace</li> <li>4.  Performance Hints</li> <li>8.  Heuristics Trace</li> <li>16. API Trace</li> </ul>"
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorMgAlgo_t": {
+    "doc": "Represents the selected algorithm when planning for a contraction operation",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgContraction": {
+    "doc": "Execute a contraction operation\n\n\n\nExecutes a contraction operation according to the provided plan. It receives all the operands as arrays of pointers that are ordered according to their tensor descriptors' `devices` parameter. The device workspace and streams are ordered according to the library handle's `devices` parameter. The function is thread safe as long as concurrent threads use different library handles.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\nretval: An issue interacting with the CUDA runtime occurred.\n\n\n\nremarks: calls asynchronous functions, non-blocking, no reentrant, and conditionally thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "alpha": {
+        "doc": "The alpha scaling factor (host pointer)."
+      },
+      "beta": {
+        "doc": "The beta scaling factor (host pointer)."
+      },
+      "deviceWorkspace": {
+        "doc": "The device workspace."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "hostWorkspace": {
+        "doc": "The host pinned memory workspace."
+      },
+      "plan": {
+        "doc": "The copy plan."
+      },
+      "ptrA": {
+        "doc": "The A operand tensor pointers."
+      },
+      "ptrB": {
+        "doc": "The B operand tensor pointers."
+      },
+      "ptrC": {
+        "doc": "The operand C tensor pointers."
+      },
+      "ptrD": {
+        "doc": "The operand D tensor pointers."
+      },
+      "streams": {
+        "doc": "The execution streams."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgContractionDescriptor_t": {
+    "doc": "Describes the contraction of two tensors into a third tensor with an optional source\n\n\n\nOnly supports device-side tensors.",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgContractionFindAttribute_t": {
+    "doc": "Represents various attributes for the contraction find\n\n\n\nWhile empty for now, future attributes will allow for a more fine-grained tuning of the distributed tensor contraction.",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgContractionFindSetAttribute": {
+    "doc": "Set a contraction find attribute\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attr": {
+        "doc": "The attribute to be set."
+      },
+      "find": {
+        "doc": "The contraction find."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "size": {
+        "doc": "The size of the value in bytes."
+      },
+      "value": {
+        "doc": "The value to set the attribute to."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgContractionFind_t": {
+    "doc": "Describes the algorithmic details of implementing a tensor contraction",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgContractionGetWorkspace": {
+    "doc": "Computes the workspace that is needed for the contraction\n\n\n\nThe function calculates the workspace required for the contraction operation to succeed. It takes a workspace preference, which can tune how much workspace is needed. It returns the device workspace size in the same order as the devices are passed to the library handle.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\nretval: This tensor layout or precision combination is not supported.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The contraction descriptor."
+      },
+      "deviceWorkspaceSize": {
+        "doc": "The amount of workspace in bytes, for each device in the handle."
+      },
+      "find": {
+        "doc": "The contraction find."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "hostWorkspaceSize": {
+        "doc": "The amount of pinned host memory in bytes."
+      },
+      "preference": {
+        "doc": "The workspace preference."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgContractionPlan_t": {
+    "doc": "Describes a specific way to implement a contraction operation\n\n\n\nIt encodes blockings, permutations and other implementation details, and may be reused to reduce planning overhead.",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCopy": {
+    "doc": "Execute a copy operation\n\n\n\nExecutes a copy operation according to the given plan. It receives the source and destination pointers in the order prescribed by the `devices` parameter of the respective tensor descriptor and the device workspace and streams in the order prescribed by the `devices` parameter of the handle. If host transfers are involved in the execution the function will block until those host transfers have been completed. The function is thread safe as long as concurrent threads use different library handles.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\nretval: An issue interacting with the CUDA runtime occurred.\n\n\n\nremarks: calls asynchronous functions, conditionally blocking, no reentrant, and conditionally thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "deviceWorkspace": {
+        "doc": "The device workspace."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "hostWorkspace": {
+        "doc": "The host pinned memory workspace."
+      },
+      "plan": {
+        "doc": "The copy plan."
+      },
+      "ptrDst": {
+        "doc": "The destination tensor pointers."
+      },
+      "ptrSrc": {
+        "doc": "The source tensor pointers."
+      },
+      "streams": {
+        "doc": "The execution streams."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCopyDescriptor_t": {
+    "doc": "Describes the copy of a tensor from one data layout to another\n\n\n\nIt may describe the full cartesion product of copy from and to host, single device, and multiple devices, as well as permutations and layout changes.",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCopyGetWorkspace": {
+    "doc": "Computes the workspace that is needed for the copy\n\n\n\nThe function calculates the minimum workspace required for the copy operation to succeed. It returns the device workspace size in the same order as the devices are passed to the library handle.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The copy descriptor."
+      },
+      "deviceWorkspaceSize": {
+        "doc": "The workspace size in bytes, for each device in the handle."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "hostWorkspaceSize": {
+        "doc": "The workspace size in bytes for pinned host memory."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCopyPlan_t": {
+    "doc": "Describes a specific way to implement the copy operation\n\n\n\nIt encodes blockings and other implementation details, and may be reused to reduce planning overhead.",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCreate": {
+    "doc": "Create a library handle\n\n\n\nThe handle contains information about the devices that should be participating in calculations. All devices that hold any tensor data or participate in any of cuTENSORMg's operations should also be included in the handle. Each device may only occur once in the list. It is advisable that all devices are identical (i.e., have the same peak performance) to avoid load-balancing issues, and are connected via NVLink to avoid costly device-host-device transfers. This call will enable peering between all devices that have been passed to it, if possible.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "devices": {
+        "doc": "The devices that participate in all computations."
+      },
+      "handle": {
+        "doc": "The resulting library handle."
+      },
+      "numDevices": {
+        "doc": "The number of devices participating in all subsequent computations."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCreateContractionDescriptor": {
+    "doc": "Create a contraction descriptor\n\n\n\nA contraction descriptor encodes the operands for a contraction operation of the form\n\n\n\n```text\n D = \\alpha \\mathcal{A}  \\mathcal{B} + \\beta \\mathcal{C} \n```\n\n. The contraction operation presently supports tensors that are either on one or multiple devices, but does not support tensors stored on the host (for now). It uses the einstein notation, i.e., modes shared between only modesA and modesB are contracted. Currently, descC and descD as well as modesC and modesD must be identical. The compute type represents the lowest precision that may be used in the course of the calculation.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\nretval: This tensor layout or precision combination is not supported.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "compute": {
+        "doc": "The compute type for the operation."
+      },
+      "desc": {
+        "doc": "The resulting tensor contraction descriptor."
+      },
+      "descA": {
+        "doc": "The tensor descriptor for operand A."
+      },
+      "descB": {
+        "doc": "The tensor descriptor for operand B."
+      },
+      "descC": {
+        "doc": "The tensor descriptor for operand C."
+      },
+      "descD": {
+        "doc": "The tensor descriptor for operand D."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "modesA": {
+        "doc": "The modes for operand A."
+      },
+      "modesB": {
+        "doc": "The modes for operand B."
+      },
+      "modesC": {
+        "doc": "The modes for operand C."
+      },
+      "modesD": {
+        "doc": "The modes for operand D."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCreateContractionFind": {
+    "doc": "Create a contraction find\n\n\n\nThe contraction find contains all the algorithmic options to execute a tensor contraction. For now, its only parameter is an algorithm, which currently only has one default value. It may gain additional options in the future.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "algo": {
+        "doc": "The desired algorithm."
+      },
+      "find": {
+        "doc": "The resulting find."
+      },
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCreateContractionPlan": {
+    "doc": "Create a contraction plan\n\n\n\nA contraction plan implements the contraction operation expressed through the contraction descriptor in accordance to the options specified in the contraction find. It contains all the information needed to execute a contraction operation. Planning may fail if insufficient workspace is provided.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\nretval: This tensor layout or precision combination is not supported.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The contraction descriptor."
+      },
+      "deviceWorkspaceSize": {
+        "doc": "The amount of workspace in bytes, for each device in the handle."
+      },
+      "find": {
+        "doc": "The contraction find."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "hostWorkspaceSize": {
+        "doc": "The amount of pinned host memory in bytes."
+      },
+      "plan": {
+        "doc": "The resulting contraction plan."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCreateCopyDescriptor": {
+    "doc": "Create a copy descriptor\n\n\n\nA copy descriptor encodes the source and the destination for a copy operation. The copy operation supports tensors on host, single, or multiple devices. It also supports layout changes and mode permutations. The only restriction is that the extents of the corresponding modes (in the input and output tensors) must match.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\nretval: This tensor layout or precision combination is not supported.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The resulting copy descriptor."
+      },
+      "descDst": {
+        "doc": "The destination tensor descriptor."
+      },
+      "descSrc": {
+        "doc": "The source tensor descriptor."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "modesDst": {
+        "doc": "The destination tensor modes."
+      },
+      "modesSrc": {
+        "doc": "The source tensor modes."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCreateCopyPlan": {
+    "doc": "Create a copy plan\n\n\n\nA copy plan implements the copy operation expressed through the copy descriptor. It contains all the information needed to execute a copy operation. Planning may fail if insufficient workspace is provided.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The copy descriptor."
+      },
+      "deviceWorkspaceSize": {
+        "doc": "The amount of workspace that will be provided, for each device in the handle."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "hostWorkspaceSize": {
+        "doc": "The amount of pinned host workspace that will be provided."
+      },
+      "plan": {
+        "doc": "The resulting copy plan."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgCreateTensorDescriptor": {
+    "doc": "Create a tensor descriptor\n\n\n\nA tensor descriptor fully specifies the data layout of a (potentially) distributed tensor. It does so mainly through five pieces of data: The extent, the element stride, the block size, the block stride, and the device count.\n\nThe extent describes the total size of each tensor mode. For example, an 9 by 9 matrix would have an extent of 9 and 9.\n\nThe block size describes how the data is blocked. For example, with a block size of 4 by 2, there would be three blocks in the first and five blocks in the second mode.\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n     +-------+-------+-------+\n     | 4 x 2 | 4 x 2 | 1 x 2 |\n     +-------+-------+-------+\n     | 4 x 2 | 4 x 2 | 1 x 2 |\n     +-------+-------+-------+\n     | 4 x 2 | 4 x 2 | 1 x 2 |\n     +-------+-------+-------+\n     | 4 x 2 | 4 x 2 | 1 x 2 |\n     +-------+-------+-------+\n     | 4 x 1 | 4 x 1 | 1 x 1 |\n     +-------+-------+-------+\n```\n\nThe device count then describes how many devices the blocks are distributed across in that mode. A device count of 2 by 2, for example, would mean that the blocks are distributed across two devices in each mode, i.e., four devices total. The devices are aranged first along the first and then the second mode as follows:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n     +--------+--------+\n     | Dev. 0 | Dev. 2 |\n     +--------+--------+\n     | Dev. 1 | Dev. 3 |\n     +--------+--------+\n```\n\nIn particular, device 0 would own the first, and third block in the first dimension, the first, third, and fifth block in the second dimension (so a total of six blocks), device 1 would own the first and third block in the first dimension, and the second and fourth block in the second dimension (four blocks total), device 2 would own the second block in the first dimension, and the first, third, and fifth block in the second dimension (for a total of three blocks), and, finally, device 3 would own the second block in the first dimension and the second and fourth block in the second dimension (for a total of two blocks).\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n     +--------+--------+--------+\n     | Dev. 0 | Dev. 2 | Dev. 0 |\n     +--------+--------+--------+\n     | Dev. 1 | Dev. 3 | Dev. 1 |\n     +--------+--------+--------+\n     | Dev. 0 | Dev. 2 | Dev. 0 |\n     +--------+--------+--------+\n     | Dev. 1 | Dev. 3 | Dev. 1 |\n     +--------+--------+--------+\n     | Dev. 0 | Dev. 2 | Dev. 0 |\n     +--------+--------+--------+\n```\n\nThe element stride and block stride then describe how the blocks are laid out on the individual devices, i.e. the distance between elements and blocks in that mode. Finally, the devices array describes which device the blocks are mapped to. Here, it is permissible to specify `CUTENSOR_MG_DEVICE_HOST` to express that those blocks are located on the host. A tensor must either be located fully on-device or fully on-host.\n\nTensors may also be replicated, where the same tensor data is distributed across devices, or a mixture of replicated and distributed. Replication is expressed by setting numDevices to a value that is a multiple of the product of deviceCounts. At that point, the devices tensor is assumed to have an extra final mode across which the tensor is replicated. Replicated tensors can be used everywhere except as outputs for contractions. .    Particularly, passing replicated tensors can unlock new optimizations that .    are advantageous for problems that benefit from reduced communication.\n\nFor instance, with devices = {0,1,2,3, 4,5,6,7} the tensor would be replicated .    as follows:\n\n\n\n\n\n```text\n embed:rst:leading-asterisk\n     +------------+------------+------------+\n     | Dev. 0 & 4 | Dev. 2 & 6 | Dev. 0 & 4 |\n     +------------+------------+------------+\n     | Dev. 1 & 5 | Dev. 3 & 7 | Dev. 1 & 5 |\n     +------------+------------+------------+\n     | Dev. 0 & 4 | Dev. 2 & 6 | Dev. 0 & 4 |\n     +------------+------------+------------+\n     | Dev. 1 & 5 | Dev. 3 & 7 | Dev. 1 & 5 |\n     +------------+------------+------------+\n     | Dev. 0 & 4 | Dev. 2 & 6 | Dev. 0 & 4 |\n     +------------+------------+------------+\n```\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\nretval: This layout or data type is not supported.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "blockSize": {
+        "doc": "The size of a block in each mode (array of size `numModes`), may be `NULL` for an unblocked tensor (i.e., each mode only has a single block that is equal to its extent)."
+      },
+      "blockStride": {
+        "doc": "The offset (in linear memory) between two adjacent blocks in each mode (array of size `numModes`), may be `NULL` for a dense block-interleaved layout."
+      },
+      "desc": {
+        "doc": "The resulting tensor descriptor."
+      },
+      "deviceCount": {
+        "doc": "The number of devices that each mode is distributed across in a block-cyclic fashion (array of size `numModes`), may be `NULL` for a non-distributed tensor."
+      },
+      "devices": {
+        "doc": "The devices that the blocks are distributed across, in column-major order, i.e., stride 1 first (array of size `numDevices`)."
+      },
+      "elementStride": {
+        "doc": "The offset (in linear memory) between two adjacent elements in each mode (array of size `numModes`), may be `NULL` for a dense tensor."
+      },
+      "extent": {
+        "doc": "The extent of the tensor in each mode (array of size `numModes`)."
+      },
+      "handle": {
+        "doc": "The library handle."
+      },
+      "numDevices": {
+        "doc": "The total number of devices that the tensor is distributed across  (i.e., the product of all elements in `deviceCount` times how many devices it is replicated across)."
+      },
+      "numModes": {
+        "doc": "The number of modes."
+      },
+      "type": {
+        "doc": "The data type of the tensor."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgDestroy": {
+    "doc": "Destroy a library handle\n\n\n\nAll outstanding operations must be completed before calling this function. Frees all associated resources. Any descriptors or plans created with the handle become invalid and may only be destructed.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "The handle to be destroyed."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgDestroyContractionDescriptor": {
+    "doc": "Destroy a contraction descriptor\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The descriptor to be destroyed."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgDestroyContractionFind": {
+    "doc": "Destroy a contraction find\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "find": {
+        "doc": "The find to be destroyed."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgDestroyContractionPlan": {
+    "doc": "Destroy a contraction plan\n\n\n\nWhen called, all outstanding operations must be completed. Frees all associated resources.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "plan": {
+        "doc": "The plan to be destroyed."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgDestroyCopyDescriptor": {
+    "doc": "Destroy a copy descriptor and free all its previously-allocated resources.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The descriptor to be destroyed."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgDestroyCopyPlan": {
+    "doc": "Destroy a copy plan\n\n\n\nWhen called, all outstanding operations must be completed. Frees all associated resources.\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "plan": {
+        "doc": "The plan to be destroyed."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgDestroyTensorDescriptor": {
+    "doc": "Destroy a tensor descriptor\n\n\n\n\n\n# Return value\n\nA status code indicating the success or failure of the operation\n\nretval: The operation completed successfully.\n\nretval: Some input parameters were invalid.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The descriptor to be destroyed."
+      }
+    },
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgHandle_t": {
+    "doc": "Encodes the devices that participate in operations\n\n\n\nThe handle contains information about each device that participates in operations as well as host threads to orchestrate host-to-device operations.",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgHostDevice_t": {
+    "doc": "Enumerated device codes for host-side tensors",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMgTensorDescriptor_t": {
+    "doc": "Represents a tensor that may be distributed\n\n\n\nThe tensor is laid out in a block-cyclic fashion across devices. It may either be fully located on the host, or distributed across multiple devices.",
+    "members": {},
+    "source": "cutensorMg.h"
+  },
+  "cutensorMpClearOperationCache": {
+    "doc": "Clears communication operation resources cached by the handle.\n\n\n\nThis is intended for applications that manage and resize device workspace memory outside cuTENSORMp. Call this after synchronizing all streams that may use the handle and before freeing or reallocating a workspace region that cuTENSORMp communication operations may have registered with the backend.\n\n\n\n\n\nretval: on success\n\nretval: if the handle is invalid",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "Opaque handle holding cuTENSORMp's library context"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpContract": {
+    "doc": "Performs a distributed tensor contraction across multiple processes.\n\n\n\nThis function executes the distributed tensor contraction\n\n\n\n```text\n D = \\alpha \\mathcal{A} \\mathcal{B} + \\beta \\mathcal{C} \n```\n\naccording to the execution plan created by `cutensorMpCreatePlan`. The operation coordinates computation and communication across multiple processes and GPUs to efficiently perform tensor contractions that exceed the capacity of a single device.\n\nThe execution involves several phases: 1. Data redistribution to align tensor blocks for efficient computation 2. Local tensor contractions using cuTENSOR on each participating device 3. Communication and aggregation of partial results across processes 4. Final result assembly in the distributed output tensor\n\nAll participating processes in the MPI communicator must call this function with consistent parameters. The input and output tensors must be distributed according to their respective tensor descriptors, with each process providing its local portion of the data.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid (this typically indicates a user error)\n\nretval: if the operation is not supported with the given configuration\n\nretval: if the provided workspace is insufficient\n\nretval: if the plan was created for a different device architecture\n\nretval: if a CUDA error occurred during execution\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "A": {
+        "doc": "Pointer to the local portion of distributed tensor A in GPU memory; may be NULL when this rank's local A extent has zero volume"
+      },
+      "B": {
+        "doc": "Pointer to the local portion of distributed tensor B in GPU memory; may be NULL when this rank's local B extent has zero volume"
+      },
+      "C": {
+        "doc": "Pointer to the local portion of distributed tensor C in GPU memory; may be NULL when this rank's local C extent has zero volume"
+      },
+      "D": {
+        "doc": "Pointer to the local portion of distributed tensor D in GPU memory (may be identical to C); may be NULL when this rank's local D extent has zero volume"
+      },
+      "alpha": {
+        "doc": "Scaling factor for the A*B product. Pointer to host memory with data type determined by the compute descriptor. The data type follows that of cuTENSOR (i.e., the data type of the scalar is deptermined by the data type of `C`:`CUDA_R_16F` and `CUDA_R_16BF` use `CUDA_R_32F`scalars, all data types of the scalar are identical to the type of `C`)"
+      },
+      "beta": {
+        "doc": "Scaling factor for tensor C. Pointer to host memory with data type determined by the compute descriptor. The data type follows that of cuTENSOR (i.e., the data type of the scalar is deptermined by the data type of `C`:`CUDA_R_16F` and `CUDA_R_16BF` use `CUDA_R_32F`scalars, all data types of the scalar are identical to the type of `C`)"
+      },
+      "device_workspace": {
+        "doc": "Pointer to device workspace memory (size determined by `cutensorMpPlanGetAttribute` with CUTENSORMP_PLAN_REQUIRED_WORKSPACE_DEVICE); may be NULL when the required device workspace size is zero on this rank"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "host_workspace": {
+        "doc": "Pointer to host workspace memory (size determined by `cutensorMpPlanGetAttribute` with CUTENSORMP_PLAN_REQUIRED_WORKSPACE_HOST)"
+      },
+      "plan": {
+        "doc": "Execution plan for the distributed contraction (created by `cutensorMpCreatePlan)`"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpCreate": {
+    "doc": "Initializes the cutensorMp library and creates a handle for distributed tensor operations.\n\n\n\nThis function creates a cutensorMp handle that serves as the context for all distributed tensor operations. The handle is associated with a specific MPI communicator, local CUDA device, and CUDA stream. This allows cutensorMp to coordinate tensor operations across multiple processes and GPUs.\n\nThe communicator defines the group of processes that will participate in distributed tensor operations. The local device ID specifies which CUDA device on the current process will be used for computations. The CUDA stream enables asynchronous execution and synchronization with other CUDA operations.\n\nThe user is responsible for calling `cutensorMpDestroy` to free the resources associated with the handle.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "comm": {
+        "doc": "NCCL communicator that defines the group of processes for distributed operations"
+      },
+      "handle": {
+        "doc": "Pointer to cutensorMpHandle_t that will hold the created handle"
+      },
+      "local_device_id": {
+        "doc": "CUDA device ID to use on the current process (must be valid and accessible)"
+      },
+      "stream": {
+        "doc": "CUDA stream for asynchronous operations; the default stream (0) is accepted"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpCreateContraction": {
+    "doc": "Creates an operation descriptor that encodes a distributed tensor contraction.\n\n\n\nThis function creates an operation descriptor for distributed tensor contractions of the form\n\n\n\n```text\n D = \\alpha \\mathcal{A} \\mathcal{B} + \\beta \\mathcal{C} \n```\n\n, where the tensors A, B, C, and D are distributed across multiple processes as specified by their respective tensor descriptors.\n\nThe distributed contraction leverages both intra-process cuTENSOR operations and inter-process communication to efficiently compute tensor contractions that exceed the memory capacity or computational resources of a single GPU. The operation automatically handles data redistribution, local contractions, and result aggregation across the participating processes.\n\nReplicated input tensors (`descA`, `descB`, `descC` with replication factor > 1, see `cutensorMpCreateTensorDescriptor)` are accepted and may unlock additional planner optimizations that reduce communication. Replicated output tensors (`descD` with replication factor > 1) are accepted for planner-supported ownership combinations. `cutensorMpCreateContraction` or `cutensorMpCreatePlan` returns `CUTENSOR_STATUS_NOT_SUPPORTED` when cuTensorMp cannot prove a correct producer, reduction, or redistribution path for every output replica.\n\nThe user is responsible for calling `cutensorMpDestroyOperationDescriptor` to free the resources associated with the descriptor once it is no longer needed.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid\n\nretval: if the combination of tensor configurations is not supported\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "Pointer to the operation descriptor that will be created and filled with information encoding the distributed contraction operation"
+      },
+      "descA": {
+        "doc": "Distributed tensor descriptor for input tensor A"
+      },
+      "descB": {
+        "doc": "Distributed tensor descriptor for input tensor B"
+      },
+      "descC": {
+        "doc": "Distributed tensor descriptor for input tensor C"
+      },
+      "descCompute": {
+        "doc": "Compute descriptor that determines the precision for the operation"
+      },
+      "descD": {
+        "doc": "Distributed tensor descriptor for output tensor D (currently must be identical to descC)"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "modesA": {
+        "doc": "Modes of the input tensor A"
+      },
+      "modesB": {
+        "doc": "Modes of the input tensor B"
+      },
+      "modesC": {
+        "doc": "Modes of the input tensor C"
+      },
+      "modesD": {
+        "doc": "Modes of the output tensor D"
+      },
+      "opA": {
+        "doc": "Unary operator that will be applied to each element of A before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opB": {
+        "doc": "Unary operator that will be applied to each element of B before it is further processed. The original data of this tensor remains unchanged."
+      },
+      "opC": {
+        "doc": "Unary operator that will be applied to each element of C before it is further processed. The original data of this tensor remains unchanged."
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpCreateFolding": {
+    "doc": "Creates an operation descriptor for a distributed tensor folding (matrix -> tensor).\n\n\n\nThe folding operation reshapes an entire distributed matrix (described by `descSrc`) into a distributed N-dimensional tensor (described by `descDst`). The modes of the destination tensor are partitioned into `numGroups` ordered groups; each group corresponds to one axis of the source matrix and its extent is the product of the extents of the modes it contains.\n\nThe grouping (`numGroups`, `groupModeIndices`, `groupSize`) always describes the destination tensor side. Neither scaling nor a unary operator are applied.\n\nThe replication factors of `descSrc` and `descDst` may differ; the planner performs any necessary broadcast(s) or drops redundant replicas (see the replication section of `cutensorMpCreateTensorDescriptor)`.\n\nThe source matrix block sizes in `descSrc` must satisfy the unfold/fold matrix tile granularity requirement: each matrix-axis block size must be a multiple of 32 for FP32 (`CUDA_R_32F`) and a multiple of 16 for all other currently supported datatypes. FP16 and BF16 folding are currently not supported.\n\nIf a source matrix extent is not an exact multiple of the corresponding matrix block size, the final row and/or column tile is a partial tile containing only the remaining valid matrix rows and/or columns. This follows the usual ScaLAPACK/cuSOLVERMp-style block-cyclic convention: edge tiles are not logical full-size padded tiles; owned elements are read from the source descriptor's local matrix layout using its element strides (with any ordinary leading-dimension padding represented only by those strides).\n\nThe user is responsible for calling `cutensorMpDestroyOperationDescriptor` to free the resources associated with the descriptor once it is no longer needed.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid (e.g. `groupSize` does not sum to the number of modes of `descDst`, the folded extents do not match `descSrc`, the source matrix block sizes do not satisfy the required tile granularity)\n\nretval: if the combination of source and destination layouts is not supported\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "Pointer to the operation descriptor that will be created and filled with information encoding the distributed folding operation"
+      },
+      "descDst": {
+        "doc": "Distributed tensor descriptor for the destination N-dimensional tensor"
+      },
+      "descSrc": {
+        "doc": "Distributed tensor descriptor for the source matrix"
+      },
+      "groupModeIndices": {
+        "doc": "Array of length `sum(groupSize)` listing, group by group, the positional mode indices (in `descDst` order) that form each group. May be null, in which case the modes are taken in the order they are listed in `descDst`."
+      },
+      "groupSize": {
+        "doc": "Array of size `numGroups`; entries must sum to the number of modes of `descDst`."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "numGroups": {
+        "doc": "Number of mode groups formed on the destination tensor side (currently only the value 2 is supported, corresponding to the two axes of the source matrix)"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpCreatePlan": {
+    "doc": "Creates an execution plan for a distributed tensor operation.\n\n\n\nThis function creates an optimized execution plan for the distributed tensor operation encoded by the operation descriptor. The plan selects the most appropriate algorithms and communication strategies based on the tensor distributions, available resources, and user preferences.\n\nThe planning process analyzes the distributed tensor layout, communication requirements, and computational resources to determine an efficient execution strategy. This may involve data redistribution, local contractions, and result aggregation phases that minimize communication overhead while maximizing computational efficiency.\n\nPlanning is a collective call on the handle communicator after a valid handle is provided. All ranks must pass matching operation descriptors and algorithm selection fields; workspace budgets are treated as local resource limits and may differ by rank.\n\nThe user is responsible for calling `cutensorMpDestroyPlan` to free the resources associated with the plan once it is no longer needed.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid (this typically indicates a user error)\n\nretval: if no viable execution plan could be found\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "Operation descriptor encoding the distributed operation (created by `cutensorMpCreateContraction` or `cutensorMpCreateRedistribution)`"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "plan": {
+        "doc": "Pointer to the execution plan object that will be created"
+      },
+      "pref": {
+        "doc": "Plan preference object specifying algorithm and workspace preferences (may be NULL for default preferences)"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpCreatePlanPreference": {
+    "doc": "plan related functions\n\n\n\nCreates a plan preference object for controlling distributed tensor operation planning.\n\n\n\nThis function creates a preference object that allows users to control various aspects of the execution plan for distributed tensor operations. The preferences include algorithm selection, workspace size limits, and JIT compilation options that affect both the underlying cuTENSOR operations and the distributed communication patterns.\n\nThe plan preference provides fine-grained control over:\n- Local cuTENSOR algorithm selection and JIT mode\n- Distributed algorithm strategy (non-packing, packing with permutation, or packing with P2P)\n- Workspace size limits for both device and host memory\n- cuTENSOR workspace preferences\n\nThe user is responsible for calling `cutensorMpDestroyPlanPreference` to free the resources associated with the preference object.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid (this typically indicates a user error)\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "cutensormp_algo": {
+        "doc": "Algorithm selection for distributed communication patterns"
+      },
+      "cutensormp_workspace_size_device": {
+        "doc": "Maximum device workspace size for cutensorMp operations (bytes)"
+      },
+      "cutensormp_workspace_size_host": {
+        "doc": "Maximum host workspace size for cutensorMp operations (bytes)"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "pref": {
+        "doc": "Pointer to the plan preference object that will be created"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpCreateRedistribution": {
+    "doc": "Creates an operation descriptor that encodes a distributed tensor redistribution.\n\n\n\nThis operation preserves logical tensor values while moving elements from the source descriptor's distributed layout to the destination descriptor's distributed layout. Source and destination descriptors must describe the same logical tensor by mode labels.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if some input data is invalid\n\nretval: if the requested redistribution is not supported\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "Pointer to the operation descriptor that will be created"
+      },
+      "descDst": {
+        "doc": "Distributed tensor descriptor for the destination tensor"
+      },
+      "descSrc": {
+        "doc": "Distributed tensor descriptor for the source tensor"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "modesDst": {
+        "doc": "Modes of the destination tensor"
+      },
+      "modesSrc": {
+        "doc": "Modes of the source tensor"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpCreateTensorDescriptor": {
+    "doc": "Creates a distributed tensor descriptor for multi-process tensor operations.\n\n\n\nThis function creates a tensor descriptor that defines the structure and distribution of a multi-dimensional tensor across multiple processes. Unlike regular cuTENSOR tensor descriptors, this descriptor includes information about how the tensor is partitioned and distributed across different processes in the MPI communicator.\n\nThe tensor is described by its modes (dimensions), extents (sizes along each mode), and strides for elements and blocks. Rank ownership is specified through block sizes, nranks-per-mode, and the rank mapping. Element and block strides describe the local physical layout and do not change which rank owns an element.\n\nLet `P = product(nranksPerMode[0:numModes])`. With this API's default logical-rank strides, when `nranks` is an integer multiple of `P`, the descriptor has a uniform replication factor of `nranks / P`. A factor of 1 means every participating rank has a distinct ownership coordinate; a factor greater than 1 means each coordinate is stored by that many ranks. Otherwise replica multiplicity may be non-uniform and no single integer replication factor describes the descriptor.\n\nRank ownership follows the order of `ranks`: `ranks[l]` has logical rank `l`. If `ranks` is null, communicator ranks in `[0, nranks)` are used. Logical rank coordinates use mode 0 as the fastest-varying dimension. A communicator rank not listed in `ranks` owns no local elements.\n\nEach mode is mapped independently. `nranksPerMode[i] == 1` replicates the mode. A null `blockSize` array or `blockSize[i] == 0` creates near-even contiguous slices; lower rank coordinates receive any remainder. A positive `blockSize[i]` assigns fixed-size global blocks round-robin, and the final global block may be shorter.\n\nFor example, extent 10 with block size 4 on two rank coordinates assigns global elements `[0, 4)` and `[8, 10)` to coordinate 0, and `[4, 8)` to coordinate 1.\n\nWhen `blockStride` is null, no extra padding is inserted between consecutive locally owned blocks: the realized block stride is the local block size multiplied by the realized element stride. A short final block is not padded. When `elementStride` is also null, each rank's full local shard is compact, with mode 0 varying fastest. Use `cutensorMpTensorDescriptorGetAttribute` to query exact rank-local extents, strides, and storage size.\n\nThe user is responsible for calling `cutensorMpDestroyTensorDescriptor` to free the resources associated with the descriptor once it is no longer needed.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid (this typically indicates a user error)\n\nretval: if the requested descriptor configuration is not supported\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "blockSize": {
+        "doc": "Size of each block along each mode for distribution (size: numModes). Passing null uses one contiguous partition per rank along each distributed mode. Passing a non-null array uses each positive entry as that mode's block-cyclic block size; an entry of 0 has the same effect as the null default for that mode, so contiguous and block-cyclic modes can be mixed in one descriptor."
+      },
+      "blockStride": {
+        "doc": "Optional per-mode stride, in elements, between consecutive blocks stored in the local buffer (size: numModes). Let `B_i` be the effective block size selected by `blockSize` and `s_i` the resolved per-element stride. For local coordinate `l` in mode `i`, the physical offset contribution is `(l / B_i) * blockStride[i] + (l % B_i) * s_i`. This parameter controls local physical storage only; rank ownership is determined by `blockSize`, `nranksPerMode`, and the rank mapping. Passing null selects ordinary linear local addressing without inter-block padding; when supplied, every entry must be positive. Operations that consume explicit block strides require a non-overlapping physical layout, and support is operation-specific."
+      },
+      "dataType": {
+        "doc": "Data type of the tensor elements"
+      },
+      "desc": {
+        "doc": "Pointer to the address where the allocated tensor descriptor object will be stored"
+      },
+      "elementStride": {
+        "doc": "Stride between consecutive elements in each mode (size: numModes), in elements. Passing null selects compact rank-local element strides."
+      },
+      "extent": {
+        "doc": "Extent (size) of each mode (size: numModes, all values must be greater than zero)"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "nranks": {
+        "doc": "Total number of ranks (processes) participating in the tensor distribution"
+      },
+      "nranksPerMode": {
+        "doc": "Number of processes along each mode (size: numModes)"
+      },
+      "numModes": {
+        "doc": "Number of modes (dimensions) in the tensor (must be greater than zero)"
+      },
+      "ranks": {
+        "doc": "Array of rank IDs for each participating process (size: nranks), passing null will use the range [0, nranks)"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpCreateUnfolding": {
+    "doc": "Creates an operation descriptor for a distributed tensor unfolding (tensor -> matrix).\n\n\n\nThe unfolding operation reshapes an entire distributed N-dimensional tensor (described by `descSrc`) into a distributed matrix (described by `descDst`). The modes of the source tensor are partitioned into `numGroups` ordered groups; each group forms one matricized axis whose extent is the product of the extents of the modes it contains.\n\nThe grouping (`numGroups`, `groupModeIndices`, `groupSize`) always describes the source tensor side. Neither scaling nor a unary operator are applied.\n\nThe replication factors of `descSrc` and `descDst` may differ; the planner performs any necessary broadcast(s) or drops redundant replicas (see the replication section of `cutensorMpCreateTensorDescriptor)`.\n\nThe destination matrix block sizes in `descDst` must satisfy the unfold/fold matrix tile granularity requirement: each matrix-axis block size must be a multiple of 32 for FP32 (`CUDA_R_32F`) and a multiple of 16 for all other currently supported datatypes. FP16 and BF16 unfolding are currently not supported.\n\nIf an unfolded matrix extent is not an exact multiple of the corresponding matrix block size, the final row and/or column tile is a partial tile containing only the remaining valid matrix rows and/or columns. This follows the usual ScaLAPACK/cuSOLVERMp-style block-cyclic convention: edge tiles are not logical full-size padded tiles; owned elements are stored in the destination descriptor's local matrix layout using its element strides (with any ordinary leading-dimension padding represented only by those strides).\n\nThe user is responsible for calling `cutensorMpDestroyOperationDescriptor` to free the resources associated with the descriptor once it is no longer needed.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid (e.g. `groupSize` does not sum to the number of modes of `descSrc`, the unfolded extents do not match `descDst`, the destination matrix block sizes do not satisfy the required tile granularity)\n\nretval: if the combination of source and destination layouts is not supported\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "Pointer to the operation descriptor that will be created and filled with information encoding the distributed unfolding operation"
+      },
+      "descDst": {
+        "doc": "Distributed tensor descriptor for the destination matrix"
+      },
+      "descSrc": {
+        "doc": "Distributed tensor descriptor for the source N-dimensional tensor"
+      },
+      "groupModeIndices": {
+        "doc": "Array of length `sum(groupSize)` listing, group by group, the positional mode indices (in `descSrc` order) that form each group. May be null, in which case the modes are taken in the order they are listed in `descSrc`."
+      },
+      "groupSize": {
+        "doc": "Array of size `numGroups`; entries must sum to the number of modes of `descSrc`."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "numGroups": {
+        "doc": "Number of mode groups formed on the source tensor side (currently only the value 2 is supported to produce a matrix)"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpDestroy": {
+    "doc": "Frees all resources associated with the provided cutensorMp handle.\n\n\n\nThis function deallocates all memory and resources associated with a cutensorMp handle that was previously created by `cutensorMpCreate`. After calling this function, the handle becomes invalid and should not be used in subsequent cutensorMp operations.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "The cutensorMpHandle_t object that will be deallocated"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpDestroyOperationDescriptor": {
+    "doc": "Frees all resources related to the provided distributed contraction descriptor.\n\n\n\nThis function deallocates all memory and resources associated with a cutensorMp operation descriptor that was previously created by `cutensorMpCreateContraction`. After calling this function, the descriptor becomes invalid and should not be used in subsequent cutensorMp operations.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The cutensorMpOperationDescriptor_t object that will be deallocated"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpDestroyPlan": {
+    "doc": "Frees all resources related to the provided distributed contraction plan.\n\n\n\nThis function deallocates all memory and resources associated with a cutensorMp execution plan that was previously created by `cutensorMpCreatePlan`. After calling this function, the plan becomes invalid and should not be used in subsequent cutensorMp operations.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "plan": {
+        "doc": "The cutensorMpPlan_t object that will be deallocated"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpDestroyPlanPreference": {
+    "doc": "Frees all resources related to the provided plan preference object.\n\n\n\nThis function deallocates all memory and resources associated with a cutensorMp plan preference object that was previously created by `cutensorMpCreatePlanPreference`. After calling this function, the preference object becomes invalid and should not be used in subsequent cutensorMp operations.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "pref": {
+        "doc": "The cutensorMpPlanPreference_t object that will be deallocated"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpDestroyTensorDescriptor": {
+    "doc": "Frees all resources related to the provided distributed tensor descriptor.\n\n\n\nThis function deallocates all memory and resources associated with a cutensorMp tensor descriptor that was previously created by `cutensorMpCreateTensorDescriptor`. After calling this function, the descriptor becomes invalid and should not be used in subsequent cutensorMp operations.\n\n\n\n\n\nretval: on success and an error code otherwise\n\nremarks: blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "desc": {
+        "doc": "The cutensorMpTensorDescriptor_t object that will be deallocated"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpFold": {
+    "doc": "Performs a distributed tensor folding (matrix -> tensor) across multiple processes.\n\n\n\nThis function executes the distributed folding operation encoded in the plan, reshaping the local portion of the source matrix at `src` (laid out according to `descSrc` of `cutensorMpCreateFolding)` into the local portion of the destination tensor at `dst` (laid out according to `descDst`). No scaling and no unary operator are applied.\n\nThe execution typically involves several phases: 1. Local repacking of the source data according to the source layout 2. Communication of data to the ranks that own the corresponding destination region 3. Local placement of received data into the destination layout (with mode grouping applied)\n\nAll participating processes in the communicator must call this function with consistent parameters. Each process provides only its local portion of the source and destination buffers, distributed according to the respective tensor descriptors.\n\nIn-place execution (`src == dst`) is only valid when source and destination descriptors are identical (in which case the call is a no-op or local memcpy); otherwise it is rejected.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid (this typically indicates a user error, e.g., in-place execution with non-identical descriptors)\n\nretval: if the operation is not supported with the given configuration\n\nretval: if the provided workspace is insufficient\n\nretval: if the plan was created for a different device architecture\n\nretval: if a CUDA error occurred during execution\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "device_workspace": {
+        "doc": "Pointer to device workspace memory (size determined by `cutensorMpPlanGetAttribute` with CUTENSORMP_PLAN_REQUIRED_WORKSPACE_DEVICE)"
+      },
+      "dst": {
+        "doc": "Pointer to the local portion of the destination tensor in GPU memory; may be NULL when the local destination extent has zero volume"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "host_workspace": {
+        "doc": "Pointer to host workspace memory (size determined by `cutensorMpPlanGetAttribute` with CUTENSORMP_PLAN_REQUIRED_WORKSPACE_HOST)"
+      },
+      "plan": {
+        "doc": "Execution plan for the distributed folding (created by `cutensorMpCreatePlan` from a descriptor returned by `cutensorMpCreateFolding)`"
+      },
+      "src": {
+        "doc": "Pointer to the local portion of the source matrix in GPU memory; may be NULL when the local source extent has zero volume"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpPlanGetAttribute": {
+    "doc": "Retrieves information about an already-created plan (see `cutensorPlanAttribute_t)`\n\n\n\nretval: The operation completed successfully.\n\nretval: if some input data is invalid (this typically indicates an user error).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attr": {
+        "doc": "Requested attribute."
+      },
+      "buf": {
+        "doc": "On successful exit: Holds the information of the requested attribute."
+      },
+      "plan": {
+        "doc": "Denotes an already-created plan (e.g., via `cutensorMpCreatePlan)`"
+      },
+      "sizeInBytes": {
+        "doc": "size of `buf` in bytes."
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpRedistribute": {
+    "doc": "Performs a distributed tensor redistribution across multiple processes.\n\n\n\nThis function executes a plan created from `cutensorMpCreateRedistribution`. The operation preserves logical tensor values and moves elements from the source descriptor's ownership/layout to the destination descriptor's ownership/layout.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if some input data is invalid\n\nretval: if a CUDA error occurred during execution\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "device_workspace": {
+        "doc": "Pointer to device workspace memory"
+      },
+      "dst": {
+        "doc": "Pointer to this rank's local destination tensor shard in GPU memory; may be NULL when the local destination extent has zero volume"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "host_workspace": {
+        "doc": "Pointer to host workspace memory, currently unused and may be NULL"
+      },
+      "plan": {
+        "doc": "Execution plan for the distributed redistribution"
+      },
+      "src": {
+        "doc": "Pointer to this rank's local source tensor shard in GPU memory; may be NULL when the local source extent has zero volume"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpSetStream": {
+    "doc": "Overrides the CUDA stream that the given plan executes on.\n\n\n\nEvery plan starts out bound to the stream that was passed to `cutensorMpCreate`. This function retargets a single plan onto a different stream, so that plans created from the same handle can be issued on separate streams without creating one handle per stream. All subsequent executions of `plan` (e.g., `cutensorMpContract`, `cutensorMpRedistribute`, `cutensorMpUnfold`, `cutensorMpFold)` are enqueued on `stream`, and the caller must synchronize `stream` -- not the handle's stream -- to observe their results.\n\nThe work that plan creation and any earlier execution already enqueued on the plan's previous stream is ordered before `stream`, so no additional synchronization is required at the switch.\n\nThe stream is a rank-local property: this function performs no communication and ranks may pass different streams. It must not be called while an execution of `plan` is still in flight.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if `handle` or `plan` is NULL, or if the plan was not created with the provided handle\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "plan": {
+        "doc": "Execution plan to retarget; must have been created with `handle`"
+      },
+      "stream": {
+        "doc": "The CUDA stream that subsequent executions of `plan` will use; the default stream (0) is accepted"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpTensorDescriptorGetAttribute": {
+    "doc": "Queries the calling rank's realized local tensor layout.\n\n\n\nArray attributes are returned in descriptor mode order. Element and block strides are expressed in elements, not bytes. A default block stride is returned numerically as `localBlockSize[i] * localElementStride[i]`.\n\n`CUTENSORMP_TENSOR_DESCRIPTOR_LOCAL_EXTENT` reports the number of valid logical elements owned by the calling rank in each mode. A global ragged tail produces a shorter final local block; it is not rounded up to the full block size. The corresponding storage size is the minimum byte span that covers every reachable local offset, including holes introduced by explicit strides.\n\nFor local indices in the returned extent, the element offset is:\n\n\n\n```text\n offset = sum_i(\n     floor(localIndex[i] / blockSize[i]) * blockStride[i]\n     + (localIndex[i] % blockSize[i]) * elementStride[i])\n```\n\nRanks that do not participate in the descriptor return zero local extents and zero local storage size. This query is non-collective: each rank obtains its own values, and an application must gather them explicitly if one rank needs every rank's layout.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if an object, attribute, buffer, or buffer size is invalid, or if `desc` was created from a different handle\n\nremarks: host-only, blocking, non-collective, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attribute": {
+        "doc": "Attribute to query"
+      },
+      "buf": {
+        "doc": "Host output buffer"
+      },
+      "desc": {
+        "doc": "Tensor descriptor to query; it must remain alive until this function returns"
+      },
+      "handle": {
+        "doc": "Opaque handle used to create `desc`; it must remain alive"
+      },
+      "sizeInBytes": {
+        "doc": "Exact size of `buf`. Scalar attributes require the size of their documented type; array attributes require `numModes * sizeof(int64_t)`"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorMpUnfold": {
+    "doc": "Performs a distributed tensor unfolding (tensor -> matrix) across multiple processes.\n\n\n\nThis function executes the distributed unfolding operation encoded in the plan, reshaping the local portion of the source tensor at `src` (laid out according to `descSrc` of `cutensorMpCreateUnfolding)` into the local portion of the destination matrix at `dst` (laid out according to `descDst`). No scaling and no unary operator are applied.\n\nThe execution typically involves several phases: 1. Local repacking of the source data according to the source layout 2. Communication of data to the ranks that own the corresponding destination region 3. Local placement of received data into the destination layout (with mode grouping applied)\n\nAll participating processes in the communicator must call this function with consistent parameters. Each process provides only its local portion of the source and destination buffers, distributed according to the respective tensor descriptors.\n\nIn-place execution (`src == dst`) is only valid when source and destination descriptors are identical (in which case the call is a no-op or local memcpy); otherwise it is rejected.\n\n\n\n\n\nretval: The operation completed successfully\n\nretval: if the handle is not initialized\n\nretval: if some input data is invalid (this typically indicates a user error, e.g., in-place execution with non-identical descriptors)\n\nretval: if the operation is not supported with the given configuration\n\nretval: if the provided workspace is insufficient\n\nretval: if the plan was created for a different device architecture\n\nretval: if a CUDA error occurred during execution\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "device_workspace": {
+        "doc": "Pointer to device workspace memory (size determined by `cutensorMpPlanGetAttribute` with CUTENSORMP_PLAN_REQUIRED_WORKSPACE_DEVICE)"
+      },
+      "dst": {
+        "doc": "Pointer to the local portion of the destination matrix in GPU memory; may be NULL when the local destination extent has zero volume"
+      },
+      "handle": {
+        "doc": "Opaque handle holding cutensorMp's library context"
+      },
+      "host_workspace": {
+        "doc": "Pointer to host workspace memory (size determined by `cutensorMpPlanGetAttribute` with CUTENSORMP_PLAN_REQUIRED_WORKSPACE_HOST)"
+      },
+      "plan": {
+        "doc": "Execution plan for the distributed unfolding (created by `cutensorMpCreatePlan` from a descriptor returned by `cutensorMpCreateUnfolding)`"
+      },
+      "src": {
+        "doc": "Pointer to the local portion of the source tensor in GPU memory; may be NULL when the local source extent has zero volume"
+      }
+    },
+    "source": "cutensorMp.h"
+  },
+  "cutensorOperationDescriptorGetAttribute": {
+    "doc": "This function retrieves an attribute of the provided cutensorOperationDescriptor_t object (see `cutensorOperationDescriptorAttribute_t)`.\n\nBlock-sparse contraction descriptors only support the attributes CUTENSOR_OPERATION_DESCRIPTOR_SCALAR_TYPE, CUTENSOR_OPERATION_DESCRIPTOR_MOVED_BYTES, and CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE.\n\n\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if some input data is invalid (this typically indicates an user error).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attr": {
+        "doc": "Specifies the attribute that will be retrieved."
+      },
+      "buf": {
+        "doc": "This buffer (of size sizeInBytes) will hold the requested attribute of the provided cutensorOperationDescriptor_t object."
+      },
+      "desc": {
+        "doc": "The cutensorOperationDescriptor_t object whos attribute is queried."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "sizeInBytes": {
+        "doc": "Size of buf (in bytes); see `cutensorOperationDescriptorAttribute_t` for the exact size."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorOperationDescriptorSetAttribute": {
+    "doc": "Set attribute of a cutensorOperationDescriptor_t object.\n\nBlock-sparse contraction descriptors only support the attribute CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE.\n\n\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if some input data is invalid (this typically indicates an user error).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attr": {
+        "doc": "Specifies the attribute that will be set."
+      },
+      "buf": {
+        "doc": "This buffer (of size `sizeInBytes`) determines the value to which `attr` will be set."
+      },
+      "desc": {
+        "doc": "Operation descriptor that will be modified."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "sizeInBytes": {
+        "doc": "Size of buf (in bytes)."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorPermute": {
+    "doc": "Performs the tensor permutation that is encoded by `plan` (see `cutensorCreatePermutation)`.\n\n\n\nThis function performs an elementwise tensor operation of the form:\n\n\n\n```text\n B_{\\Pi^B(i_0,i_1,...,i_n)} = \\alpha op_A(A_{\\Pi^A(i_0,i_1,...,i_n)}) \n```\n\nConsequently, this function performs an out-of-place tensor permutation.\n\nWhere\n- A and B are multi-mode tensors (of arbitrary data types),\n-\n\n\n\n```text\n\\Pi^A, \\Pi^B\n```\n\nare permutation operators that permute the modes of A, B respectively,\n-\n\n\n\n```text\nop_A\n```\n\nis an unary element-wise operators (e.g., IDENTITY, SQR, CONJUGATE), and is specified when creating the operation descriptor using cutensorCreatePermutation()\n\n\n\nretval: if the combination of data types or operations is not supported\n\nretval: if tensor dimensions or modes have an illegal value\n\nretval: The operation completed successfully without error\n\nretval: if the handle is not initialized.\n\nremarks: calls asynchronous functions, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "A": {
+        "doc": "Multi-mode tensor of type typeA with nmodeA modes. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "B": {
+        "doc": "Multi-mode tensor of type typeB with nmodeB modes. Pointer to the GPU-accessible memory."
+      },
+      "alpha": {
+        "doc": "Scaling factor for A (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE)). Pointer to the host memory. If alpha is zero, A is not read and the corresponding unary operator is not applied."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "plan": {
+        "doc": "Opaque handle holding all information about the desired tensor reduction (created by `cutensorCreatePermutation` followed by `cutensorCreatePlan)`."
+      },
+      "stream": {
+        "doc": "The CUDA stream."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorPlanGetAttribute": {
+    "doc": "Retrieves information about an already-created plan (see `cutensorPlanAttribute_t)`\n\nBlock-sparse contraction plans only support CUTENSOR_PLAN_REQUIRED_WORKSPACE.\n\n\n\nretval: The operation completed successfully.\n\nretval: if some input data is invalid (this typically indicates an user error).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attr": {
+        "doc": "Requested attribute."
+      },
+      "buf": {
+        "doc": "On successful exit: Holds the information of the requested attribute."
+      },
+      "plan": {
+        "doc": "Denotes an already-created plan (e.g., via `cutensorCreatePlan` or `cutensorCreatePlanAutotuned)`"
+      },
+      "sizeInBytes": {
+        "doc": "size of `buf` in bytes."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorPlanPreferenceGetAttribute": {
+    "doc": "Get attribute of a cutensorPlanPreference_t object.\n\n\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if some input data is invalid (this typically indicates an user error).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attr": {
+        "doc": "Requested attribute."
+      },
+      "buf": {
+        "doc": "On successful exit: Holds the information of the requested attribute."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "pref": {
+        "doc": "This opaque struct restricts the search space of viable candidates."
+      },
+      "sizeInBytes": {
+        "doc": "Size of buf (in bytes); see `cutensorPlanPreferenceAttribute_t` for the exact size."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorPlanPreferenceSetAttribute": {
+    "doc": "Set attribute of a cutensorPlanPreference_t object.\n\n\n\nretval: The operation completed successfully.\n\nretval: if the handle is not initialized.\n\nretval: if some input data is invalid (this typically indicates an user error).",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attr": {
+        "doc": "Specifies the attribute that will be set."
+      },
+      "buf": {
+        "doc": "This buffer (of size sizeInBytes) determines the value to which `attr` will be set."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "pref": {
+        "doc": "This opaque struct restricts the search space of viable candidates."
+      },
+      "sizeInBytes": {
+        "doc": "Size of buf (in bytes); see `cutensorPlanPreferenceAttribute_t` for the exact size."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorReadKernelCacheFromFile": {
+    "doc": "Reads a kernel cache from file and adds all non-existing JIT compiled kernels to the kernel cache.\n\nA cache is only valid for the same cuTENSOR version and CUDA version; moreover, the GPU architecture (incl. multiprocessor count) must match, otherwise CUTENSOR_STATUS_INVALID_VALUE will be returned.\n\n\n\n\n\nretval: The operation completed successfully, or the file pointed to by filename was empty.\n\nretval: if the stored cache was created by a different cuTENSOR- or CUDA-version or if the GPU architecture (incl. multiprocessor count) doesn't match.\n\nretval: if the file cannot be read.\n\nretval: if the handle is not initialized.\n\nretval: if the function is not available for the operating system, CUDA Toolkit, or compute capability of the device.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "filename": {
+        "doc": "Specifies the filename (including the absolute path) to the file that holds all the cache information that have previously been written by cutensorWriteKernelCacheToFile."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorReduce": {
+    "doc": "Performs the tensor reduction that is encoded by `plan` (see `cutensorCreateReduction)`.\n\n\n\nretval: The operation completed successfully.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "A": {
+        "doc": "Pointer to the data corresponding to A in device memory. Pointer to the GPU-accessible memory. The data accessed via this pointer must not overlap with the elements written to D."
+      },
+      "C": {
+        "doc": "Pointer to the data corresponding to C in device memory. Pointer to the GPU-accessible memory."
+      },
+      "D": {
+        "doc": "Pointer to the data corresponding to C in device memory. Pointer to the GPU-accessible memory."
+      },
+      "alpha": {
+        "doc": "Scaling for A. Its data type is determined by 'descCompute' (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE)). Pointer to the host memory."
+      },
+      "beta": {
+        "doc": "Scaling for C. Its data type is determined by 'descCompute' (see `cutensorOperationDescriptorGetAttribute(desc`, CUTENSOR_OPERATION_SCALAR_TYPE)). Pointer to the host memory."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      },
+      "plan": {
+        "doc": "Opaque handle holding the reduction execution plan (created by `cutensorCreateReduction` followed by `cutensorCreatePlan)`."
+      },
+      "stream": {
+        "doc": "The CUDA stream in which all the computation is performed."
+      },
+      "workspace": {
+        "doc": "Scratchpad (device) memory of size --at least-- `workspaceSize` bytes; the workspace must be aligned to 256 bytes (i.e., the default alignment of cudaMalloc)."
+      },
+      "workspaceSize": {
+        "doc": "Please use `cutensorEstimateWorkspaceSize()` to query the required workspace."
+      }
+    },
+    "source": "cutensor.h"
+  },
+  "cutensorWriteKernelCacheToFile": {
+    "doc": "Writes the --per library-- kernel cache to file.\n\nWrites the just-in-time compiled kernels to the provided file (those kernels belong to the library--not to the handle).\n\n\n\nretval: The operation completed successfully or there were no kernels in the cache.\n\nretval: if the file cannot be written to.\n\nretval: if the handle is not initialized.\n\nretval: if the function is not available for the operating system, CUDA Toolkit, or compute capability of the device.\n\n\n\nremarks: non-blocking, no reentrant, and thread-safe",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "filename": {
+        "doc": "Specifies the filename (including the absolute path) to the file that should hold all the cache information. Warning: an existing file will be overwritten."
+      },
+      "handle": {
+        "doc": "Opaque handle holding cuTENSOR's library context."
+      }
+    },
+    "source": "cutensor.h"
+  }
+}

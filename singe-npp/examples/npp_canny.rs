@@ -1,16 +1,15 @@
 mod common;
 
-use singe_cuda::memory::DeviceMemory;
+use common::{
+    Result, count_nonzero, create_stream, download, image_path, output_dir, upload, write_png,
+};
+use singe_cuda::{memory::DeviceMemory, view::DeviceOutputView};
 use singe_npp::{
     image::{
         raw::filtering,
-        view::{C1, C3, ImageView, ImageViewMut},
+        view::{C1, C3, ImageOutputView, ImageView},
     },
     types::{BorderType, DifferentialKernel, ImageNormalization, MaskSize, Point, Size},
-};
-
-use common::{
-    Result, count_nonzero, create_stream, download, image_path, output_dir, upload, write_png,
 };
 
 fn main() -> Result<()> {
@@ -20,26 +19,39 @@ fn main() -> Result<()> {
     let size = Size::new(width as i32, height as i32);
 
     let (stream, stream_context) = create_stream()?;
-    let source_device = upload(image.as_raw())?;
-    let mut destination_device =
-        DeviceMemory::<u8>::zeroes(size.width as usize * size.height as usize)?;
-
-    let source = ImageView::<u8, C3>::from_memory(&source_device, size)?;
-    let mut destination = ImageViewMut::<u8, C1>::from_memory(&mut destination_device, size)?;
-
-    filtering::filter_canny_border_c3_to_c1(
-        &stream_context,
-        &source,
-        Point { x: 0, y: 0 },
-        &mut destination,
-        DifferentialKernel::Sobel,
-        MaskSize::Mask3x3,
-        50,
-        100,
-        ImageNormalization::L2,
-        BorderType::Replicate,
+    let source_device = upload(stream.context(), image.as_raw())?;
+    let mut destination_device = DeviceMemory::<u8>::create_uninit(
+        stream.context(),
+        size.width as usize * size.height as usize,
     )?;
+
+    let source = ImageView::<u8, C3>::from_buffer(&source_device, size)?;
+    let mut destination = ImageOutputView::<u8, C1>::from_output(
+        DeviceOutputView::from_output(&mut destination_device),
+        size,
+    )?;
+
+    stream_context.sync_scope(|| {
+        // SAFETY: the initialized inputs and writable outputs remain borrowed through stream completion.
+        unsafe {
+            filtering::filter_canny_border_c3_to_c1(
+                &stream_context,
+                &source,
+                Point { x: 0, y: 0 },
+                &mut destination,
+                DifferentialKernel::Sobel,
+                MaskSize::Mask3x3,
+                50,
+                100,
+                ImageNormalization::L2,
+                BorderType::Replicate,
+            )
+        }
+    })?;
     stream.synchronize()?;
+
+    // SAFETY: the call above completed and wrote every element.
+    let destination_device = unsafe { destination_device.assume_init() };
 
     let edges = download(&destination_device)?;
     let edge_count = count_nonzero(&edges);

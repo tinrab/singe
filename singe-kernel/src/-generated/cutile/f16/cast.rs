@@ -3,8 +3,13 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub fn cast_bf16_f32<const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
@@ -82,8 +87,8 @@ mod kernels {
         let values: Tile<u8, { [B] }> = load_tile_like(input, out);
         let zero_u8: Tile<u8, { [B] }> = constant(0u8, out.shape());
         let mask = cmpi(values, zero_u8, predicate::NotEqual);
-        let one: Tile<f16, { [B] }> = constant(f16::from_f32(1.0), out.shape());
-        let zero: Tile<f16, { [B] }> = constant(f16::from_f32(0.0), out.shape());
+        let one: Tile<f16, { [B] }> = constant(f16::ONE, out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
         out.store(select(mask, one, zero));
     }
     #[cutile::entry()]
@@ -148,16 +153,18 @@ mod kernels {
         let input_base: PointerTile<*mut f16, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut f16, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(f16::from_f32(0.0)),
-            None,
-            Latency::<0>,
-        );
-        let zero = constant(f16::from_f32(0.0), tile_shape);
+        let input_result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(f16::ZERO),
+                None,
+                Latency::<0>,
+            )
+        };
+        let zero: Tile<f16, { [128] }> = constant(f16::ZERO, tile_shape);
         let nonzero = cmpf(
             input_result.0,
             zero,
@@ -171,15 +178,17 @@ mod kernels {
         let out_base: PointerTile<*mut u8, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut u8, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut u8, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 pub use kernels::*;

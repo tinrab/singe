@@ -1,17 +1,16 @@
 mod common;
 
-use singe_cuda::memory::DeviceMemory;
-use singe_npp::{
-    image::{
-        raw::filtering,
-        view::{C1, ImageView, ImageViewMut},
-    },
-    types::{ImageNormalization, Size},
-};
-
 use common::{
     Result, create_stream, download, image_path, normalize_u32_to_u8, output_dir, read_raw_u8,
     upload, write_png,
+};
+use singe_cuda::{memory::DeviceMemory, view::DeviceOutputView};
+use singe_npp::{
+    image::{
+        raw::filtering,
+        view::{C1, ImageOutputView, ImageView, ImageViewMut},
+    },
+    types::{ImageNormalization, Size},
 };
 
 struct InputImage {
@@ -65,8 +64,9 @@ fn main() -> Result<()> {
             image_path("batched_label_markers_and_compression", image.name),
             image.size,
         )?;
-        source_devices.push(upload(&input)?);
-        label_devices.push(DeviceMemory::<u32>::zeroes(
+        source_devices.push(upload(stream.context(), &input)?);
+        label_devices.push(DeviceMemory::<u32>::create_uninit(
+            stream.context(),
             image.size.width as usize * image.size.height as usize,
         )?);
     }
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
         .iter()
         .zip(source_devices.iter())
         .map(|(image, memory)| {
-            let img = ImageView::<u8, C1>::from_memory(memory, image.size)?;
+            let img = ImageView::<u8, C1>::from_buffer(memory, image.size)?;
             Ok(img)
         })
         .collect::<Result<Vec<_>>>()?;
@@ -84,19 +84,32 @@ fn main() -> Result<()> {
         .iter()
         .zip(label_devices.iter_mut())
         .map(|(image, memory)| {
-            let img = ImageViewMut::<u32, C1>::from_memory(memory, image.size)?;
+            let img = ImageOutputView::<u32, C1>::from_output(
+                DeviceOutputView::from_output(memory),
+                image.size,
+            )?;
             Ok(img)
         })
         .collect::<Result<Vec<_>>>()?;
 
-    filtering::label_markers_uf_batch_u8_to_u32_c1_advanced(
-        &stream_context,
-        &sources,
-        &mut label_views,
-        ImageNormalization::Infinity,
-    )?;
+    stream_context.sync_scope(|| {
+        // SAFETY: the initialized inputs and writable outputs remain borrowed through stream completion.
+        unsafe {
+            filtering::label_markers_uf_batch_u8_to_u32_c1_advanced(
+                &stream_context,
+                &sources,
+                &mut label_views,
+                ImageNormalization::Infinity,
+            )
+        }
+    })?;
     stream.synchronize()?;
     drop(label_views);
+    let mut label_devices = label_devices
+        .into_iter()
+        // SAFETY: the call above completed and wrote every element.
+        .map(|memory| unsafe { memory.assume_init() })
+        .collect::<Vec<_>>();
 
     for (image, labels) in images.iter().zip(label_devices.iter()) {
         write_png(
@@ -110,19 +123,27 @@ fn main() -> Result<()> {
         .iter()
         .zip(label_devices.iter_mut())
         .map(|(image, memory)| {
-            let img = ImageViewMut::<u32, C1>::from_memory(memory, image.size)?;
+            let img = ImageViewMut::<u32, C1>::from_buffer(memory, image.size)?;
             Ok(img)
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let mut compressed_counts_device = DeviceMemory::<u32>::zeroes(images.len())?;
-    filtering::compress_marker_labels_uf_batch_u32_c1_in_place_advanced(
-        &stream_context,
-        &mut label_views,
-        &mut compressed_counts_device,
-    )?;
+    let mut compressed_counts_device =
+        DeviceMemory::<u32>::create_uninit(stream.context(), images.len())?;
+    stream_context.sync_scope(|| {
+        // SAFETY: the initialized inputs and writable outputs remain borrowed through stream completion.
+        unsafe {
+            filtering::compress_marker_labels_uf_batch_u32_c1_in_place_advanced(
+                &stream_context,
+                &mut label_views,
+                &mut compressed_counts_device,
+            )
+        }
+    })?;
     stream.synchronize()?;
 
+    // SAFETY: the call above completed and wrote every element.
+    let compressed_counts_device = unsafe { compressed_counts_device.assume_init() };
     let compressed_counts = download(&compressed_counts_device)?;
     for ((image, labels), count) in images
         .iter()

@@ -1,4 +1,5 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+
 use singe_cutensor::{
     context::Context,
     error::Result,
@@ -35,9 +36,9 @@ fn main() -> Result<()> {
         .collect::<Vec<_>>();
     let host_c = vec![0.5_f32, -1.0, 1.5, -2.0];
 
-    let device_a = DeviceMemory::from_slice(&host_a)?;
-    let device_c_input = DeviceMemory::from_slice(&host_c)?;
-    let mut device_c = DeviceMemory::from_slice(&host_c)?;
+    let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
+    let device_c_input = DeviceMemory::from_slice(&cuda_context, &host_c)?;
+    let mut device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
 
     const ALIGNMENT: u32 = 128;
 
@@ -61,7 +62,8 @@ fn main() -> Result<()> {
     )?;
     let plan = Plan::create(&context, &reduction, &preference, workspace_size)?;
     let mut workspace = if plan.required_workspace_size() > 0 {
-        Some(DeviceMemory::<u8>::create(
+        Some(DeviceMemory::<u8>::create_uninit(
+            &cuda_context,
             plan.required_workspace_size_bytes()?,
         )?)
     } else {
@@ -70,16 +72,20 @@ fn main() -> Result<()> {
 
     let alpha = 1.25_f32;
     let beta = -0.5_f32;
-    plan.reduce(
-        &alpha,
-        &device_a,
-        &beta,
-        &device_c_input,
-        &mut device_c,
-        workspace.as_mut(),
-        &stream,
-    )?;
-    stream.synchronize()?;
+    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+        unsafe {
+            plan.reduce(
+                &alpha,
+                &device_a,
+                &beta,
+                &device_c_input,
+                &mut device_c,
+                workspace.as_mut(),
+                &stream,
+            )
+        }
+    })?;
 
     let result = device_c.copy_to_host_vec()?;
     let mut expected = vec![0.0_f32; extent_c.iter().product::<u64>() as usize];

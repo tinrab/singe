@@ -1,14 +1,21 @@
+use std::sync::Arc;
+
+use singe_core::checked_conversions;
+use singe_cuda::context::Context;
+
 use crate::error::{Error, Result};
-use singe_core::checked_int;
 
-pub fn to_i32(value: impl TryInto<i32>, name: &str) -> Result<i32> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
+checked_conversions!(Error {
+    to_usize -> usize,
+    to_i32 -> i32,
+    to_u64 -> u64,
+});
 
-pub fn to_u64(value: impl TryInto<u64>, name: &str) -> Result<u64> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
-
-pub fn to_usize(bytes: impl TryInto<usize>, name: &str) -> Result<usize> {
-    checked_int(bytes, name, |name| Error::OutOfRange { name })
+/// NCCL selects CUDA devices internally and launches in their primary contexts.
+pub fn ensure_primary_context(context: &Arc<Context>) -> Result<()> {
+    let primary = Context::retain_primary_for_device(context.device())?;
+    if context != &primary {
+        return Err(Error::UnsupportedContext);
+    }
+    Ok(())
 }

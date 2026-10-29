@@ -1,27 +1,34 @@
+use std::ptr;
+
 use singe_core::string_from_c_chars;
 use singe_nvml_sys as sys;
-use std::{mem, ptr};
 
 use crate::{
     error::Result,
+    library::Library,
     try_ffi,
     types::{
         AccountingStats, EnableState, EncoderSessionInfo, EncoderStats, FbcSessionInfo, FbcStats,
-        Pid, VgpuCompatibility, VgpuInstanceId, VgpuLicenseInfo, VgpuMetadata, VgpuPlacementId,
-        VgpuRuntimeState, VgpuTypeId, VgpuVmId, VgpuVmIdType,
+        PgpuMetadata, Pid, VgpuCompatibility, VgpuInstanceId, VgpuLicenseInfo, VgpuMetadata,
+        VgpuPlacementId, VgpuRuntimeState, VgpuTypeId, VgpuVmId, VgpuVmIdType,
     },
-    utility::{query_sized_raw, query_u32_list, struct_version},
+    utility::{query_sized_raw, query_u32_list, struct_version, to_u32},
 };
 
+/// Identifies a vGPU instance for NVML queries and controls.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct VgpuInstance(sys::nvmlVgpuInstance_t);
 
 impl VgpuInstance {
+    /// Wraps a typed identifier without querying NVML or checking that the identifier exists.
+    #[must_use]
     pub const fn from_id(id: VgpuInstanceId) -> Self {
         Self(id.0)
     }
 
+    /// Returns the typed identifier used for native NVML calls.
+    #[must_use]
     pub const fn id(self) -> VgpuInstanceId {
         VgpuInstanceId(self.0)
     }
@@ -39,6 +46,7 @@ impl VgpuInstance {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_type(self) -> Result<VgpuTypeId> {
         let mut vgpu_type_id = 0;
+        // SAFETY: `nvmlVgpuInstanceGetType` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetType(self.0, &raw mut vgpu_type_id))?;
         }
@@ -59,6 +67,7 @@ impl VgpuInstance {
             version: struct_version::<sys::nvmlVgpuPlacementId_t>(1),
             ..Default::default()
         };
+        // SAFETY: `nvmlVgpuInstanceGetPlacementId` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetPlacementId(
                 self.0,
@@ -80,6 +89,7 @@ impl VgpuInstance {
     /// been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_mode(self) -> Result<EnableState> {
         let mut mode = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
+        // SAFETY: `nvmlVgpuInstanceGetAccountingMode` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetAccountingMode(
                 self.0,
@@ -109,6 +119,7 @@ impl VgpuInstance {
     /// accounting is disabled, if NVML has not been initialized, or if NVML
     /// reports an unexpected failure.
     pub fn accounting_pids(self) -> Result<Vec<Pid>> {
+        // SAFETY: `nvmlVgpuInstanceGetAccountingPids` receives only plain values.
         Ok(query_u32_list(|count, values| unsafe {
             sys::nvmlVgpuInstanceGetAccountingPids(self.0, count, values)
         })?
@@ -143,6 +154,7 @@ impl VgpuInstance {
     /// NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_stats(self, pid: Pid) -> Result<AccountingStats> {
         let mut stats = sys::nvmlAccountingStats_t::default();
+        // SAFETY: `nvmlVgpuInstanceGetAccountingStats` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetAccountingStats(
                 self.0,
@@ -170,11 +182,12 @@ impl VgpuInstance {
     /// unexpected failure.
     pub fn uuid(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_DEVICE_UUID_BUFFER_SIZE as usize];
+        // SAFETY: `nvmlVgpuInstanceGetUUID` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetUUID(
                 self.0,
                 buffer.as_mut_ptr(),
-                buffer.len() as u32,
+                to_u32(buffer.len(), "NVML buffer length")?,
             ))?;
         }
         Ok(string_from_c_chars(&buffer))
@@ -199,11 +212,12 @@ impl VgpuInstance {
     pub fn vm_id(self) -> Result<VgpuVmId> {
         let mut buffer = [0i8; sys::NVML_DEVICE_UUID_BUFFER_SIZE as usize];
         let mut vm_id_type = sys::nvmlVgpuVmIdType_t::NVML_VGPU_VM_ID_DOMAIN_ID;
+        // SAFETY: `nvmlVgpuInstanceGetVmID` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetVmID(
                 self.0,
                 buffer.as_mut_ptr(),
-                buffer.len() as u32,
+                to_u32(buffer.len(), "NVML buffer length")?,
                 &raw mut vm_id_type,
             ))?;
         }
@@ -235,11 +249,12 @@ impl VgpuInstance {
     /// unexpected failure.
     pub fn vm_driver_version(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE as usize];
+        // SAFETY: `nvmlVgpuInstanceGetVmDriverVersion` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetVmDriverVersion(
                 self.0,
                 buffer.as_mut_ptr(),
-                buffer.len() as u32,
+                to_u32(buffer.len(), "NVML buffer length")?,
             ))?;
         }
         Ok(string_from_c_chars(&buffer))
@@ -264,11 +279,12 @@ impl VgpuInstance {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn mdev_uuid(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_DEVICE_UUID_BUFFER_SIZE as usize];
+        // SAFETY: `nvmlVgpuInstanceGetMdevUUID` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetMdevUUID(
                 self.0,
                 buffer.as_mut_ptr(),
-                buffer.len() as u32,
+                to_u32(buffer.len(), "NVML buffer length")?,
             ))?;
         }
         Ok(string_from_c_chars(&buffer))
@@ -287,12 +303,18 @@ impl VgpuInstance {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn framebuffer_usage(self) -> Result<u64> {
         let mut usage = 0;
+        // SAFETY: `nvmlVgpuInstanceGetFbUsage` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetFbUsage(self.0, &raw mut usage))?;
         }
         Ok(usage)
     }
 
+    /// Returns whether the vGPU instance has an active license.
+    ///
+    /// # Errors
+    ///
+    /// Propagates vGPU license-info query errors from [`Self::license_info`].
     pub fn license_status(self) -> Result<bool> {
         Ok(self.license_info()?.is_licensed)
     }
@@ -308,6 +330,7 @@ impl VgpuInstance {
     /// vGPU instance, or if NVML reports an unexpected failure.
     pub fn license_info(self) -> Result<VgpuLicenseInfo> {
         let mut info = sys::nvmlVgpuLicenseInfo_t::default();
+        // SAFETY: `nvmlVgpuInstanceGetLicenseInfo_v2` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetLicenseInfo_v2(
                 self.0,
@@ -331,6 +354,7 @@ impl VgpuInstance {
     /// NVML reports an unexpected failure.
     pub fn frame_rate_limit(self) -> Result<u32> {
         let mut limit = 0;
+        // SAFETY: `nvmlVgpuInstanceGetFrameRateLimit` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetFrameRateLimit(
                 self.0,
@@ -350,6 +374,7 @@ impl VgpuInstance {
     /// unexpected failure.
     pub fn ecc_mode(self) -> Result<EnableState> {
         let mut mode = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
+        // SAFETY: `nvmlVgpuInstanceGetEccMode` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetEccMode(self.0, &raw mut mode))?;
         }
@@ -367,6 +392,7 @@ impl VgpuInstance {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn encoder_capacity(self) -> Result<u32> {
         let mut capacity = 0;
+        // SAFETY: `nvmlVgpuInstanceGetEncoderCapacity` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetEncoderCapacity(
                 self.0,
@@ -389,6 +415,7 @@ impl VgpuInstance {
         let mut session_count = 0;
         let mut average_fps = 0;
         let mut average_latency_us = 0;
+        // SAFETY: `nvmlVgpuInstanceGetEncoderStats` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetEncoderStats(
                 self.0,
@@ -418,6 +445,7 @@ impl VgpuInstance {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn encoder_sessions(self) -> Result<Vec<EncoderSessionInfo>> {
         let mut count = 0;
+        // SAFETY: `nvmlVgpuInstanceGetEncoderSessions` receives valid output locations.
         let status = unsafe {
             sys::nvmlVgpuInstanceGetEncoderSessions(self.0, &raw mut count, ptr::null_mut())
         };
@@ -429,6 +457,7 @@ impl VgpuInstance {
         }
 
         let mut sessions = vec![sys::nvmlEncoderSessionInfo_t::default(); count as usize];
+        // SAFETY: `nvmlVgpuInstanceGetEncoderSessions` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetEncoderSessions(
                 self.0,
@@ -451,6 +480,7 @@ impl VgpuInstance {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn fbc_stats(self) -> Result<FbcStats> {
         let mut stats = sys::nvmlFBCStats_t::default();
+        // SAFETY: `nvmlVgpuInstanceGetFBCStats` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetFBCStats(self.0, &raw mut stats))?;
         }
@@ -474,6 +504,7 @@ impl VgpuInstance {
     pub fn fbc_sessions(self) -> Result<Vec<FbcSessionInfo>> {
         let mut count = 0;
         let status =
+            // SAFETY: `nvmlVgpuInstanceGetFBCSessions` receives valid output locations.
             unsafe { sys::nvmlVgpuInstanceGetFBCSessions(self.0, &raw mut count, ptr::null_mut()) };
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
@@ -483,6 +514,7 @@ impl VgpuInstance {
         }
 
         let mut sessions = vec![sys::nvmlFBCSessionInfo_t::default(); count as usize];
+        // SAFETY: `nvmlVgpuInstanceGetFBCSessions` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetFBCSessions(
                 self.0,
@@ -506,6 +538,7 @@ impl VgpuInstance {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn gpu_instance_id(self) -> Result<u32> {
         let mut id = 0;
+        // SAFETY: `nvmlVgpuInstanceGetGpuInstanceId` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetGpuInstanceId(self.0, &raw mut id))?;
         }
@@ -525,7 +558,8 @@ impl VgpuInstance {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn gpu_pci_id(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_DEVICE_PCI_BUS_ID_BUFFER_V2_SIZE as usize];
-        let mut length = buffer.len() as u32;
+        let mut length = to_u32(buffer.len(), "NVML buffer length")?;
+        // SAFETY: `nvmlVgpuInstanceGetGpuPciId` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetGpuPciId(
                 self.0,
@@ -554,6 +588,7 @@ impl VgpuInstance {
             version: struct_version::<sys::nvmlVgpuRuntimeState_t>(1),
             ..Default::default()
         };
+        // SAFETY: `nvmlVgpuInstanceGetRuntimeStateSize` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuInstanceGetRuntimeStateSize(
                 self.0,
@@ -570,7 +605,7 @@ impl VgpuInstance {
     /// Some fields in the returned structure are dependent on information obtained from the guest VM, which may not yet have reached a state where that information is available.
     /// The current state of these dependent fields is reflected in the info structure's [`VgpuGuestInfoState`](crate::types::VgpuGuestInfoState) field.
     ///
-    /// The VMM may choose to read and save the vGPU's VM info as persistent metadata associated with the VM, and provide it to Virtual GPU Manager when creating a vGPU for subsequent instances of the VM.
+    /// The VMM may choose to read and save the vGPU's VM info as persistent metadata associated with the VM, and provide it to Virtual GPU Compressor when creating a vGPU for subsequent instances of the VM.
     ///
     /// This wrapper allocates the metadata buffer internally and retries if NVML reports it is too small.
     ///
@@ -581,22 +616,23 @@ impl VgpuInstance {
     /// does not match an active vGPU instance, or if NVML reports an unexpected
     /// failure.
     pub fn metadata(self) -> Result<VgpuMetadata> {
-        let raw = query_sized_raw(|size, buffer| unsafe {
-            sys::nvmlVgpuInstanceGetMetadata(self.0, buffer.cast(), size)
+        let raw = query_sized_raw(|size, buffer| {
+            // SAFETY: `size` points to the buffer length, and `buffer` is null or points to
+            // `*size` writable bytes.
+            unsafe { sys::nvmlVgpuInstanceGetMetadata(self.0, buffer.cast(), size) }
         })?;
-
-        let metadata = unsafe { &*raw.as_ptr().cast::<sys::nvmlVgpuMetadata_t>() };
-        let opaque_offset = mem::offset_of!(sys::nvmlVgpuMetadata_t, opaqueData);
-        let opaque_end = opaque_offset.saturating_add(metadata.opaqueDataSize as usize);
-        let opaque_data = raw[opaque_offset..opaque_end].to_vec();
-
-        Ok(VgpuMetadata::from_raw(metadata, opaque_data))
+        VgpuMetadata::decode_raw(&raw)
     }
 
+    /// Checks this vGPU's metadata against the supplied physical GPU metadata.
+    ///
+    /// # Errors
+    ///
+    /// Propagates vGPU metadata query errors, metadata serialization errors, and native compatibility-query failures. See [`Library::vgpu_compatibility`].
     pub fn compatibility_with(
         self,
-        library: &crate::library::Library,
-        pgpu_metadata: &crate::types::PgpuMetadata,
+        library: &Library,
+        pgpu_metadata: &PgpuMetadata,
     ) -> Result<VgpuCompatibility> {
         let vgpu_metadata = self.metadata()?;
         library.vgpu_compatibility(&vgpu_metadata, pgpu_metadata)

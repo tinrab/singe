@@ -1,4 +1,5 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+
 use singe_cutensor::{
     context::Context,
     error::Result,
@@ -37,9 +38,9 @@ fn main() -> Result<()> {
         .map(|index| -0.25_f32 * (index as f32 + 1.0))
         .collect::<Vec<_>>();
 
-    let device_a = DeviceMemory::from_slice(&host_a)?;
-    let device_c = DeviceMemory::from_slice(&host_c)?;
-    let mut device_d = DeviceMemory::from_slice(&host_c)?;
+    let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
+    let device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
+    let mut device_d = DeviceMemory::from_slice(&cuda_context, &host_c)?;
 
     const ALIGNMENT: u32 = 128;
 
@@ -61,8 +62,12 @@ fn main() -> Result<()> {
 
     let alpha = 1.1_f32;
     let gamma = 1.2_f32;
-    plan.elementwise_binary(&alpha, &device_a, &gamma, &device_c, &mut device_d, &stream)?;
-    stream.synchronize()?;
+    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+        unsafe {
+            plan.elementwise_binary(&alpha, &device_a, &gamma, &device_c, &mut device_d, &stream)
+        }
+    })?;
 
     let result = device_d.copy_to_host_vec()?;
     let mut expected = vec![0.0_f32; result.len()];

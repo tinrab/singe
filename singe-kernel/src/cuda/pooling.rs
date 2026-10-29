@@ -1,16 +1,17 @@
 //! Pooling operations over device tensors.
 
-#[cfg(feature = "dtype-f16")]
+use ::cutile::cuda_async::device_buffer::DevicePointer;
+#[cfg(feature = "dtype_f16")]
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceSlice, DeviceSliceMut},
+    view::{DeviceInput, DeviceOutput},
 };
 
 #[cfg(feature = "cutile")]
 use crate::cuda::cutile;
 use crate::{
-    cuda::interop::{borrowed_stream, input_pointer, output_pointer},
+    cuda::interop::input_pointer,
     error::{Error, Result},
     utility::{checked_element_count, ensure_len},
 };
@@ -37,44 +38,73 @@ pub struct Pool2dConfig {
 
 macro_rules! pool2d_fns {
     ($max_name:ident, $avg_name:ident, $ty:ty) => {
-        pub fn $max_name(
+        /// Writes the maximum of each NCHW pooling window.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Follow the [raw kernel execution contract](crate::cuda#raw-kernel-execution).
+        pub unsafe fn $max_name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
             config: Pool2dConfig,
         ) -> Result<()> {
             validate_pool2d(out.len(), input.len(), config)?;
-            let stream = borrowed_stream(stream)?;
-            cutile::pooling::$max_name(&stream, output_pointer(out), input_pointer(input), config)
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::pooling::$max_name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    config,
+                )
+            }
         }
 
-        pub fn $avg_name(
+        /// Writes the mean of each NCHW pooling window using the configured padding policy.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Follow the [raw kernel execution contract](crate::cuda#raw-kernel-execution).
+        pub unsafe fn $avg_name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
             config: Pool2dConfig,
             count_include_pad: bool,
         ) -> Result<()> {
             validate_pool2d(out.len(), input.len(), config)?;
-            let stream = borrowed_stream(stream)?;
-            cutile::pooling::$avg_name(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                config,
-                count_include_pad,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::pooling::$avg_name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    config,
+                    count_include_pad,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 pool2d_fns!(max_pool2d_f32, avg_pool2d_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 pool2d_fns!(max_pool2d_f16, avg_pool2d_f16, f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 pool2d_fns!(max_pool2d_f64, avg_pool2d_f64, f64);
 
+#[expect(
+    clippy::similar_names,
+    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
+)]
 fn validate_pool2d(out_len: usize, input_len: usize, config: Pool2dConfig) -> Result<()> {
     if config.batch == 0
         || config.channels == 0

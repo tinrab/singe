@@ -8,18 +8,23 @@ use crate::{
     types::{
         VgpuTypeBar1Info, VgpuTypeCapability, VgpuTypeDeviceId, VgpuTypeId, VgpuTypeResolution,
     },
-    utility::struct_version,
+    utility::{struct_version, to_u32},
 };
 
+/// Identifies a vGPU type and provides its resource limits and capabilities.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct VgpuType(VgpuTypeId);
 
 impl VgpuType {
+    /// Wraps a typed identifier without querying NVML or checking that the identifier exists.
+    #[must_use]
     pub const fn from_id(id: VgpuTypeId) -> Self {
         Self(id)
     }
 
+    /// Returns the typed identifier used for native NVML calls.
+    #[must_use]
     pub const fn id(self) -> VgpuTypeId {
         self.0
     }
@@ -37,7 +42,8 @@ impl VgpuType {
     /// unexpected failure.
     pub fn class(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_VGPU_NAME_BUFFER_SIZE as usize];
-        let mut size = buffer.len() as u32;
+        let mut size = to_u32(buffer.len(), "NVML buffer length")?;
+        // SAFETY: `nvmlVgpuTypeGetClass` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetClass(
                 self.0.0,
@@ -63,7 +69,8 @@ impl VgpuType {
     /// unexpected failure.
     pub fn name(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_VGPU_NAME_BUFFER_SIZE as usize];
-        let mut size = buffer.len() as u32;
+        let mut size = to_u32(buffer.len(), "NVML buffer length")?;
+        // SAFETY: `nvmlVgpuTypeGetName` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetName(
                 self.0.0,
@@ -87,6 +94,7 @@ impl VgpuType {
     /// reports an unexpected failure.
     pub fn gpu_instance_profile_id(self) -> Result<u32> {
         let mut profile_id = 0;
+        // SAFETY: `nvmlVgpuTypeGetGpuInstanceProfileId` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetGpuInstanceProfileId(
                 self.0.0,
@@ -108,6 +116,7 @@ impl VgpuType {
     pub fn device_id(self) -> Result<VgpuTypeDeviceId> {
         let mut device_id = 0;
         let mut subsystem_id = 0;
+        // SAFETY: `nvmlVgpuTypeGetDeviceID` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetDeviceID(
                 self.0.0,
@@ -132,6 +141,7 @@ impl VgpuType {
     /// failure.
     pub fn framebuffer_size(self) -> Result<u64> {
         let mut size = 0;
+        // SAFETY: `nvmlVgpuTypeGetFramebufferSize` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetFramebufferSize(self.0.0, &raw mut size))?;
         }
@@ -149,6 +159,7 @@ impl VgpuType {
     /// failure.
     pub fn num_display_heads(self) -> Result<u32> {
         let mut count = 0;
+        // SAFETY: `nvmlVgpuTypeGetNumDisplayHeads` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetNumDisplayHeads(
                 self.0.0,
@@ -170,6 +181,7 @@ impl VgpuType {
     pub fn resolution(self, display_index: u32) -> Result<VgpuTypeResolution> {
         let mut x = 0;
         let mut y = 0;
+        // SAFETY: `nvmlVgpuTypeGetResolution` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetResolution(
                 self.0.0,
@@ -203,11 +215,12 @@ impl VgpuType {
     /// initialized, or if NVML reports an unexpected failure.
     pub fn license(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_GRID_LICENSE_BUFFER_SIZE as usize];
+        // SAFETY: `nvmlVgpuTypeGetLicense` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetLicense(
                 self.0.0,
                 buffer.as_mut_ptr(),
-                buffer.len() as u32,
+                to_u32(buffer.len(), "NVML buffer length")?,
             ))?;
         }
         Ok(string_from_c_chars(&buffer))
@@ -224,6 +237,7 @@ impl VgpuType {
     /// not been initialized, or if NVML reports an unexpected failure.
     pub fn frame_rate_limit(self) -> Result<u32> {
         let mut limit = 0;
+        // SAFETY: `nvmlVgpuTypeGetFrameRateLimit` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetFrameRateLimit(self.0.0, &raw mut limit))?;
         }
@@ -241,6 +255,7 @@ impl VgpuType {
     /// failure.
     pub fn max_instances(self, device: Device) -> Result<u32> {
         let mut count = 0;
+        // SAFETY: `nvmlVgpuTypeGetMaxInstances` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetMaxInstances(
                 device.as_raw(),
@@ -262,6 +277,7 @@ impl VgpuType {
     /// failure.
     pub fn max_instances_per_vm(self) -> Result<u32> {
         let mut count = 0;
+        // SAFETY: `nvmlVgpuTypeGetMaxInstancesPerVm` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetMaxInstancesPerVm(
                 self.0.0,
@@ -285,6 +301,7 @@ impl VgpuType {
             vgpuTypeId: self.0.0,
             ..Default::default()
         };
+        // SAFETY: `nvmlVgpuTypeGetMaxInstancesPerGpuInstance` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetMaxInstancesPerGpuInstance(
                 &raw mut max_instance
@@ -302,11 +319,19 @@ impl VgpuType {
     /// Returns an error if NVML rejects the vGPU type ID or query arguments,
     /// if NVML has not been initialized, or if NVML reports an unexpected
     /// failure.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the native BAR1-info record size cannot fit in its `u32` ABI version field. The fixed native record layout fits this field on supported targets.
     pub fn bar1_info(self) -> Result<VgpuTypeBar1Info> {
         let mut info = sys::nvmlVgpuTypeBar1Info_t {
-            version: 1 | ((size_of::<sys::nvmlVgpuTypeBar1Info_t>() as u32) << 16),
+            version: 1
+                | ((u32::try_from(size_of::<sys::nvmlVgpuTypeBar1Info_t>())
+                    .expect("BAR1 info fits its ABI size field"))
+                    << 16),
             ..Default::default()
         };
+        // SAFETY: `nvmlVgpuTypeGetBAR1Info` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetBAR1Info(self.0.0, &raw mut info))?;
         }
@@ -326,6 +351,7 @@ impl VgpuType {
     /// unexpected failure.
     pub fn capability(self, capability: VgpuTypeCapability) -> Result<bool> {
         let mut result = 0;
+        // SAFETY: `nvmlVgpuTypeGetCapabilities` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetCapabilities(
                 self.0.0,
@@ -345,6 +371,7 @@ impl VgpuType {
     /// failure.
     pub fn fb_reservation(self) -> Result<u64> {
         let mut reservation = 0;
+        // SAFETY: `nvmlVgpuTypeGetFbReservation` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetFbReservation(
                 self.0.0,
@@ -363,6 +390,7 @@ impl VgpuType {
     /// failure.
     pub fn gsp_heap_size(self) -> Result<u64> {
         let mut size = 0;
+        // SAFETY: `nvmlVgpuTypeGetGspHeapSize` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlVgpuTypeGetGspHeapSize(self.0.0, &raw mut size))?;
         }

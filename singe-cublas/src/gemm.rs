@@ -23,6 +23,8 @@ pub struct GemmConfig {
 }
 
 impl GemmConfig {
+    /// Creates a GEMM configuration with untransposed inputs.
+    #[must_use]
     pub const fn new(m: usize, n: usize, k: usize) -> Self {
         Self {
             m,
@@ -33,37 +35,52 @@ impl GemmConfig {
         }
     }
 
+    /// Sets the operation applied to matrix `A` before multiplication.
+    #[must_use]
     pub fn with_transpose_a(mut self, transpose: Operation) -> Self {
         self.transpose_a = transpose;
         self
     }
 
+    /// Sets the operation applied to matrix `B` before multiplication.
+    #[must_use]
     pub fn with_transpose_b(mut self, transpose: Operation) -> Self {
         self.transpose_b = transpose;
         self
     }
 
+    /// Returns the number of rows in the output matrix.
+    #[must_use]
     pub const fn m(self) -> usize {
         self.m
     }
 
+    /// Returns the number of columns in the output matrix.
+    #[must_use]
     pub const fn n(self) -> usize {
         self.n
     }
 
+    /// Returns the shared dimension of the operated input matrices.
+    #[must_use]
     pub const fn k(self) -> usize {
         self.k
     }
 
+    /// Returns the operation applied to matrix `A`.
+    #[must_use]
     pub const fn transpose_a(self) -> Operation {
         self.transpose_a
     }
 
+    /// Returns the operation applied to matrix `B`.
+    #[must_use]
     pub const fn transpose_b(self) -> Operation {
         self.transpose_b
     }
 }
 
+/// A borrowed column-major device matrix.
 #[derive(Debug, Clone, Copy)]
 pub struct DeviceMatrix<'a, T> {
     memory: &'a DeviceMemory<T>,
@@ -71,6 +88,10 @@ pub struct DeviceMatrix<'a, T> {
 }
 
 impl<'a, T> DeviceMatrix<'a, T> {
+    /// Borrows matrix storage with the given leading dimension.
+    ///
+    /// This constructor stores metadata without validating it against a matrix shape.
+    #[must_use]
     pub const fn new(memory: &'a DeviceMemory<T>, leading_dimension: usize) -> Self {
         Self {
             memory,
@@ -78,15 +99,20 @@ impl<'a, T> DeviceMatrix<'a, T> {
         }
     }
 
+    /// Returns the underlying device storage.
+    #[must_use]
     pub const fn memory(&self) -> &'a DeviceMemory<T> {
         self.memory
     }
 
+    /// Returns the stride between adjacent columns, in elements.
+    #[must_use]
     pub const fn leading_dimension(&self) -> usize {
         self.leading_dimension
     }
 }
 
+/// An exclusively borrowed column-major device matrix.
 #[derive(Debug)]
 pub struct DeviceMatrixMut<'a, T> {
     memory: &'a mut DeviceMemory<T>,
@@ -94,6 +120,9 @@ pub struct DeviceMatrixMut<'a, T> {
 }
 
 impl<'a, T> DeviceMatrixMut<'a, T> {
+    /// Borrows matrix storage with the given leading dimension.
+    ///
+    /// This constructor stores metadata without validating it against a matrix shape.
     pub const fn new(memory: &'a mut DeviceMemory<T>, leading_dimension: usize) -> Self {
         Self {
             memory,
@@ -101,15 +130,19 @@ impl<'a, T> DeviceMatrixMut<'a, T> {
         }
     }
 
+    /// Returns a mutable borrow of the underlying device storage.
     pub fn memory(&mut self) -> &mut DeviceMemory<T> {
         self.memory
     }
 
+    /// Returns the stride between adjacent columns, in elements.
+    #[must_use]
     pub const fn leading_dimension(&self) -> usize {
         self.leading_dimension
     }
 }
 
+/// A borrowed batch of column-major device matrices with a fixed stride.
 #[derive(Debug, Clone, Copy)]
 pub struct StridedDeviceMatrices<'a, T> {
     memory: &'a DeviceMemory<T>,
@@ -119,6 +152,10 @@ pub struct StridedDeviceMatrices<'a, T> {
 }
 
 impl<'a, T> StridedDeviceMatrices<'a, T> {
+    /// Borrows a batch of matrices with the given layout metadata.
+    ///
+    /// This constructor stores metadata without validating it against a matrix shape.
+    #[must_use]
     pub const fn new(
         memory: &'a DeviceMemory<T>,
         leading_dimension: usize,
@@ -133,23 +170,32 @@ impl<'a, T> StridedDeviceMatrices<'a, T> {
         }
     }
 
+    /// Returns the underlying device storage.
+    #[must_use]
     pub const fn memory(&self) -> &'a DeviceMemory<T> {
         self.memory
     }
 
+    /// Returns the stride between adjacent columns, in elements.
+    #[must_use]
     pub const fn leading_dimension(&self) -> usize {
         self.leading_dimension
     }
 
+    /// Returns the offset between the starts of adjacent matrices, in elements.
+    #[must_use]
     pub const fn stride(&self) -> i64 {
         self.stride
     }
 
+    /// Returns the number of matrices in the batch.
+    #[must_use]
     pub const fn batch_count(&self) -> usize {
         self.batch_count
     }
 }
 
+/// An exclusively borrowed batch of column-major device matrices with a fixed stride.
 #[derive(Debug)]
 pub struct StridedDeviceMatricesMut<'a, T> {
     memory: &'a mut DeviceMemory<T>,
@@ -159,6 +205,9 @@ pub struct StridedDeviceMatricesMut<'a, T> {
 }
 
 impl<'a, T> StridedDeviceMatricesMut<'a, T> {
+    /// Borrows a batch of matrices with the given layout metadata.
+    ///
+    /// This constructor stores metadata without validating it against a matrix shape.
     pub const fn new(
         memory: &'a mut DeviceMemory<T>,
         leading_dimension: usize,
@@ -173,26 +222,48 @@ impl<'a, T> StridedDeviceMatricesMut<'a, T> {
         }
     }
 
+    /// Returns a mutable borrow of the underlying device storage.
     pub fn memory(&mut self) -> &mut DeviceMemory<T> {
         self.memory
     }
 
+    /// Returns the stride between adjacent columns, in elements.
+    #[must_use]
     pub const fn leading_dimension(&self) -> usize {
         self.leading_dimension
     }
 
+    /// Returns the offset between the starts of adjacent matrices, in elements.
+    #[must_use]
     pub const fn stride(&self) -> i64 {
         self.stride
     }
 
+    /// Returns the number of matrices in the batch.
+    #[must_use]
     pub const fn batch_count(&self) -> usize {
         self.batch_count
     }
 }
 
+/// An element type supported by the typed GEMM interface.
+///
+/// Implementations select the matching cuBLAS data and compute types.
 pub trait GemmElement: private::Sealed {
-    fn gemm(
-        ctx: &Context,
+    /// Submits `C = alpha * op(A) * op(B) + beta * C` for this element type.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if scalar pointer modes differ, matrix storage or leading dimensions are invalid, or dimensions exceed the native integer range.
+    /// CUDA context binding, pointer-mode changes, and cuBLAS execution errors are propagated.
+    ///
+    /// # Safety
+    ///
+    /// Matrix storage and device scalars must remain live and correctly ordered until the context's stream completes.
+    /// All input values read by the operation must be initialized, including `C` when `beta` is nonzero.
+    /// Output writes must not conflict with other access.
+    unsafe fn gemm(
+        context: &Context,
         config: GemmConfig,
         alpha: Scalar<'_, Self>,
         a: DeviceMatrix<'_, Self>,
@@ -203,8 +274,16 @@ pub trait GemmElement: private::Sealed {
     where
         Self: Sized;
 
+    /// Multiplies batches of matrices separated by fixed element strides.
+    ///
+    /// Uses `c.batch_count()` as the number of products.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if storage cannot hold the requested batch, strides or leading dimensions are invalid, or dimensions exceed the native integer range.
+    /// Also returns an error if the handle does not use host pointer mode, CUDA context binding fails, or cuBLAS rejects the operation.
     fn strided_batched_gemm(
-        ctx: &Context,
+        context: &Context,
         config: GemmConfig,
         alpha: &Self,
         a: StridedDeviceMatrices<'_, Self>,
@@ -215,8 +294,16 @@ pub trait GemmElement: private::Sealed {
     where
         Self: Sized;
 
+    /// Multiplies corresponding matrices from three batches.
+    ///
+    /// Each batch must use a uniform leading dimension.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if batch lengths differ, leading dimensions are invalid or nonuniform within a matrix batch, or dimensions exceed the native integer range.
+    /// Also returns an error if the handle does not use host pointer mode, allocating or copying the device pointer arrays fails, CUDA context binding fails, or cuBLAS rejects the operation.
     fn batched_gemm(
-        ctx: &Context,
+        context: &Context,
         config: GemmConfig,
         alpha: &Self,
         a: &[DeviceMatrix<'_, Self>],
@@ -229,8 +316,8 @@ pub trait GemmElement: private::Sealed {
 }
 
 impl GemmElement for f32 {
-    fn gemm(
-        ctx: &Context,
+    unsafe fn gemm(
+        context: &Context,
         config: GemmConfig,
         alpha: Scalar<'_, Self>,
         a: DeviceMatrix<'_, Self>,
@@ -239,26 +326,29 @@ impl GemmElement for f32 {
         mut c: DeviceMatrixMut<'_, Self>,
     ) -> Result<()> {
         let ldc = c.leading_dimension();
-        level3::sgemm(
-            ctx,
-            config.transpose_a(),
-            config.transpose_b(),
-            config.m(),
-            config.n(),
-            config.k(),
-            alpha,
-            a.memory(),
-            a.leading_dimension(),
-            b.memory(),
-            b.leading_dimension(),
-            beta,
-            c.memory(),
-            ldc,
-        )
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe {
+            level3::sgemm(
+                context,
+                config.transpose_a(),
+                config.transpose_b(),
+                config.m(),
+                config.n(),
+                config.k(),
+                alpha,
+                a.memory(),
+                a.leading_dimension(),
+                b.memory(),
+                b.leading_dimension(),
+                beta,
+                c.memory(),
+                ldc,
+            )
+        }
     }
 
     fn strided_batched_gemm(
-        ctx: &Context,
+        context: &Context,
         config: GemmConfig,
         alpha: &Self,
         a: StridedDeviceMatrices<'_, Self>,
@@ -270,7 +360,7 @@ impl GemmElement for f32 {
         let stride_c = c.stride();
         let batch_count = c.batch_count();
         level3::gemm_strided_batched_ex(
-            ctx,
+            context,
             config.transpose_a(),
             config.transpose_b(),
             config.m(),
@@ -297,7 +387,7 @@ impl GemmElement for f32 {
     }
 
     fn batched_gemm(
-        ctx: &Context,
+        context: &Context,
         config: GemmConfig,
         alpha: &Self,
         a: &[DeviceMatrix<'_, Self>],
@@ -306,7 +396,7 @@ impl GemmElement for f32 {
         c: &mut [DeviceMatrixMut<'_, Self>],
     ) -> Result<()> {
         batched_gemm_ex(
-            ctx,
+            context,
             config,
             alpha,
             a,
@@ -322,8 +412,8 @@ impl GemmElement for f32 {
 }
 
 impl GemmElement for f64 {
-    fn gemm(
-        ctx: &Context,
+    unsafe fn gemm(
+        context: &Context,
         config: GemmConfig,
         alpha: Scalar<'_, Self>,
         a: DeviceMatrix<'_, Self>,
@@ -333,7 +423,7 @@ impl GemmElement for f64 {
     ) -> Result<()> {
         let ldc = c.leading_dimension();
         level3::dgemm(
-            ctx,
+            context,
             config.transpose_a(),
             config.transpose_b(),
             config.m(),
@@ -351,7 +441,7 @@ impl GemmElement for f64 {
     }
 
     fn strided_batched_gemm(
-        ctx: &Context,
+        context: &Context,
         config: GemmConfig,
         alpha: &Self,
         a: StridedDeviceMatrices<'_, Self>,
@@ -363,7 +453,7 @@ impl GemmElement for f64 {
         let stride_c = c.stride();
         let batch_count = c.batch_count();
         level3::gemm_strided_batched_ex(
-            ctx,
+            context,
             config.transpose_a(),
             config.transpose_b(),
             config.m(),
@@ -390,7 +480,7 @@ impl GemmElement for f64 {
     }
 
     fn batched_gemm(
-        ctx: &Context,
+        context: &Context,
         config: GemmConfig,
         alpha: &Self,
         a: &[DeviceMatrix<'_, Self>],
@@ -399,7 +489,7 @@ impl GemmElement for f64 {
         c: &mut [DeviceMatrixMut<'_, Self>],
     ) -> Result<()> {
         batched_gemm_ex(
-            ctx,
+            context,
             config,
             alpha,
             a,
@@ -414,8 +504,19 @@ impl GemmElement for f64 {
     }
 }
 
-pub fn gemm<'alpha, 'beta, T>(
-    ctx: &Context,
+/// Submits GEMM using borrowed matrices.
+///
+/// # Safety
+///
+/// Matrix storage and device scalars must remain live and correctly ordered until
+/// the context's stream completes. Output writes must not conflict with other access.
+///
+/// # Errors
+///
+/// Returns an error if scalar pointer modes differ, matrix storage or leading dimensions are invalid, or dimensions exceed the native integer range.
+/// CUDA context binding, pointer-mode changes, and cuBLAS execution errors are propagated.
+pub unsafe fn gemm<'alpha, 'beta, T>(
+    context: &Context,
     config: GemmConfig,
     alpha: impl Into<Scalar<'alpha, T>>,
     a: DeviceMatrix<'_, T>,
@@ -426,11 +527,20 @@ pub fn gemm<'alpha, 'beta, T>(
 where
     T: GemmElement + 'static,
 {
-    T::gemm(ctx, config, alpha.into(), a, b, beta.into(), c)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { T::gemm(context, config, alpha.into(), a, b, beta.into(), c) }
 }
 
+/// Multiplies batches of matrices separated by fixed element strides.
+///
+/// Uses `c.batch_count()` as the number of products.
+///
+/// # Errors
+///
+/// Returns an error if storage cannot hold the requested batch, strides or leading dimensions are invalid, or dimensions exceed the native integer range.
+/// Also returns an error if the handle does not use host pointer mode, CUDA context binding fails, or cuBLAS rejects the operation.
 pub fn strided_batched_gemm<T>(
-    ctx: &Context,
+    context: &Context,
     config: GemmConfig,
     alpha: &T,
     a: StridedDeviceMatrices<'_, T>,
@@ -441,11 +551,19 @@ pub fn strided_batched_gemm<T>(
 where
     T: GemmElement + 'static,
 {
-    T::strided_batched_gemm(ctx, config, alpha, a, b, beta, c)
+    T::strided_batched_gemm(context, config, alpha, a, b, beta, c)
 }
 
+/// Multiplies corresponding matrices from three batches.
+///
+/// Each batch must use a uniform leading dimension.
+///
+/// # Errors
+///
+/// Returns an error if batch lengths differ, leading dimensions are invalid or nonuniform within a matrix batch, or dimensions exceed the native integer range.
+/// Also returns an error if the handle does not use host pointer mode, allocating or copying the device pointer arrays fails, CUDA context binding fails, or cuBLAS rejects the operation.
 pub fn batched_gemm<T>(
-    ctx: &Context,
+    context: &Context,
     config: GemmConfig,
     alpha: &T,
     a: &[DeviceMatrix<'_, T>],
@@ -456,11 +574,11 @@ pub fn batched_gemm<T>(
 where
     T: GemmElement + 'static,
 {
-    T::batched_gemm(ctx, config, alpha, a, b, beta, c)
+    T::batched_gemm(context, config, alpha, a, b, beta, c)
 }
 
 fn batched_gemm_ex<T>(
-    ctx: &Context,
+    context: &Context,
     config: GemmConfig,
     alpha: &T,
     a: &[DeviceMatrix<'_, T>],
@@ -476,34 +594,35 @@ fn batched_gemm_ex<T>(
         return Ok(());
     }
 
-    let Some(lda) = uniform_leading_dimension(a.iter().map(|matrix| matrix.leading_dimension()))
-    else {
+    let Some(lda) = uniform_leading_dimension(a.iter().map(DeviceMatrix::leading_dimension)) else {
         return Err(Error::InvalidMatrixShape);
     };
-    let Some(ldb) = uniform_leading_dimension(b.iter().map(|matrix| matrix.leading_dimension()))
-    else {
+    let Some(ldb) = uniform_leading_dimension(b.iter().map(DeviceMatrix::leading_dimension)) else {
         return Err(Error::InvalidMatrixShape);
     };
-    let Some(ldc) = uniform_leading_dimension(c.iter().map(|matrix| matrix.leading_dimension()))
+    let Some(ldc) = uniform_leading_dimension(c.iter().map(DeviceMatrixMut::leading_dimension))
     else {
         return Err(Error::InvalidMatrixShape);
     };
 
     let a = a
         .iter()
+        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
         .map(|matrix| unsafe { DevicePtr::from_raw(matrix.memory().as_ptr().cast_mut().cast()) })
         .collect::<Vec<_>>();
     let b = b
         .iter()
+        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
         .map(|matrix| unsafe { DevicePtr::from_raw(matrix.memory().as_ptr().cast_mut().cast()) })
         .collect::<Vec<_>>();
     let mut c = c
         .iter_mut()
+        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
         .map(|matrix| unsafe { DevicePtr::from_raw(matrix.memory().as_mut_ptr().cast()) })
         .collect::<Vec<_>>();
 
     level3::gemm_batched_ex(
-        ctx,
+        context,
         config.transpose_a(),
         config.transpose_b(),
         config.m(),
@@ -534,5 +653,6 @@ mod private {
     pub trait Sealed {}
 
     impl Sealed for f32 {}
+
     impl Sealed for f64 {}
 }

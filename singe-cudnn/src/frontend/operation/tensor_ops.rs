@@ -1,130 +1,171 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::Result,
-    execution::tensor_ops::{ConcatOperation, ReshapeOperation},
-    frontend::{
-        lower::{LoweredOperation, LoweringContext, LoweringOutput, tensor_at, tensor_slice_at},
-        operation::FrontendOperationTensors,
-        plan::BindingReplacement,
-    },
-    tensor::TensorId,
+pub use crate::backend::execution::tensor_ops::{
+    ConcatConfig, ConcatInPlaceMode, ReshapeConfig, ReshapeMode, SliceConfig, TransposeConfig,
 };
-
-/// Concat in-place aliasing contract.
-///
-/// `None` means the output is independent from the inputs. `Input(index)`
-/// requests cuDNN concat in-place mode using the given input as the output
-/// storage source.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum ConcatInPlaceMode {
-    #[default]
-    None,
-    Input(i64),
-}
-
-impl ConcatInPlaceMode {
-    pub fn from_index(index: Option<i64>) -> Self {
-        match index {
-            Some(index) => Self::Input(index),
-            None => Self::None,
-        }
-    }
-
-    pub fn index(self) -> Option<i64> {
-        match self {
-            Self::None => None,
-            Self::Input(index) => Some(index),
-        }
-    }
-}
+use crate::{
+    backend::{
+        execution::tensor_ops::{
+            ConcatOperation, ReshapeOperation, SliceOperation, TransposeOperation,
+        },
+        tensor::TensorId,
+    },
+    error::Result,
+    frontend::{
+        error::Error as FrontendError,
+        graph::Graph,
+        lower::{LoweredOperation, LoweringContext, tensor_at, tensor_slice_at},
+    },
+};
 
 /// Frontend tensor shape/view operation variants.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum TensorOperation {
+    /// Reshapes input values into the declared output geometry.
     Reshape {
+        /// Input tensor identity.
         input: TensorId,
+        /// Explicit output tensor identity.
         output: TensorId,
+        /// Operation-specific geometry, mode, and diagnostic-name settings.
+        config: ReshapeConfig,
     },
+    /// Selects an input slice described by the configuration.
     Slice {
+        /// Input tensor identity.
         input: TensorId,
+        /// Explicit output tensor identity.
         output: TensorId,
-        starts: Vec<i64>,
-        limits: Vec<i64>,
-        strides: Vec<i64>,
-        byte_offset: i64,
+        /// Operation-specific geometry, mode, and diagnostic-name settings.
+        config: SliceConfig,
     },
+    /// Permutes input axes into the declared output.
     Transpose {
+        /// Input tensor identity.
         input: TensorId,
+        /// Explicit output tensor identity.
         output: TensorId,
-        permutation: Vec<i64>,
+        /// Operation-specific geometry, mode, and diagnostic-name settings.
+        config: TransposeConfig,
     },
+    /// Concatenates inputs along the configured axis.
     Concat {
+        /// Ordered input tensor identities.
         inputs: Vec<TensorId>,
+        /// Explicit output tensor identity.
         output: TensorId,
-        axis: i64,
-        in_place: ConcatInPlaceMode,
+        /// Operation-specific geometry, mode, and diagnostic-name settings.
+        config: ConcatConfig,
     },
-}
-
-impl FrontendOperationTensors for TensorOperation {
-    fn append_tensor_ids(&self, tensors: &mut Vec<TensorId>) {
-        match self {
-            Self::Reshape { input, output }
-            | Self::Slice { input, output, .. }
-            | Self::Transpose { input, output, .. } => {
-                tensors.extend([*input, *output]);
-            }
-            Self::Concat { inputs, output, .. } => {
-                tensors.extend(inputs.iter().copied());
-                tensors.push(*output);
-            }
-        }
-    }
 }
 
 impl TensorOperation {
-    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweringOutput> {
-        let tensors = context.backend_tensors();
-        Ok(match self {
-            Self::Reshape { input, output } => {
-                LoweringOutput::Operation(LoweredOperation::Reshape(ReshapeOperation::create(
-                    tensor_at(tensors, *input)?,
-                    tensor_at(tensors, *output)?,
-                )?))
+    pub(crate) fn validate_graph(&self, graph: &Graph) -> Result<()> {
+        match self {
+            Self::Reshape {
+                input,
+                output,
+                config,
+            } => {
+                let input_spec = graph.tensor_spec(*input)?;
+                if config.mode() == ReshapeMode::Logical {
+                    graph.validate_tensor_data_type(
+                        *output,
+                        input_spec.data_type,
+                        "reshape output",
+                    )?;
+                }
+                if !input_spec.has_same_logical_element_count(graph.tensor_spec(*output)?)? {
+                    return Err(FrontendError::ReshapeElementCountMismatch {
+                        input_id: *input,
+                        output_id: *output,
+                    }
+                    .into());
+                }
             }
             Self::Slice {
                 input,
                 output,
-                byte_offset,
-                ..
-            } => LoweringOutput::BindingReplacement(BindingReplacement {
-                source_id: context.backend_id(*input)?,
-                target_id: context.backend_id(*output)?,
-                byte_offset: *byte_offset,
-            }),
-            Self::Transpose { input, output, .. } => {
-                LoweringOutput::BindingReplacement(BindingReplacement {
-                    source_id: context.backend_id(*input)?,
-                    target_id: context.backend_id(*output)?,
-                    byte_offset: 0,
-                })
+                config,
+            } => {
+                let input = graph.tensor_spec(*input)?;
+                let shape = input.shape_with_scalar_rank(config.slices().len())?;
+                let expected = config.infer_output_dimensions(&shape)?;
+                graph.validate_tensor_data_type_and_dimensions(
+                    *output,
+                    input.data_type,
+                    &expected,
+                    "slice output",
+                )?;
+            }
+            Self::Transpose {
+                input,
+                output,
+                config,
+            } => {
+                let input = graph.tensor_spec(*input)?;
+                let shape = input.shape_with_scalar_rank(config.permutation().len())?;
+                let expected = config.infer_output_dimensions(&shape)?;
+                graph.validate_tensor_data_type_and_dimensions(
+                    *output,
+                    input.data_type,
+                    &expected,
+                    "transpose output",
+                )?;
             }
             Self::Concat {
                 inputs,
                 output,
-                axis,
-                in_place,
+                config,
+            } => {
+                graph.validate_concat(inputs, *output, config)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn lower(&self, context: &LoweringContext<'_>) -> Result<LoweredOperation> {
+        let tensors = context.backend_tensors();
+        Ok(match self {
+            Self::Reshape {
+                input,
+                output,
+                config,
+            } => LoweredOperation::Reshape(ReshapeOperation::create(
+                tensor_at(tensors, *input)?,
+                tensor_at(tensors, *output)?,
+                config.clone(),
+            )?),
+            Self::Slice {
+                input,
+                output,
+                config,
+            } => LoweredOperation::Slice(SliceOperation::create(
+                tensor_at(tensors, *input)?,
+                tensor_at(tensors, *output)?,
+                config.clone(),
+            )?),
+            Self::Transpose {
+                input,
+                output,
+                config,
+            } => LoweredOperation::Transpose(TransposeOperation::create(
+                tensor_at(tensors, *input)?,
+                tensor_at(tensors, *output)?,
+                config.clone(),
+            )?),
+            Self::Concat {
+                inputs,
+                output,
+                config,
             } => {
                 let input_tensors = tensor_slice_at(tensors, inputs)?;
-                LoweringOutput::Operation(LoweredOperation::Concat(ConcatOperation::create(
+                LoweredOperation::Concat(ConcatOperation::create(
                     &input_tensors,
                     tensor_at(tensors, *output)?,
-                    *axis,
-                    in_place.index(),
-                )?))
+                    config.clone(),
+                )?)
             }
         })
     }

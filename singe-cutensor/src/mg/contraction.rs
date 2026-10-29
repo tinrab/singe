@@ -1,7 +1,7 @@
 use std::{mem::ManuallyDrop, ptr};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::impl_enum_conversion;
+use singe_core::{impl_enum_conversion, impl_enum_display};
 use singe_cuda::stream::StreamBinding;
 use singe_cutensor_sys as sys;
 
@@ -20,10 +20,16 @@ use crate::{
     utility::modes_to_i32_vec,
 };
 
+/// Represents various attributes for the contraction find
+///
+///
+///
+/// While empty for now, future attributes will allow for a more fine-grained tuning of the distributed tensor contraction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum ContractionFindAttribute {
+    ///< Not an actual attribute, but the maximum value that the enum takes on
     Max = sys::cutensorMgContractionFindAttribute_t::CUTENSORMG_CONTRACTION_FIND_ATTRIBUTE_MAX as _,
 }
 
@@ -32,6 +38,7 @@ impl_enum_conversion!(
     ContractionFindAttribute
 );
 
+/// Owns the algorithm selection used to plan a multi-GPU contraction.
 #[derive(Debug)]
 pub struct ContractionFind {
     handle: sys::cutensorMgContractionFind_t,
@@ -39,6 +46,7 @@ pub struct ContractionFind {
     algorithm: Algorithm,
 }
 
+/// Owns a distributed contraction description and operand pointer counts.
 #[derive(Debug)]
 pub struct ContractionDescriptor {
     handle: sys::cutensorMgContractionDescriptor_t,
@@ -49,6 +57,7 @@ pub struct ContractionDescriptor {
     d_pointer_count: usize,
 }
 
+/// Owns a distributed contraction plan, workspace requirements, and its library context.
 #[derive(Debug)]
 pub struct ContractionPlan {
     handle: sys::cutensorMgContractionPlan_t,
@@ -61,8 +70,14 @@ pub struct ContractionPlan {
 }
 
 impl ContractionFind {
+    /// Creates contraction kernel-search settings for an algorithm.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if native search-setting creation fails or returns a null handle.
     pub fn create(context: &Context, algorithm: Algorithm) -> Result<Self> {
         let mut handle = ptr::null_mut();
+        // SAFETY: `cutensorMgCreateContractionFind` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cutensorMgCreateContractionFind(
                 context.as_raw(),
@@ -82,6 +97,11 @@ impl ContractionFind {
         })
     }
 
+    /// Creates contraction search settings using the native default algorithm.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if native search-setting creation fails or returns a null handle.
     pub fn create_default(context: &Context) -> Result<Self> {
         Self::create(context, Algorithm::Default)
     }
@@ -93,6 +113,10 @@ impl ContractionFind {
     /// `handle` must be a valid cuTENSORMg contraction find handle associated
     /// with `context` and `algorithm`. The returned value takes ownership of
     /// `handle` and destroys it on drop.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `handle` is null.
     pub unsafe fn from_raw(
         handle: sys::cutensorMgContractionFind_t,
         context: &Context,
@@ -109,18 +133,32 @@ impl ContractionFind {
         })
     }
 
+    /// Returns the algorithm recorded when this search handle was created.
+    #[must_use]
     pub fn algorithm(&self) -> Algorithm {
         self.algorithm
     }
 
+    /// Passes an attribute value and its Rust byte size to native search-setting configuration.
+    ///
+    /// The current attribute enum exposes only a sentinel, rather than a configurable native attribute.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if cuTENSOR rejects the attribute or supplied value representation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `size_of::<T>()` does not fit the native signed 64-bit byte count.
     pub fn set_attribute<T>(&mut self, attr: ContractionFindAttribute, value: &T) -> Result<()> {
+        // SAFETY: `cutensorMgContractionFindSetAttribute` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cutensorMgContractionFindSetAttribute(
                 self.context.as_raw(),
                 self.handle,
                 attr.into(),
                 ptr::from_ref(value).cast(),
-                size_of::<T>() as i64,
+                i64::try_from(size_of::<T>()).expect("tensor element size fits native i64"),
             ))?;
         }
         Ok(())
@@ -130,6 +168,8 @@ impl ContractionFind {
         &self.context
     }
 
+    /// Returns the borrowed native Contraction find handle.
+    #[must_use]
     pub const fn as_raw(&self) -> sys::cutensorMgContractionFind_t {
         self.handle
     }
@@ -137,6 +177,7 @@ impl ContractionFind {
     /// Consumes this find handle and returns the owned raw cuTENSORMg handle.
     ///
     /// The caller becomes responsible for destroying the handle.
+    #[must_use]
     pub fn into_raw(self) -> sys::cutensorMgContractionFind_t {
         let this = ManuallyDrop::new(self);
         this.handle
@@ -144,6 +185,11 @@ impl ContractionFind {
 }
 
 impl ContractionDescriptor {
+    /// Describes `D = alpha * A * B + beta * C` using symbolic tensor modes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an operand belongs to another multi-GPU context, a mode count differs from its tensor rank, native descriptor creation fails, or the returned handle is null.
     pub fn create(
         context: &Context,
         a: &TensorDescriptor,
@@ -171,6 +217,7 @@ impl ContractionDescriptor {
         let modes_c = modes_to_i32_vec(modes_c);
         let modes_d = modes_to_i32_vec(modes_d);
         let mut handle = ptr::null_mut();
+        // SAFETY: `cutensorMgCreateContractionDescriptor` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorMgCreateContractionDescriptor(
                 context.as_raw(),
@@ -209,6 +256,10 @@ impl ContractionDescriptor {
     /// with `context`. Pointer counts must match the tensors used to create the
     /// descriptor. The returned value takes ownership of `handle` and destroys
     /// it on drop.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `handle` is null.
     pub unsafe fn from_raw(
         handle: sys::cutensorMgContractionDescriptor_t,
         context: &Context,
@@ -231,6 +282,11 @@ impl ContractionDescriptor {
         })
     }
 
+    /// Estimates per-context-device and host workspace bytes for the selected algorithm and workspace preference.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `find` belongs to another multi-GPU context, the native query fails, or a returned byte count is negative.
     pub fn workspace(
         &self,
         find: &ContractionFind,
@@ -239,6 +295,7 @@ impl ContractionDescriptor {
         validate_same_context(&self.context, find.context(), "find")?;
         let mut device_workspace_size = vec![0; self.context.device_count()];
         let mut host_workspace_size = 0;
+        // SAFETY: `cutensorMgContractionGetWorkspace` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cutensorMgContractionGetWorkspace(
                 self.context.as_raw(),
@@ -256,6 +313,8 @@ impl ContractionDescriptor {
         &self.context
     }
 
+    /// Returns the borrowed native Contraction descriptor handle.
+    #[must_use]
     pub const fn as_raw(&self) -> sys::cutensorMgContractionDescriptor_t {
         self.handle
     }
@@ -263,6 +322,7 @@ impl ContractionDescriptor {
     /// Consumes this descriptor and returns the owned raw cuTENSORMg descriptor.
     ///
     /// The caller becomes responsible for destroying the descriptor.
+    #[must_use]
     pub fn into_raw(self) -> sys::cutensorMgContractionDescriptor_t {
         let this = ManuallyDrop::new(self);
         this.handle
@@ -270,6 +330,11 @@ impl ContractionDescriptor {
 }
 
 impl ContractionPlan {
+    /// Selects a contraction plan under the supplied per-device and host workspace byte limits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if descriptors or search settings belong to another multi-GPU context, device workspace count is invalid, native plan creation fails, or the returned handle is null.
     pub fn create(
         context: &Context,
         desc: &ContractionDescriptor,
@@ -281,6 +346,7 @@ impl ContractionPlan {
         workspace.validate_for_context(desc.context())?;
 
         let mut handle = ptr::null_mut();
+        // SAFETY: `cutensorMgCreateContractionPlan` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cutensorMgCreateContractionPlan(
                 context.as_raw(),
@@ -315,6 +381,10 @@ impl ContractionPlan {
     /// `context` and `workspace`. Pointer counts must match the descriptors
     /// used to create the plan. The returned value takes ownership of `handle`
     /// and destroys it on drop.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `handle` is null.
     pub unsafe fn from_raw(
         handle: sys::cutensorMgContractionPlan_t,
         context: &Context,
@@ -339,14 +409,28 @@ impl ContractionPlan {
         })
     }
 
+    /// Returns the workspace byte limits retained by this plan.
+    #[must_use]
     pub fn workspace(&self) -> &Workspace {
         &self.workspace
     }
 
+    /// Allocates pending device and pinned host workspace for this plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if workspace allocation or byte-count conversion fails, or the context has no participating device.
     pub fn create_workspace_memory(&self) -> Result<WorkspaceMemory> {
         WorkspaceMemory::create(&self.context, &self.workspace)
     }
 
+    /// Submits `D = alpha * A * B + beta * C` using distributed device allocations.
+    ///
+    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan. The wrapper validates pointer counts, contexts, and workspace capacity. Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor pointer counts do not match the plan, workspace or stream counts do not match context devices, a tensor requests unsupported host storage or a nonparticipating device, allocation or stream contexts differ, workspace byte counts cannot fit `usize`, workspace capacity is insufficient, or native contraction submission fails.
     pub fn contract<TA, TB, TC, TD, TScalar>(
         &self,
         alpha: &TScalar,
@@ -367,12 +451,18 @@ impl ContractionPlan {
             streams.len(),
         )?;
 
+        a.validate_context(&self.context)?;
+        b.validate_context(&self.context)?;
+        workspace.validate(&self.context, &self.workspace)?;
         let a = a.const_ptrs();
         let b = b.const_ptrs();
+        c.validate_context(&self.context)?;
+        d.validate_context(&self.context)?;
         let c = c.const_ptrs();
         let mut d = d.mut_ptrs();
         let mut device_workspace = workspace.device_mut_ptrs();
 
+        // SAFETY: the tensors, scalars and workspace were validated against this plan context above and stay borrowed for the call.
         unsafe {
             self.contract_raw(
                 ptr::from_ref(alpha).cast(),
@@ -388,6 +478,13 @@ impl ContractionPlan {
         }
     }
 
+    /// Submits a contraction with the accumulated C tensor and output D sharing storage.
+    ///
+    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan. The wrapper validates pointer counts, contexts, and workspace capacity. Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor pointer counts do not match the plan, workspace or stream counts do not match context devices, a tensor requests unsupported host storage or a nonparticipating device, allocation or stream contexts differ, workspace byte counts cannot fit `usize`, workspace capacity is insufficient, or native contraction submission fails.
     pub fn contract_in_place<TA, TB, TC, TScalar>(
         &self,
         alpha: &TScalar,
@@ -407,12 +504,17 @@ impl ContractionPlan {
             streams.len(),
         )?;
 
+        a.validate_context(&self.context)?;
+        b.validate_context(&self.context)?;
+        workspace.validate(&self.context, &self.workspace)?;
         let a = a.const_ptrs();
         let b = b.const_ptrs();
+        c_and_d.validate_context(&self.context)?;
         let c = c_and_d.const_ptrs();
         let mut d = c_and_d.mut_ptrs();
         let mut device_workspace = workspace.device_mut_ptrs();
 
+        // SAFETY: the tensors, scalars and workspace were validated against this plan context above and stay borrowed for the call.
         unsafe {
             self.contract_raw(
                 ptr::from_ref(alpha).cast(),
@@ -428,6 +530,13 @@ impl ContractionPlan {
         }
     }
 
+    /// Submits an in-place contraction on every context device's default stream.
+    ///
+    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan. The wrapper validates pointer counts, contexts, and workspace capacity. Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor pointer counts do not match the plan, workspace or stream counts do not match context devices, a tensor requests unsupported host storage or a nonparticipating device, allocation or stream contexts differ, workspace byte counts cannot fit `usize`, workspace capacity is insufficient, or native contraction submission fails.
     pub fn contract_in_place_on_default_streams<TA, TB, TC, TScalar>(
         &self,
         alpha: &TScalar,
@@ -446,12 +555,17 @@ impl ContractionPlan {
             self.context.device_count(),
         )?;
 
+        a.validate_context(&self.context)?;
+        b.validate_context(&self.context)?;
+        workspace.validate(&self.context, &self.workspace)?;
         let a = a.const_ptrs();
         let b = b.const_ptrs();
+        c_and_d.validate_context(&self.context)?;
         let c = c_and_d.const_ptrs();
         let mut d = c_and_d.mut_ptrs();
         let mut device_workspace = workspace.device_mut_ptrs();
 
+        // SAFETY: the tensors, scalars and workspace were validated against this plan context above and stay borrowed for the call.
         unsafe {
             self.contract_raw_on_default_streams(
                 ptr::from_ref(alpha).cast(),
@@ -472,6 +586,12 @@ impl ContractionPlan {
     ///
     /// Pointer arrays must match the descriptors used for plan creation. Scalars must
     /// have the type expected by the cuTENSORMg data-type combination.
+    ///
+    /// Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor pointer counts differ from the plan, workspace or stream counts differ from the context device count, a stream belongs to the wrong device context, or native contraction submission fails.
     pub unsafe fn contract_raw(
         &self,
         alpha: *const (),
@@ -495,19 +615,25 @@ impl ContractionPlan {
         let mut a = a.to_vec();
         let mut b = b.to_vec();
         let mut c = c.to_vec();
+        for (stream, &device) in streams.iter().zip(self.context.devices()) {
+            if stream.context() != self.context.cuda_context(device)? {
+                return Err(Error::StreamContextMismatch);
+            }
+        }
         let mut streams: Vec<_> = streams.iter().map(StreamBinding::as_raw).collect();
+        // SAFETY: `cutensorMgContraction` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cutensorMgContraction(
                 self.context.as_raw(),
                 self.handle,
-                alpha as _,
-                a.as_mut_ptr() as _,
-                b.as_mut_ptr() as _,
-                beta as _,
-                c.as_mut_ptr() as _,
-                d.as_mut_ptr() as _,
-                device_workspace.as_mut_ptr() as _,
-                host_workspace as _,
+                alpha.cast(),
+                a.as_mut_ptr().cast(),
+                b.as_mut_ptr().cast(),
+                beta.cast(),
+                c.as_mut_ptr().cast(),
+                d.as_mut_ptr().cast(),
+                device_workspace.as_mut_ptr().cast(),
+                host_workspace.cast(),
                 streams.as_mut_ptr(),
             ))?;
         }
@@ -520,6 +646,12 @@ impl ContractionPlan {
     ///
     /// Pointer arrays must match the descriptors used for plan creation. Scalars must
     /// have the type expected by the cuTENSORMg data-type combination.
+    ///
+    /// Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tensor pointer counts differ from the plan, workspace or stream counts differ from the context device count, or native contraction submission fails.
     pub unsafe fn contract_raw_on_default_streams(
         &self,
         alpha: *const (),
@@ -543,18 +675,19 @@ impl ContractionPlan {
         let mut b = b.to_vec();
         let mut c = c.to_vec();
         let mut streams = vec![ptr::null_mut(); self.context.device_count()];
+        // SAFETY: `cutensorMgContraction` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cutensorMgContraction(
                 self.context.as_raw(),
                 self.handle,
-                alpha as _,
-                a.as_mut_ptr() as _,
-                b.as_mut_ptr() as _,
-                beta as _,
-                c.as_mut_ptr() as _,
-                d.as_mut_ptr() as _,
-                device_workspace.as_mut_ptr() as _,
-                host_workspace as _,
+                alpha.cast(),
+                a.as_mut_ptr().cast(),
+                b.as_mut_ptr().cast(),
+                beta.cast(),
+                c.as_mut_ptr().cast(),
+                d.as_mut_ptr().cast(),
+                device_workspace.as_mut_ptr().cast(),
+                host_workspace.cast(),
                 streams.as_mut_ptr(),
             ))?;
         }
@@ -582,6 +715,8 @@ impl ContractionPlan {
         validate_count("streams", self.context.device_count(), stream_count)
     }
 
+    /// Returns the borrowed native Contraction plan handle.
+    #[must_use]
     pub const fn as_raw(&self) -> sys::cutensorMgContractionPlan_t {
         self.handle
     }
@@ -589,6 +724,7 @@ impl ContractionPlan {
     /// Consumes this plan and returns the owned raw cuTENSORMg contraction plan.
     ///
     /// The caller becomes responsible for destroying the plan.
+    #[must_use]
     pub fn into_raw(self) -> sys::cutensorMgContractionPlan_t {
         let this = ManuallyDrop::new(self);
         this.handle
@@ -597,10 +733,11 @@ impl ContractionPlan {
 
 impl Drop for ContractionFind {
     fn drop(&mut self) {
+        // SAFETY: `cutensorMgDestroyContractionFind` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cutensorMgDestroyContractionFind(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cutensorMgDestroyContractionFind(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg contraction find: {err}");
+                eprintln!("failed to destroy cutensormg contraction find: {error}");
             }
         }
     }
@@ -608,10 +745,11 @@ impl Drop for ContractionFind {
 
 impl Drop for ContractionDescriptor {
     fn drop(&mut self) {
+        // SAFETY: `cutensorMgDestroyContractionDescriptor` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cutensorMgDestroyContractionDescriptor(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cutensorMgDestroyContractionDescriptor(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg contraction descriptor: {err}");
+                eprintln!("failed to destroy cutensormg contraction descriptor: {error}");
             }
         }
     }
@@ -619,10 +757,11 @@ impl Drop for ContractionDescriptor {
 
 impl Drop for ContractionPlan {
     fn drop(&mut self) {
+        // SAFETY: `cutensorMgDestroyContractionPlan` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cutensorMgDestroyContractionPlan(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cutensorMgDestroyContractionPlan(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg contraction plan: {err}");
+                eprintln!("failed to destroy cutensormg contraction plan: {error}");
             }
         }
     }
@@ -637,3 +776,7 @@ fn validate_modes(desc: &TensorDescriptor, modes: &[Mode]) -> Result<()> {
     }
     Ok(())
 }
+
+impl_enum_display!(ContractionFindAttribute, {
+    ContractionFindAttribute::Max => "CUTENSORMG_CONTRACTION_FIND_ATTRIBUTE_MAX",
+});

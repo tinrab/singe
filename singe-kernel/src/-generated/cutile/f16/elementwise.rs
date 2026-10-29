@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     pub fn binary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f16, { [B] }>,
@@ -20,9 +25,35 @@ mod kernels {
         } else if OP == 3 {
             lhs_tile / rhs_tile
         } else if OP == 4 {
-            maxf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::LessThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 5 {
-            minf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::GreaterThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 6 {
             atan2(lhs_tile, rhs_tile)
         } else if OP == 7 {
@@ -40,13 +71,13 @@ mod kernels {
             diff * diff
         } else if OP == 11 {
             let max = maxf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled);
-            let neg_inf = constant(f16::from_f32(f32::NEG_INFINITY), out.shape());
+            let neg_inf: Tile<f16, { [B] }> = constant(f16::NEG_INFINITY, out.shape());
             let both_neg_inf = cmpf(lhs_tile, neg_inf, predicate::Equal, cmp_ordering::Ordered)
                 & cmpf(rhs_tile, neg_inf, predicate::Equal, cmp_ordering::Ordered);
             let value = max + log(exp(lhs_tile - max) + exp(rhs_tile - max));
             select(both_neg_inf, neg_inf, value)
         } else if OP == 12 {
-            let zero = constant(f16::from_f32(0.0), out.shape());
+            let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
             let zero_lhs = cmpf(lhs_tile, zero, predicate::Equal, cmp_ordering::Ordered);
             select(zero_lhs, zero, lhs_tile * log(rhs_tile))
         } else {
@@ -61,8 +92,8 @@ mod kernels {
     ) {
         let lhs_tile: Tile<f16, { [B] }> = load_tile_like(lhs, out);
         let rhs_tile: Tile<f16, { [B] }> = load_tile_like(rhs, out);
-        let one = constant(f16::from_f32(1.0), out.shape());
-        let zero = constant(f16::from_f32(0.0), out.shape());
+        let one: Tile<f16, { [B] }> = constant(f16::ONE, out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
         let mask = if OP == 0 {
             cmpf(lhs_tile, rhs_tile, predicate::Equal, cmp_ordering::Ordered)
         } else if OP == 1 {
@@ -380,7 +411,41 @@ mod kernels {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
         let min_value = broadcast_scalar(min_value, out.shape());
         let max_value = broadcast_scalar(max_value, out.shape());
-        out.store(min_tile(max_tile(x, min_value), max_value));
+        let lower = select(
+            cmpf(x, min_value, predicate::LessThan, cmp_ordering::Ordered),
+            min_value,
+            x,
+        );
+        let lower = select(
+            cmpf(
+                min_value,
+                min_value,
+                predicate::NotEqual,
+                cmp_ordering::Unordered,
+            ),
+            min_value,
+            lower,
+        );
+        let upper = select(
+            cmpf(
+                lower,
+                max_value,
+                predicate::GreaterThan,
+                cmp_ordering::Ordered,
+            ),
+            max_value,
+            lower,
+        );
+        out.store(select(
+            cmpf(
+                max_value,
+                max_value,
+                predicate::NotEqual,
+                cmp_ordering::Unordered,
+            ),
+            max_value,
+            upper,
+        ));
     }
     #[cutile::entry()]
     pub fn lerp_f16<const B: i32>(
@@ -404,7 +469,7 @@ mod kernels {
         let condition_tile: Tile<f16, { [B] }> = load_tile_like(condition, out);
         let x_tile: Tile<f16, { [B] }> = load_tile_like(x, out);
         let y_tile: Tile<f16, { [B] }> = load_tile_like(y, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
         let mask = cmpf(
             condition_tile,
             zero,

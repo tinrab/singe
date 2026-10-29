@@ -1,108 +1,30 @@
 use crate::{
-    data_type::DataType,
-    error::{Error, Result},
-    frontend::{
-        graph::Graph,
-        infer::infer_reduction_output,
-        operation::{
-            AttentionPrimitiveOperation, Operation, PointwiseOperation, ReductionAxes,
-            ReductionConfig, ReductionOperation, SoftmaxOperationConfig,
-        },
-        shape::shape_with_nhwc_strides,
-        support,
+    backend::{
+        execution::reduction::ReducerAccumulator, reduction::ReduceTensorOperator, tensor::TensorId,
     },
-    math::NanPropagation,
-    pointwise::PointwiseMode,
-    reduction::ReduceTensorOperator,
-    tensor::{Shape, TensorId, TensorSpec},
-    version,
+    data_type::DataType,
+    error::Result,
+    frontend::{
+        graph::{Graph, TensorOutputConfig},
+        operation::{Operation, ReductionAxes, ReductionConfig, ReductionOperation},
+    },
 };
 
 impl Graph {
-    /// Adds a softmax operation with optional reduction side outputs.
-    ///
-    /// cuDNN frontend models fused flash attention as BMM-softmax-BMM with
-    /// optional statistics and masking features. This helper records a standalone
-    /// frontend softmax node for the graph.
-    pub fn softmax(
-        &mut self,
-        x: TensorId,
-        y: TensorId,
-        config: SoftmaxOperationConfig,
-    ) -> Result<()> {
-        let x_tensor = self.tensor_config(x)?.clone();
-        self.validate_tensor_data_type_and_dimensions(
-            y,
-            x_tensor.data_type,
-            x_tensor.shape.dimensions(),
-            "softmax output",
-        )?;
-
-        let reduction_shape = infer_reduction_output(&x_tensor.shape, ReductionAxes::Last)?;
-        let reduction_data_type = self.effective_compute_data_type(DataType::F32);
-        if let Some(stats) = config.stats() {
-            self.validate_softmax_reduction_tensor(
-                stats,
-                &reduction_shape,
-                reduction_data_type,
-                "softmax stats",
-            )?;
-        }
-        if let Some(max) = config.max() {
-            self.validate_softmax_reduction_tensor(
-                max,
-                &reduction_shape,
-                reduction_data_type,
-                "softmax max",
-            )?;
-        }
-        if let Some(sum_exp) = config.sum_exp() {
-            self.validate_softmax_reduction_tensor(
-                sum_exp,
-                &reduction_shape,
-                reduction_data_type,
-                "softmax sum exp",
-            )?;
-        }
-        if let Some(sink) = config.sink() {
-            self.validate_softmax_sink_tensor(sink, x, &x_tensor.shape, reduction_data_type)?;
-        }
-
-        self.operations.push(Operation::AttentionPrimitive(
-            AttentionPrimitiveOperation::Softmax {
-                x,
-                y,
-                stats: config.stats(),
-                max: config.max(),
-                sum_exp: config.sum_exp(),
-                sink: config.sink(),
-            },
-        ));
-        Ok(())
-    }
-
+    /// Infers a scalar FP32 Amax result independently of reduction compute precision.
     pub(crate) fn absolute_max_infer(
         &mut self,
         input: TensorId,
         compute_type: DataType,
     ) -> Result<TensorId> {
-        let abs = self.tensor(
-            TensorSpec::new(compute_type, self.tensor_config(input)?.shape.clone())
-                .virtual_tensor(),
-        );
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::Abs,
+        self.reduction(
             input,
-            output: abs,
-            compute_type,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            axis: None,
-        });
-        self.reduction_infer(
-            abs,
-            ReductionConfig::new(ReduceTensorOperator::AbsoluteMax, compute_type)
+            &ReductionConfig::new(ReduceTensorOperator::AbsoluteMax)
+                .with_compute_type(compute_type)
                 .with_axes(ReductionAxes::All),
+            TensorOutputConfig::new()
+                .with_data_type(DataType::F32)
+                .output_tensor(),
         )
     }
 
@@ -110,273 +32,92 @@ impl Graph {
     ///
     /// Reduction modes are controlled by [`ReduceTensorOperator`], with reduced
     /// dimensions inferred from the input and output tensor shapes.
-    pub fn reduction(&mut self, op: ReductionOperation) {
-        self.operations.push(Operation::Reduction(op));
-    }
-
-    /// Adds a reduction operation and creates the output tensor.
-    pub fn reduction_infer(
+    /// The explicit output keeps its shape, strides and encoding.
+    /// Output geometry in `config` applies only to [`Self::reduction`].
+    ///
+    /// # Errors
+    /// Returns an error if an input, output or group-offset tensor is not declared in the graph.
+    pub fn reduction_into(
         &mut self,
         input: TensorId,
-        config: ReductionConfig,
-    ) -> Result<TensorId> {
-        self.validate_reduction_support_surface_for_version(version()?.raw(), config)?;
-        let input_tensor = self.tensor_config(input)?.clone();
-        let output_shape = infer_reduction_output(&input_tensor.shape, config.axes())?;
-        let output_shape = shape_with_nhwc_strides(output_shape.dimensions().to_vec())?;
-        let output_data_type = self.effective_io_data_type(input_tensor.data_type);
-        let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
-        self.reduction(ReductionOperation::Reduce {
+        output: TensorId,
+        config: &ReductionConfig,
+    ) -> Result<()> {
+        let operation = ReductionOperation::Reduce {
+            name: config.name().map(str::to_owned),
             op: config.op(),
             input,
             output,
             compute_type: config.compute_type(),
             is_deterministic: config.is_deterministic(),
-        });
-        Ok(output)
-    }
-
-    pub(crate) fn expand_softmax_for_legacy_runtime(
-        &mut self,
-        x: TensorId,
-        y: TensorId,
-        stats: Option<TensorId>,
-        max: Option<TensorId>,
-        sum_exp: Option<TensorId>,
-        sink: Option<TensorId>,
-    ) -> Result<()> {
-        let has_legacy_supported_outputs = matches!(
-            (stats, max, sum_exp),
-            (None, None, None) | (Some(_), None, None) | (None, Some(_), Some(_))
-        );
-        if !has_legacy_supported_outputs {
-            return Err(Error::FrontendSoftmaxLegacyOutputsUnsupported);
-        }
-
-        let x_tensor = self.tensor_config(x)?.clone();
-        let reduction_shape = infer_reduction_output(&x_tensor.shape, ReductionAxes::Last)?;
-        let compute_type = self.effective_compute_data_type(x_tensor.data_type);
-
-        let max_output = match max {
-            Some(max) => max,
-            None => self.tensor(
-                TensorSpec::new(x_tensor.data_type, reduction_shape.clone()).virtual_tensor(),
-            ),
+            group_offset: config.group_offset(),
         };
-        let sum_output = match sum_exp {
-            Some(sum_exp) => sum_exp,
-            None => {
-                self.tensor(TensorSpec::new(x_tensor.data_type, reduction_shape).virtual_tensor())
-            }
-        };
-
-        if let Some(sink) = sink {
-            let reduced_max = self.tensor(
-                TensorSpec::new(
-                    x_tensor.data_type,
-                    self.tensor_config(max_output)?.shape.clone(),
-                )
-                .virtual_tensor(),
-            );
-            self.reduction(ReductionOperation::Reduce {
-                op: ReduceTensorOperator::Max,
-                input: x,
-                output: reduced_max,
-                compute_type,
-                is_deterministic: false,
-            });
-            self.pointwise(PointwiseOperation::Binary {
-                mode: PointwiseMode::Max,
-                lhs: reduced_max,
-                rhs: sink,
-                output: max_output,
-                compute_type,
-                nan_propagation: NanPropagation::Propagate,
-                alpha1: 1.0,
-                alpha2: 1.0,
-            });
-        } else {
-            self.reduction(ReductionOperation::Reduce {
-                op: ReduceTensorOperator::Max,
-                input: x,
-                output: max_output,
-                compute_type,
-                is_deterministic: false,
-            });
-        }
-
-        let shifted = self
-            .tensor(TensorSpec::new(x_tensor.data_type, x_tensor.shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Binary {
-            mode: PointwiseMode::Sub,
-            lhs: x,
-            rhs: max_output,
-            output: shifted,
-            compute_type,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
-        let exp = self
-            .tensor(TensorSpec::new(x_tensor.data_type, x_tensor.shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::Exp,
-            input: shifted,
-            output: exp,
-            compute_type,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            axis: None,
-        });
-
-        if let Some(sink) = sink {
-            let sub_sink = self.tensor(
-                TensorSpec::new(
-                    x_tensor.data_type,
-                    self.tensor_config(max_output)?.shape.clone(),
-                )
-                .virtual_tensor(),
-            );
-            self.pointwise(PointwiseOperation::Binary {
-                mode: PointwiseMode::Sub,
-                lhs: sink,
-                rhs: max_output,
-                output: sub_sink,
-                compute_type,
-                nan_propagation: NanPropagation::Propagate,
-                alpha1: 1.0,
-                alpha2: 1.0,
-            });
-            let exp_sink = self.tensor(
-                TensorSpec::new(
-                    x_tensor.data_type,
-                    self.tensor_config(max_output)?.shape.clone(),
-                )
-                .virtual_tensor(),
-            );
-            self.pointwise(PointwiseOperation::Unary {
-                mode: PointwiseMode::Exp,
-                input: sub_sink,
-                output: exp_sink,
-                compute_type,
-                nan_propagation: NanPropagation::Propagate,
-                alpha1: 1.0,
-                axis: None,
-            });
-            let reduced_sum = self.tensor(
-                TensorSpec::new(
-                    x_tensor.data_type,
-                    self.tensor_config(sum_output)?.shape.clone(),
-                )
-                .virtual_tensor(),
-            );
-            self.reduction(ReductionOperation::Reduce {
-                op: ReduceTensorOperator::Add,
-                input: exp,
-                output: reduced_sum,
-                compute_type,
-                is_deterministic: false,
-            });
-            self.pointwise(PointwiseOperation::Binary {
-                mode: PointwiseMode::Add,
-                lhs: reduced_sum,
-                rhs: exp_sink,
-                output: sum_output,
-                compute_type,
-                nan_propagation: NanPropagation::Propagate,
-                alpha1: 1.0,
-                alpha2: 1.0,
-            });
-        } else {
-            self.reduction(ReductionOperation::Reduce {
-                op: ReduceTensorOperator::Add,
-                input: exp,
-                output: sum_output,
-                compute_type,
-                is_deterministic: false,
-            });
-        }
-
-        if let Some(stats) = stats {
-            let log_sum = self.tensor(
-                TensorSpec::new(
-                    x_tensor.data_type,
-                    self.tensor_config(sum_output)?.shape.clone(),
-                )
-                .virtual_tensor(),
-            );
-            self.pointwise(PointwiseOperation::Unary {
-                mode: PointwiseMode::Log,
-                input: sum_output,
-                output: log_sum,
-                compute_type,
-                nan_propagation: NanPropagation::Propagate,
-                alpha1: 1.0,
-                axis: None,
-            });
-            self.pointwise(PointwiseOperation::Binary {
-                mode: PointwiseMode::Add,
-                lhs: max_output,
-                rhs: log_sum,
-                output: stats,
-                compute_type,
-                nan_propagation: NanPropagation::Propagate,
-                alpha1: 1.0,
-                alpha2: 1.0,
-            });
-        }
-
-        self.pointwise(PointwiseOperation::Binary {
-            mode: PointwiseMode::Div,
-            lhs: exp,
-            rhs: sum_output,
-            output: y,
-            compute_type,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
+        operation.validate_graph(self)?;
+        self.operations.push(Operation::Reduction(operation));
         Ok(())
     }
 
-    fn validate_softmax_reduction_tensor(
-        &self,
-        tensor_ref: TensorId,
-        expected_shape: &Shape,
-        expected_data_type: DataType,
-        name: &str,
-    ) -> Result<()> {
-        self.validate_tensor_data_type_and_dimensions(
-            tensor_ref,
-            expected_data_type,
-            expected_shape.dimensions(),
-            name,
-        )
-    }
-
-    fn validate_softmax_sink_tensor(
-        &self,
-        tensor_ref: TensorId,
+    /// Adds a reduction operation and creates the output tensor.
+    /// Unspecified output geometry preserves input dimensions, matching C++ inference.
+    /// Select axes or supply an output shape to reduce particular dimensions.
+    /// Result placement selects I/O or intermediate precision unless an encoding is explicit.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input or group-offset tensor is unknown, explicit axes are empty, repeated, or out of range, or inferred output strides cannot be represented.
+    pub fn reduction(
+        &mut self,
         input: TensorId,
-        input_shape: &Shape,
-        expected_data_type: DataType,
-    ) -> Result<()> {
-        let input_dims = input_shape.dimensions();
-        self.validate_tensor_rank(input, 4, "softmax sink input")?;
-        let expected_shape = Shape::contiguous([1, input_dims[1], 1, 1])?;
-        self.validate_tensor_data_type_and_dimensions(
-            tensor_ref,
-            expected_data_type,
-            expected_shape.dimensions(),
-            "softmax sink",
-        )
+        config: &ReductionConfig,
+        output: TensorOutputConfig,
+    ) -> Result<TensorId> {
+        let input_tensor = self.tensor_spec(input)?;
+        if let Some(group_offset) = config.group_offset() {
+            self.tensor_spec(group_offset)?;
+        }
+        let output_shape = config.infer_output_shape(&input_tensor.shape)?;
+        let output = output.into_spec(
+            self.config.data_type_policy,
+            input_tensor.data_type,
+            output_shape,
+        );
+        let checkpoint = self.mutation_checkpoint();
+        let output = self.inferred_tensor(output, config.name(), "Y");
+        if let Err(error) = self.reduction_into(input, output, config) {
+            self.rollback_to(checkpoint);
+            return Err(error);
+        }
+        Ok(output)
     }
+}
 
-    pub(crate) fn validate_reduction_support_surface_for_version(
-        &self,
-        cudnn_version: u64,
-        config: ReductionConfig,
+impl Graph {
+    /// Adds a user-defined reduction with explicit dimensions and accumulator identities.
+    /// Compilation requires native support for the user-defined reducer attributes;
+    /// header availability alone does not guarantee that support in the loaded runtime.
+    /// Accumulators refer to tensor IDs within `body`, independently of the enclosing graph.
+    /// The body retains its own math defaults and passes through normal graph preparation
+    /// with the enclosing compilation's live context, or deviceless preparation.
+    ///
+    /// # Errors
+    /// Returns an error for unknown operands or body tensors, incompatible identity encodings, or invalid reduction dimensions and output geometry.
+    pub fn custom_reduction(
+        &mut self,
+        inputs: Vec<TensorId>,
+        outputs: Vec<TensorId>,
+        dimensions: Vec<i64>,
+        body: Self,
+        accumulators: Vec<ReducerAccumulator<TensorId>>,
     ) -> Result<()> {
-        support::require_reduction_support(cudnn_version, config)
+        let operation = ReductionOperation::Custom {
+            inputs,
+            outputs,
+            dimensions,
+            body: Box::new(body),
+            accumulators,
+        };
+        operation.validate_graph(self)?;
+        self.operations.push(Operation::Reduction(operation));
+        Ok(())
     }
 }

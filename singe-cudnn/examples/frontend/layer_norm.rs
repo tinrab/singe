@@ -4,12 +4,15 @@ use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
     backend::tensor::{Shape, TensorSpec},
-    data_type::DataType,
-    data_type::f16 as half_f16,
+    data_type::{DataType, f16 as half_f16},
     error::Result,
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{HeuristicMode, LayerNormalizationConfig},
+        operation::{
+            LayerNormalizationAffine, LayerNormalizationConfig, LayerNormalizationInputs,
+            LayerNormalizationOutputs, NormalizationSavedStatistics, NormalizationStatistics,
+        },
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
 };
 
@@ -30,7 +33,7 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<half_f16> {
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let example = common::ExampleContext::create()?;
 
     let batch_size = 4;
     let seq_length = 1024;
@@ -48,98 +51,123 @@ fn run() -> Result<()> {
     let x = graph.tensor(
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([batch_size * seq_length, hidden_size, 1, 1])?.with_strides([
-                hidden_size,
-                1,
-                hidden_size,
-                hidden_size,
-            ])?,
+            Shape::with_strides(
+                [batch_size * seq_length, hidden_size, 1, 1],
+                [hidden_size, 1, hidden_size, hidden_size],
+            )?,
         )
         .with_name("X"),
     );
-    let epsilon = graph.tensor(TensorSpec::scalar_f32(1e-5)?.with_name("epsilon"));
+    let epsilon = graph.tensor(TensorSpec::scalar_f32(1e-5).with_name("epsilon"));
     let scale = graph.tensor(
         TensorSpec::new(
             DataType::F32,
-            Shape::contiguous([1, hidden_size, 1, 1])?.with_strides(vec![
-                hidden_size,
-                1,
-                hidden_size,
-                hidden_size,
-            ])?,
+            Shape::with_strides(
+                [1, hidden_size, 1, 1],
+                vec![hidden_size, 1, hidden_size, hidden_size],
+            )?,
         )
         .with_name("scale"),
     );
     let bias = graph.tensor(
         TensorSpec::new(
             DataType::F32,
-            Shape::contiguous([1, hidden_size, 1, 1])?.with_strides(vec![
-                hidden_size,
-                1,
-                hidden_size,
-                hidden_size,
-            ])?,
+            Shape::with_strides(
+                [1, hidden_size, 1, 1],
+                vec![hidden_size, 1, hidden_size, hidden_size],
+            )?,
         )
         .with_name("bias"),
     );
     let y = graph.tensor(TensorSpec::new(
         DataType::F16,
-        Shape::contiguous([batch_size * seq_length, hidden_size, 1, 1])?.with_strides([
-            hidden_size,
-            1,
-            hidden_size,
-            hidden_size,
-        ])?,
+        Shape::with_strides(
+            [batch_size * seq_length, hidden_size, 1, 1],
+            [hidden_size, 1, hidden_size, hidden_size],
+        )?,
     ));
     let mean = graph.tensor(TensorSpec::new(
         DataType::F32,
-        Shape::contiguous([batch_size * seq_length, 1, 1, 1])?.with_strides([1, 1, 1, 1])?,
+        Shape::with_strides([batch_size * seq_length, 1, 1, 1], [1, 1, 1, 1])?,
     ));
     let inv_variance = graph.tensor(TensorSpec::new(
         DataType::F32,
-        Shape::contiguous([batch_size * seq_length, 1, 1, 1])?.with_strides([1, 1, 1, 1])?,
+        Shape::with_strides([batch_size * seq_length, 1, 1, 1], [1, 1, 1, 1])?,
     ));
-    graph.layer_normalization(
-        x,
-        scale,
-        bias,
-        y,
-        mean,
-        inv_variance,
-        LayerNormalizationConfig::training(epsilon),
+    graph.layer_normalization_into(
+        LayerNormalizationInputs {
+            input: x,
+            affine: LayerNormalizationAffine::ScaleBias {
+                scale: scale,
+                bias: bias,
+            },
+        },
+        LayerNormalizationOutputs {
+            output: y,
+            statistics: NormalizationStatistics::Training(NormalizationSavedStatistics {
+                mean: mean,
+                inv_variance: inv_variance,
+            }),
+        },
+        LayerNormalizationConfig::new(epsilon),
     )?;
 
-    let compiled = match graph.compile(&ctx.cudnn, &[HeuristicMode::A, HeuristicMode::Fallback]) {
+    let compiled = match graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    ) {
         Ok(compiled) => compiled,
         Err(error) => return Err(error),
     };
 
     let mut half_seed = 123_456_789_u32;
     let mut float_seed = 123_456_789_u32;
-    let mut x_dev = DeviceMemory::from_slice(&init_f16_image(
-        (batch_size * seq_length * hidden_size) as usize,
-        &mut half_seed,
-    ))?;
+    let mut x_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f16_image(
+            (batch_size * seq_length * hidden_size) as usize,
+            &mut half_seed,
+        ),
+    )?;
     let _mean_host_init = init_f32_image((batch_size * seq_length) as usize, &mut float_seed);
     let _inv_variance_host_init =
         init_f32_image((batch_size * seq_length) as usize, &mut float_seed);
-    let mut scale_dev =
-        DeviceMemory::from_slice(&init_f32_image(hidden_size as usize, &mut float_seed))?;
-    let mut bias_dev =
-        DeviceMemory::from_slice(&init_f32_image(hidden_size as usize, &mut float_seed))?;
-    let mut y_dev =
-        DeviceMemory::<half_f16>::zeroes((batch_size * seq_length * hidden_size) as usize)?;
-    let mut mean_dev = DeviceMemory::<f32>::zeroes((batch_size * seq_length) as usize)?;
-    let mut inv_variance_dev = DeviceMemory::<f32>::zeroes((batch_size * seq_length) as usize)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
-    let mut bindings = compiled.bindings();
+    let mut scale_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(hidden_size as usize, &mut float_seed),
+    )?;
+    let mut bias_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(hidden_size as usize, &mut float_seed),
+    )?;
+    let mut y_dev = DeviceMemory::<half_f16>::zeroed(
+        example.cudnn.cuda_context(),
+        (batch_size * seq_length * hidden_size) as usize,
+    )?;
+    let mut mean_dev = DeviceMemory::<f32>::zeroed(
+        example.cudnn.cuda_context(),
+        (batch_size * seq_length) as usize,
+    )?;
+    let mut inv_variance_dev = DeviceMemory::<f32>::zeroed(
+        example.cudnn.cuda_context(),
+        (batch_size * seq_length) as usize,
+    )?;
+    let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
     bindings.set(x, &mut x_dev)?;
     bindings.set(scale, &mut scale_dev)?;
     bindings.set(bias, &mut bias_dev)?;
     bindings.set(y, &mut y_dev)?;
     bindings.set(mean, &mut mean_dev)?;
     bindings.set(inv_variance, &mut inv_variance_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    // SAFETY: matching bindings, buffers and workspace remain live until the helper
+    // completes the cuDNN stream, including when native execution returns an error.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
     let y_host = y_dev.copy_to_host_vec()?;
     let mean_host = mean_dev.copy_to_host_vec()?;

@@ -1,10 +1,15 @@
-use singe_cuda::{data_type::DataTypeLike, types::DevicePtr};
+use std::ptr;
 
+use singe_cuda::{
+    data_type::DataTypeLike,
+    view::{DeviceInputView, DeviceOutputView},
+};
 use singe_cusparse_sys as sys;
 
 use crate::{
     context::Context,
-    error::Result,
+    descriptor::workspace,
+    error::{Error, Result},
     matrix::{DenseMatrixDescriptor, SparseMatrixDescriptor},
     operation::SpSmDescriptor,
     scalar::Scalar,
@@ -13,8 +18,20 @@ use crate::{
     utility::to_usize,
 };
 
-pub fn spsm_buffer_size<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spsm_buffer_size<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -24,19 +41,18 @@ pub fn spsm_buffer_size<Compute: DataTypeLike>(
     algorithm: SpSMAlgorithm,
     descriptor: &SpSmDescriptor,
 ) -> Result<usize> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    if ctx.scalar_pointer_mode()? != alpha.pointer_mode() {
-        ctx.set_scalar_pointer_mode(alpha.pointer_mode())?;
-    }
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, alpha)?;
 
     let mut size = 0;
+    // SAFETY: `cusparseSpSM_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusparseSpSM_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -52,8 +68,20 @@ pub fn spsm_buffer_size<Compute: DataTypeLike>(
     to_usize(size, "spsm buffer size")
 }
 
-pub fn spsm_analysis<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spsm_analysis<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -62,20 +90,21 @@ pub fn spsm_analysis<Compute: DataTypeLike>(
     matrix_c: &mut DenseMatrixDescriptor,
     algorithm: SpSMAlgorithm,
     descriptor: &SpSmDescriptor,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    if ctx.scalar_pointer_mode()? != alpha.pointer_mode() {
-        ctx.set_scalar_pointer_mode(alpha.pointer_mode())?;
-    }
+    let external_buffer = workspace(context, external_buffer)?;
 
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, alpha)?;
+
+    // SAFETY: `cusparseSpSM_analysis` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpSM_analysis(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -85,14 +114,27 @@ pub fn spsm_analysis<Compute: DataTypeLike>(
             Compute::data_type().into(),
             algorithm.into(),
             descriptor.as_raw(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())
 }
 
-pub fn spsm_solve<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spsm_solve<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -102,18 +144,17 @@ pub fn spsm_solve<Compute: DataTypeLike>(
     algorithm: SpSMAlgorithm,
     descriptor: &SpSmDescriptor,
 ) -> Result<()> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    if ctx.scalar_pointer_mode()? != alpha.pointer_mode() {
-        ctx.set_scalar_pointer_mode(alpha.pointer_mode())?;
-    }
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, alpha)?;
 
+    // SAFETY: `cusparseSpSM_solve` receives live handles owned by the wrappers.
     unsafe {
         try_ffi!(sys::cusparseSpSM_solve(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -128,19 +169,33 @@ pub fn spsm_solve<Compute: DataTypeLike>(
     Ok(())
 }
 
-pub fn spsm_update_matrix(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Replacement values must belong to that CUDA context.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spsm_update_matrix<T: DataTypeLike>(
+    context: &Context,
     descriptor: &SpSmDescriptor,
-    new_values: DevicePtr,
+    new_values: DeviceInputView<'_, T>,
     update: SpSmUpdate,
 ) -> Result<()> {
-    descriptor.ensure_context(ctx)?;
-    ctx.bind()?;
+    descriptor.ensure_context(context)?;
+    if new_values.context() != context.cuda_context() {
+        return Err(Error::PlanContextMismatch);
+    }
+    context.bind()?;
+    // SAFETY: `cusparseSpSM_updateMatrix` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpSM_updateMatrix(
-            ctx.as_raw(),
+            context.as_raw(),
             descriptor.as_raw(),
-            new_values.as_ptr() as _,
+            new_values.as_ptr().cast_mut().cast(),
             update.into(),
         ))?;
     }

@@ -1,4 +1,7 @@
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "retained for layout, ownership or API completeness"
+)]
 
 use cutile::tile_kernel::DevicePointer;
 
@@ -9,7 +12,7 @@ use crate::{
 
 const RAW_VECTOR_TILE_SIZE: usize = 128;
 
-pub fn checked_device_pointer<T>(pointer: DevicePointer<T>) -> Result<()> {
+pub fn checked_device_pointer<T>(pointer: &DevicePointer<T>) -> Result<()> {
     if pointer.cu_deviceptr() == 0 {
         Err(Error::NullPointer)
     } else {

@@ -9,13 +9,13 @@ use std::{
     slice,
 };
 
+use singe_curand_sys as sys;
+
 use crate::{
     error::{Error, Result},
     try_ffi,
     types::DirectionVectorSet,
 };
-
-use singe_curand_sys as sys;
 
 /// Number of Sobol dimensions in the direction-vector and scramble-constant tables.
 ///
@@ -85,6 +85,7 @@ pub struct ScrambleConstants64 {
 /// cuRAND does not return a table pointer.
 pub fn direction_vectors_32(set: DirectionVectorSet) -> Result<DirectionVectorTable32> {
     let mut vectors = ptr::null_mut();
+    // SAFETY: `curandGetDirectionVectors32` receives valid output locations.
     unsafe {
         try_ffi!(sys::curandGetDirectionVectors32(
             &raw mut vectors,
@@ -106,6 +107,7 @@ pub fn direction_vectors_32(set: DirectionVectorSet) -> Result<DirectionVectorTa
 /// cuRAND does not return a table pointer.
 pub fn direction_vectors_64(set: DirectionVectorSet) -> Result<DirectionVectorTable64> {
     let mut vectors = ptr::null_mut();
+    // SAFETY: `curandGetDirectionVectors64` receives valid output locations.
     unsafe {
         try_ffi!(sys::curandGetDirectionVectors64(
             &raw mut vectors,
@@ -125,6 +127,7 @@ pub fn direction_vectors_64(set: DirectionVectorSet) -> Result<DirectionVectorTa
 /// Returns an error if cuRAND does not return a constants pointer.
 pub fn scramble_constants_32() -> Result<ScrambleConstants32> {
     let mut constants = ptr::null_mut();
+    // SAFETY: `curandGetScrambleConstants32` receives valid output locations.
     unsafe {
         try_ffi!(sys::curandGetScrambleConstants32(&raw mut constants))?;
     }
@@ -141,6 +144,7 @@ pub fn scramble_constants_32() -> Result<ScrambleConstants32> {
 /// Returns an error if cuRAND does not return a constants pointer.
 pub fn scramble_constants_64() -> Result<ScrambleConstants64> {
     let mut constants = ptr::null_mut();
+    // SAFETY: `curandGetScrambleConstants64` receives valid output locations.
     unsafe {
         try_ffi!(sys::curandGetScrambleConstants64(&raw mut constants))?;
     }
@@ -157,21 +161,26 @@ impl DirectionVectorTable32 {
     }
 
     /// Returns the number of dimensions in the table.
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.len
     }
 
     /// Returns `true` if the table contains no direction vectors.
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// Returns the table as a slice indexed by dimension.
+    #[must_use]
     pub fn as_slice(&self) -> &[DirectionVector32] {
+        // SAFETY: cuRAND owns `len` direction vectors at `ptr` for the lifetime of the program.
         unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
     }
 
     /// Returns the direction vector for `dimension`, if present.
+    #[must_use]
     pub fn get(&self, dimension: usize) -> Option<&DirectionVector32> {
         self.as_slice().get(dimension)
     }
@@ -194,21 +203,26 @@ impl DirectionVectorTable64 {
     }
 
     /// Returns the number of dimensions in the table.
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.len
     }
 
     /// Returns `true` if the table contains no direction vectors.
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// Returns the table as a slice indexed by dimension.
+    #[must_use]
     pub fn as_slice(&self) -> &[DirectionVector64] {
+        // SAFETY: cuRAND owns `len` direction vectors at `ptr` for the lifetime of the program.
         unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
     }
 
     /// Returns the direction vector for `dimension`, if present.
+    #[must_use]
     pub fn get(&self, dimension: usize) -> Option<&DirectionVector64> {
         self.as_slice().get(dimension)
     }
@@ -231,17 +245,21 @@ impl ScrambleConstants32 {
     }
 
     /// Returns the number of scramble constants in the table.
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.len
     }
 
     /// Returns `true` if the table contains no constants.
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// Returns the constants as a slice indexed by dimension.
+    #[must_use]
     pub fn as_slice(&self) -> &[u32] {
+        // SAFETY: cuRAND owns `len` scramble constants at `ptr` for the lifetime of the program.
         unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
     }
 }
@@ -255,17 +273,21 @@ impl ScrambleConstants64 {
     }
 
     /// Returns the number of scramble constants in the table.
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.len
     }
 
     /// Returns `true` if the table contains no constants.
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     /// Returns the constants as a slice indexed by dimension.
+    #[must_use]
     pub fn as_slice(&self) -> &[u64] {
+        // SAFETY: cuRAND owns `len` scramble constants at `ptr` for the lifetime of the program.
         unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
     }
 }
@@ -275,11 +297,13 @@ impl DirectionVector32 {
     pub const WORDS: usize = 32;
 
     /// Returns the direction vector as an array of words.
+    #[must_use]
     pub const fn as_words(&self) -> &[u32; Self::WORDS] {
         &self.words
     }
 
     /// Returns the direction vector as a slice of words.
+    #[must_use]
     pub const fn as_slice(&self) -> &[u32] {
         self.words.as_slice()
     }
@@ -312,11 +336,13 @@ impl DirectionVector64 {
     pub const WORDS: usize = 64;
 
     /// Returns the direction vector as an array of words.
+    #[must_use]
     pub const fn as_words(&self) -> &[u64; Self::WORDS] {
         &self.words
     }
 
     /// Returns the direction vector as a slice of words.
+    #[must_use]
     pub const fn as_slice(&self) -> &[u64] {
         self.words.as_slice()
     }
@@ -356,7 +382,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn wraps_direction_vector_tables() -> Result<()> {
+    fn test_wraps_direction_vector_tables() -> Result<()> {
         let vectors = direction_vectors_32(DirectionVectorSet::JoeKuo6_32)?;
         assert_eq!(vectors.len(), MAX_QUASI_RANDOM_DIMENSIONS);
         assert_eq!(vectors[0].as_slice().len(), DirectionVector32::WORDS);

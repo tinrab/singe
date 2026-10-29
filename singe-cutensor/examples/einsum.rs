@@ -1,4 +1,9 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::Stream};
+use singe_cuda::{
+    context::Context as CudaContext,
+    memory::DeviceMemory,
+    stream::{Stream, StreamBinding},
+};
+
 use singe_cutensor::{
     context::Context,
     error::Result,
@@ -104,10 +109,10 @@ fn run_binary_einsum(
         .collect::<Vec<_>>();
     let output_values = vec![0.0_f32; output_extent.iter().product::<u64>() as usize];
 
-    let device_lhs = DeviceMemory::from_slice(&lhs_values)?;
-    let device_rhs = DeviceMemory::from_slice(&rhs_values)?;
-    let device_output_input = DeviceMemory::from_slice(&output_values)?;
-    let mut device_output = DeviceMemory::from_slice(&output_values)?;
+    let device_lhs = DeviceMemory::from_slice(stream.context(), &lhs_values)?;
+    let device_rhs = DeviceMemory::from_slice(stream.context(), &rhs_values)?;
+    let device_output_input = DeviceMemory::from_slice(stream.context(), &output_values)?;
+    let mut device_output = DeviceMemory::from_slice(stream.context(), &output_values)?;
 
     const ALIGNMENT: u32 = 128;
 
@@ -149,7 +154,8 @@ fn run_binary_einsum(
     )?;
     let plan = Plan::create(context, &operation, &preference, workspace_size)?;
     let mut workspace = if plan.required_workspace_size() > 0 {
-        Some(DeviceMemory::<u8>::create(
+        Some(DeviceMemory::<u8>::create_uninit(
+            stream.context(),
             plan.required_workspace_size_bytes()?,
         )?)
     } else {
@@ -158,23 +164,26 @@ fn run_binary_einsum(
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
-    plan.contract(
-        &alpha,
-        &device_lhs,
-        &device_rhs,
-        &beta,
-        &device_output_input,
-        &mut device_output,
-        workspace.as_mut(),
-        stream,
-    )?;
+    // SAFETY: descriptors match these buffers; all resources remain live until stream synchronization below.
+    unsafe {
+        plan.contract(
+            &alpha,
+            &device_lhs,
+            &device_rhs,
+            &beta,
+            &device_output_input,
+            &mut device_output,
+            workspace.as_mut(),
+            stream,
+        )
+    }?;
     stream.synchronize()?;
     Ok(device_output.len())
 }
 
 fn run_unary_einsum(
     context: &Context,
-    stream: &singe_cuda::stream::Stream,
+    stream: &Stream,
     equation: &str,
     input_shape: &[u64],
 ) -> Result<usize> {
@@ -195,9 +204,9 @@ fn run_unary_einsum(
         .collect::<Vec<_>>();
     let output_values = vec![0.0_f32; output_extent.iter().product::<u64>() as usize];
 
-    let device_input = DeviceMemory::from_slice(&input_values)?;
-    let device_output_input = DeviceMemory::from_slice(&output_values)?;
-    let mut device_output = DeviceMemory::from_slice(&output_values)?;
+    let device_input = DeviceMemory::from_slice(stream.context(), &input_values)?;
+    let device_output_input = DeviceMemory::from_slice(stream.context(), &output_values)?;
+    let mut device_output = DeviceMemory::from_slice(stream.context(), &output_values)?;
 
     const ALIGNMENT: u32 = 128;
 
@@ -233,7 +242,10 @@ fn run_unary_einsum(
             WorkspacePreference::Min,
         )?;
         let plan = Plan::create(context, &operation, &preference, workspace_size)?;
-        plan.permute(&alpha, &device_input, &mut device_output, stream)?;
+        StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+            // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+            unsafe { plan.permute(&alpha, &device_input, &mut device_output, stream) }
+        })?;
     } else {
         let operation = OperationDescriptor::reduction(
             context,
@@ -251,21 +263,27 @@ fn run_unary_einsum(
         )?;
         let plan = Plan::create(context, &operation, &preference, workspace_size)?;
         let mut workspace = if plan.required_workspace_size() > 0 {
-            Some(DeviceMemory::<u8>::create(
+            Some(DeviceMemory::<u8>::create_uninit(
+                stream.context(),
                 plan.required_workspace_size_bytes()?,
             )?)
         } else {
             None
         };
-        plan.reduce(
-            &alpha,
-            &device_input,
-            &0.0_f32,
-            &device_output_input,
-            &mut device_output,
-            workspace.as_mut(),
-            stream,
-        )?;
+        StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+            // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+            unsafe {
+                plan.reduce(
+                    &alpha,
+                    &device_input,
+                    &0.0_f32,
+                    &device_output_input,
+                    &mut device_output,
+                    workspace.as_mut(),
+                    stream,
+                )
+            }
+        })?;
     }
 
     stream.synchronize()?;

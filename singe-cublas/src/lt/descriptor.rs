@@ -1,4 +1,5 @@
 use std::{
+    mem,
     mem::{MaybeUninit, size_of, size_of_val},
     ptr,
 };
@@ -7,7 +8,8 @@ use singe_cublas_sys as sys;
 use singe_cuda::{
     data_type::DataType,
     memory::DeviceMemory,
-    types::{EmulationMantissaControl, EmulationSpecialValuesSupport},
+    types::{EmulationMantissaControl, EmulationSpecialValuesSupport, EmulationStrategy},
+    view::{AnyBitPatternDeviceRepr, NoUninitDeviceRepr},
 };
 use singe_cuda_sys::library_types;
 
@@ -18,7 +20,7 @@ use crate::{
             BatchMode, EmulationDescAttribute, IntegerWidth, MatrixLayoutAttribute,
             MatrixTransformDescAttribute, Order, PointerMode,
         },
-        utility::{read_attribute, set_attribute},
+        utility::{attribute_enum, read_attribute, set_attribute},
     },
     try_ffi,
     types::Operation,
@@ -27,26 +29,37 @@ use crate::{
 
 /// Associates a matrix layout dimension type with its integer width for
 /// grouped matrix descriptors.
-pub trait GroupedMatrixLayoutValue: Copy + 'static {
+///
+/// # Safety
+///
+/// Values must use the native integer size and alignment selected by
+/// `INTEGER_WIDTH`, without padding or restricted integer bit patterns.
+pub unsafe trait GroupedMatrixLayoutValue: NoUninitDeviceRepr {
+    /// The native integer width used for arrays of this element type.
     const INTEGER_WIDTH: IntegerWidth;
 }
 
-impl GroupedMatrixLayoutValue for i32 {
+// SAFETY: i32 has the native 32-bit integer representation.
+unsafe impl GroupedMatrixLayoutValue for i32 {
     const INTEGER_WIDTH: IntegerWidth = IntegerWidth::Bits32;
 }
 
-impl GroupedMatrixLayoutValue for u32 {
+// SAFETY: u32 has the native 32-bit integer representation.
+unsafe impl GroupedMatrixLayoutValue for u32 {
     const INTEGER_WIDTH: IntegerWidth = IntegerWidth::Bits32;
 }
 
-impl GroupedMatrixLayoutValue for i64 {
+// SAFETY: i64 has the native 64-bit integer representation.
+unsafe impl GroupedMatrixLayoutValue for i64 {
     const INTEGER_WIDTH: IntegerWidth = IntegerWidth::Bits64;
 }
 
-impl GroupedMatrixLayoutValue for u64 {
+// SAFETY: u64 has the native 64-bit integer representation.
+unsafe impl GroupedMatrixLayoutValue for u64 {
     const INTEGER_WIDTH: IntegerWidth = IntegerWidth::Bits64;
 }
 
+/// An owned cuBLASLt matrix layout descriptor.
 #[derive(Debug)]
 pub struct MatrixLayout {
     raw: sys::cublasLtMatrixLayout_t,
@@ -61,6 +74,7 @@ impl MatrixLayout {
     /// a valid handle.
     pub fn create(data_type: DataType, rows: u64, cols: u64, ld: i64) -> Result<Self> {
         let mut raw = ptr::null_mut();
+        // SAFETY: `cublasLtMatrixLayoutCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cublasLtMatrixLayoutCreate(
                 &raw mut raw,
@@ -104,6 +118,7 @@ impl MatrixLayout {
         let group_count = to_i32(rows.len(), "group count")?;
 
         let mut raw = ptr::null_mut();
+        // SAFETY: `cublasLtGroupedMatrixLayoutCreate` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cublasLtGroupedMatrixLayoutCreate(
                 &raw mut raw,
@@ -120,14 +135,17 @@ impl MatrixLayout {
         }
 
         let mut layout = Self { raw };
-        layout.set_attribute(
-            MatrixLayoutAttribute::GroupedRowsColsArrayIntegerWidth,
-            &T::INTEGER_WIDTH,
-        )?;
-        layout.set_attribute(
-            MatrixLayoutAttribute::GroupedLeadingDimensionArrayIntegerWidth,
-            &T::INTEGER_WIDTH,
-        )?;
+        // SAFETY: both attributes store the 32-bit integer-width enum supplied by the ABI trait.
+        unsafe {
+            layout.set_attribute(
+                MatrixLayoutAttribute::GroupedRowsColsArrayIntegerWidth,
+                &T::INTEGER_WIDTH,
+            )?;
+            layout.set_attribute(
+                MatrixLayoutAttribute::GroupedLeadingDimensionArrayIntegerWidth,
+                &T::INTEGER_WIDTH,
+            )?;
+        }
 
         Ok(layout)
     }
@@ -138,12 +156,22 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
     /// attribute storage expected by cuBLASLt.
-    pub fn set_attribute<T>(&mut self, attr: MatrixLayoutAttribute, value: &T) -> Result<()> {
+    ///
+    /// # Safety
+    ///
+    /// `T` must match the selected attribute's native representation, including
+    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    pub unsafe fn set_attribute<T>(
+        &mut self,
+        attr: MatrixLayoutAttribute,
+        value: &T,
+    ) -> Result<()> {
         set_attribute(
+            // SAFETY: `cublasLtMatrixLayoutSetAttribute` receives live handles owned by the wrappers.
             |value, size| unsafe {
                 sys::cublasLtMatrixLayoutSetAttribute(self.raw, attr.into(), value, size)
             },
-            (value as *const T).cast(),
+            ptr::from_ref::<T>(value).cast(),
             size_of::<T>(),
         )
     }
@@ -154,12 +182,18 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt rejects the attribute or the slice size does not match the
     /// attribute storage expected by cuBLASLt.
-    pub fn set_attribute_slice<T>(
+    ///
+    /// # Safety
+    ///
+    /// `T` must match the selected attribute's native representation, including
+    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    pub unsafe fn set_attribute_slice<T>(
         &mut self,
         attr: MatrixLayoutAttribute,
         values: &[T],
     ) -> Result<()> {
         set_attribute(
+            // SAFETY: `cublasLtMatrixLayoutSetAttribute` receives live handles owned by the wrappers.
             |value, size| unsafe {
                 sys::cublasLtMatrixLayoutSetAttribute(self.raw, attr.into(), value, size)
             },
@@ -170,13 +204,17 @@ impl MatrixLayout {
 
     /// Returns a matrix layout attribute value.
     ///
+    /// `T` must accept every bit pattern; enum attributes are read as integers and validated.
+    ///
     /// # Errors
     ///
     /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
     /// match `T`.
-    pub fn attribute<T: Copy>(&self, attr: MatrixLayoutAttribute) -> Result<T> {
+    pub fn attribute<T: AnyBitPatternDeviceRepr>(&self, attr: MatrixLayoutAttribute) -> Result<T> {
+        let () = T::LAYOUT;
         let mut value = MaybeUninit::<T>::uninit();
         let written = read_attribute(
+            // SAFETY: `cublasLtMatrixLayoutGetAttribute` receives live handles owned by the wrappers.
             |value, size, written| unsafe {
                 sys::cublasLtMatrixLayoutGetAttribute(self.raw, attr.into(), value, size, written)
             },
@@ -185,6 +223,7 @@ impl MatrixLayout {
             "matrix layout attribute",
         )?;
         ensure_exact_size(written, size_of::<T>())?;
+        // SAFETY: the library wrote exactly `size_of::<T>()` bytes, checked above, initializing `value`.
         Ok(unsafe { value.assume_init() })
     }
 
@@ -194,10 +233,13 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_order(&mut self, order: Order) -> Result<()> {
-        self.set_attribute(
-            MatrixLayoutAttribute::Order,
-            &sys::cublasLtOrder_t::from(order),
-        )
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe {
+            self.set_attribute(
+                MatrixLayoutAttribute::Order,
+                &sys::cublasLtOrder_t::from(order),
+            )
+        }
     }
 
     /// Returns the matrix data ordering.
@@ -206,9 +248,8 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt cannot report the attribute.
     pub fn order(&self) -> Result<Order> {
-        Ok(self
-            .attribute::<sys::cublasLtOrder_t>(MatrixLayoutAttribute::Order)?
-            .into())
+        let value = self.attribute::<u32>(MatrixLayoutAttribute::Order)?;
+        attribute_enum(value, "MatrixLayoutAttribute::Order")
     }
 
     /// Sets the batch count for batched computation.
@@ -217,7 +258,8 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_batch_count(&mut self, batch_count: i32) -> Result<()> {
-        self.set_attribute(MatrixLayoutAttribute::BatchCount, &batch_count)
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe { self.set_attribute(MatrixLayoutAttribute::BatchCount, &batch_count) }
     }
 
     /// Returns the batch count.
@@ -235,10 +277,13 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_batch_mode(&mut self, batch_mode: BatchMode) -> Result<()> {
-        self.set_attribute(
-            MatrixLayoutAttribute::BatchMode,
-            &sys::cublasLtBatchMode_t::from(batch_mode),
-        )
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe {
+            self.set_attribute(
+                MatrixLayoutAttribute::BatchMode,
+                &sys::cublasLtBatchMode_t::from(batch_mode),
+            )
+        }
     }
 
     /// Returns the batch mode.
@@ -247,9 +292,8 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt cannot report the attribute.
     pub fn batch_mode(&self) -> Result<BatchMode> {
-        Ok(self
-            .attribute::<sys::cublasLtBatchMode_t>(MatrixLayoutAttribute::BatchMode)?
-            .into())
+        let value = self.attribute::<u32>(MatrixLayoutAttribute::BatchMode)?;
+        attribute_enum(value, "MatrixLayoutAttribute::BatchMode")
     }
 
     /// Sets the strided batch offset between consecutive matrices in a batch.
@@ -258,7 +302,8 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_strided_batch_offset(&mut self, offset: i64) -> Result<()> {
-        self.set_attribute(MatrixLayoutAttribute::StridedBatchOffset, &offset)
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe { self.set_attribute(MatrixLayoutAttribute::StridedBatchOffset, &offset) }
     }
 
     /// Returns the strided batch offset.
@@ -289,13 +334,15 @@ impl MatrixLayout {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_plane_offset(&mut self, offset_bytes: i64) -> Result<()> {
-        self.set_attribute(MatrixLayoutAttribute::PlaneOffset, &offset_bytes)
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe { self.set_attribute(MatrixLayoutAttribute::PlaneOffset, &offset_bytes) }
     }
 
     /// Returns the raw cuBLASLt matrix layout handle.
     ///
     /// The returned handle is borrowed and remains valid only while the layout
     /// is alive.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtMatrixLayout_t {
         self.raw
     }
@@ -307,6 +354,10 @@ impl MatrixLayout {
     /// `raw` must be a valid `cublasLtMatrixLayout_t` handle created by cuBLASLt.
     /// The returned wrapper takes ownership and will destroy it with
     /// `cublasLtMatrixLayoutDestroy`; no other owner may destroy or keep using it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NullHandle`] if `raw` is null.
     pub unsafe fn from_raw(raw: sys::cublasLtMatrixLayout_t) -> Result<Self> {
         if raw.is_null() {
             return Err(Error::NullHandle);
@@ -318,24 +369,27 @@ impl MatrixLayout {
     /// Releases ownership and returns the raw cuBLASLt matrix layout handle.
     ///
     /// The caller becomes responsible for destroying the handle.
+    #[must_use]
     pub fn into_raw(self) -> sys::cublasLtMatrixLayout_t {
         let raw = self.raw;
-        std::mem::forget(self);
+        mem::forget(self);
         raw
     }
 }
 
 impl Drop for MatrixLayout {
     fn drop(&mut self) {
+        // SAFETY: `cublasLtMatrixLayoutDestroy` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cublasLtMatrixLayoutDestroy(self.raw)) {
+            if let Err(error) = try_ffi!(sys::cublasLtMatrixLayoutDestroy(self.raw)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublasLt matrix layout: {err}");
+                eprintln!("failed to destroy cublaslt matrix layout: {error}");
             }
         }
     }
 }
 
+/// An owned cuBLASLt descriptor for matrix scaling, transposition, and layout conversion.
 #[derive(Debug)]
 pub struct MatrixTransformDescriptor {
     raw: sys::cublasLtMatrixTransformDesc_t,
@@ -352,6 +406,7 @@ impl MatrixTransformDescriptor {
     /// a valid handle.
     pub fn create(scale_type: DataType) -> Result<Self> {
         let mut raw = ptr::null_mut();
+        // SAFETY: `cublasLtMatrixTransformDescCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cublasLtMatrixTransformDescCreate(
                 &raw mut raw,
@@ -372,29 +427,42 @@ impl MatrixTransformDescriptor {
     ///
     /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
     /// attribute storage expected by cuBLASLt.
-    pub fn set_attribute<T>(
+    ///
+    /// # Safety
+    ///
+    /// `T` must match the selected attribute's native representation, including
+    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    pub unsafe fn set_attribute<T>(
         &mut self,
         attr: MatrixTransformDescAttribute,
         value: &T,
     ) -> Result<()> {
         set_attribute(
+            // SAFETY: `cublasLtMatrixTransformDescSetAttribute` receives live handles owned by the wrappers.
             |value, size| unsafe {
                 sys::cublasLtMatrixTransformDescSetAttribute(self.raw, attr.into(), value, size)
             },
-            (value as *const T).cast(),
+            ptr::from_ref::<T>(value).cast(),
             size_of::<T>(),
         )
     }
 
     /// Returns a matrix transform descriptor attribute value.
     ///
+    /// `T` must accept every bit pattern; enum attributes are read as integers and validated.
+    ///
     /// # Errors
     ///
     /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
     /// match `T`.
-    pub fn attribute<T: Copy>(&self, attr: MatrixTransformDescAttribute) -> Result<T> {
+    pub fn attribute<T: AnyBitPatternDeviceRepr>(
+        &self,
+        attr: MatrixTransformDescAttribute,
+    ) -> Result<T> {
+        let () = T::LAYOUT;
         let mut value = MaybeUninit::<T>::uninit();
         let written = read_attribute(
+            // SAFETY: `cublasLtMatrixTransformDescGetAttribute` receives live handles owned by the wrappers.
             |value, size, written| unsafe {
                 sys::cublasLtMatrixTransformDescGetAttribute(
                     self.raw,
@@ -409,6 +477,7 @@ impl MatrixTransformDescriptor {
             "matrix transform descriptor attribute",
         )?;
         ensure_exact_size(written, size_of::<T>())?;
+        // SAFETY: the library wrote exactly `size_of::<T>()` bytes, checked above, initializing `value`.
         Ok(unsafe { value.assume_init() })
     }
 
@@ -418,10 +487,13 @@ impl MatrixTransformDescriptor {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_pointer_mode(&mut self, pointer_mode: PointerMode) -> Result<()> {
-        self.set_attribute(
-            MatrixTransformDescAttribute::PointerMode,
-            &sys::cublasLtPointerMode_t::from(pointer_mode),
-        )
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe {
+            self.set_attribute(
+                MatrixTransformDescAttribute::PointerMode,
+                &sys::cublasLtPointerMode_t::from(pointer_mode),
+            )
+        }
     }
 
     /// Sets the transpose mode applied to input matrix A.
@@ -430,10 +502,13 @@ impl MatrixTransformDescriptor {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_transpose_a(&mut self, operation: Operation) -> Result<()> {
-        self.set_attribute(
-            MatrixTransformDescAttribute::TransposeA,
-            &sys::cublasOperation_t::from(operation),
-        )
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe {
+            self.set_attribute(
+                MatrixTransformDescAttribute::TransposeA,
+                &sys::cublasOperation_t::from(operation),
+            )
+        }
     }
 
     /// Sets the transpose mode applied to input matrix B.
@@ -442,16 +517,20 @@ impl MatrixTransformDescriptor {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_transpose_b(&mut self, operation: Operation) -> Result<()> {
-        self.set_attribute(
-            MatrixTransformDescAttribute::TransposeB,
-            &sys::cublasOperation_t::from(operation),
-        )
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe {
+            self.set_attribute(
+                MatrixTransformDescAttribute::TransposeB,
+                &sys::cublasOperation_t::from(operation),
+            )
+        }
     }
 
     /// Returns the raw cuBLASLt matrix transform descriptor handle.
     ///
     /// The returned handle is borrowed and remains valid only while the
     /// descriptor is alive.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtMatrixTransformDesc_t {
         self.raw
     }
@@ -464,6 +543,10 @@ impl MatrixTransformDescriptor {
     /// cuBLASLt. The returned wrapper takes ownership and will destroy it with
     /// `cublasLtMatrixTransformDescDestroy`; no other owner may destroy or keep
     /// using it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NullHandle`] if `raw` is null.
     pub unsafe fn from_raw(raw: sys::cublasLtMatrixTransformDesc_t) -> Result<Self> {
         if raw.is_null() {
             return Err(Error::NullHandle);
@@ -475,19 +558,21 @@ impl MatrixTransformDescriptor {
     /// Releases ownership and returns the raw cuBLASLt matrix transform descriptor handle.
     ///
     /// The caller becomes responsible for destroying the handle.
+    #[must_use]
     pub fn into_raw(self) -> sys::cublasLtMatrixTransformDesc_t {
         let raw = self.raw;
-        std::mem::forget(self);
+        mem::forget(self);
         raw
     }
 }
 
 impl Drop for MatrixTransformDescriptor {
     fn drop(&mut self) {
+        // SAFETY: `cublasLtMatrixTransformDescDestroy` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cublasLtMatrixTransformDescDestroy(self.raw)) {
+            if let Err(error) = try_ffi!(sys::cublasLtMatrixTransformDescDestroy(self.raw)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublasLt matrix transform descriptor: {err}");
+                eprintln!("failed to destroy cublaslt matrix transform descriptor: {error}");
             }
         }
     }
@@ -498,7 +583,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn matrix_layout_sets_strided_batch_attributes() -> Result<()> {
+    fn test_matrix_layout_sets_strided_batch_attributes() -> Result<()> {
         let mut layout = MatrixLayout::create(DataType::F32, 2, 3, 3)?;
 
         layout.set_strided_batch(4, 6)?;
@@ -510,6 +595,7 @@ mod tests {
     }
 }
 
+/// An owned cuBLASLt descriptor controlling floating-point emulation.
 #[derive(Debug)]
 pub struct EmulationDescriptor {
     raw: sys::cublasLtEmulationDesc_t,
@@ -526,6 +612,7 @@ impl EmulationDescriptor {
     /// a valid handle.
     pub fn create() -> Result<Self> {
         let mut raw = ptr::null_mut();
+        // SAFETY: `cublasLtEmulationDescCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cublasLtEmulationDescCreate(&raw mut raw))?;
         }
@@ -543,25 +630,39 @@ impl EmulationDescriptor {
     ///
     /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
     /// attribute storage expected by cuBLASLt.
-    pub fn set_attribute<T>(&mut self, attr: EmulationDescAttribute, value: &T) -> Result<()> {
+    ///
+    /// # Safety
+    ///
+    /// `T` must match the selected attribute's native representation, including
+    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    pub unsafe fn set_attribute<T>(
+        &mut self,
+        attr: EmulationDescAttribute,
+        value: &T,
+    ) -> Result<()> {
         set_attribute(
+            // SAFETY: `cublasLtEmulationDescSetAttribute` receives live handles owned by the wrappers.
             |value, size| unsafe {
                 sys::cublasLtEmulationDescSetAttribute(self.raw, attr.into(), value, size)
             },
-            (value as *const T).cast(),
+            ptr::from_ref::<T>(value).cast(),
             size_of::<T>(),
         )
     }
 
     /// Returns an emulation descriptor attribute value.
     ///
+    /// `T` must accept every bit pattern; enum attributes are read as integers and validated.
+    ///
     /// # Errors
     ///
     /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
     /// match `T`.
-    pub fn attribute<T: Copy>(&self, attr: EmulationDescAttribute) -> Result<T> {
+    pub fn attribute<T: AnyBitPatternDeviceRepr>(&self, attr: EmulationDescAttribute) -> Result<T> {
+        let () = T::LAYOUT;
         let mut value = MaybeUninit::<T>::uninit();
         let written = read_attribute(
+            // SAFETY: `cublasLtEmulationDescGetAttribute` receives live handles owned by the wrappers.
             |value, size, written| unsafe {
                 sys::cublasLtEmulationDescGetAttribute(self.raw, attr.into(), value, size, written)
             },
@@ -570,6 +671,7 @@ impl EmulationDescriptor {
             "emulation descriptor attribute",
         )?;
         ensure_exact_size(written, size_of::<T>())?;
+        // SAFETY: the library wrote exactly `size_of::<T>()` bytes, checked above, initializing `value`.
         Ok(unsafe { value.assume_init() })
     }
 
@@ -578,11 +680,14 @@ impl EmulationDescriptor {
     /// # Errors
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
-    pub fn set_strategy(&mut self, strategy: singe_cuda::types::EmulationStrategy) -> Result<()> {
-        self.set_attribute(
-            EmulationDescAttribute::Strategy,
-            &library_types::cudaEmulationStrategy::from(strategy),
-        )
+    pub fn set_strategy(&mut self, strategy: EmulationStrategy) -> Result<()> {
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe {
+            self.set_attribute(
+                EmulationDescAttribute::Strategy,
+                &library_types::cudaEmulationStrategy::from(strategy),
+            )
+        }
     }
 
     /// Sets the special values support for floating-point emulation.
@@ -595,7 +700,8 @@ impl EmulationDescriptor {
         support: EmulationSpecialValuesSupport,
     ) -> Result<()> {
         let support = library_types::cudaEmulationSpecialValuesSupport::from(support);
-        self.set_attribute(EmulationDescAttribute::SpecialValuesSupport, &support)
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe { self.set_attribute(EmulationDescAttribute::SpecialValuesSupport, &support) }
     }
 
     /// Sets the mantissa bit control for fixed-point emulation.
@@ -604,10 +710,13 @@ impl EmulationDescriptor {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_mantissa_control(&mut self, control: EmulationMantissaControl) -> Result<()> {
-        self.set_attribute(
-            EmulationDescAttribute::FixedPointMantissaControl,
-            &library_types::cudaEmulationMantissaControl::from(control),
-        )
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe {
+            self.set_attribute(
+                EmulationDescAttribute::FixedPointMantissaControl,
+                &library_types::cudaEmulationMantissaControl::from(control),
+            )
+        }
     }
 
     /// Sets the maximum mantissa bit count for fixed-point emulation.
@@ -616,10 +725,13 @@ impl EmulationDescriptor {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_max_mantissa_bit_count(&mut self, count: i32) -> Result<()> {
-        self.set_attribute(
-            EmulationDescAttribute::FixedPointMaxMantissaBitCount,
-            &count,
-        )
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe {
+            self.set_attribute(
+                EmulationDescAttribute::FixedPointMaxMantissaBitCount,
+                &count,
+            )
+        }
     }
 
     /// Sets the mantissa bit offset for fixed-point emulation.
@@ -628,13 +740,15 @@ impl EmulationDescriptor {
     ///
     /// Returns an error if cuBLASLt rejects the attribute.
     pub fn set_mantissa_bit_offset(&mut self, offset: i32) -> Result<()> {
-        self.set_attribute(EmulationDescAttribute::FixedPointMantissaBitOffset, &offset)
+        // SAFETY: this named adapter selects the attribute's documented native representation.
+        unsafe { self.set_attribute(EmulationDescAttribute::FixedPointMantissaBitOffset, &offset) }
     }
 
     /// Returns the raw cuBLASLt emulation descriptor handle.
     ///
     /// The returned handle is borrowed and remains valid only while the
     /// descriptor is alive.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtEmulationDesc_t {
         self.raw
     }
@@ -646,6 +760,10 @@ impl EmulationDescriptor {
     /// `raw` must be a valid `cublasLtEmulationDesc_t` handle created by
     /// cuBLASLt. The returned wrapper takes ownership and will destroy it with
     /// `cublasLtEmulationDescDestroy`; no other owner may destroy or keep using it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NullHandle`] if `raw` is null.
     pub unsafe fn from_raw(raw: sys::cublasLtEmulationDesc_t) -> Result<Self> {
         if raw.is_null() {
             return Err(Error::NullHandle);
@@ -657,19 +775,21 @@ impl EmulationDescriptor {
     /// Releases ownership and returns the raw cuBLASLt emulation descriptor handle.
     ///
     /// The caller becomes responsible for destroying the handle.
+    #[must_use]
     pub fn into_raw(self) -> sys::cublasLtEmulationDesc_t {
         let raw = self.raw;
-        std::mem::forget(self);
+        mem::forget(self);
         raw
     }
 }
 
 impl Drop for EmulationDescriptor {
     fn drop(&mut self) {
+        // SAFETY: `cublasLtEmulationDescDestroy` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cublasLtEmulationDescDestroy(self.raw)) {
+            if let Err(error) = try_ffi!(sys::cublasLtEmulationDescDestroy(self.raw)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublasLt emulation descriptor: {err}");
+                eprintln!("failed to destroy cublaslt emulation descriptor: {error}");
             }
         }
     }

@@ -4,6 +4,7 @@ use bomboni_request::{
     error::{CommonError, PathErrorStep, RequestError, RequestResult},
     parse::{RequestParse, RequestParseInto},
 };
+
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::proto::{onnx, onnx_structure};
@@ -53,7 +54,7 @@ pub struct Model {
 ///
 /// Operator sets are uniquely identified by `(domain, version)`. The empty
 /// domain denotes the standard ONNX operator set.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperatorSetId {
     /// Operator set domain, or `None` for the standard ONNX operator set.
     pub domain: Option<String>,
@@ -190,7 +191,7 @@ pub struct Tensor {
     /// Whether tensor content is embedded in the protobuf or stored externally.
     pub data_location: TensorDataLocation,
     /// Parsed inline tensor data, if present and not external.
-    pub data: Option<TensorData>,
+    pub data: Option<TensorElements>,
     /// External data location metadata.
     ///
     /// Recognized ONNX keys include `location`, `offset`, `length`, and
@@ -205,7 +206,7 @@ pub struct Tensor {
 /// ONNX may store tensor elements either in type-specific repeated fields or in
 /// a raw little-endian byte buffer.
 #[derive(Debug, Clone, PartialEq)]
-pub enum TensorData {
+pub enum TensorElements {
     /// `float_data`: `FLOAT` values or interleaved real/imaginary `COMPLEX64` values.
     Float(Vec<f32>),
     /// `int32_data`: integer, boolean, half, bfloat16, float8, float4, 4-bit, and 2-bit values.
@@ -268,7 +269,7 @@ pub struct ValueInfo {
 pub struct Type {
     /// Optional semantic denotation for the whole type.
     ///
-    /// ONNX defines standard type denotations in its TypeDenotation document.
+    /// ONNX defines standard type denotations in its `TypeDenotation` document.
     pub denotation: Option<String>,
     /// Concrete kind of type.
     pub value: TypeValue,
@@ -290,7 +291,7 @@ pub enum TypeValue {
 }
 
 /// Dense tensor type and optional shape.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TensorType {
     /// Tensor element type. ONNX requires this to be a valid non-undefined tensor data type.
     pub element_type: TensorDataType,
@@ -324,7 +325,7 @@ pub struct TypeOptional {
 }
 
 /// Sparse tensor type and optional shape.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SparseTensorType {
     /// Sparse tensor element type. ONNX requires this to be a valid non-undefined tensor data type.
     pub element_type: TensorDataType,
@@ -333,7 +334,7 @@ pub struct SparseTensorType {
 }
 
 /// ONNX tensor shape.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TensorShape {
     /// Shape dimensions.
     pub dimensions: Vec<Dimension>,
@@ -342,7 +343,7 @@ pub struct TensorShape {
 /// One tensor dimension.
 ///
 /// A dimension may be a concrete integer value, a symbolic parameter, or absent.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Dimension {
     /// Optional standard semantic denotation for this axis.
     pub denotation: Option<String>,
@@ -351,7 +352,7 @@ pub struct Dimension {
 }
 
 /// Concrete or symbolic dimension value.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DimensionValue {
     /// Integer dimension size.
     Value(i64),
@@ -360,7 +361,7 @@ pub enum DimensionValue {
 }
 
 /// Quantization annotation for a tensor.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TensorAnnotation {
     /// Annotated tensor name.
     pub tensor_name: String,
@@ -690,11 +691,38 @@ impl RequestParse<onnx::TensorProto> for Tensor {
             ));
         }
 
-        let data_location = TensorDataLocation::try_from(value.data_location).unwrap_or_default();
+        let data_location = parse_enum(
+            value.data_location,
+            onnx::TensorProto::DATA_LOCATION_FIELD_NAME,
+        )?;
+        let populated = [
+            !value.raw_data.is_empty(),
+            !value.float_data.is_empty(),
+            !value.int32_data.is_empty(),
+            !value.int64_data.is_empty(),
+            !value.double_data.is_empty(),
+            !value.uint64_data.is_empty(),
+            !value.string_data.is_empty(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count();
+        if populated > 1 || data_location == TensorDataLocation::External && populated != 0 {
+            return Err(RequestError::field(
+                onnx::TensorProto::DATA_LOCATION_FIELD_NAME,
+                CommonError::TypeMismatch,
+            ));
+        }
         let data = match data_location {
             TensorDataLocation::External => None,
             TensorDataLocation::Default => parse_tensor_data(&value, data_type)?,
         };
+        if data.is_none() && populated != 0 {
+            return Err(RequestError::field(
+                onnx::TensorProto::DATA_TYPE_FIELD_NAME,
+                CommonError::TypeMismatch,
+            ));
+        }
 
         Ok(Self {
             dimensions: value.dims,
@@ -1310,15 +1338,22 @@ fn parse_strings(values: Vec<Vec<u8>>, field: &'static str) -> RequestResult<Vec
 fn parse_tensor_data(
     value: &onnx::TensorProto,
     data_type: TensorDataType,
-) -> RequestResult<Option<TensorData>> {
+) -> RequestResult<Option<TensorElements>> {
     if !value.raw_data.is_empty() {
-        return Ok(Some(TensorData::Raw(value.raw_data.clone())));
+        if data_type == TensorDataType::String {
+            return Err(RequestError::field(
+                onnx::TensorProto::RAW_DATA_FIELD_NAME,
+                CommonError::TypeMismatch,
+            ));
+        }
+        return Ok(Some(TensorElements::Raw(value.raw_data.clone())));
     }
 
     match data_type {
         TensorDataType::Undefined => unreachable!("undefined tensor data type is rejected earlier"),
         TensorDataType::Float | TensorDataType::Complex64 => {
-            Ok((!value.float_data.is_empty()).then(|| TensorData::Float(value.float_data.clone())))
+            Ok((!value.float_data.is_empty())
+                .then(|| TensorElements::Float(value.float_data.clone())))
         }
         TensorDataType::Int32
         | TensorDataType::Uint8
@@ -1338,28 +1373,26 @@ fn parse_tensor_data(
         | TensorDataType::Float8e8m0
         | TensorDataType::Uint2
         | TensorDataType::Int2 => {
-            Ok((!value.int32_data.is_empty()).then(|| TensorData::Int32(value.int32_data.clone())))
+            Ok((!value.int32_data.is_empty())
+                .then(|| TensorElements::Int32(value.int32_data.clone())))
         }
         TensorDataType::String => {
             if value.string_data.is_empty() {
                 Ok(None)
             } else {
-                Ok(Some(TensorData::String(parse_strings(
+                Ok(Some(TensorElements::String(parse_strings(
                     value.string_data.clone(),
                     onnx::TensorProto::STRING_DATA_FIELD_NAME,
                 )?)))
             }
         }
         TensorDataType::Int64 => {
-            Ok((!value.int64_data.is_empty()).then(|| TensorData::Int64(value.int64_data.clone())))
+            Ok((!value.int64_data.is_empty())
+                .then(|| TensorElements::Int64(value.int64_data.clone())))
         }
-        TensorDataType::Double | TensorDataType::Complex128 => {
-            Ok((!value.double_data.is_empty())
-                .then(|| TensorData::Double(value.double_data.clone())))
-        }
-        TensorDataType::Uint32 | TensorDataType::Uint64 => {
-            Ok((!value.uint64_data.is_empty())
-                .then(|| TensorData::Uint64(value.uint64_data.clone())))
-        }
+        TensorDataType::Double | TensorDataType::Complex128 => Ok((!value.double_data.is_empty())
+            .then(|| TensorElements::Double(value.double_data.clone()))),
+        TensorDataType::Uint32 | TensorDataType::Uint64 => Ok((!value.uint64_data.is_empty())
+            .then(|| TensorElements::Uint64(value.uint64_data.clone()))),
     }
 }

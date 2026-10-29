@@ -1,40 +1,47 @@
+use std::sync::Arc;
+
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{ChannelLayout, ImageView, ImageViewMut},
-    pipeline::{ImageAllocator, Workspace},
+    image::{
+        Image,
+        view::{ChannelLayout, ImageOutputView, ImageView},
+    },
+    pipeline::image::{
+        ImageBacking, ImagePipeline, ResizeSqrPixel, ResizeSqrPixelAdvanced, Rotate,
+    },
 };
 
-use super::{ImageBacking, ImagePipeline, ResizeSqrPixel, ResizeSqrPixelAdvanced, Rotate};
-
 type GeometricTransformOperation<T, G, L> =
-    fn(&StreamContext, &G, &ImageView<'_, T, L>, &mut ImageViewMut<'_, T, L>) -> Result<()>;
+    fn(&StreamContext, &G, &ImageView<'_, T, L>, &mut ImageOutputView<'_, T, L>) -> Result<()>;
 
-use super::geometry_dispatch::{ResizeSqrPixelAdvancedImage, ResizeSqrPixelImage, RotateImage};
+use crate::pipeline::image::geometry_dispatch::{
+    ResizeSqrPixelAdvancedImage, ResizeSqrPixelImage, RotateImage,
+};
 
-#[path = "geometry_remap_methods.rs"]
 mod remap_methods;
-#[path = "geometry_resize_advanced_scratch_methods.rs"]
 mod resize_advanced_scratch_methods;
-#[path = "geometry_warp_methods.rs"]
 mod warp_methods;
-impl<'a, T, L> ImagePipeline<'a, T, L>
+
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
 {
     fn transform_geometry<G>(
         self,
-        destination_size: crate::types::Size,
+        mut destination: Image<T, L>,
         geometry: &G,
         operation: GeometricTransformOperation<T, G, L>,
     ) -> Result<Self> {
-        let mut destination = self.workspace.image::<T, L>(destination_size)?;
+        self.stream_context
+            .stream()
+            .defer_drop_until_capture_end(Arc::clone(destination.allocation()))?;
+        self.ensure_eager()?;
 
         {
             let source = self.view()?;
-            let mut destination_view = destination.view_mut()?;
+            let mut destination_view = destination.output_view()?;
             operation(
                 self.stream_context,
                 geometry,
@@ -51,32 +58,67 @@ where
     }
 }
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
     Self: RotateImage<T, L>,
 {
-    pub fn rotate(self, rotate: Rotate) -> Result<Self> {
+    /// Rotates the source ROI using the configured angle, shifts, and interpolation.
+    ///
+    /// `rotate.angle` is in degrees and the shifts are in pixels. Source and destination
+    /// ROIs select the native processing regions.
+    /// Takes ownership of the supplied initialized `destination` and returns it in the
+    /// resulting pipeline. Pixels outside native writes and ignored alpha retain their
+    /// destination values.
+    /// Prepares all participating image regions, waits for their producers
+    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints. The
+    /// destination ROI must fit within the destination image. NPP may reject geometry
+    /// or interpolation parameters.
+    /// Image view construction or capture-time destination retention can also fail.
+    pub fn rotate(self, rotate: Rotate, destination: Image<T, L>) -> Result<Self> {
         self.transform_geometry(
-            rotate.destination_roi.size(),
+            destination,
             &rotate,
             <Self as RotateImage<T, L>>::rotate_image,
         )
     }
 }
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
 {
+    /// Resizes with explicit square-pixel scale factors and shifts.
+    ///
+    /// `resize` supplies source and destination ROIs, independent horizontal and vertical
+    /// scale factors, shifts in pixels, and interpolation.
+    /// Pixels outside the transformed source intersection, ignored alpha, and padding can
+    /// remain unwritten. Initialize uncovered locations before reading a complete image.
+    /// Prepares all participating image regions, waits for their producers
+    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints. The
+    /// destination ROI must fit within the destination image. NPP may reject geometry
+    /// or interpolation parameters.
     pub fn resize_sqr_pixel_into(
         stream_context: &StreamContext,
         resize: &ResizeSqrPixel,
         source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()>
     where
         Self: ResizeSqrPixelImage<T, L>,
@@ -89,11 +131,30 @@ where
         )
     }
 
+    /// Resizes with explicit scale factors and advanced interpolation.
+    ///
+    /// `resize` supplies source and destination ROIs, independent horizontal and vertical
+    /// scale factors, and interpolation. The provided implementation uses C1 `u8` images.
+    /// Allocates temporary device scratch using the native size query.
+    /// Pixels outside the transformed source intersection, ignored alpha, and padding can
+    /// remain unwritten. Initialize uncovered locations before reading a complete image.
+    /// Prepares all participating image regions, waits for their producers
+    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints. The
+    /// destination ROI must fit within the destination image. NPP may reject geometry
+    /// or interpolation parameters.
+    /// Scratch-size queries and checked size conversions can fail. Scratch allocation can fail.
     pub fn resize_sqr_pixel_advanced_into(
         stream_context: &StreamContext,
         resize: &ResizeSqrPixelAdvanced,
         source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()>
     where
         Self: ResizeSqrPixelAdvancedImage<T, L>,
@@ -107,32 +168,78 @@ where
     }
 }
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
     Self: ResizeSqrPixelAdvancedImage<T, L>,
 {
-    pub fn resize_sqr_pixel_advanced(self, resize: ResizeSqrPixelAdvanced) -> Result<Self> {
+    /// Resizes with explicit scale factors and advanced interpolation.
+    ///
+    /// `resize` supplies source and destination ROIs, independent horizontal and vertical
+    /// scale factors, and interpolation. The provided implementation uses C1 `u8` images.
+    /// Allocates temporary device scratch using the native size query.
+    /// Takes ownership of the supplied initialized `destination` and returns it in the
+    /// resulting pipeline. Pixels outside native writes and ignored alpha retain their
+    /// destination values.
+    /// Prepares all participating image regions, waits for their producers
+    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints. The
+    /// destination ROI must fit within the destination image. NPP may reject geometry
+    /// or interpolation parameters.
+    /// Scratch-size queries and checked size conversions can fail. Scratch allocation can fail.
+    /// Image view construction or capture-time destination retention can also fail.
+    pub fn resize_sqr_pixel_advanced(
+        self,
+        resize: ResizeSqrPixelAdvanced,
+        destination: Image<T, L>,
+    ) -> Result<Self> {
         self.transform_geometry(
-            resize.destination_roi.size(),
+            destination,
             &resize,
             <Self as ResizeSqrPixelAdvancedImage<T, L>>::resize_sqr_pixel_advanced_image,
         )
     }
 }
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
     Self: ResizeSqrPixelImage<T, L>,
 {
-    pub fn resize_sqr_pixel(self, resize: ResizeSqrPixel) -> Result<Self> {
+    /// Resizes with explicit square-pixel scale factors and shifts.
+    ///
+    /// `resize` supplies source and destination ROIs, independent horizontal and vertical
+    /// scale factors, shifts in pixels, and interpolation.
+    /// Takes ownership of the supplied initialized `destination` and returns it in the
+    /// resulting pipeline. Pixels outside native writes and ignored alpha retain their
+    /// destination values.
+    /// Prepares all participating image regions, waits for their producers
+    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints. The
+    /// destination ROI must fit within the destination image. NPP may reject geometry
+    /// or interpolation parameters.
+    /// Image view construction or capture-time destination retention can also fail.
+    pub fn resize_sqr_pixel(
+        self,
+        resize: ResizeSqrPixel,
+        destination: Image<T, L>,
+    ) -> Result<Self> {
         self.transform_geometry(
-            resize.destination_roi.size(),
+            destination,
             &resize,
             <Self as ResizeSqrPixelImage<T, L>>::resize_sqr_pixel_image,
         )

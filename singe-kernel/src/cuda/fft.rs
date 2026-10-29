@@ -1,19 +1,24 @@
 //! Small FFT helpers, interleaved complex transforms, and normalization.
 
-#[cfg(feature = "dtype-bf16")]
+use std::{f32::consts::PI, mem::MaybeUninit, sync::Arc};
+
+use ::cutile::cuda_async::device_buffer::DevicePointer;
+#[cfg(feature = "dtype_bf16")]
 use singe_cuda::types::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use singe_cuda::types::f16;
 use singe_cuda::{
+    context::Context,
+    error::Error as CudaError,
     memory::DeviceMemory,
     stream::Stream,
-    view::{DeviceSlice, DeviceSliceMut},
+    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
 };
 
 #[cfg(feature = "cutile")]
 use crate::cuda::cutile;
 use crate::{
-    cuda::interop::{borrowed_stream, input_pointer, output_pointer},
+    cuda::interop::{input_pointer, output_pointer},
     error::{Error, Result},
     utility::{checked_element_count, checked_i32_value, ensure_len},
 };
@@ -102,9 +107,7 @@ impl FftPlanConfig {
             transform: "c2c".into(),
             n,
         })?;
-        Ok(Self::c2c_f32_interleaved(
-            n, batch, factors, packing, direction,
-        ))
+        Self::c2c_f32_interleaved(n, batch, factors, packing, direction)
     }
 
     pub fn c2r_f32_interleaved_supported(n: usize, batch: usize) -> Result<Self> {
@@ -112,7 +115,7 @@ impl FftPlanConfig {
             transform: "c2r".into(),
             n,
         })?;
-        Ok(Self::c2r_f32_interleaved(n, batch, factors, packing))
+        Self::c2r_f32_interleaved(n, batch, factors, packing)
     }
 
     pub fn r2c_f32_interleaved_supported(n: usize, batch: usize) -> Result<Self> {
@@ -120,17 +123,18 @@ impl FftPlanConfig {
             transform: "r2c".into(),
             n,
         })?;
-        Ok(Self::r2c_f32_interleaved(n, batch, factors, packing))
+        Self::r2c_f32_interleaved(n, batch, factors, packing)
     }
 
-    pub const fn c2c_f32_interleaved(
+    pub fn c2c_f32_interleaved(
         n: usize,
         batch: usize,
         factors: [usize; 3],
         packing: usize,
         direction: FftDirection,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let distance = checked_element_count(n, 2)?;
+        let config = Self {
             transform: FftTransformKind::ComplexToComplex,
             precision: FftPrecision::F32,
             complex_layout: FftComplexLayout::Interleaved,
@@ -141,18 +145,20 @@ impl FftPlanConfig {
             packing,
             input_stride: 2,
             output_stride: 2,
-            input_distance: n * 2,
-            output_distance: n * 2,
-        }
+            input_distance: distance,
+            output_distance: distance,
+        };
+        validate_fft_plan_config(config)?;
+        Ok(config)
     }
 
-    pub const fn c2r_f32_interleaved(
+    pub fn c2r_f32_interleaved(
         n: usize,
         batch: usize,
         factors: [usize; 3],
         packing: usize,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let config = Self {
             transform: FftTransformKind::ComplexToReal,
             precision: FftPrecision::F32,
             complex_layout: FftComplexLayout::Interleaved,
@@ -163,18 +169,20 @@ impl FftPlanConfig {
             packing,
             input_stride: 2,
             output_stride: 1,
-            input_distance: (n / 2 + 1) * 2,
+            input_distance: checked_element_count(n / 2 + 1, 2)?,
             output_distance: n,
-        }
+        };
+        validate_fft_plan_config(config)?;
+        Ok(config)
     }
 
-    pub const fn r2c_f32_interleaved(
+    pub fn r2c_f32_interleaved(
         n: usize,
         batch: usize,
         factors: [usize; 3],
         packing: usize,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let config = Self {
             transform: FftTransformKind::RealToComplex,
             precision: FftPrecision::F32,
             complex_layout: FftComplexLayout::Interleaved,
@@ -186,8 +194,10 @@ impl FftPlanConfig {
             input_stride: 1,
             output_stride: 2,
             input_distance: n,
-            output_distance: (n / 2 + 1) * 2,
-        }
+            output_distance: checked_element_count(n / 2 + 1, 2)?,
+        };
+        validate_fft_plan_config(config)?;
+        Ok(config)
     }
 
     pub fn with_strided_layout(
@@ -283,14 +293,14 @@ pub struct FftPlan {
 }
 
 impl FftPlan {
-    pub fn create(config: FftPlanConfig) -> Result<Self> {
+    pub fn create(context: &Arc<Context>, config: FftPlanConfig) -> Result<Self> {
         validate_fft_plan_config(config)?;
         let workspace_bytes = estimate_fft_workspace_bytes(config)?;
         match config.transform {
             FftTransformKind::ComplexToComplex
             | FftTransformKind::RealToComplex
             | FftTransformKind::ComplexToReal => {
-                let (twiddle_real, twiddle_imag) = create_twiddle_tables(config.n)?;
+                let (twiddle_real, twiddle_imag) = create_twiddle_tables(context, config.n)?;
                 Ok(Self {
                     config,
                     workspace_bytes,
@@ -299,6 +309,17 @@ impl FftPlan {
                 })
             }
         }
+    }
+
+    pub fn context(&self) -> &Arc<Context> {
+        self.twiddle_real.context()
+    }
+
+    fn validate_stream(&self, stream: &Stream) -> Result<()> {
+        if self.context() != stream.context() {
+            return Err(CudaError::StreamContextMismatch.into());
+        }
+        Ok(())
     }
 
     pub const fn config(&self) -> FftPlanConfig {
@@ -317,12 +338,27 @@ impl FftPlan {
         self.workspace_bytes
     }
 
-    pub fn create_workspace(&self) -> Result<Option<DeviceMemory<u8>>> {
+    pub fn create_workspace(&self) -> Result<Option<DeviceMemory<MaybeUninit<u8>>>> {
         if self.workspace_bytes == 0 {
             Ok(None)
         } else {
-            Ok(DeviceMemory::create(self.workspace_bytes).map(Some)?)
+            Ok(
+                DeviceMemory::<u8>::create_uninit(self.context(), self.workspace_bytes)
+                    .map(Some)?,
+            )
         }
+    }
+
+    fn validate_workspace<W: DeviceOutput<u8> + ?Sized>(
+        &self,
+        workspace: Option<&W>,
+    ) -> Result<()> {
+        if let Some(workspace) = workspace
+            && workspace.context() != self.context()
+        {
+            return Err(CudaError::MemoryContextMismatch.into());
+        }
+        self.validate_workspace_len(workspace.map(DeviceInput::len))
     }
 
     fn validate_workspace_len(&self, workspace_len: Option<usize>) -> Result<()> {
@@ -373,6 +409,17 @@ impl FftPlan {
     }
 
     fn validate_c2r_f32_interleaved(&self, out_len: usize, input_len: usize) -> Result<()> {
+        self.validate_c2r_f32_output(out_len)?;
+        let input_lanes = checked_element_count(
+            checked_element_count(self.config.batch, self.config.n / 2 + 1)?,
+            2,
+        )?;
+        checked_i32_value(input_lanes)?;
+        let (input_layout, _) = fft_plan_buffer_layouts(self.config)?;
+        input_layout.ensure_len_at_least(input_len)
+    }
+
+    fn validate_c2r_f32_output(&self, out_len: usize) -> Result<()> {
         validate_fft_plan_config(self.config)?;
         if !self.config.is_c2r_f32_interleaved() {
             return Err(Error::UnsupportedConfiguration {
@@ -381,15 +428,9 @@ impl FftPlan {
             });
         }
 
-        let input_lanes = checked_element_count(
-            checked_element_count(self.config.batch, self.config.n / 2 + 1)?,
-            2,
-        )?;
         let output_values = checked_element_count(self.config.batch, self.config.n)?;
-        checked_i32_value(input_lanes)?;
         checked_i32_value(output_values)?;
-        let (input_layout, output_layout) = fft_plan_buffer_layouts(self.config)?;
-        input_layout.ensure_len_at_least(input_len)?;
+        let (_, output_layout) = fft_plan_buffer_layouts(self.config)?;
         output_layout.ensure_len_at_least(out_len)
     }
 }
@@ -413,9 +454,14 @@ pub struct FftC2cPlan {
 }
 
 impl FftC2cPlan {
-    pub fn create(n: usize, factors: [usize; 3], packing: usize) -> Result<Self> {
+    pub fn create(
+        context: &Arc<Context>,
+        n: usize,
+        factors: [usize; 3],
+        packing: usize,
+    ) -> Result<Self> {
         validate_plan_shape(n, factors, packing)?;
-        let (twiddle_real, twiddle_imag) = create_twiddle_tables(n)?;
+        let (twiddle_real, twiddle_imag) = create_twiddle_tables(context, n)?;
         Ok(Self {
             n,
             factors,
@@ -423,6 +469,17 @@ impl FftC2cPlan {
             twiddle_real,
             twiddle_imag,
         })
+    }
+
+    pub fn context(&self) -> &Arc<Context> {
+        self.twiddle_real.context()
+    }
+
+    fn validate_stream(&self, stream: &Stream) -> Result<()> {
+        if self.context() != stream.context() {
+            return Err(CudaError::StreamContextMismatch.into());
+        }
+        Ok(())
     }
 
     pub const fn n(&self) -> usize {
@@ -650,91 +707,132 @@ fn supported_f32_plan_shape(n: usize) -> Option<([usize; 3], usize)> {
     })
 }
 
-fn create_twiddle_tables(n: usize) -> Result<(DeviceMemory<f32>, DeviceMemory<f32>)> {
+fn create_twiddle_tables(
+    context: &Arc<Context>,
+    n: usize,
+) -> Result<(DeviceMemory<f32>, DeviceMemory<f32>)> {
     let mut real = Vec::with_capacity(n);
     let mut imag = Vec::with_capacity(n);
     for phase in 0..n {
-        let angle = -2.0 * std::f32::consts::PI * phase as f32 / n as f32;
+        let angle = -2.0 * PI * phase as f32 / n as f32;
         real.push(angle.cos());
         imag.push(angle.sin());
     }
-    let real = DeviceMemory::from_slice(&real)?;
-    let imag = DeviceMemory::from_slice(&imag)?;
+    let real = DeviceMemory::from_slice(context, &real)?;
+    let imag = DeviceMemory::from_slice(context, &imag)?;
     Ok((real, imag))
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn copy_c2c_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// Copies packed interleaved complex f32 values between device buffers.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+pub unsafe fn copy_c2c_f32_interleaved(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftC2cPlan,
     batch: usize,
 ) -> Result<()> {
-    #[cfg(feature = "dtype-f32")]
+    plan.validate_stream(stream)?;
+    #[cfg(feature = "dtype_f32")]
     plan.validate_c2c_f32_interleaved(batch, out.len(), input.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::fft::copy_c2c_f32_interleaved(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        plan.n,
-        batch,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::fft::copy_c2c_f32_interleaved(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            plan.n,
+            batch,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn fft_c2c_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// Computes a batched complex f32 FFT in the requested direction.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn fft_c2c_f32_interleaved(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftC2cPlan,
     batch: usize,
     direction: FftDirection,
 ) -> Result<()> {
-    #[cfg(feature = "dtype-f32")]
+    plan.validate_stream(stream)?;
+    #[cfg(feature = "dtype_f32")]
     plan.validate_c2c_f32_interleaved(batch, out.len(), input.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::fft::fft_c2c_f32_interleaved(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(&plan.twiddle_real),
-        input_pointer(&plan.twiddle_imag),
-        plan.n,
-        batch,
-        2,
-        2,
-        plan.n * 2,
-        plan.n * 2,
-        direction.twiddle_imag_scale(),
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::fft::fft_c2c_f32_interleaved(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(&plan.twiddle_real),
+            input_pointer(&plan.twiddle_imag),
+            plan.n,
+            batch,
+            2,
+            2,
+            plan.n * 2,
+            plan.n * 2,
+            direction.twiddle_imag_scale(),
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn fft_c2c_f16_interleaved(
+#[cfg(feature = "dtype_f16")]
+/// Computes a batched complex FFT with interleaved f16 storage.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn fft_c2c_f16_interleaved(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    input: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f16>,
+    input: &impl DeviceInput<f16>,
     plan: &FftC2cPlan,
     batch: usize,
     direction: FftDirection,
 ) -> Result<()> {
-    #[cfg(feature = "dtype-f32")]
+    plan.validate_stream(stream)?;
+    #[cfg(feature = "dtype_f32")]
     plan.validate_c2c_f32_interleaved(batch, out.len(), input.len())?;
     match plan.n {
         8 | 16 => {
-            let stream = borrowed_stream(stream)?;
-            cutile::fft::fft_c2c_f16_interleaved(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                input_pointer(&plan.twiddle_real),
-                input_pointer(&plan.twiddle_imag),
-                plan.n,
-                batch,
-                direction.twiddle_imag_scale(),
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::fft::fft_c2c_f16_interleaved(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(&plan.twiddle_real),
+                    input_pointer(&plan.twiddle_imag),
+                    plan.n,
+                    batch,
+                    direction.twiddle_imag_scale(),
+                )
+            }
         }
         _ => Err(Error::UnsupportedFftSize {
             transform: "c2c f16".into(),
@@ -743,30 +841,43 @@ pub fn fft_c2c_f16_interleaved(
     }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn fft_c2c_bf16_interleaved(
+#[cfg(feature = "dtype_bf16")]
+/// Computes a batched complex FFT with interleaved bf16 storage.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn fft_c2c_bf16_interleaved(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    input: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<bf16>,
+    input: &impl DeviceInput<bf16>,
     plan: &FftC2cPlan,
     batch: usize,
     direction: FftDirection,
 ) -> Result<()> {
-    #[cfg(feature = "dtype-f32")]
+    plan.validate_stream(stream)?;
+    #[cfg(feature = "dtype_f32")]
     plan.validate_c2c_f32_interleaved(batch, out.len(), input.len())?;
     match plan.n {
         8 | 16 => {
-            let stream = borrowed_stream(stream)?;
-            cutile::fft::fft_c2c_bf16_interleaved(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                input_pointer(&plan.twiddle_real),
-                input_pointer(&plan.twiddle_imag),
-                plan.n,
-                batch,
-                direction.twiddle_imag_scale(),
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::fft::fft_c2c_bf16_interleaved(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(&plan.twiddle_real),
+                    input_pointer(&plan.twiddle_imag),
+                    plan.n,
+                    batch,
+                    direction.twiddle_imag_scale(),
+                )
+            }
         }
         _ => Err(Error::UnsupportedFftSize {
             transform: "c2c bf16".into(),
@@ -775,193 +886,298 @@ pub fn fft_c2c_bf16_interleaved(
     }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn fft_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// Executes the complex f32 transform and layout described by the plan.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn fft_f32_interleaved(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
-    fft_f32_interleaved_inner(stream, out, input, plan)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { fft_f32_interleaved_inner(stream, out, input, plan) }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn fft_f32_interleaved_with_workspace<W>(
+#[cfg(feature = "dtype_f32")]
+/// Executes the planned complex f32 transform with caller-provided scratch storage.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn fft_f32_interleaved_with_workspace<W>(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
     workspace: Option<&mut W>,
 ) -> Result<()>
 where
-    W: DeviceSliceMut<u8> + ?Sized,
+    W: DeviceOutput<u8> + ?Sized,
 {
-    plan.validate_workspace_len(workspace.as_ref().map(|workspace| workspace.len()))?;
-    fft_f32_interleaved_inner(stream, out, input, plan)
+    plan.validate_workspace(workspace.as_deref())?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { fft_f32_interleaved_inner(stream, out, input, plan) }
 }
 
-fn fft_f32_interleaved_inner(
+unsafe fn fft_f32_interleaved_inner(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
-    #[cfg(feature = "dtype-f32")]
+    plan.validate_stream(stream)?;
+    #[cfg(feature = "dtype_f32")]
     plan.validate_c2c_f32_interleaved(out.len(), input.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::fft::fft_c2c_f32_interleaved(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(&plan.twiddle_real),
-        input_pointer(&plan.twiddle_imag),
-        plan.config.n,
-        plan.config.batch,
-        plan.config.input_stride,
-        plan.config.output_stride,
-        plan.config.input_distance,
-        plan.config.output_distance,
-        plan.config.direction.twiddle_imag_scale(),
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::fft::fft_c2c_f32_interleaved(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(&plan.twiddle_real),
+            input_pointer(&plan.twiddle_imag),
+            plan.config.n,
+            plan.config.batch,
+            plan.config.input_stride,
+            plan.config.output_stride,
+            plan.config.input_distance,
+            plan.config.output_distance,
+            plan.config.direction.twiddle_imag_scale(),
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn fft_r2c_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// Transforms real f32 input into an interleaved complex spectrum.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn fft_r2c_f32_interleaved(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
-    fft_r2c_f32_interleaved_inner(stream, out, input, plan)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { fft_r2c_f32_interleaved_inner(stream, out, input, plan) }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn fft_r2c_f32_interleaved_with_workspace<W>(
+#[cfg(feature = "dtype_f32")]
+/// Transforms real f32 input into a complex spectrum with caller-provided scratch storage.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn fft_r2c_f32_interleaved_with_workspace<W>(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
     workspace: Option<&mut W>,
 ) -> Result<()>
 where
-    W: DeviceSliceMut<u8> + ?Sized,
+    W: DeviceOutput<u8> + ?Sized,
 {
-    plan.validate_workspace_len(workspace.as_ref().map(|workspace| workspace.len()))?;
-    fft_r2c_f32_interleaved_inner(stream, out, input, plan)
+    plan.validate_workspace(workspace.as_deref())?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { fft_r2c_f32_interleaved_inner(stream, out, input, plan) }
 }
 
-fn fft_r2c_f32_interleaved_inner(
+unsafe fn fft_r2c_f32_interleaved_inner(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
-    #[cfg(feature = "dtype-f32")]
+    plan.validate_stream(stream)?;
+    #[cfg(feature = "dtype_f32")]
     plan.validate_r2c_f32_interleaved(out.len(), input.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::fft::fft_r2c_f32_interleaved(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(&plan.twiddle_real),
-        input_pointer(&plan.twiddle_imag),
-        plan.config.n,
-        plan.config.batch,
-        plan.config.input_stride,
-        plan.config.output_stride,
-        plan.config.input_distance,
-        plan.config.output_distance,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::fft::fft_r2c_f32_interleaved(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(&plan.twiddle_real),
+            input_pointer(&plan.twiddle_imag),
+            plan.config.n,
+            plan.config.batch,
+            plan.config.input_stride,
+            plan.config.output_stride,
+            plan.config.input_distance,
+            plan.config.output_distance,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn ifft_c2r_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// Transforms a Hermitian complex spectrum into real f32 output.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn ifft_c2r_f32_interleaved(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
-    ifft_c2r_f32_interleaved_inner(stream, out, input, plan)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { ifft_c2r_f32_interleaved_inner(stream, out, input, plan) }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn ifft_c2r_f32_interleaved_with_workspace<W>(
+#[cfg(feature = "dtype_f32")]
+/// Computes a real inverse FFT with caller-provided scratch storage.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+/// Only logical output elements are initialized; padding and trailing capacity are excluded.
+pub unsafe fn ifft_c2r_f32_interleaved_with_workspace<W>(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
     workspace: Option<&mut W>,
 ) -> Result<()>
 where
-    W: DeviceSliceMut<u8> + ?Sized,
+    W: DeviceOutput<u8> + ?Sized,
 {
-    plan.validate_workspace_len(workspace.as_ref().map(|workspace| workspace.len()))?;
-    ifft_c2r_f32_interleaved_inner(stream, out, input, plan)
+    plan.validate_workspace(workspace.as_deref())?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { ifft_c2r_f32_interleaved_inner(stream, out, input, plan) }
 }
 
-fn ifft_c2r_f32_interleaved_inner(
+unsafe fn ifft_c2r_f32_interleaved_inner(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     plan: &FftPlan,
 ) -> Result<()> {
-    #[cfg(feature = "dtype-f32")]
+    plan.validate_stream(stream)?;
+    #[cfg(feature = "dtype_f32")]
     plan.validate_c2r_f32_interleaved(out.len(), input.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::fft::ifft_c2r_f32_interleaved(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(&plan.twiddle_real),
-        input_pointer(&plan.twiddle_imag),
-        plan.config.n,
-        plan.config.batch,
-        plan.config.input_stride,
-        plan.config.output_stride,
-        plan.config.input_distance,
-        plan.config.output_distance,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::fft::ifft_c2r_f32_interleaved(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(&plan.twiddle_real),
+            input_pointer(&plan.twiddle_imag),
+            plan.config.n,
+            plan.config.batch,
+            plan.config.input_stride,
+            plan.config.output_stride,
+            plan.config.input_distance,
+            plan.config.output_distance,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn normalize_c2r_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// Scales real inverse-transform output under the requested normalization convention.
+/// Only logical output elements are modified; stride gaps and trailing storage are preserved.
+///
+/// # Safety
+///
+/// Inputs and read-write data must be valid when read in the stream's context.
+/// Order preceding producers before use. Retain all buffers and plan tables,
+/// and exclusive writable access,
+/// until completion on every path and throughout captured graph replay.
+pub unsafe fn normalize_c2r_f32_interleaved(
     stream: &Stream,
     data: &mut impl DeviceSliceMut<f32>,
     plan: &FftPlan,
     normalization: FftNormalization,
 ) -> Result<()> {
-    let packed_input_len = checked_element_count(
-        checked_element_count(plan.config.batch, plan.config.n / 2 + 1)?,
-        2,
-    )?;
-    #[cfg(feature = "dtype-f32")]
-    plan.validate_c2r_f32_interleaved(data.len(), packed_input_len)?;
+    plan.validate_stream(stream)?;
+    plan.validate_c2r_f32_output(data.len())?;
     let scale = normalization.scale(plan.config.n, FftDirection::Inverse)?;
-    scale_real_f32(stream, data, scale)
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::fft::scale_real_strided_f32(
+            &stream,
+            output_pointer(data),
+            plan.config.n,
+            plan.config.batch,
+            plan.config.output_stride,
+            plan.config.output_distance,
+            scale,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn scale_real_f32(
+#[cfg(feature = "dtype_f32")]
+/// Multiplies every supplied real f32 element by the scale factor.
+///
+/// # Safety
+///
+/// Data must be initialized and belong to the stream's context. Retain the
+/// buffer and exclusive access until completion on every path and throughout
+/// captured graph replay.
+pub unsafe fn scale_real_f32(
     stream: &Stream,
     data: &mut impl DeviceSliceMut<f32>,
     scale: f32,
 ) -> Result<()> {
     let len = data.len();
     checked_i32_value(len)?;
-    let stream = borrowed_stream(stream)?;
+    let stream = stream.to_cuda_core()?;
     let data = output_pointer(data);
-    cutile::scalar::scale_f32(&stream, data, data, scale, len)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { cutile::scalar::scale_f32(&stream, data, data, scale, len, None, Default::default()) }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn scale_c2c_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// Multiplies both lanes of each supplied complex f32 value by the scale factor.
+///
+/// # Safety
+///
+/// Data must be initialized and belong to the stream's context. Retain the
+/// buffer and exclusive access until completion on every path and throughout
+/// captured graph replay.
+pub unsafe fn scale_c2c_f32_interleaved(
     stream: &Stream,
     data: &mut impl DeviceSliceMut<f32>,
     scale: f32,
 ) -> Result<()> {
     let len = data.len();
     checked_i32_value(len)?;
-    let stream = borrowed_stream(stream)?;
+    let stream = stream.to_cuda_core()?;
     let data = output_pointer(data);
-    cutile::scalar::scale_f32(&stream, data, data, scale, len)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { cutile::scalar::scale_f32(&stream, data, data, scale, len, None, Default::default()) }
 }

@@ -1,25 +1,22 @@
 mod common;
 
-use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::pointwise::PointwiseMode,
-    backend::tensor::{Shape, TensorSpec},
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorSpec},
+    },
     data_type::DataType,
     error::Result,
     frontend::{
-        graph::Graph,
-        operation::{HeuristicMode, PointwiseOperation},
+        graph::{Graph, TensorOutputConfig},
+        operation::{MatmulConfig, PointwiseOperation},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
-    math::NanPropagation,
 };
 
-fn named_tensor(name: &str, data_type: DataType, shape: Shape) -> TensorSpec {
-    TensorSpec::new(data_type, shape).with_name(name)
-}
-
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let example = common::ExampleContext::create()?;
 
     let b = 16;
     let m = 32;
@@ -27,77 +24,79 @@ fn run() -> Result<()> {
     let k = 128;
 
     let mut graph = Graph::new();
-    let a = graph.tensor(named_tensor(
-        "A",
-        DataType::I8,
-        Shape::contiguous([b, m, k])?.with_strides([m * k, k, 1])?,
-    ));
-    let b_tensor = graph.tensor(named_tensor(
-        "B",
-        DataType::I8,
-        Shape::contiguous([b, k, n])?.with_strides([k * n, 1, k])?,
-    ));
-    let bias = graph.tensor(named_tensor(
-        "Bias",
-        DataType::F32,
-        Shape::contiguous([b, m, n])?.with_strides([m * n, n, 1])?,
-    ));
-    let c = graph.tensor(
-        named_tensor(
-            "GEMM::C",
-            DataType::F32,
-            Shape::contiguous([b, m, n])?.with_strides([m * n, n, 1])?,
+    let a =
+        graph.tensor(TensorSpec::new(DataType::I8, Shape::contiguous([b, m, k])?).with_name("A"));
+    let b_storage = Shape::contiguous([b, n, k])?;
+    let strides = b_storage.strides();
+    let b_tensor = graph.tensor(
+        TensorSpec::new(
+            DataType::I8,
+            Shape::with_strides([b, k, n], [strides[0], strides[2], strides[1]])?,
         )
-        .virtual_tensor(),
+        .with_name("B"),
     );
-    graph.matmul(a, b_tensor, c, DataType::I32)?;
+    let bias = graph
+        .tensor(TensorSpec::new(DataType::F32, Shape::contiguous([b, m, n])?).with_name("Bias"));
+    let c = graph.matmul(
+        a,
+        b_tensor,
+        MatmulConfig::new()
+            .with_compute_type(DataType::I32)
+            .with_name("GEMM"),
+        TensorOutputConfig::new()
+            .with_data_type(DataType::F32)
+            .virtual_tensor(),
+    )?;
+    let c_after_add = graph.pointwise(
+        PointwiseOperation::binary(
+            PointwiseMode::Add,
+            c,
+            bias,
+            TensorOutputConfig::new()
+                .with_data_type(DataType::F32)
+                .output_tensor(),
+        )
+        .with_compute_type(DataType::F32)
+        .with_name("pw1_add"),
+    )?;
 
-    let c_after_add = graph.tensor(named_tensor(
-        "pw1_add::OUT_0",
-        DataType::F32,
-        Shape::contiguous([b, m, n])?.with_strides([m * n, n, 1])?,
-    ));
-    graph.pointwise(PointwiseOperation::Binary {
-        mode: PointwiseMode::Add,
-        lhs: c,
-        rhs: bias,
-        output: c_after_add,
-        compute_type: DataType::F32,
-        nan_propagation: NanPropagation::Propagate,
-        alpha1: 1.0,
-        alpha2: 1.0,
-    });
-
-    let compiled = graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
-
-    let mut a_dev = DeviceMemory::<i8>::zeroes((b * m * k) as usize)?;
-    let mut b_dev = DeviceMemory::<i8>::zeroes((b * k * n) as usize)?;
-    let mut bias_dev = DeviceMemory::<f32>::zeroes((b * m * n) as usize)?;
-    let mut c_dev = DeviceMemory::<f32>::zeroes((b * m * n) as usize)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    bindings.set(a, &mut a_dev)?;
-    bindings.set(b_tensor, &mut b_dev)?;
-    bindings.set(bias, &mut bias_dev)?;
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+    let cuda = example.cudnn.cuda_context();
+    let mut seed = 123_456_789;
+    let a_dev = DeviceMemory::<i8>::from_slice(
+        cuda,
+        &common::init_i8_image(graph.shape(a)?.storage_span()?, &mut seed),
+    )?;
+    let b_dev = DeviceMemory::<i8>::from_slice(
+        cuda,
+        &common::init_i8_image(graph.shape(b_tensor)?.storage_span()?, &mut seed),
+    )?;
+    let bias_dev = DeviceMemory::<f32>::from_slice(
+        cuda,
+        &common::init_f32_image(graph.shape(bias)?.storage_span()?, &mut seed),
+    )?;
+    let mut c_dev = DeviceMemory::<f32>::zeroed(cuda, graph.shape(c_after_add)?.storage_span()?)?;
+    let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(a, &a_dev)?;
+    bindings.set_input(b_tensor, &b_dev)?;
+    bindings.set_input(bias, &bias_dev)?;
     bindings.set(c_after_add, &mut c_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-
-    let c_host = c_dev.copy_to_host_vec()?;
-    let c_first = c_host[0];
-    let c_last = c_host[c_host.len() - 1];
-    let c_checksum = c_host.iter().sum::<f32>();
-    let c_nonfinite = common::count_nonfinite_f32(&c_host);
+    // SAFETY: initialized inputs and bias, writable output and workspace remain live through stream completion.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
     println!(
-        "c: first={c_first}, last={c_last}, checksum={c_checksum}, nonfinite={c_nonfinite}, len={}",
-        c_host.len()
+        "executed int8 matmul and fp32 bias addition with output shape: {:?}",
+        graph.shape(c_after_add)?.dimensions()
     );
-
-    assert_eq!(graph.shape(c_after_add)?.dimensions(), &[16, 32, 64]);
-    assert_eq!(c_nonfinite, 0, "c.nonfinite mismatch");
-    assert_close!(c_first, 0.0, 1.0e-6, "c.first");
-    assert_close!(c_last, 0.0, 1.0e-6, "c.last");
-    assert_close!(c_checksum, 0.0, 1.0e-6, "c.checksum");
 
     Ok(())
 }

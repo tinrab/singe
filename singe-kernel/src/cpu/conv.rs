@@ -130,6 +130,7 @@ impl Conv1dIm2colConfig {
     }
 }
 
+#[must_use]
 pub fn conv1d_causal(input: &[f32], weight: &[f32], config: CausalConv1dConfig) -> Vec<f32> {
     let output_length = config.output_length().expect("output length");
     let channels_in_per_group = config.channels_in / config.groups;
@@ -156,7 +157,7 @@ pub fn conv1d_causal(input: &[f32], weight: &[f32], config: CausalConv1dConfig) 
                         + group_input_channel)
                         * config.kernel_size
                         + kernel_index];
-                    sum += input_value * weight_value;
+                    sum = input_value.mul_add(weight_value, sum);
                 }
             }
             output[out_channel * output_length + out_pos] = sum;
@@ -165,6 +166,7 @@ pub fn conv1d_causal(input: &[f32], weight: &[f32], config: CausalConv1dConfig) 
     output
 }
 
+#[must_use]
 pub fn conv1d(input: &[f32], weight: &[f32], config: Conv1dConfig) -> Vec<f32> {
     let output_length = config.output_length().expect("output length");
     let channels_in_per_group = config.channels_in / config.groups;
@@ -191,7 +193,7 @@ pub fn conv1d(input: &[f32], weight: &[f32], config: Conv1dConfig) -> Vec<f32> {
                         + group_input_channel)
                         * config.kernel_size
                         + kernel_index];
-                    sum += input_value * weight_value;
+                    sum = input_value.mul_add(weight_value, sum);
                 }
             }
             output[out_channel * output_length + out_pos] = sum;
@@ -200,6 +202,7 @@ pub fn conv1d(input: &[f32], weight: &[f32], config: Conv1dConfig) -> Vec<f32> {
     output
 }
 
+#[must_use]
 pub fn conv1d_bias_activation(
     input: &[f32],
     weight: &[f32],
@@ -219,6 +222,7 @@ pub fn conv1d_bias_activation(
     output
 }
 
+#[must_use]
 pub fn conv1d_batched(input: &[f32], weight: &[f32], config: BatchedConv1dConfig) -> Vec<f32> {
     let output_length = config.output_length().expect("output length");
     let output_len = batched_reach(
@@ -256,7 +260,7 @@ pub fn conv1d_batched(input: &[f32], weight: &[f32], config: BatchedConv1dConfig
                             + group_input_channel)
                             * config.kernel_size
                             + kernel_index];
-                        sum += input_value * weight_value;
+                        sum = input_value.mul_add(weight_value, sum);
                     }
                 }
                 output[output_batch_base + out_channel * output_length + out_pos] = sum;
@@ -266,6 +270,7 @@ pub fn conv1d_batched(input: &[f32], weight: &[f32], config: BatchedConv1dConfig
     output
 }
 
+#[must_use]
 pub fn conv1d_batched_im2col(input: &[f32], config: Conv1dIm2colConfig) -> Vec<f32> {
     let output_length = config.output_length().expect("output length");
     let channels_in_per_group = config.channels_in / config.groups;
@@ -303,6 +308,7 @@ pub fn conv1d_batched_im2col(input: &[f32], config: Conv1dIm2colConfig) -> Vec<f
     output
 }
 
+#[must_use]
 pub fn conv1d_batched_from_im2col(
     columns: &[f32],
     weight: &[f32],
@@ -337,7 +343,7 @@ pub fn conv1d_batched_from_im2col(
                             + group_input_channel)
                             * config.kernel_size
                             + kernel_index;
-                        sum += columns[column_offset] * weight[weight_offset];
+                        sum = columns[column_offset].mul_add(weight[weight_offset], sum);
                     }
                 }
                 output[output_batch_base + out_channel * output_length + out_pos] = sum;
@@ -347,6 +353,7 @@ pub fn conv1d_batched_from_im2col(
     output
 }
 
+#[must_use]
 pub fn conv1d_causal_bias(
     input: &[f32],
     weight: &[f32],
@@ -363,6 +370,7 @@ pub fn conv1d_causal_bias(
     output
 }
 
+#[must_use]
 pub fn conv1d_causal_bias_gelu(
     input: &[f32],
     weight: &[f32],
@@ -376,6 +384,7 @@ pub fn conv1d_causal_bias_gelu(
     output
 }
 
+#[must_use]
 pub fn conv1d_causal_bias_activation(
     input: &[f32],
     weight: &[f32],
@@ -399,7 +408,7 @@ fn batched_reach(batch: usize, batch_stride: usize, channels: usize, length: usi
 }
 
 fn gelu(value: f32) -> f32 {
-    0.5 * value * (1.0 + (0.7978846 * (value + 0.044715 * value * value * value)).tanh())
+    0.5 * value * (1.0 + (0.797_884_6 * (0.044_715 * value * value).mul_add(value, value)).tanh())
 }
 
 fn apply_activation(value: f32, activation: Conv1dActivation) -> f32 {
@@ -536,13 +545,14 @@ fn effective_kernel_size(kernel_size: usize, dilation: usize) -> Result<usize> {
         .ok_or(Error::SizeOverflow)
 }
 
-/// Depthwise causal conv1d decode step with in-place rolling state and SiLU.
+/// Depthwise causal conv1d decode step with in-place rolling state and `SiLU`.
 ///
 /// `input` and `out` are `[batch, channels]`. `conv_state` is
 /// `[batch, channels, kernel_size]` and is shifted left by one slot per
 /// channel before inserting the new input at `kernel_size - 1`. `weight` is
 /// `[channels, kernel_size]`, `bias` is `[channels]`, and the returned output
 /// is `silu(dot(updated_state, weight) + bias)`.
+#[must_use]
 pub fn causal_conv1d_update_silu(
     conv_state: &[f32],
     input: &[f32],
@@ -566,7 +576,7 @@ pub fn causal_conv1d_update_silu(
                 } else {
                     conv_state[state_offset + kernel + 1]
                 };
-                dot += value * weight[weight_offset + kernel];
+                dot = f32::mul_add(value, weight[weight_offset + kernel], dot);
             }
             out[token_offset] = dot / (1.0 + (-dot).exp());
             for kernel in 0..kernel_size - 1 {
@@ -584,6 +594,7 @@ pub fn causal_conv1d_update_silu(
 /// position, values before the beginning of the sequence are zero-padded. The
 /// returned state is the final `[batch, channels, kernel_size]` rolling window,
 /// also left-padded with zeros when the input is shorter than the kernel.
+#[must_use]
 pub fn causal_conv1d_prefill_silu(
     input: &[f32],
     weight: &[f32],
@@ -606,19 +617,30 @@ pub fn causal_conv1d_prefill_silu(
             for time in 0..output_length {
                 let mut dot = bias_value;
                 for kernel in 0..kernel_size {
-                    let input_time = time as isize + kernel as isize + 1 - kernel_size as isize;
+                    let input_time = isize::try_from(time)
+                        .expect("sample index fits the host signed address range")
+                        + isize::try_from(kernel)
+                            .expect("sample index fits the host signed address range")
+                        + 1
+                        - isize::try_from(kernel_size)
+                            .expect("sample index fits the host signed address range");
                     let value = if input_time >= 0 && (input_time as usize) < input_length {
                         input[input_offset + input_time as usize]
                     } else {
                         0.0
                     };
-                    dot += value * weight[weight_offset + kernel];
+                    dot = f32::mul_add(value, weight[weight_offset + kernel], dot);
                 }
                 out[output_offset + time] = dot / (1.0 + (-dot).exp());
             }
 
             for kernel in 0..kernel_size {
-                let input_time = input_length as isize + kernel as isize - kernel_size as isize;
+                let input_time = isize::try_from(input_length)
+                    .expect("sample index fits the host signed address range")
+                    + isize::try_from(kernel)
+                        .expect("sample index fits the host signed address range")
+                    - isize::try_from(kernel_size)
+                        .expect("sample index fits the host signed address range");
                 final_state[state_offset + kernel] =
                     if input_time >= 0 && (input_time as usize) < input_length {
                         input[input_offset + input_time as usize]
@@ -636,7 +658,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn causal_conv1d_prefill_matches_repeated_update_from_zero_state() {
+    fn test_causal_conv1d_prefill_matches_repeated_update_from_zero_state() {
         let batch = 2usize;
         let channels = 3usize;
         let kernel_size = 5usize;
@@ -694,7 +716,7 @@ mod tests {
     }
 
     #[test]
-    fn causal_conv1d_prefill_final_state_zero_pads_short_input() {
+    fn test_causal_conv1d_prefill_final_state_zero_pads_short_input() {
         let input = [1.0f32, 2.0];
         let weight = [1.0f32, 1.0, 1.0, 1.0];
         let bias = [0.0f32];

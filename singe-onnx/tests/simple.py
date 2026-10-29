@@ -24,6 +24,7 @@ class ImageClassifierModel(nn.Module):
         x = self.fc3(x)
         return x
 
+
 def export_onnx():
     torch.manual_seed(0)
     torch_model = ImageClassifierModel()
@@ -43,5 +44,5 @@ def export_onnx():
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     export_onnx()

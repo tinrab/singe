@@ -1,0 +1,472 @@
+{
+  "CUDA_C_16BF": {
+    "doc": "The data type is 16-bit complex bfloat floating-point",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_C_16F": {
+    "doc": "The data type is 16-bit complex IEEE-754 floating-point",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_C_32F": {
+    "doc": "The data type is 32-bit complex IEEE-754 floating-point",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_C_64F": {
+    "doc": "The data type is 64-bit complex IEEE-754 floating-point",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_R_16BF": {
+    "doc": "The data type is 16-bit bfloat floating-point",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_R_16F": {
+    "doc": "The data type is 16-bit IEEE-754 floating-point",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_R_32F": {
+    "doc": "The data type is 32-bit IEEE-754 floating-point",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_R_32I": {
+    "doc": "The data type is 32-bit integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_R_64F": {
+    "doc": "The data type is 64-bit IEEE-754 floating-point",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUDA_R_8I": {
+    "doc": "The data type is 8-bit integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_ACTION_NUMERIC": {
+    "doc": "the operation is performed on data and indices.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_ACTION_SYMBOLIC": {
+    "doc": "the operation is performed only on indices.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_DIAG_TYPE_NON_UNIT": {
+    "doc": "The matrix diagonal has non-unit elements.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_DIAG_TYPE_UNIT": {
+    "doc": "The matrix diagonal has unit elements.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_DIRECTION_COLUMN": {
+    "doc": "The matrix should be parsed by columns.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_DIRECTION_ROW": {
+    "doc": "The matrix should be parsed by rows.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_FILL_MODE_LOWER": {
+    "doc": "The lower triangular part is stored.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_FILL_MODE_UPPER": {
+    "doc": "The upper triangular part is stored.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_FORMAT_BLOCKED_ELL": {
+    "doc": "The matrix is stored in Blocked-Ellpack (Blocked-ELL) format",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_FORMAT_BSR": {
+    "doc": "The matrix is stored in Block Sparse Row (BSR) format",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_FORMAT_COO": {
+    "doc": "The matrix is stored in Coordinate (COO) format organized in _Structure of Arrays (SoA)_ layout",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_FORMAT_CSC": {
+    "doc": "The matrix is stored in Compressed Sparse Column (CSC) format",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_FORMAT_CSR": {
+    "doc": "The matrix is stored in Compressed Sparse Row (CSR) format",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_FORMAT_SLICED_ELL": {
+    "doc": "The matrix is stored in Sliced-Ellpack (Sliced-ELL) format",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_INDEX_32I": {
+    "doc": "32-bit signed integer [0, 2^31 - 1]",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_INDEX_64I": {
+    "doc": "64-bit signed integer [0, 2^63 - 1]",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_INDEX_BASE_ONE": {
+    "doc": "The base index is one (Fortran compatibility).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_INDEX_BASE_ZERO": {
+    "doc": "The base index is zero (C compatibility).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_MATRIX_TYPE_GENERAL": {
+    "doc": "the matrix is general.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_MATRIX_TYPE_HERMITIAN": {
+    "doc": "the matrix is Hermitian.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_MATRIX_TYPE_SYMMETRIC": {
+    "doc": "the matrix is symmetric.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_MATRIX_TYPE_TRIANGULAR": {
+    "doc": "the matrix is triangular.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE": {
+    "doc": "The conjugate transpose operation is selected.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_OPERATION_NON_TRANSPOSE": {
+    "doc": "The non-transpose operation is selected.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_OPERATION_TRANSPOSE": {
+    "doc": "The transpose operation is selected.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_ORDER_COL": {
+    "doc": "The matrix is stored in column-major",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_ORDER_ROW": {
+    "doc": "The matrix is stored in row-major",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_POINTER_MODE_DEVICE": {
+    "doc": "The scalars are passed by reference on the device.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_POINTER_MODE_HOST": {
+    "doc": "The scalars are passed by reference on the host.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SDDMM_ALG_DEFAULT": {
+    "doc": "Default algorithm. It supports batched computation.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SOLVE_POLICY_NO_LEVEL": {
+    "doc": "no level information is generated and used.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SOLVE_POLICY_USE_LEVEL": {
+    "doc": "generate and use level information.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPGEMM_ALG1": {
+    "doc": "Algorithm 1 * Invokes `cusparseSpGEMM_compute` twice. The first invocation provides an upper bound of the memory required for the computation. * The required memory is generally several times larger of the actual memory used. * The user can provide an arbitrary buffer size bufferSize2 in the second invocation. If it is not sufficient, the routine will returns `CUSPARSE_STATUS_INSUFFICIENT_RESOURCES` status. * Provides better performance than other algorithms. * Provides deterministic (bit-wise) results for each run.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPGEMM_ALG2": {
+    "doc": "Algorithm 2 * Invokes `cusparseSpGEMM_estimateMemory` to get the amount of the memory required for the computation. * Requires less memory for the computation than Algorithm 1. * Performance is lower than Algorithm 1, higher than Algorithm 3. * Provides deterministic (bit-wise) results for each run.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPGEMM_ALG3": {
+    "doc": "Algorithm 3 * Computes the intermediate products in chunks, one chunk at a time. * Invokes `cusparseSpGEMM_estimateMemory` to get the amount of the memory required for the computation. * The user can control the amount of required memory by changing the chunk size via `chunk_fraction`. * The chunk size is a fraction of total intermediate products: `chunk_fraction * (*num_prods)`. * Provides deterministic (bit-wise) results for each run.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC": {
+    "doc": "Provides deterministic (bit-wise) structure for the output matrix and value computation for each run.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPGEMM_DEFAULT": {
+    "doc": "Default algorithm. Currently, it is `CUSPARSE_SPGEMM_ALG1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMAT_DIAG_TYPE": {
+    "doc": "Indicates if the matrix diagonal entries are unity",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMAT_FILL_MODE": {
+    "doc": "Indicates if the lower or upper part of a matrix is stored in sparse storage",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_ALG_DEFAULT": {
+    "doc": "Default algorithm for any sparse matrix format",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_BLOCKED_ELL_ALG1": {
+    "doc": "Default algorithm for Blocked-ELL format",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_BSR_ALG1": {
+    "doc": "Algorithm 1 for BSR sparse matrix format * It provides deterministic result * It requires no additional memory * It supports only `opA == CUSPARSE_OPERATION_NON_TRANSPOSE` * It does not support `CUDA_C_16F` and `CUDA_C_16BF` data types * It does not support column-major blocks in `A`",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_COO_ALG1": {
+    "doc": "Algorithm 1 for COO sparse matrix format * May provide better performance for small number of nnz * Provides the best performance with column-major layout * It supports batched computation * May produce slightly different results during different runs with the same input parameters",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_COO_ALG2": {
+    "doc": "Algorithm 2 for COO sparse matrix format * It provides deterministic result * Provides the best performance with column-major layout * In general, slower than Algorithm 1 * It supports batched computation * It requires additional memory * If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to `CUSPARSE_SPMM_COO_ALG1`",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_COO_ALG3": {
+    "doc": "Algorithm 3 for COO sparse matrix format * May provide better performance for large number of nnz * May produce slightly different results during different runs with the same input parameters",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_COO_ALG4": {
+    "doc": "Algorithm 4 for COO sparse matrix format * Provides better performance with row-major layout * It supports batched computation * May produce slightly different results during different runs with the same input parameters",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_CSR_ALG1": {
+    "doc": "Algorithm 1 for CSR/CSC sparse matrix format * Provides the best performance with column-major layout * It supports batched computation * It requires additional memory * May produce slightly different results during different runs with the same input parameters",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_CSR_ALG2": {
+    "doc": "Algorithm 2 for CSR/CSC sparse matrix format * Provides the best performance with row-major layout * It supports batched computation * It requires additional memory * May produce slightly different results during different runs with the same input parameters",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_CSR_ALG3": {
+    "doc": "Algorithm 3 for CSR sparse matrix format * It provides deterministic result * It requires additional memory * It supports only CSR matrix and `opA == CUSPARSE_OPERATION_NON_TRANSPOSE` * It does not support `opB == CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE` * It does not support `CUDA_C_16F and CUDA_C_16BF` data types",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMM_OP_ALG_DEFAULT": {
+    "doc": "Default algorithm for any sparse matrix format",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMVOP_ALG1": {
+    "doc": "Deterministic algorithm. Supports updating the values of `matA` between calls to `cusparseSpMVOp()` without rebuilding the descriptor or the execution plan, either in-place or via `cusparseCsrSetPointers()`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMVOP_ALG2": {
+    "doc": "Alternative deterministic algorithm. Compared to `CUSPARSE_SPMVOP_ALG1`, it may offer higher performance at the cost of significantly more buffer usage and more expensive preprocessing in `cusparseSpMVOp_createDescr()`. Does not support updating the values of `matA` between calls without rebuilding the descriptor and the execution plan.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMVOP_ALG_DEFAULT": {
+    "doc": "Default algorithm; currently equivalent to `CUSPARSE_SPMVOP_ALG1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMV_ALG_DEFAULT": {
+    "doc": "Default algorithm for any sparse matrix format.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMV_BSR_ALG1": {
+    "doc": "Default algorithm for BSR sparse matrix format. Provides deterministic (bit-wise) results for each run. Supports only `opA == CUSPARSE_OPERATION_NON_TRANSPOSE`. Supports both row-major and column-major block layouts in `A`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMV_COO_ALG1": {
+    "doc": "Default algorithm for COO sparse matrix format. May produce slightly different results during different runs with the same input parameters.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMV_COO_ALG2": {
+    "doc": "Provides deterministic (bit-wise) results for each run. If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to `CUSPARSE_SPMV_COO_ALG1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMV_CSR_ALG1": {
+    "doc": "Default algorithm for CSR/CSC sparse matrix format. May produce slightly different results during different runs with the same input parameters.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMV_CSR_ALG2": {
+    "doc": "Provides deterministic (bit-wise) results for each run. If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to `CUSPARSE_SPMV_CSR_ALG1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPMV_SELL_ALG1": {
+    "doc": "Default algorithm for Sliced Ellpack sparse matrix format. Provides deterministic (bit-wise) results for each run.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPSM_UPDATE_DIAGONAL": {
+    "doc": "Updates the diagonal part of the matrix with diagonal values stored in `newValues` array. That is, `newValues` has the new diagonal values only",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPSM_UPDATE_GENERAL": {
+    "doc": "Updates the sparse matrix values with values of `newValues` array",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPSV_UPDATE_DIAGONAL": {
+    "doc": "Updates the diagonal part of the matrix with diagonal values stored in `newValues` array. That is, `newValues` has the new diagonal values only",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_SPSV_UPDATE_GENERAL": {
+    "doc": "Updates the sparse matrix values with values of `newValues` array",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_ALLOC_FAILED": {
+    "doc": "Resource allocation failed inside the cuSPARSE library. This is usually caused by a device memory allocation (`cudaMalloc()`) or by a host memory allocation failure **To correct:** prior to the function call, deallocate previously allocated memory as much as possible",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_ARCH_MISMATCH": {
+    "doc": "The function requires a feature absent from the device architecture **To correct:** compile and run the application on a device with appropriate compute capability",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_EXECUTION_FAILED": {
+    "doc": "The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons **To correct:** check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_INSUFFICIENT_RESOURCES": {
+    "doc": "The resources for the computation, such as GPU global or shared memory, are not sufficient to complete the operation. The error can also indicate that the current computation mode (e.g. bit size of sparse matrix indices) does not allow to handle the given input",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_INTERNAL_ERROR": {
+    "doc": "An internal cuSPARSE operation failed **To correct:** check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine completion",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_INVALID_VALUE": {
+    "doc": "An unsupported value or parameter was passed to the function (a negative vector size, for example) **To correct:** ensure that all the parameters being passed have valid values",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED": {
+    "doc": "The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function **To correct:** check that the fields in `cusparseMatDescr_t descrA` were set correctly",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_NOT_INITIALIZED": {
+    "doc": "The cuSPARSE library was not initialized. This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSPARSE routine, or an error in the hardware setup **To correct:** call `cusparseCreate()` prior to the function call; and check that the hardware, an appropriate version of the driver, and the cuSPARSE library are correctly installed The error also applies to generic APIs ([cuSPARSE Generic APIs](https://docs.nvidia.com/cuda/archive/13.4.2/cusparse/index.html#cusparse-generic-api-reference)) for indicating a matrix/vector descriptor not initialized",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_NOT_SUPPORTED": {
+    "doc": "The operation or data type combination is currently not supported by the function",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "CUSPARSE_STATUS_SUCCESS": {
+    "doc": "The operation completed successfully",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "MAJOR_VERSION": {
+    "doc": "Enumerator to query the major version",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "MINOR_VERSION": {
+    "doc": "Enumerator to query the minor version",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "PATCH_LEVEL": {
+    "doc": "Number to identify the patch level",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "boost_val": {
+    "doc": "boost value to replace a numerical zero",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "c_coeff": {
+    "doc": "HOST or DEVICE",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "chunk_fraction": {
+    "doc": "The fraction of total intermediate products being computed in a chunk. Used by `CUSPARSE_SPGEMM_ALG3` only. Value is in range (0,1].",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "csrValA_valM": {
+    "doc": "<type> array of `nnz`$( =$`csrRowPtrA(m)`$-$`csrRowPtrA(0)`$)$ nonzero elements of matrix `A`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "enable_boost": {
+    "doc": "disable boost by `enable_boost=0`; otherwise, boost is enabled",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "num_prods": {
+    "doc": "Pointer to a 64-bit integer that stores the number of intermediate products calculated by `cusparseSpGEMM_workEstimation`",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  },
+  "s_coeff": {
+    "doc": "HOST or DEVICE",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusparse/v13.4.2"
+  }
+}

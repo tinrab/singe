@@ -1,0 +1,308 @@
+{
+  "CUDSS_CONFIG_HYBRID_EXECUTE_MODE": {
+    "doc": "default: 0 - disabled",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_CONFIG_HYBRID_MEMORY_MODE": {
+    "doc": "by default: disabled",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_CONFIG_MATCHING_ALG": {
+    "doc": "not used by default",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_CONFIG_MAX_LU_NNZ": {
+    "doc": "only for CUDSS_REORDERING_ALG_BTF_COLAMD and CUDSS_REORDERING_ALG_COLAMD reordering algorithms",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_CONFIG_ND_UBFACTOR": {
+    "doc": "unbalance factor (in percent) for nested dissection",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_CONFIG_SOLVE_MODE": {
+    "doc": "not supported right now (for transpose, conj transpose solves) (only off)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_CONFIG_UBATCH_SIZE": {
+    "doc": "\"U\" - stands for Uniform",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_CONFIG_USE_CUDA_REGISTER_MEMORY": {
+    "doc": "by default: enabled",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_CONFIG_USE_SUPERPANELS": {
+    "doc": "by default: enabled",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_COMM_DEVICE": {
+    "doc": "(in) communicator for device buffers",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_COMM_HOST": {
+    "doc": "(in) communicator for host buffers",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_DIAG": {
+    "doc": "(out)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_FLOPS": {
+    "doc": "(out)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_INERTIA": {
+    "doc": "(out, non-trivial for non-positive-definite matrices)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_INFO": {
+    "doc": "(out)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_IR_N_STEPS": {
+    "doc": "(out) number of iterative refinement steps performed",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_LU_NNZ": {
+    "doc": "(out)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_ND_PARTITION_TREE": {
+    "doc": "(out) retrieves the partition tree information",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_NPIVOTS": {
+    "doc": "(out)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_NSUPERPANELS": {
+    "doc": "(out)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_PERM_COL": {
+    "doc": "(out, supported only for CUDSS_REORDERING_ALG_BTF_COLAMD and CUDSS_REORDERING_ALG_COLAMD reordering algorithms)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_PERM_MATCHING": {
+    "doc": "(out, supported only when matching is enabled)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_PERM_REORDER_COL": {
+    "doc": "(out)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_PERM_REORDER_ROW": {
+    "doc": "(out)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_PERM_ROW": {
+    "doc": "(out, supported only for CUDSS_REORDERING_ALG_BTF_COLAMD and CUDSS_REORDERING_ALG_COLAMD reordering algorithms)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_SCALE_COL": {
+    "doc": "(out, supported only when matching with scaling is enabled)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_SCALE_ROW": {
+    "doc": "(out, supported only when matching is enabled)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_SCHUR_MATRIX": {
+    "doc": "(out) cudssMatrix_t",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_SCHUR_SHAPE": {
+    "doc": "(out) int64_t shape[3]",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_UBATCH_MASK": {
+    "doc": "(in, out) integer array (0/1 values) to selectively process matrices in uniform batch",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_USER_ND_PARTITION_TREE": {
+    "doc": "(in, out) for the user to provide or retrieve the auxiliary partition tree information",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_USER_PERM": {
+    "doc": "(in, out) for the user to provide a permutation or retrieve the provided permutation",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_DATA_USER_SCHUR_INDICES": {
+    "doc": "(in) indices[n] (1s for Schur complement, 0s for the rest)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_MATCHING_ALG_MAX_DIAG_COUNT": {
+    "doc": "Matching is disabled",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_PIVOT_AUTO": {
+    "doc": "Automatic pivoting strategy [default] (resolves based on algorithm and matrix type)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_PIVOT_BUNCH_KAUFMAN": {
+    "doc": "Reserved for future (not supported yet)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_PIVOT_DIAGONAL": {
+    "doc": "For symmetric indefinite matrices, CUDSS_REORDERING_ALG_AMD and CUDSS_REORDERING_ALG_NESTED_DISSECTION",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_PIVOT_GLOBAL_COL": {
+    "doc": "For CUDSS_REORDERING_ALG_BTF_COLAMD and CUDSS_REORDERING_ALG_COLAMD - all matrix types",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_PIVOT_GLOBAL_ROW": {
+    "doc": "For CUDSS_REORDERING_ALG_BTF_COLAMD and CUDSS_REORDERING_ALG_COLAMD - all matrix types",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_PIVOT_LOCAL_BLOCK": {
+    "doc": "For general matrices, CUDSS_REORDERING_ALG_AMD and CUDSS_REORDERING_ALG_NESTED_DISSECTION",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_PIVOT_NONE": {
+    "doc": "Disable pivoting search (valid for all algorithms)",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_REORDERING_ALG_NONE": {
+    "doc": "Uses natural (identity) order for the internal ordering when no user permutation is supplied.",
+    "members": {},
+    "source": "cudss_data_types.h"
+  },
+  "CUDSS_VERSION": {
+    "doc": "Compile-time cuDSS version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.",
+    "kind": "constant",
+    "source": "cudss.h"
+  },
+  "CUDSS_VERSION_MAJOR": {
+    "doc": "Major component of the cuDSS version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cudss.h"
+  },
+  "CUDSS_VERSION_MINOR": {
+    "doc": "Minor component of the cuDSS version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cudss.h"
+  },
+  "CUDSS_VERSION_PATCH": {
+    "doc": "Patch component of the cuDSS version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cudss.h"
+  },
+  "cudssConfigCreate": {
+    "doc": "Create/Destroy APIs (allocating structures + set defaults)",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssConfigSet": {
+    "doc": "Set/Get APIs for cudssConfig_t and cudssData_t",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssExecute": {
+    "doc": "Main cuDSS routine",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssGetDeviceMemHandler": {
+    "doc": "Memory allocator API",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssGetProperty": {
+    "doc": "Versioning",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssLoggerCallback_t": {
+    "doc": "Logger API",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssMatrixCreateDn": {
+    "doc": "Create/Destroy API helpers for matrix wrappers",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssMatrixGetDn": {
+    "doc": "Setters/Getters API helpers for matrix wrappers",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssSetCommLayer": {
+    "doc": "Setting the communication layer library name (in the library handle)",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssSetMgStreams": {
+    "doc": "Setting per-device streams for multi-GPU mode (in the library handle) streams[i] will be used for device_indices[i]",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssSetStream": {
+    "doc": "Setting the stream (in the library handle)",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudssSetThreadingLayer": {
+    "doc": "Setting the threading layer library name (in the library handle)",
+    "kind": "function",
+    "members": {},
+    "source": "cudss.h"
+  },
+  "cudss_fp64mp2_t": {
+    "doc": "Type corresponding to CUDSS_R_64F_64F",
+    "members": {},
+    "source": "cudss_data_types.h"
+  }
+}

@@ -1,5 +1,6 @@
 //! Copies, transposes, padding, slicing, tiling, and layout transforms.
 
+#[must_use]
 pub fn transpose_2d(input: &[f32], rows: usize, cols: usize) -> Vec<f32> {
     let mut output = vec![0.0; input.len()];
     for row in 0..rows {
@@ -10,6 +11,7 @@ pub fn transpose_2d(input: &[f32], rows: usize, cols: usize) -> Vec<f32> {
     output
 }
 
+#[must_use]
 pub fn pack_downsample_2d(input: &[f32], rows: usize, cols: usize, factor: usize) -> Vec<f32> {
     let mut output = vec![0.0; input.len()];
     let output_rows = rows / factor;

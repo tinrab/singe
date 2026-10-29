@@ -26,4 +26,4 @@ A machine learning framework that sets tensors ablaze.
 - [singe-nccl](./singe-nccl): Safe Rust wrappers for the NVIDIA Collective Communications Library (NCCL).
 - [singe-npp](./singe-npp): Safe Rust wrappers for NVIDIA Performance Primitives library (NPP).
 - [singe-onnx](./singe-onnx): ONNX model loading utilities.
-- [singe-ptx](./singe-ptx): CUDA PTX parser, AST, and instruction metadata utilities.
+- [singe-ptx](./singe-ptx): PTX parser and checked CPU emulator with asynchronous submission.

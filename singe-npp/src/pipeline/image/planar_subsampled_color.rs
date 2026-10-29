@@ -1,61 +1,80 @@
+use std::{mem::MaybeUninit, sync::Arc};
+
+use singe_cuda::context::Context as CudaContext;
+
 use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        color,
+        SupportedImage, color,
         memory::Image,
-        view::{C1, C2, ChannelLayout, ImageView, ImageViewMut},
+        view::{C1, C2, ChannelLayout, ImageOutputView, ImageView},
     },
-    pipeline::{ImageAllocator, Workspace},
+    pipeline::image::planar::{SemiplanarImage, subsampled_size},
     types::Size,
 };
 
-use super::planar::{SemiplanarImage, subsampled_size};
-
-type Nv12PackedInverse<T, L> = for<'y, 'uv, 'destination> fn(
+type Nv12PackedInverse<T, L> = for<'y, 'uv, 'destination> unsafe fn(
     &StreamContext,
     &ImageView<'y, T, C1>,
     &ImageView<'uv, T, C2>,
-    &mut ImageViewMut<'destination, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
 ) -> Result<()>;
 
-type Nv12PackedInverseColorTwist<T, L> = for<'y, 'uv, 'destination> fn(
+type Nv12PackedInverseColorTwist<T, L> = for<'y, 'uv, 'destination> unsafe fn(
     &StreamContext,
     &ImageView<'y, T, C1>,
     &ImageView<'uv, T, C2>,
-    &mut ImageViewMut<'destination, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
     color::ColorTwistMatrix,
 ) -> Result<()>;
 
-#[path = "planar_semiplanar_packed_color.rs"]
 mod semiplanar_packed_color;
 
 impl<T> SemiplanarImage<T>
 where
     T: Copy,
 {
-    pub fn create_nv12(size: Size) -> Result<Self>
+    /// Allocates uninitialized NV12-shaped storage with full-resolution Y and half-resolution UV.
+    ///
+    /// The interleaved chroma plane has half the width and half the height of `size`.
+    /// No color conversion or initialization is performed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if either dimension is nonpositive or odd, allocation-size arithmetic
+    /// fails, or allocating either plane fails.
+    pub fn create_nv12_uninit(
+        allocation_context: &Arc<CudaContext>,
+        size: Size,
+    ) -> Result<SemiplanarImage<MaybeUninit<T>>>
     where
-        Workspace: ImageAllocator<T, C1> + ImageAllocator<T, C2>,
+        T: SupportedImage<C1> + SupportedImage<C2>,
     {
-        Self::create(size, 2, 2)
+        Self::create_uninit(allocation_context, size, 2, 2)
     }
 
-    pub fn create(
+    /// Allocates an uninitialized full-resolution first plane and one interleaved chroma plane.
+    /// Chroma dimensions are the full-resolution dimensions divided by the supplied horizontal
+    /// and vertical factors. Does not initialize any samples.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if dimensions or subsampling factors are nonpositive, a dimension is not
+    /// divisible by its factor, allocation-size arithmetic fails, or allocating a plane fails.
+    pub fn create_uninit(
+        allocation_context: &Arc<CudaContext>,
         size: Size,
         horizontal_subsampling: i32,
         vertical_subsampling: i32,
-    ) -> Result<Self>
+    ) -> Result<SemiplanarImage<MaybeUninit<T>>>
     where
-        Workspace: ImageAllocator<T, C1> + ImageAllocator<T, C2>,
+        T: SupportedImage<C1> + SupportedImage<C2>,
     {
-        Ok(Self {
-            y: Workspace::create_image(size)?,
-            uv: Workspace::create_image(subsampled_size(
-                size,
-                horizontal_subsampling,
-                vertical_subsampling,
-            )?)?,
+        let chroma_size = subsampled_size(size, horizontal_subsampling, vertical_subsampling)?;
+        Ok(SemiplanarImage {
+            y: Image::create_uninit(allocation_context, size)?,
+            uv: Image::create_uninit(allocation_context, chroma_size)?,
         })
     }
 
@@ -66,18 +85,24 @@ where
     ) -> Result<Image<T, L>>
     where
         L: ChannelLayout,
-        Workspace: ImageAllocator<T, L>,
+        T: SupportedImage<L>,
     {
-        let mut destination = Workspace::create_image(self.y.size())?;
+        self.prepare_eager(stream_context)?;
+
+        let mut destination = Image::create_uninit(stream_context.cuda_context(), self.y.size())?;
 
         {
             let y = self.y.view()?;
             let uv = self.uv.view()?;
-            let mut destination_view = destination.view_mut()?;
-            operation(stream_context, &y, &uv, &mut destination_view)?;
+            let mut destination_view = destination.output()?;
+            stream_context.sync_scope(|| {
+                // SAFETY: this private helper selects a matching native color producer and retains all participants.
+                unsafe { operation(stream_context, &y, &uv, &mut destination_view) }
+            })?;
         }
 
-        Ok(destination)
+        // SAFETY: completed color conversion established all logical output channels.
+        Ok(unsafe { destination.assume_init() })
     }
 
     fn color_twist_to_packed<L>(
@@ -88,17 +113,23 @@ where
     ) -> Result<Image<T, L>>
     where
         L: ChannelLayout,
-        Workspace: ImageAllocator<T, L>,
+        T: SupportedImage<L>,
     {
-        let mut destination = Workspace::create_image(self.y.size())?;
+        self.prepare_eager(stream_context)?;
+
+        let mut destination = Image::create_uninit(stream_context.cuda_context(), self.y.size())?;
 
         {
             let y = self.y.view()?;
             let uv = self.uv.view()?;
-            let mut destination_view = destination.view_mut()?;
-            operation(stream_context, &y, &uv, &mut destination_view, twist)?;
+            let mut destination_view = destination.output()?;
+            stream_context.sync_scope(|| {
+                // SAFETY: this private helper selects a matching native color producer and retains all participants.
+                unsafe { operation(stream_context, &y, &uv, &mut destination_view, twist) }
+            })?;
         }
 
-        Ok(destination)
+        // SAFETY: completed color conversion established all logical output channels.
+        Ok(unsafe { destination.assume_init() })
     }
 }

@@ -1,14 +1,21 @@
-#![allow(deprecated)]
+#![expect(
+    deprecated,
+    reason = "wraps deprecated upstream API values that remain part of the supported surface"
+)]
 
 use std::{
     fmt::{self, Display, Formatter},
     mem::size_of,
+    ptr,
 };
 
-use bitflags::bitflags;
+use bitflags::{bitflags, parser};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_core::{impl_enum_conversion, impl_enum_display};
 use singe_cupti_sys as sys;
+
+pub use crate::callback_id::{DriverCallbackId, RuntimeCallbackId};
+use crate::error::{Result, Status};
 
 pub(crate) type SubscriberHandle = sys::CUpti_SubscriberHandle;
 
@@ -45,37 +52,69 @@ macro_rules! id_newtype {
 }
 
 id_newtype!(ContextId, u32);
+
 id_newtype!(DeviceId, u32);
+
 id_newtype!(GraphId, u32);
+
 id_newtype!(ExecutableGraphId, u32);
+
 id_newtype!(GraphNodeId, u64);
+
 id_newtype!(StreamId, u64);
+
 id_newtype!(ChannelId, u32);
+
 id_newtype!(CorrelationId, u32);
+
 id_newtype!(ExternalCorrelationId, u64);
+
 id_newtype!(CudaEventId, u32);
+
 id_newtype!(CudaEventSyncId, u64);
+
 id_newtype!(ActivityMarkerId, u32);
+
 id_newtype!(SourceLocatorId, u32);
+
 id_newtype!(FunctionId, u32);
+
 id_newtype!(ModuleId, u32);
+
 id_newtype!(GridId, i64);
+
 id_newtype!(ProcessId, u64);
+
 id_newtype!(ThreadId, u32);
+
 id_newtype!(CuptiDomainId, u32);
+
 id_newtype!(UnifiedMemoryProcessorId, u32);
+
 id_newtype!(GpuInstanceId, u32);
+
 id_newtype!(ComputeInstanceId, u32);
+
 id_newtype!(NonUniformMemoryAccessId, u32);
+
 id_newtype!(NpuDomainId, u32);
+
 id_newtype!(JitOperationCorrelationId, u64);
+
 id_newtype!(PcieBridgeId, u32);
+
 id_newtype!(PcieBusId, u16);
+
 id_newtype!(PcieHardwareDeviceId, u16);
+
 id_newtype!(PcieVendorId, u16);
+
 id_newtype!(PcieDomainId, u32);
+
 id_newtype!(OpenAccDeviceTypeId, u32);
+
 id_newtype!(OpenAccDeviceNumber, u32);
+
 id_newtype!(OpenAccAsynchronousId, u64);
 
 impl From<u32> for StreamId {
@@ -103,6 +142,7 @@ pub struct CudaDevice(i32);
 
 impl CudaDevice {
     /// Returns the raw value decoded from CUPTI.
+    #[must_use]
     pub const fn get(self) -> i32 {
         self.0
     }
@@ -147,6 +187,7 @@ pub struct EventId(u32);
 
 impl EventId {
     /// Returns the raw value decoded from CUPTI.
+    #[must_use]
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -175,6 +216,7 @@ pub struct EventDomainId(u32);
 
 impl EventDomainId {
     /// Returns the raw value decoded from CUPTI.
+    #[must_use]
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -203,6 +245,7 @@ pub struct MetricId(u32);
 
 impl MetricId {
     /// Returns the raw value decoded from CUPTI.
+    #[must_use]
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -247,7 +290,7 @@ impl_enum_conversion!(
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
-/// Device attributes readable through [`crate::event::get_device_attribute_value`].
+/// Device attributes readable through [`crate::event::device_attribute_value`].
 pub enum DeviceAttribute {
     /// Number of event IDs for a device.
     ///
@@ -277,15 +320,15 @@ pub enum DeviceAttribute {
     MaxFrameBuffers = sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_MAX_FRAME_BUFFERS as _,
     /// Get PCIE link rate in Mega bits/sec for device.
     ///
-    /// Returns a `u64` value, or 0 when the bus type is not PCIe.
+    /// Returns a `u64` value, or 0 when the bus type is not `PCIe`.
     PcieLinkRate = sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_PCIE_LINK_RATE as _,
     /// Get PCIE link width for device.
     ///
-    /// Returns a `u64` value, or 0 when the bus type is not PCIe.
+    /// Returns a `u64` value, or 0 when the bus type is not `PCIe`.
     PcieLinkWidth = sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_PCIE_LINK_WIDTH as _,
     /// Get PCIE generation for device.
     ///
-    /// Returns a `u64` value, or 0 when the bus type is not PCIe.
+    /// Returns a `u64` value, or 0 when the bus type is not `PCIe`.
     PcieGeneration = sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_PCIE_GEN as _,
     /// Get the class for the device.
     ///
@@ -303,18 +346,18 @@ pub enum DeviceAttribute {
     ///
     /// Returns a `u64` value.
     MaxL2Units = sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_MAX_L2_UNITS as _,
-    /// Get the maximum shared memory for the CU_FUNC_CACHE_PREFER_SHARED preference.
+    /// Get the maximum shared memory for the `CU_FUNC_CACHE_PREFER_SHARED` preference.
     ///
     /// Returns a `u64` value.
     MaxSharedMemoryCacheConfigPreferShared =
         sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_MAX_SHARED_MEMORY_CACHE_CONFIG_PREFER_SHARED
             as _,
-    /// Get the maximum shared memory for the CU_FUNC_CACHE_PREFER_L1 preference.
+    /// Get the maximum shared memory for the `CU_FUNC_CACHE_PREFER_L1` preference.
     ///
     /// Returns a `u64` value.
     MaxSharedMemoryCacheConfigPreferL1 =
         sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_MAX_SHARED_MEMORY_CACHE_CONFIG_PREFER_L1 as _,
-    /// Get the maximum shared memory for the CU_FUNC_CACHE_PREFER_EQUAL preference.
+    /// Get the maximum shared memory for the `CU_FUNC_CACHE_PREFER_EQUAL` preference.
     ///
     /// Returns a `u64` value.
     MaxSharedMemoryCacheConfigPreferEqual =
@@ -326,14 +369,14 @@ pub enum DeviceAttribute {
     FlopHpPerCycle = sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_FLOP_HP_PER_CYCLE as _,
     /// Check if Nvlink is connected to device.
     ///
-    /// Returns 1 when at least one NVLink is connected to the device, or 0 otherwise.
+    /// Returns 1 when at least one `NVLink` is connected to the device, or 0 otherwise.
     NvLinkPresent = sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_NVLINK_PRESENT as _,
     /// Check if Nvlink is present between GPU and CPU.
     ///
-    /// Returns NVLink bandwidth in bytes per second, or 0 when NVLink is absent.
+    /// Returns `NVLink` bandwidth in bytes per second, or 0 when `NVLink` is absent.
     GpuCentralProcessingUnitNvLinkBandwidth =
         sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_GPU_CPU_NVLINK_BW as _,
-    /// Check if NVSwitch is present in the underlying topology.
+    /// Check if `NVSwitch` is present in the underlying topology.
     ///
     /// Returns 1 when present, or 0 otherwise.
     NvSwitchPresent = sys::CUpti_DeviceAttribute::CUPTI_DEVICE_ATTR_NVSWITCH_PRESENT as _,
@@ -360,6 +403,7 @@ pub struct CudaDeviceAttribute(u32);
 
 impl CudaDeviceAttribute {
     /// Returns the raw value decoded from CUPTI.
+    #[must_use]
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -374,7 +418,7 @@ impl From<sys::CUdevice_attribute> for CudaDeviceAttribute {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
-/// Event-domain attributes readable through [`crate::event::get_event_domain_attribute_value`] or [`crate::event::get_device_event_domain_attribute_value`].
+/// Event-domain attributes readable through [`crate::event::event_domain_attribute_value`] or [`crate::event::device_event_domain_attribute_value`].
 pub enum EventDomainAttribute {
     /// Event domain name.
     ///
@@ -424,7 +468,7 @@ pub enum EventCollectionMethod {
     /// Event is collected using software instrumentation.
     Instrumented =
         sys::CUpti_EventCollectionMethod::CUPTI_EVENT_COLLECTION_METHOD_INSTRUMENTED as _,
-    /// Event is collected using NvLink throughput counter method.
+    /// Event is collected using `NvLink` throughput counter method.
     NvLinkTc = sys::CUpti_EventCollectionMethod::CUPTI_EVENT_COLLECTION_METHOD_NVLINK_TC as _,
     /// Reserved integer sentinel from CUPTI.
     ForceInt = sys::CUpti_EventCollectionMethod::CUPTI_EVENT_COLLECTION_METHOD_FORCE_INT as _,
@@ -435,7 +479,7 @@ impl_enum_conversion!(sys::CUpti_EventCollectionMethod, EventCollectionMethod);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
-/// Event-group attributes readable through [`crate::event::get_event_group_attribute_value`].
+/// Event-group attributes readable through [`crate::event::event_group_attribute_value`].
 pub enum EventGroupAttribute {
     /// The domain to which the event group is bound.
     ///
@@ -518,7 +562,7 @@ impl_enum_conversion!(sys::CUpti_EventProfilingScope, EventProfilingScope);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
-/// Event attributes readable through [`crate::event::get_event_attribute_value`].
+/// Event attributes readable through [`crate::event::event_attribute_value`].
 pub enum EventAttribute {
     /// Event name.
     ///
@@ -671,7 +715,7 @@ impl From<ActivityFlushFlag> for u32 {
         match value {
             ActivityFlushFlag::Default => 0,
             ActivityFlushFlag::Forced => {
-                sys::CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_FLUSH_FORCED as u32
+                sys::CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_FLUSH_FORCED as Self
             }
         }
     }
@@ -684,6 +728,7 @@ pub struct CallbackId(u32);
 
 impl CallbackId {
     /// Returns the raw value decoded from CUPTI.
+    #[must_use]
     pub const fn get(self) -> u32 {
         self.0
     }
@@ -910,7 +955,7 @@ pub enum ActivityKind {
     Name = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_NAME as _,
     /// An NVTX marker record emitted as [`crate::activity::ActivityMarker`].
     Marker = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_MARKER as _,
-    /// Optional NVTX marker payload emitted as [`crate::activity::ActivityMarkerData`].
+    /// Optional NVTX marker payload emitted as [`crate::activity::ActivityMarkerPayload`].
     ///
     /// Enable [`ActivityKind::Marker`] as well to receive the associated marker records.
     MarkerData = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_MARKER_DATA as _,
@@ -983,11 +1028,11 @@ pub enum ActivityKind {
     /// is unsupported starting with CUDA 13.0; use the SASS Metric APIs instead.
     InstructionCorrelation =
         sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_INSTRUCTION_CORRELATION as _,
-    /// OpenACC data event record emitted as [`crate::activity::ActivityOpenAccData`].
+    /// `OpenACC` data event record emitted as [`crate::activity::ActivityOpenAccTransfer`].
     OpenAccData = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_OPENACC_DATA as _,
-    /// OpenACC launch event record emitted as [`crate::activity::ActivityOpenAccLaunch`].
+    /// `OpenACC` launch event record emitted as [`crate::activity::ActivityOpenAccLaunch`].
     OpenAccLaunch = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_OPENACC_LAUNCH as _,
-    /// OpenACC miscellaneous event record emitted as [`crate::activity::ActivityOpenAccOther`].
+    /// `OpenACC` miscellaneous event record emitted as [`crate::activity::ActivityOpenAccOther`].
     OpenAccOther = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_OPENACC_OTHER as _,
     /// CUDA event handle record emitted as [`crate::activity::ActivityCudaEvent`].
     CudaEvent = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_CUDA_EVENT as _,
@@ -997,7 +1042,7 @@ pub enum ActivityKind {
     Synchronization = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_SYNCHRONIZATION as _,
     /// External API correlation record emitted as [`crate::activity::ActivityExternalCorrelation`].
     ExternalCorrelation = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_EXTERNAL_CORRELATION as _,
-    /// NVLink topology record emitted as [`crate::activity::ActivityNvLink`].
+    /// `NVLink` topology record emitted as [`crate::activity::ActivityNvLink`].
     NvLink = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_NVLINK as _,
     /// Legacy instantaneous event record emitted as [`crate::activity::ActivityInstantaneousEvent`].
     ///
@@ -1380,10 +1425,10 @@ impl_enum_conversion!(
 pub enum ActivityLaunchType {
     /// The kernel was launched via a regular kernel call.
     Regular = sys::CUpti_ActivityLaunchType::CUPTI_ACTIVITY_LAUNCH_TYPE_REGULAR as _,
-    /// The kernel was launched via API cudaLaunchCooperativeKernel() or cuLaunchCooperativeKernel().
+    /// The kernel was launched via API `cudaLaunchCooperativeKernel()` or `cuLaunchCooperativeKernel()`.
     CooperativeSingleDevice =
         sys::CUpti_ActivityLaunchType::CUPTI_ACTIVITY_LAUNCH_TYPE_COOPERATIVE_SINGLE_DEVICE as _,
-    /// The kernel was launched via API cudaLaunchCooperativeKernelMultiDevice() or cuLaunchCooperativeKernelMultiDevice().
+    /// The kernel was launched via API `cudaLaunchCooperativeKernelMultiDevice()` or `cuLaunchCooperativeKernelMultiDevice()`.
     CooperativeMultiDevice =
         sys::CUpti_ActivityLaunchType::CUPTI_ACTIVITY_LAUNCH_TYPE_COOPERATIVE_MULTI_DEVICE as _,
     /// The kernel was launched as a CBL commandlist.
@@ -1399,7 +1444,7 @@ impl_enum_conversion!(sys::CUpti_ActivityLaunchType, ActivityLaunchType);
 pub enum FunctionSharedMemoryLimitConfig {
     /// The shared memory limit config is default.
     Default = sys::CUpti_FuncShmemLimitConfig::CUPTI_FUNC_SHMEM_LIMIT_DEFAULT as _,
-    /// User has opted for a higher dynamic shared memory limit using function attribute ‘cudaFuncAttributeMaxDynamicSharedMemorySize’ for runtime API or CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES for driver API.
+    /// User has opted for a higher dynamic shared memory limit using function attribute ‘cudaFuncAttributeMaxDynamicSharedMemorySize’ for runtime API or `CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES` for driver API.
     OptIn = sys::CUpti_FuncShmemLimitConfig::CUPTI_FUNC_SHMEM_LIMIT_OPTIN as _,
     /// Reserved integer sentinel from CUPTI.
     ForceInt = sys::CUpti_FuncShmemLimitConfig::CUPTI_FUNC_SHMEM_LIMIT_FORCE_INT as _,
@@ -1510,7 +1555,7 @@ pub enum ExternalCorrelationKind {
     Invalid = sys::CUpti_ExternalCorrelationKind::CUPTI_EXTERNAL_CORRELATION_KIND_INVALID as _,
     /// The external API is unknown to CUPTI.
     Unknown = sys::CUpti_ExternalCorrelationKind::CUPTI_EXTERNAL_CORRELATION_KIND_UNKNOWN as _,
-    /// The external API is OpenACC.
+    /// The external API is `OpenACC`.
     OpenAcc = sys::CUpti_ExternalCorrelationKind::CUPTI_EXTERNAL_CORRELATION_KIND_OPENACC as _,
     /// The external API is custom0.
     Custom0 = sys::CUpti_ExternalCorrelationKind::CUPTI_EXTERNAL_CORRELATION_KIND_CUSTOM0 as _,
@@ -1748,14 +1793,16 @@ pub enum ActivityAttributeSetting {
 }
 
 macro_rules! activity_field_enum {
-    ($name:ident, $raw:ty, { $($variant:ident = $value:ident,)+ }) => {
+    ($name:ident, $raw:ty, { $($(#[$variant_attr:meta])* $variant:ident = $value:ident,)+ }) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
         #[repr(u32)]
         #[non_exhaustive]
         /// CUPTI activity field identifier enum.
+        #[allow(clippy::doc_markdown, reason = "native field tables preserve upstream C declarations in their documentation")]
         pub enum $name {
             $(
                 #[doc = concat!("CUPTI activity field `", stringify!($value), "`.")]
+                $(#[$variant_attr])*
                 $variant = <$raw>::$value as _,
             )+
         }
@@ -1765,7 +1812,7 @@ macro_rules! activity_field_enum {
         impl From<$name> for ActivityFieldId {
             fn from(value: $name) -> Self {
                 let raw: u32 = value.into();
-                ActivityFieldId(raw as i32)
+                ActivityFieldId(raw.cast_signed())
             }
         }
 
@@ -1781,6 +1828,7 @@ pub struct ActivityFieldId(i32);
 
 impl ActivityFieldId {
     /// Returns the raw value decoded from CUPTI.
+    #[must_use]
     pub const fn get(self) -> i32 {
         self.0
     }
@@ -1850,6 +1898,14 @@ activity_field_enum!(ActivityDeviceField, sys::CUpti_ActivityDeviceFieldIds, {
 });
 
 activity_field_enum!(ActivityMemoryCopyField, sys::CUpti_ActivityMemcpyFieldIds, {
+        /// uint32_t sourceGraphId; The unique graph ID of the node from which the memcpy node was instantiated or last updated.
+        ///
+        /// This field will be 0 if the memcpy is not launched through graph launch APIs.
+        SourceGraphId = MEMCPY_FIELD_SOURCE_GRAPH_ID,
+        /// uint64_t sourceGraphNodeId; The unique graph node ID of the node from which the memcpy node was instantiated or last updated.
+        ///
+        /// This field will be 0 if the memcpy is not launched through graph launch APIs.
+        SourceGraphNodeId = MEMCPY_FIELD_SOURCE_GRAPH_NODE_ID,
     Kind = MEMCPY_FIELD_KIND,
     CopyKind = MEMCPY_FIELD_COPY_KIND,
     SourceKind = MEMCPY_FIELD_SRC_KIND,
@@ -1895,6 +1951,14 @@ activity_field_enum!(ActivityPeerMemoryCopyField, sys::CUpti_ActivityMemcpy2Fiel
 });
 
 activity_field_enum!(ActivityMemorySetField, sys::CUpti_ActivityMemsetFieldIds, {
+        /// uint32_t sourceGraphId; The unique graph ID of the node from which the memset node was instantiated or last updated.
+        ///
+        /// This field will be 0 if the memset is not launched through graph launch APIs.
+        SourceGraphId = MEMSET_FIELD_SOURCE_GRAPH_ID,
+        /// uint64_t sourceGraphNodeId; The unique graph node ID of the node from which the memset node was instantiated or last updated.
+        ///
+        /// This field will be 0 if the memset is not launched through graph launch APIs.
+        SourceGraphNodeId = MEMSET_FIELD_SOURCE_GRAPH_NODE_ID,
     Kind = MEMSET_FIELD_KIND,
     Value = MEMSET_FIELD_VALUE,
     Bytes = MEMSET_FIELD_BYTES,
@@ -2029,6 +2093,18 @@ activity_field_enum!(
     ActivityGreenContextField,
     sys::CUpti_ActivityGreenContextFieldIds,
     {
+        /// uint32_t workqueueChannelCount; The number of HW channels assigned to this green context’s work queue.
+        WorkqueueChannelCount = GREEN_CONTEXT_FIELD_WORKQUEUE_CHANNEL_COUNT,
+        /// uint32_t workqueueChannelIds\[32\]; Array of HW channel IDs assigned to this green context’s work queue.
+        WorkqueueChannelIds = GREEN_CONTEXT_FIELD_WORKQUEUE_CHANNEL_IDS,
+        /// uint64_t workqueueResourceId; The work queue resource ID associated with the green context.
+        ///
+        /// Refer.
+        WorkqueueResourceId = GREEN_CONTEXT_FIELD_WORKQUEUE_RESOURCE_ID,
+        /// uint32_t workqueueConcurrencyLimit; The concurrency limit for the work queue associated with the green context.
+        WorkqueueConcurrencyLimit = GREEN_CONTEXT_FIELD_WORKQUEUE_CONCURRENCY_LIMIT,
+        /// uint32_t workqueueSharingScope; The sharing scope for the work queue associated with the green context.
+        WorkqueueSharingScope = GREEN_CONTEXT_FIELD_WORKQUEUE_SHARING_SCOPE,
         Kind = GREEN_CONTEXT_FIELD_KIND,
         ContextId = GREEN_CONTEXT_FIELD_CONTEXT_ID,
         ParentContextId = GREEN_CONTEXT_FIELD_PARENT_CONTEXT_ID,
@@ -2136,6 +2212,20 @@ activity_field_enum!(ActivityContextField, sys::CUpti_ActivityContextFieldIds, {
 });
 
 activity_field_enum!(ActivityKernelField, sys::CUpti_ActivityKernelFieldIds, {
+        /// uint32_t sourceGraphId; The unique graph ID of the node from which the kernel node was instantiated or last updated.
+        ///
+        /// This field will be 0 if the kernel is not launched through graph launch APIs.
+        SourceGraphId = KERNEL_FIELD_SOURCE_GRAPH_ID,
+        /// uint64_t sourceGraphNodeId; The unique graph node ID of the node from which the kernel node was instantiated or last updated.
+        ///
+        /// This field will be 0 if the kernel is not launched through graph launch APIs.
+        SourceGraphNodeId = KERNEL_FIELD_SOURCE_GRAPH_NODE_ID,
+        /// uint32_t executionModel; The execution model of the kernel function.
+        ///
+        /// See also
+        ///
+        /// [`FunctionExecutionModel`] for possible values.
+        ExecutionModel = KERNEL_FIELD_EXECUTION_MODEL,
     Kind = KERNEL_FIELD_KIND,
     CacheConfigRequested = KERNEL_FIELD_CACHE_CONFIG_REQUESTED,
     CacheConfigExecuted = KERNEL_FIELD_CACHE_CONFIG_EXECUTED,
@@ -2259,10 +2349,24 @@ activity_field_enum!(
     }
 );
 
+/// Per-callback enable/disable options for API activity kinds.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ApiCallbackFilter {
+    /// Records are generated only for the callback IDs listed.
+    DriverAllow(Vec<DriverCallbackId>),
+    /// Records are generated only for the runtime callback IDs listed.
+    RuntimeAllow(Vec<RuntimeCallbackId>),
+    /// Records are generated for all callback IDs except those listed.
+    DriverDeny(Vec<DriverCallbackId>),
+    /// Records are generated for all runtime callback IDs except those listed.
+    RuntimeDeny(Vec<RuntimeCallbackId>),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Activity field-selection configuration passed to CUPTI activity APIs.
 pub struct ActivityConfig {
     field_ids: Vec<i32>,
+    callback_filter: Option<ApiCallbackFilter>,
 }
 
 impl ActivityConfig {
@@ -2273,6 +2377,7 @@ impl ActivityConfig {
         I::Item: Into<ActivityFieldId>,
     {
         Self {
+            callback_filter: None,
             field_ids: field_ids
                 .into_iter()
                 .map(|field| field.into().as_raw())
@@ -2281,15 +2386,43 @@ impl ActivityConfig {
     }
 
     /// Creates an activity configuration that selects all fields.
+    #[must_use]
     pub fn all_fields() -> Self {
         Self {
+            callback_filter: None,
             field_ids: Vec::new(),
         }
     }
 
-    pub(crate) fn as_raw_mut(&mut self) -> sys::CUpti_ActivityConfig {
+    /// Enables allowlist or denylist filtering of individual callback IDs.
+    ///
+    /// Supported only for runtime and driver API activity kinds.
+    #[must_use]
+    pub fn with_callback_filter(mut self, filter: ApiCallbackFilter) -> Self {
+        self.callback_filter = Some(filter);
+        self
+    }
+
+    pub(crate) fn validate_kind(&self, kind: ActivityKind) -> Result<()> {
+        let valid = match self.callback_filter {
+            Some(ApiCallbackFilter::DriverAllow(_) | ApiCallbackFilter::DriverDeny(_)) => {
+                kind == ActivityKind::Driver
+            }
+            Some(ApiCallbackFilter::RuntimeAllow(_) | ApiCallbackFilter::RuntimeDeny(_)) => {
+                kind == ActivityKind::Runtime
+            }
+            None => true,
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(Status::InvalidKind.into())
+        }
+    }
+
+    pub(crate) fn with_raw<R>(&mut self, f: impl FnOnce(&mut sys::CUpti_ActivityConfig) -> R) -> R {
         let field_ids = if self.field_ids.is_empty() {
-            std::ptr::null_mut()
+            ptr::null_mut()
         } else {
             self.field_ids.as_mut_ptr()
         };
@@ -2298,10 +2431,41 @@ impl ActivityConfig {
             numFields: self.field_ids.len() as u64,
             pFieldIds: field_ids,
         };
-        sys::CUpti_ActivityConfig {
+        let (mut cbids, enable) = match &self.callback_filter {
+            Some(ApiCallbackFilter::DriverAllow(ids)) => {
+                (ids.iter().map(|id| id.get()).collect::<Vec<_>>(), 1)
+            }
+            Some(ApiCallbackFilter::RuntimeAllow(ids)) => {
+                (ids.iter().map(|id| id.get()).collect::<Vec<_>>(), 1)
+            }
+            Some(ApiCallbackFilter::DriverDeny(ids)) => {
+                (ids.iter().map(|id| id.get()).collect::<Vec<_>>(), 0)
+            }
+            Some(ApiCallbackFilter::RuntimeDeny(ids)) => {
+                (ids.iter().map(|id| id.get()).collect::<Vec<_>>(), 0)
+            }
+            None => (Vec::new(), 0),
+        };
+        let mut filter = sys::CUpti_ActivityApiCbidOptions {
+            structSize: size_of::<sys::CUpti_ActivityApiCbidOptions>() as _,
+            pCbids: cbids.as_mut_ptr(),
+            numCbids: cbids.len() as _,
+            enable,
+        };
+        let mut options = sys::CUpti_ActivityApiOptions {
+            structSize: size_of::<sys::CUpti_ActivityApiOptions>() as _,
+            pCbidOptions: &raw mut filter,
+        };
+        let mut config = sys::CUpti_ActivityConfig {
             structSize: size_of::<sys::CUpti_ActivityConfig>() as u64,
             fieldSelection: field_selection,
-        }
+            pKindOptions: if self.callback_filter.is_some() {
+                (&raw mut options).cast()
+            } else {
+                ptr::null_mut()
+            },
+        };
+        f(&mut config)
     }
 }
 
@@ -2378,6 +2542,12 @@ bitflags! {
     }
 }
 
+impl Display for EnvironmentClocksThrottleReasons {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        parser::to_writer(self, f)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -2415,7 +2585,7 @@ pub enum ActivityPcSamplingStallReason {
         sys::CUpti_ActivityPCSamplingStallReason::CUPTI_ACTIVITY_PC_SAMPLING_STALL_MEMORY_DEPENDENCY as _,
     /// Texture sub-system is fully utilized or has too many outstanding requests.
     Texture = sys::CUpti_ActivityPCSamplingStallReason::CUPTI_ACTIVITY_PC_SAMPLING_STALL_TEXTURE as _,
-    /// Warp is blocked as it is waiting at __syncthreads() or at memory barrier.
+    /// Warp is blocked as it is waiting at __`syncthreads()` or at memory barrier.
     Sync = sys::CUpti_ActivityPCSamplingStallReason::CUPTI_ACTIVITY_PC_SAMPLING_STALL_SYNC as _,
     /// Warp is blocked waiting for **constant** memory and immediate memory access to complete.
     ConstantMemoryDependency =
@@ -2686,7 +2856,7 @@ pub enum DeviceType {
     Invalid = sys::CUpti_DevType::CUPTI_DEV_TYPE_INVALID as _,
     /// The device type is GPU.
     Gpu = sys::CUpti_DevType::CUPTI_DEV_TYPE_GPU as _,
-    /// The device type is NVLink processing unit in CPU.
+    /// The device type is `NVLink` processing unit in CPU.
     Npu = sys::CUpti_DevType::CUPTI_DEV_TYPE_NPU as _,
     /// Reserved integer sentinel from CUPTI.
     ForceInt = sys::CUpti_DevType::CUPTI_DEV_TYPE_FORCE_INT as _,
@@ -2709,10 +2879,16 @@ bitflags! {
     }
 }
 
+impl Display for LinkFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        parser::to_writer(self, f)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
-/// PCIe topology record device type.
+/// `PCIe` topology record device type.
 pub enum PcieDeviceType {
     /// PCIE GPU record.
     Gpu = sys::CUpti_PcieDeviceType::CUPTI_PCIE_DEVICE_TYPE_GPU as _,
@@ -2727,7 +2903,7 @@ impl_enum_conversion!(sys::CUpti_PcieDeviceType, PcieDeviceType);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
-/// OpenACC event kind reported by OpenACC activity records.
+/// `OpenACC` event kind reported by `OpenACC` activity records.
 pub enum OpenAccEventKind {
     /// Invalid value decoded from CUPTI.
     Invalid = sys::CUpti_OpenAccEventKind::CUPTI_OPENACC_EVENT_KIND_INVALID as _,
@@ -2772,7 +2948,7 @@ impl_enum_conversion!(sys::CUpti_OpenAccEventKind, OpenAccEventKind);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
-/// OpenACC construct kind reported by OpenACC activity records.
+/// `OpenACC` construct kind reported by `OpenACC` activity records.
 pub enum OpenAccConstructKind {
     /// Unknown value decoded from CUPTI.
     Unknown = sys::CUpti_OpenAccConstructKind::CUPTI_OPENACC_CONSTRUCT_KIND_UNKNOWN as _,
@@ -2892,6 +3068,7 @@ pub struct ActivityPcSamplingConfig {
 
 impl ActivityPcSamplingConfig {
     /// Creates a PC sampling configuration with the requested period.
+    #[must_use]
     pub const fn new(sampling_period: ActivityPcSamplingPeriod) -> Self {
         Self {
             sampling_period,
@@ -2901,7 +3078,8 @@ impl ActivityPcSamplingConfig {
 
     pub(crate) fn to_raw(self) -> sys::CUpti_ActivityPCSamplingConfig {
         sys::CUpti_ActivityPCSamplingConfig {
-            size: size_of::<sys::CUpti_ActivityPCSamplingConfig>() as u32,
+            size: u32::try_from(size_of::<sys::CUpti_ActivityPCSamplingConfig>())
+                .expect("PC sampling configuration fits its ABI size field"),
             samplingPeriod: self.sampling_period.into(),
             samplingPeriod2: self.sampling_period2,
         }
@@ -2923,6 +3101,7 @@ pub struct ActivityUnifiedMemoryCounterConfig {
 
 impl ActivityUnifiedMemoryCounterConfig {
     /// Creates a unified memory counter configuration.
+    #[must_use]
     pub const fn new(kind: ActivityUnifiedMemoryCounterKind, enable: bool) -> Self {
         Self {
             scope: ActivityUnifiedMemoryCounterScope::ProcessAllDevices,
@@ -2933,12 +3112,15 @@ impl ActivityUnifiedMemoryCounterConfig {
     }
 
     pub(crate) fn to_raw(self) -> sys::CUpti_ActivityUnifiedMemoryCounterConfig {
-        #[allow(deprecated)]
+        #[expect(
+            deprecated,
+            reason = "wraps deprecated upstream API values that remain part of the supported surface"
+        )]
         sys::CUpti_ActivityUnifiedMemoryCounterConfig {
             scope: self.scope.into(),
             kind: self.kind.into(),
             deviceId: self.device_id.as_raw(),
-            enable: self.enable as u32,
+            enable: u32::from(self.enable),
         }
     }
 }
@@ -2966,11 +3148,11 @@ impl From<sys::CUpti_ActivityAutoBoostState> for ActivityAutoBoostState {
 #[non_exhaustive]
 /// Thread identifier source used by CUPTI activity records.
 pub enum ActivityThreadIdType {
-    /// Default type Windows uses API GetCurrentThreadId() Linux/Mac/Android/QNX use POSIX pthread API pthread_self().
+    /// Default type Windows uses API `GetCurrentThreadId()` Linux/Mac/Android/QNX use POSIX pthread API `pthread_self()`.
     Default = sys::CUpti_ActivityThreadIdType::CUPTI_ACTIVITY_THREAD_ID_TYPE_DEFAULT as _,
     /// This type is based on the system API available on the underlying platform and thread-id obtained is supposed to be unique for the process lifetime.
     ///
-    /// Windows uses API GetCurrentThreadId() Linux uses syscall SYS_gettid Mac uses syscall SYS_thread_selfid Android/QNX use gettid().
+    /// Windows uses API `GetCurrentThreadId()` Linux uses syscall `SYS_gettid` Mac uses syscall `SYS_thread_selfid` Android/QNX use `gettid()`.
     System = sys::CUpti_ActivityThreadIdType::CUPTI_ACTIVITY_THREAD_ID_TYPE_SYSTEM as _,
     /// Add new enums before this field.
     Size = sys::CUpti_ActivityThreadIdType::CUPTI_ACTIVITY_THREAD_ID_TYPE_SIZE as _,
@@ -2997,7 +3179,7 @@ pub enum MetricCategory {
     Texture = sys::CUpti_MetricCategory::CUPTI_METRIC_CATEGORY_TEXTURE as _,
     /// A Nvlink related metric.
     NvLink = sys::CUpti_MetricCategory::CUPTI_METRIC_CATEGORY_NVLINK as _,
-    /// A PCIe related metric.
+    /// A `PCIe` related metric.
     Pcie = sys::CUpti_MetricCategory::CUPTI_METRIC_CATEGORY_PCIE as _,
     /// Reserved integer sentinel from CUPTI.
     ForceInt = sys::CUpti_MetricCategory::CUPTI_METRIC_CATEGORY_FORCE_INT as _,
@@ -3102,7 +3284,7 @@ pub enum MetricValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
-/// Metric attributes readable through [`crate::event::get_metric_attribute_value`].
+/// Metric attributes readable through [`crate::event::metric_attribute_value`].
 pub enum MetricAttribute {
     /// Metric name.
     ///
@@ -3192,11 +3374,11 @@ pub enum MetricPropertyId {
     /// Global Memory Bandwidth value decoded from CUPTI.
     GlobalMemoryBandwidth =
         sys::CUpti_MetricPropertyID::CUPTI_METRIC_PROPERTY_GLOBAL_MEMORY_BANDWIDTH as _,
-    /// PCIe Link Rate value decoded from CUPTI.
+    /// `PCIe` Link Rate value decoded from CUPTI.
     PcieLinkRate = sys::CUpti_MetricPropertyID::CUPTI_METRIC_PROPERTY_PCIE_LINK_RATE as _,
-    /// PCIe Link Width value decoded from CUPTI.
+    /// `PCIe` Link Width value decoded from CUPTI.
     PcieLinkWidth = sys::CUpti_MetricPropertyID::CUPTI_METRIC_PROPERTY_PCIE_LINK_WIDTH as _,
-    /// PCIe Generation value decoded from CUPTI.
+    /// `PCIe` Generation value decoded from CUPTI.
     PcieGeneration = sys::CUpti_MetricPropertyID::CUPTI_METRIC_PROPERTY_PCIE_GEN as _,
     /// Device Class value decoded from CUPTI.
     DeviceClass = sys::CUpti_MetricPropertyID::CUPTI_METRIC_PROPERTY_DEVICE_CLASS as _,
@@ -3210,7 +3392,7 @@ pub enum MetricPropertyId {
     EccEnabled = sys::CUpti_MetricPropertyID::CUPTI_METRIC_PROPERTY_ECC_ENABLED as _,
     /// Flop Hp Per Cycle value decoded from CUPTI.
     FlopHpPerCycle = sys::CUpti_MetricPropertyID::CUPTI_METRIC_PROPERTY_FLOP_HP_PER_CYCLE as _,
-    /// GPU Central Processing Unit NvLink Bandwidth value decoded from CUPTI.
+    /// GPU Central Processing Unit `NvLink` Bandwidth value decoded from CUPTI.
     GpuCentralProcessingUnitNvLinkBandwidth =
         sys::CUpti_MetricPropertyID::CUPTI_METRIC_PROPERTY_GPU_CPU_NVLINK_BANDWIDTH as _,
 }
@@ -3265,6 +3447,12 @@ bitflags! {
         const GLOBAL_ACCESS_KIND_CACHED = sys::CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_GLOBAL_ACCESS_KIND_CACHED as _;
         /// Mask for the [`ActivityInstructionClass`] bits stored in instruction execution and correlation records.
         const INSTRUCTION_CLASS_MASK = sys::CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_INSTRUCTION_CLASS_MASK as _;
+    }
+}
+
+impl Display for ActivityFlags {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        parser::to_writer(self, f)
     }
 }
 
@@ -3929,6 +4117,7 @@ impl_enum_display!(MetricPropertyId, {
     Self::FlopHpPerCycle => "CUPTI_METRIC_PROPERTY_FLOP_HP_PER_CYCLE",
     Self::GpuCentralProcessingUnitNvLinkBandwidth => "CUPTI_METRIC_PROPERTY_GPU_CPU_NVLINK_BANDWIDTH",
 });
+
 impl Display for DeviceAttributeValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -4058,6 +4247,45 @@ impl Display for MetricAttributeValue {
             Self::Category(value) => write!(f, "Category({value})"),
             Self::ValueKind(value) => write!(f, "ValueKind({value})"),
             Self::EvaluationMode(value) => write!(f, "EvaluationMode({value})"),
+        }
+    }
+}
+
+/// The execution model of a kernel function.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FunctionExecutionModel {
+    /// The execution model is unknown.
+    Unknown,
+    /// Single instruction, multiple threads execution.
+    Simt,
+    /// Tile execution.
+    Tile,
+    /// Hybrid execution.
+    Hybrid,
+}
+
+impl From<u32> for FunctionExecutionModel {
+    fn from(value: u32) -> Self {
+        match value {
+            value
+                if value
+                    == sys::CUpti_FuncExecutionModel::CUPTI_FUNC_EXECUTION_MODEL_SIMT as u32 =>
+            {
+                Self::Simt
+            }
+            value
+                if value
+                    == sys::CUpti_FuncExecutionModel::CUPTI_FUNC_EXECUTION_MODEL_TILE as u32 =>
+            {
+                Self::Tile
+            }
+            value
+                if value
+                    == sys::CUpti_FuncExecutionModel::CUPTI_FUNC_EXECUTION_MODEL_HYBRID as u32 =>
+            {
+                Self::Hybrid
+            }
+            _ => Self::Unknown,
         }
     }
 }

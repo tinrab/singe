@@ -1,836 +1,501 @@
-use std::{ffi::CStr, fmt};
+use std::{
+    borrow::Cow, collections::TryReserveError, hash::Hash, io::Error as IoError,
+    num::ParseIntError, path::PathBuf, result::Result as StdResult,
+};
 
+use serde_json::Error as JsonError;
+use singe_core::{static_str_from_c_ptr, status_enum};
 use singe_cuda::error::Error as CudaError;
 use singe_cudnn_sys as sys;
 use thiserror::Error;
 
 use crate::{
-    attribute::BackendAttributeName, data_type::DataType, descriptor::BackendDescriptorType,
-    tensor::TensorId,
+    backend::{
+        attribute::BackendAttributeName, descriptor::BackendDescriptorType, knob::BackendKnobType,
+        tensor::BackendTensorUid,
+    },
+    data_type::DataType,
+    diagnostic::last_error_string,
+    frontend::error::Error as FrontendError,
 };
 
-macro_rules! cudnn_statuses {
-    ($($variant:ident => $raw:ident,)*) => {
-        /// Status returned by cuDNN operations.
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        #[non_exhaustive]
-        pub enum Status {
-            $($variant,)*
-            Unknown(u32),
-        }
-
-        impl Status {
-            pub fn description(self) -> String {
-                match sys::cudnnStatus_t::try_from(self.raw()) {
-                    Ok(status) => cudnn_error_string(status),
-                    Err(_) => String::from("unknown cudnn error"),
-                }
-            }
-
-            pub const fn raw(self) -> u32 {
-                match self {
-                    $(Self::$variant => sys::cudnnStatus_t::$raw as _,)*
-                    Self::Unknown(code) => code,
-                }
-            }
-        }
-
-        impl TryFrom<u32> for Status {
-            type Error = u32;
-
-            fn try_from(code: u32) -> std::result::Result<Self, u32> {
-                match code {
-                    $(code if code == sys::cudnnStatus_t::$raw as u32 => Ok(Self::$variant),)*
-                    code => Err(code),
-                }
-            }
-        }
-
-        impl From<sys::cudnnStatus_t> for Status {
-            fn from(status: sys::cudnnStatus_t) -> Self {
-                Self::try_from(status as u32).unwrap_or_else(Self::Unknown)
-            }
-        }
-
-        impl TryFrom<Status> for sys::cudnnStatus_t {
-            type Error = Status;
-
-            fn try_from(status: Status) -> std::result::Result<Self, Status> {
-                match status {
-                    $(Status::$variant => Ok(Self::$raw),)*
-                    Status::Unknown(_) => Err(status),
-                }
-            }
-        }
-
-        impl fmt::Display for Status {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                match self {
-                    $(Self::$variant => f.write_str(stringify!($raw)),)*
-                    Self::Unknown(code) => write!(f, "UNKNOWN_CUDNN_STATUS({code})"),
-                }
-            }
-        }
-    };
-}
-
-cudnn_statuses! {
-    Success => CUDNN_STATUS_SUCCESS,
-    NotInitialized => CUDNN_STATUS_NOT_INITIALIZED,
-    SublibraryVersionMismatch => CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH,
-    SerializationVersionMismatch => CUDNN_STATUS_SERIALIZATION_VERSION_MISMATCH,
-    Deprecated => CUDNN_STATUS_DEPRECATED,
-    BadParam => CUDNN_STATUS_BAD_PARAM,
-    BadParamNullPointer => CUDNN_STATUS_BAD_PARAM_NULL_POINTER,
-    BadParamMisalignedPointer => CUDNN_STATUS_BAD_PARAM_MISALIGNED_POINTER,
-    BadParamNotFinalized => CUDNN_STATUS_BAD_PARAM_NOT_FINALIZED,
-    BadParamOutOfBound => CUDNN_STATUS_BAD_PARAM_OUT_OF_BOUND,
-    BadParamSizeInsufficient => CUDNN_STATUS_BAD_PARAM_SIZE_INSUFFICIENT,
-    BadParamStreamMismatch => CUDNN_STATUS_BAD_PARAM_STREAM_MISMATCH,
-    BadParamShapeMismatch => CUDNN_STATUS_BAD_PARAM_SHAPE_MISMATCH,
-    BadParamDuplicatedEntries => CUDNN_STATUS_BAD_PARAM_DUPLICATED_ENTRIES,
-    BadParamAttributeType => CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE,
-    BadParamCudaGraphMismatch => CUDNN_STATUS_BAD_PARAM_CUDA_GRAPH_MISMATCH,
-    BadParamDescriptorType => CUDNN_STATUS_BAD_PARAM_DESCRIPTOR_TYPE,
-    InternalError => CUDNN_STATUS_INTERNAL_ERROR,
-    InternalErrorCompilationFailed => CUDNN_STATUS_INTERNAL_ERROR_COMPILATION_FAILED,
-    InternalErrorUnexpectedValue => CUDNN_STATUS_INTERNAL_ERROR_UNEXPECTED_VALUE,
-    InternalErrorHostAllocationFailed => CUDNN_STATUS_INTERNAL_ERROR_HOST_ALLOCATION_FAILED,
-    InternalErrorDeviceAllocationFailed => CUDNN_STATUS_INTERNAL_ERROR_DEVICE_ALLOCATION_FAILED,
-    InternalErrorBadLaunchParam => CUDNN_STATUS_INTERNAL_ERROR_BAD_LAUNCH_PARAM,
-    InternalErrorTextureCreationFailed => CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED,
-    InvalidValue => CUDNN_STATUS_INVALID_VALUE,
-    ExecutionFailed => CUDNN_STATUS_EXECUTION_FAILED,
-    ExecutionFailedCudaDriver => CUDNN_STATUS_EXECUTION_FAILED_CUDA_DRIVER,
-    ExecutionFailedCublas => CUDNN_STATUS_EXECUTION_FAILED_CUBLAS,
-    ExecutionFailedCudart => CUDNN_STATUS_EXECUTION_FAILED_CUDART,
-    ExecutionFailedCurand => CUDNN_STATUS_EXECUTION_FAILED_CURAND,
-    NotSupported => CUDNN_STATUS_NOT_SUPPORTED,
-    NotSupportedGraphPattern => CUDNN_STATUS_NOT_SUPPORTED_GRAPH_PATTERN,
-    NotSupportedShape => CUDNN_STATUS_NOT_SUPPORTED_SHAPE,
-    NotSupportedDataType => CUDNN_STATUS_NOT_SUPPORTED_DATA_TYPE,
-    NotSupportedLayout => CUDNN_STATUS_NOT_SUPPORTED_LAYOUT,
-    NotSupportedIncompatibleCudaDriver => CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDA_DRIVER,
-    NotSupportedIncompatibleCudart => CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDART,
-    NotSupportedArchitectureMismatch => CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH,
-    NotSupportedRuntimePrerequisiteMissing => CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING,
-    LicenseError => CUDNN_STATUS_LICENSE_ERROR,
-    NotSupportedSublibraryUnavailable => CUDNN_STATUS_NOT_SUPPORTED_SUBLIBRARY_UNAVAILABLE,
-    NotSupportedSharedMemoryInsufficient => CUDNN_STATUS_NOT_SUPPORTED_SHARED_MEMORY_INSUFFICIENT,
-    NotSupportedPadding => CUDNN_STATUS_NOT_SUPPORTED_PADDING,
-    NotSupportedBadLaunchParam => CUDNN_STATUS_NOT_SUPPORTED_BAD_LAUNCH_PARAM,
-    NotSupportedCudaGraphNativeApi => CUDNN_STATUS_NOT_SUPPORTED_CUDA_GRAPH_NATIVE_API,
-    NotSupportedInvalidDynamicShape => CUDNN_STATUS_NOT_SUPPORTED_INVALID_DYNAMIC_SHAPE,
-    RuntimeInProgress => CUDNN_STATUS_RUNTIME_IN_PROGRESS,
-    RuntimeFpOverflow => CUDNN_STATUS_RUNTIME_FP_OVERFLOW,
-    SublibraryLoadingFailed => CUDNN_STATUS_SUBLIBRARY_LOADING_FAILED,
-}
-
-fn cudnn_error_string(status: sys::cudnnStatus_t) -> String {
-    unsafe {
-        let ptr = sys::cudnnGetErrorString(status);
-        if ptr.is_null() {
-            String::from("unknown cudnn error")
-        } else {
-            CStr::from_ptr(ptr).to_string_lossy().into_owned()
-        }
+status_enum! {
+    /// Status returned by cuDNN operations.
+    pub enum Status: u32 => sys::cudnnStatus_t, unknown = "UNKNOWN_CUDNN_STATUS" {
+        /// The operation was completed successfully.
+        Success = CUDNN_STATUS_SUCCESS,
+        /// The cuDNN library was not initialized properly. This error is usually returned when a call to `cudnnCreate` fails or when `cudnnCreate` has not been called prior to calling another cuDNN routine. In the former case, it is usually due to an error in the CUDA Runtime API called by `cudnnCreate` or by an error in the hardware setup.
+        NotInitialized = CUDNN_STATUS_NOT_INITIALIZED,
+        /// Some cuDNN sub libraries have different versions, indicative of an installation issue.
+        SublibraryVersionMismatch = CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH,
+        /// The schema used for serialization is not what the current cuDNN library expects, thus the serialized artifact is no longer valid and needs to be re-serialized.
+        SerializationVersionMismatch = CUDNN_STATUS_SERIALIZATION_VERSION_MISMATCH,
+        /// This error code may be reported in the warning logging level as a reminder that some functionality is under deprecation and will be removed in the next major version update.
+        Deprecated = CUDNN_STATUS_DEPRECATED,
+        /// This is an error category code. An incorrect value or parameter was passed to the function.
+        BadParam = CUDNN_STATUS_BAD_PARAM,
+        /// The cuDNN API has unexpectedly received a null pointer from the user.
+        BadParamNullPointer = CUDNN_STATUS_BAD_PARAM_NULL_POINTER,
+        /// The cuDNN API has received a misaligned pointer from the user.
+        BadParamMisalignedPointer = CUDNN_STATUS_BAD_PARAM_MISALIGNED_POINTER,
+        /// The backend descriptor has not been finalized.
+        BadParamNotFinalized = CUDNN_STATUS_BAD_PARAM_NOT_FINALIZED,
+        /// The cuDNN API has received an out-of-bound value.
+        BadParamOutOfBound = CUDNN_STATUS_BAD_PARAM_OUT_OF_BOUND,
+        /// The cuDNN API has received a memory buffer with insufficient space.
+        BadParamSizeInsufficient = CUDNN_STATUS_BAD_PARAM_SIZE_INSUFFICIENT,
+        /// The cuDNN API has received an unexpected stream.
+        BadParamStreamMismatch = CUDNN_STATUS_BAD_PARAM_STREAM_MISMATCH,
+        /// The cuDNN API has received inconsistent tensor shapes.
+        BadParamShapeMismatch = CUDNN_STATUS_BAD_PARAM_SHAPE_MISMATCH,
+        /// The cuDNN API has received duplicated entries.
+        BadParamDuplicatedEntries = CUDNN_STATUS_BAD_PARAM_DUPLICATED_ENTRIES,
+        /// The cuDNN API has received an invalid or unsupported attribute type.
+        BadParamAttributeType = CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE,
+        /// The cuDNN API has received an unexpected CUDA graph.
+        BadParamCudaGraphMismatch = CUDNN_STATUS_BAD_PARAM_CUDA_GRAPH_MISMATCH,
+        ///< Wrong descriptor type. @since cuDNN 9.6.0
+        BadParamDescriptorType = CUDNN_STATUS_BAD_PARAM_DESCRIPTOR_TYPE,
+        /// This is an error category code. An internal cuDNN operation failed.
+        InternalError = CUDNN_STATUS_INTERNAL_ERROR,
+        /// A runtime kernel has failed to be compiled.
+        InternalErrorCompilationFailed = CUDNN_STATUS_INTERNAL_ERROR_COMPILATION_FAILED,
+        /// An unexpected internal inconsistency has been detected.
+        InternalErrorUnexpectedValue = CUDNN_STATUS_INTERNAL_ERROR_UNEXPECTED_VALUE,
+        /// An internal host memory allocation failed inside the cuDNN library.
+        InternalErrorHostAllocationFailed = CUDNN_STATUS_INTERNAL_ERROR_HOST_ALLOCATION_FAILED,
+        /// Resource allocation failed inside the cuDNN library.
+        InternalErrorDeviceAllocationFailed = CUDNN_STATUS_INTERNAL_ERROR_DEVICE_ALLOCATION_FAILED,
+        /// Invalid kernel launch parameters are unexpectedly detected.
+        InternalErrorBadLaunchParam = CUDNN_STATUS_INTERNAL_ERROR_BAD_LAUNCH_PARAM,
+        /// Access to GPU memory space failed, which is usually caused by a failure to bind a texture. To correct, prior to the function call, unbind any previously bound textures. Otherwise, this may indicate an internal error/bug in the library.
+        InternalErrorTextureCreationFailed = CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED,
+        /// please transition to CUDNN_STATUS_BAD_PARAM instead
+        InvalidValue = CUDNN_STATUS_INVALID_VALUE,
+        /// This is an error category code. The GPU program failed to execute. This is usually caused by a failure to launch a kernel on the GPU, which can be caused by another library that cuDNN depends on.
+        ExecutionFailed = CUDNN_STATUS_EXECUTION_FAILED,
+        /// The GPU program failed to execute due to an error reported by the CUDA driver.
+        ExecutionFailedCudaDriver = CUDNN_STATUS_EXECUTION_FAILED_CUDA_DRIVER,
+        /// The GPU program failed to execute due to an error reported by cuBLAS.
+        ExecutionFailedCublas = CUDNN_STATUS_EXECUTION_FAILED_CUBLAS,
+        /// The GPU program failed to execute due to an error reported by the CUDA runtime.
+        ExecutionFailedCudart = CUDNN_STATUS_EXECUTION_FAILED_CUDART,
+        /// The GPU program failed to execute due to an error reported by cuRAND.
+        ExecutionFailedCurand = CUDNN_STATUS_EXECUTION_FAILED_CURAND,
+        /// This is an error category code. The functionality requested is not currently supported by cuDNN.
+        NotSupported = CUDNN_STATUS_NOT_SUPPORTED,
+        /// cuDNN does not currently support such an operation graph pattern.
+        NotSupportedGraphPattern = CUDNN_STATUS_NOT_SUPPORTED_GRAPH_PATTERN,
+        /// cuDNN does not currently support the tensor shapes used in some specific operation or graph pattern.
+        NotSupportedShape = CUDNN_STATUS_NOT_SUPPORTED_SHAPE,
+        /// cuDNN does not currently support the tensor data type.
+        NotSupportedDataType = CUDNN_STATUS_NOT_SUPPORTED_DATA_TYPE,
+        /// cuDNN does not currently support the tensor layout.
+        NotSupportedLayout = CUDNN_STATUS_NOT_SUPPORTED_LAYOUT,
+        /// The requested functionality is not compatible with the current CUDA driver.
+        NotSupportedIncompatibleCudaDriver = CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDA_DRIVER,
+        /// The requested functionality is not compatible with the current CUDA runtime.
+        NotSupportedIncompatibleCudart = CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDART,
+        /// The function requires a feature absent from the current GPU device.
+        NotSupportedArchitectureMismatch = CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH,
+        /// A runtime library required by cuDNN cannot be found in the predefined search paths. These libraries are `libcuda.so` (`nvcuda.dll`) and `libnvrtc.so` (`nvrtc64_&lt;Major Release Version>&lt;Minor Release Version>_0.dll` and `nvrtc-builtins64_&lt;Major Release Version>&lt;Minor Release Version>.dll`).
+        NotSupportedRuntimePrerequisiteMissing = CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING,
+        /// The functionality requested requires some license and an error was detected when trying to check the current licensing. This error can happen if the license is not present or is expired or if the environment variable `NVIDIA_LICENSE_FILE` is not set properly.
+        LicenseError = CUDNN_STATUS_LICENSE_ERROR,
+        /// The requested functionality is not available due to missing a sublibrary.
+        NotSupportedSublibraryUnavailable = CUDNN_STATUS_NOT_SUPPORTED_SUBLIBRARY_UNAVAILABLE,
+        /// The requested functionality is not available due to the insufficient shared memory size on the GPU.
+        NotSupportedSharedMemoryInsufficient = CUDNN_STATUS_NOT_SUPPORTED_SHARED_MEMORY_INSUFFICIENT,
+        /// The requested functionality is not available due to padding requirements.
+        NotSupportedPadding = CUDNN_STATUS_NOT_SUPPORTED_PADDING,
+        /// The requested functionality is not available because they lead to invalid kernel launch parameters.
+        NotSupportedBadLaunchParam = CUDNN_STATUS_NOT_SUPPORTED_BAD_LAUNCH_PARAM,
+        /// The requested functionality is not available because this particular engine does not support the native CUDA graph API. (The engines that do support that API have the behavior note `cudnnBackendBehaviorNote_t::CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API`.)
+        NotSupportedCudaGraphNativeApi = CUDNN_STATUS_NOT_SUPPORTED_CUDA_GRAPH_NATIVE_API,
+        ///< Invalid dynamic shape. @since cuDNN 9.18.0
+        NotSupportedInvalidDynamicShape = CUDNN_STATUS_NOT_SUPPORTED_INVALID_DYNAMIC_SHAPE,
+        /// Some tasks in the user stream are not completed.
+        RuntimeInProgress = CUDNN_STATUS_RUNTIME_IN_PROGRESS,
+        /// Numerical overflow occurred during the GPU kernel execution.
+        RuntimeFpOverflow = CUDNN_STATUS_RUNTIME_FP_OVERFLOW,
+        ///< Sub-library loading failed. @since cuDNN 9.2.0
+        SublibraryLoadingFailed = CUDNN_STATUS_SUBLIBRARY_LOADING_FAILED,
     }
 }
 
+impl Status {
+    /// Library description of this status.
+    #[must_use]
+    pub fn description(self) -> &'static str {
+        let Ok(raw) = sys::cudnnStatus_t::try_from(self) else {
+            return "unknown cudnn error";
+        };
+        // SAFETY: `cudnnGetErrorString` returns null or a static NUL-terminated string.
+        unsafe { static_str_from_c_ptr(sys::cudnnGetErrorString(raw), "unknown cudnn error") }
+    }
+
+    /// Whether this is `CUDNN_STATUS_NOT_SUPPORTED` or one of its sub-statuses.
+    #[must_use]
+    pub const fn is_not_supported(self) -> bool {
+        let raw = self.raw();
+        raw >= sys::cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED as u32 && raw < 4000
+    }
+}
+
+/// Errors from cuDNN, CUDA, frontend graph processing, and checked wrapper validation.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// Frontend graph construction, preparation, planning, or execution failed.
+    #[error(transparent)]
+    Frontend(#[from] FrontendError),
+
+    /// An indexed errata rule failed validation.
+    #[error("invalid errata rule {index}: {source}")]
+    ErrataInvalidRule {
+        /// Index of the invalid errata rule.
+        index: usize,
+        /// Validation error raised for that rule.
+        source: Box<Self>,
+    },
+
+    /// An errata rule has invalid syntax.
+    #[error("invalid errata rule syntax: {reason}")]
+    ErrataRuleSyntax {
+        /// Description of the invalid syntax.
+        reason: &'static str,
+    },
+
+    /// An errata knob choice does not use the required `k<number>=<value>` syntax.
+    #[error("invalid knob choice `{choice}`, expected k<number>=<value>")]
+    ErrataKnobSyntax {
+        /// Invalid knob-choice text.
+        choice: String,
+    },
+
+    /// An integer in an errata knob choice could not be parsed.
+    #[error("invalid knob number in `{choice}`: {source}")]
+    ErrataKnobNumber {
+        /// Knob-choice text containing the invalid integer.
+        choice: String,
+        /// Integer parse failure.
+        source: ParseIntError,
+    },
+
+    /// A tensor identifier could not be parsed as an integer.
+    #[error("invalid tensor id integer: {0}")]
+    TensorIdParse(#[from] ParseIntError),
+
+    /// An errata rule has an empty operation name.
+    #[error("errata operation cannot be empty")]
+    ErrataOperationEmpty,
+
+    /// An engine index is negative.
+    #[error("engine index {value} must be nonnegative")]
+    EngineIndexInvalid {
+        /// Negative engine index supplied by the caller.
+        value: i64,
+    },
+
+    /// An errata version interval has an end that does not exceed its start.
+    #[error("errata version end {end} must exceed version start {start}")]
+    ErrataVersionRangeInvalid {
+        /// Start of the invalid cuDNN version interval.
+        start: u64,
+        /// End of the invalid cuDNN version interval.
+        end: u64,
+    },
+
+    /// An errata shape contains a negative dimension.
+    #[error("errata shape dimension {dimension} at axis {axis} must be nonnegative")]
+    ErrataShapeDimensionInvalid {
+        /// Axis containing the invalid dimension.
+        axis: usize,
+        /// Negative dimension at that axis.
+        dimension: i64,
+    },
+
+    /// Reading an errata file failed.
+    #[error("failed to read errata file `{}`: {source}", path.display())]
+    ErrataFileRead {
+        /// Path of the errata file that could not be read.
+        path: PathBuf,
+        /// Underlying file-read error.
+        source: IoError,
+    },
+
+    /// An SDPA forward operation supplied only one of its query and key/value sequence-length tensors.
+    #[error("sdpa forward query and key/value sequence lengths must be supplied together")]
+    SdpaSequenceLengthsIncomplete,
+
+    /// A CUDA operation failed.
     #[error("cuda error: {0}")]
     Cuda(#[from] CudaError),
 
+    /// Native status, its description and any captured current-thread cuDNN diagnostic.
     #[error("cudnn error ({code}): {message}")]
-    Cudnn { code: Status, message: String },
+    Cudnn {
+        /// Native cuDNN status returned by the failed call.
+        code: Status,
+        /// Status description, optionally followed by a captured thread-local cuDNN diagnostic.
+        message: String,
+    },
 
+    /// JSON serialization or deserialization failed.
     #[error("serde error: {0}")]
-    Serde(#[from] serde_json::Error),
+    Serde(#[from] JsonError),
 
+    /// A native resource handle is unexpectedly null.
     #[error("unexpected null handle")]
     NullHandle,
 
+    /// An argument or checked conversion is outside the supported range.
     #[error("`{name}` is out of range")]
-    OutOfRange { name: String },
+    OutOfRange {
+        /// Name of the invalid argument, attribute, or related resource.
+        name: Cow<'static, str>,
+    },
 
+    /// Host allocation for scalar storage failed.
+    #[error("unable to allocate {bytes} bytes for scalar storage: {source}")]
+    ScalarStorageAllocation {
+        /// Requested host scalar-storage capacity in bytes.
+        bytes: usize,
+        /// Allocation reservation failure.
+        #[source]
+        source: TryReserveError,
+    },
+
+    /// An argument or native result has an unexpected length.
     #[error("`{name}` length mismatch (expected {expected}, got {actual})")]
     LengthMismatch {
-        name: String,
+        /// Name of the invalid argument, attribute, or related resource.
+        name: Cow<'static, str>,
+        /// Required length for the named value.
         expected: usize,
+        /// Observed length for the named value.
         actual: usize,
     },
 
+    /// A required list is empty.
     #[error("`{name}` must not be empty")]
-    EmptyList { name: String },
+    EmptyList {
+        /// Name of the invalid argument, attribute, or related resource.
+        name: Cow<'static, str>,
+    },
 
+    /// A data shape has invalid dimensions or checked size arithmetic.
     #[error("invalid data shape")]
     InvalidDataShape,
 
+    /// A data layout has invalid strides.
     #[error("invalid data strides")]
     InvalidDataStrides,
 
+    /// An axis order omits or duplicates an axis.
+    #[error("axis order must contain every axis exactly once")]
+    InvalidAxisOrder,
+
+    /// A tensor shape differs from the required shape.
     #[error("`{name}` shape mismatch (expected {expected:?}, got {actual:?})")]
     ShapeMismatch {
-        name: String,
+        /// Name of the invalid argument, attribute, or related resource.
+        name: Cow<'static, str>,
+        /// Required tensor extents.
         expected: Vec<i64>,
+        /// Supplied or inferred tensor extents.
         actual: Vec<i64>,
     },
 
+    /// An operation does not support the supplied data type.
     #[error("unsupported data type")]
     UnsupportedDataType,
 
+    /// SDPA statistics use storage other than 32-bit floating point.
+    #[error("sdpa statistics require float32 storage, got `{actual}`")]
+    SdpaStatsDataType {
+        /// Storage data type supplied for SDPA statistics.
+        actual: DataType,
+    },
+
+    /// A native enum value is invalid for the requested wrapper type.
     #[error("invalid enum value for `{name}`: {value}")]
-    InvalidEnumValue { name: String, value: u32 },
-
-    #[error("frontend graph has no operations")]
-    FrontendGraphEmpty,
-
-    #[error("frontend configuration mismatch for {name}")]
-    FrontendConfigurationMismatch { name: String },
-
-    #[error("frontend tensor `{0}` was not found")]
-    FrontendTensorNotFound(TensorId),
-
-    #[error("frontend tensor `{0}` was not bound")]
-    FrontendTensorNotBound(TensorId),
-
-    #[error(
-        "frontend binding replacement source tensor `{source_id}` was not bound while preparing target `{target_id}` with byte offset {byte_offset}"
-    )]
-    FrontendBindingReplacementSourceNotBound {
-        source_id: TensorId,
-        target_id: TensorId,
-        byte_offset: i64,
+    InvalidEnumValue {
+        /// Name of the invalid argument, attribute, or related resource.
+        name: Cow<'static, str>,
+        /// Invalid native integer enum value.
+        value: u32,
     },
 
-    #[error("frontend tensor ID `{0}` is duplicated")]
-    FrontendTensorIdConflict(TensorId),
-
-    #[error("frontend tensor is missing an explicit ID for {operation}")]
-    FrontendTensorIdMissing { operation: String },
-
-    #[error("frontend tensor `{tensor_id}` participates in a ragged offset cycle")]
-    FrontendTensorRaggedOffsetCycle { tensor_id: TensorId },
-
-    #[error("frontend tensor `{tensor_id}` has incomplete vectorization metadata")]
-    FrontendTensorVectorizationIncomplete { tensor_id: TensorId },
-
-    #[error("frontend RNG seed tensor and offset tensor must be provided together")]
-    FrontendRandomNumberGeneratorSeedOffsetMismatch,
-
-    #[error(
-        "frontend tensor `{tensor_id}` has incompatible scalar type `{actual}` (expected `{expected}`)"
-    )]
-    FrontendScalarTypeMismatch {
-        tensor_id: TensorId,
-        expected: String,
-        actual: String,
-    },
-
-    #[error(
-        "frontend tensor `{tensor_id}` has incompatible binding type `{actual}` (expected `{expected}`)"
-    )]
-    FrontendBindingTypeMismatch {
-        tensor_id: TensorId,
-        expected: String,
-        actual: String,
-    },
-
-    #[error(
-        "frontend tensor `{tensor_id}` has incompatible data type `{actual}` for {operation} (expected `{expected}`)"
-    )]
-    FrontendTensorDataTypeMismatch {
-        tensor_id: TensorId,
-        operation: String,
+    /// A scalar value and its tensor descriptor have different data types.
+    #[error("scalar data type {actual} does not match tensor data type {expected}")]
+    TensorScalarDataTypeMismatch {
+        /// Data type required by the tensor descriptor.
         expected: DataType,
+        /// Data type of the supplied scalar.
         actual: DataType,
     },
 
-    #[error(
-        "frontend tensor `{tensor_id}` has unsupported data type `{actual}` for {operation} (supported {supported:?})"
-    )]
-    FrontendTensorDataTypeUnsupported {
-        tensor_id: TensorId,
-        operation: String,
-        supported: Vec<DataType>,
+    /// A native tensor binding has the wrong storage data type.
+    #[error("native tensor `{tensor_id}` requires `{expected}` storage, got `{actual}`")]
+    BackendTensorBindingTypeMismatch {
+        /// Identifier of the native tensor whose binding is invalid.
+        tensor_id: BackendTensorUid,
+        /// Storage type required by the native tensor descriptor.
+        expected: DataType,
+        /// Storage type of the supplied binding.
         actual: DataType,
     },
 
-    #[error(
-        "frontend tensor `{tensor_id}` has incompatible dimensions for {operation} (expected {expected:?}, got {actual:?})"
-    )]
-    FrontendTensorDimensionsMismatch {
-        tensor_id: TensorId,
-        operation: String,
-        expected: Vec<i64>,
-        actual: Vec<i64>,
-    },
-
-    #[error(
-        "frontend tensor `{tensor_id}` has incompatible rank for {operation} (expected {expected}, got {actual})"
-    )]
-    FrontendTensorRankMismatch {
-        tensor_id: TensorId,
-        operation: String,
-        expected: String,
+    /// A native tensor binding has insufficient byte capacity.
+    #[error("native tensor `{tensor_id}` requires {required} bytes, but binding has {actual}")]
+    BackendTensorBindingCapacityMismatch {
+        /// Identifier of the native tensor whose binding is invalid.
+        tensor_id: BackendTensorUid,
+        /// Required binding capacity in bytes.
+        required: usize,
+        /// Supplied binding capacity in bytes.
         actual: usize,
     },
 
-    #[error(
-        "frontend tensor `{tensor_id}` has incompatible strides for {operation} (expected {expected:?}, got {actual:?})"
-    )]
-    FrontendTensorStridesMismatch {
-        tensor_id: TensorId,
-        operation: String,
-        expected: Vec<i64>,
-        actual: Vec<i64>,
+    /// A native tensor binding does not satisfy its byte alignment.
+    #[error("native tensor `{tensor_id}` requires {required}-byte binding alignment")]
+    BackendTensorBindingAlignmentMismatch {
+        /// Identifier of the native tensor whose binding is invalid.
+        tensor_id: BackendTensorUid,
+        /// Required device-address alignment in bytes.
+        required: usize,
     },
 
-    #[error("frontend tensor `{tensor_id}` has incompatible layout for {operation}: {reason}")]
-    FrontendTensorLayoutMismatch {
-        tensor_id: TensorId,
-        operation: String,
-        reason: String,
-    },
-
-    #[error(
-        "frontend tensor `{tensor_id}` has incompatible last stride for {operation} (expected {expected}, got {actual})"
-    )]
-    FrontendTensorLastStrideMismatch {
-        tensor_id: TensorId,
-        operation: String,
-        expected: i64,
-        actual: i64,
-    },
-
-    #[error(
-        "frontend tensor `{tensor_id}` has incompatible element count for {operation} (expected {expected}, got {actual})"
-    )]
-    FrontendTensorElementCountMismatch {
-        tensor_id: TensorId,
-        operation: String,
-        expected: usize,
-        actual: usize,
-    },
-
-    #[error(
-        "frontend alias target `{target_id}` byte offset {byte_offset} is not aligned to element size {element_size} from source `{source_id}`"
-    )]
-    FrontendAliasByteOffsetUnaligned {
-        source_id: TensorId,
-        target_id: TensorId,
-        byte_offset: i64,
-        element_size: i64,
-    },
-
-    #[error(
-        "frontend alias target `{target_id}` byte range [{start}, {end}) is outside source `{source_id}` byte length {source_byte_len}"
-    )]
-    FrontendAliasByteRangeOutOfBounds {
-        source_id: TensorId,
-        target_id: TensorId,
-        start: usize,
-        end: usize,
-        source_byte_len: usize,
-    },
-
-    #[error("frontend alias source tensor `{source_id}` is not bindable: {reason}")]
-    FrontendAliasSourceNotBindable { source_id: TensorId, reason: String },
-
-    #[error("frontend tensor `{tensor_id}` ragged offset `{ragged_offset}` would create a cycle")]
-    FrontendRaggedOffsetCycle {
-        tensor_id: TensorId,
-        ragged_offset: TensorId,
-    },
-
-    #[error(
-        "frontend dynamic shape bounds are invalid (min dimensions {min_dimensions:?}, max dimensions {max_dimensions:?})"
-    )]
-    FrontendDynamicShapeBoundsInvalid {
-        min_dimensions: Vec<i64>,
-        max_dimensions: Vec<i64>,
-    },
-
-    #[error(
-        "frontend fused scalar tensor `{tensor_id}` is used with conflicting ranks ({first_rank} and {second_rank})"
-    )]
-    FrontendFusedScalarRankConflict {
-        tensor_id: TensorId,
-        first_rank: i64,
-        second_rank: i64,
-    },
-
-    #[error("frontend pointwise binary alpha2 must be 1.0 for graph support (got {alpha2})")]
-    FrontendPointwiseBinaryAlpha2Unsupported { alpha2: f64 },
-
-    #[error("frontend pointwise inputs cannot broadcast together (lhs {lhs:?}, rhs {rhs:?})")]
-    FrontendPointwiseBroadcastShapeMismatch { lhs: Vec<i64>, rhs: Vec<i64> },
-
-    #[error(
-        "frontend matmul inputs `{lhs_id}` and `{rhs_id}` have incompatible dimensions for {operation} (lhs {lhs:?}, rhs {rhs:?})"
-    )]
-    FrontendMatmulShapeMismatch {
-        lhs_id: TensorId,
-        rhs_id: TensorId,
-        operation: String,
-        lhs: Vec<i64>,
-        rhs: Vec<i64>,
-    },
-
-    #[error(
-        "frontend pointwise {operation} output shape mismatch (expected {expected:?}, got {actual:?})"
-    )]
-    FrontendPointwiseOutputShapeMismatch {
-        operation: String,
-        expected: Vec<i64>,
-        actual: Vec<i64>,
-    },
-
-    #[error("frontend sdpa q/k shapes are incompatible (q {q:?}, k {k:?})")]
-    FrontendSdpaQKShapeMismatch { q: Vec<i64>, k: Vec<i64> },
-
-    #[error("frontend sdpa scores/v shapes are incompatible (scores {scores:?}, v {v:?})")]
-    FrontendSdpaScoresVShapeMismatch { scores: Vec<i64>, v: Vec<i64> },
-
-    #[error(
-        "frontend sdpa query heads must be divisible by key/value heads (q {query_heads}, k {key_heads}, v {value_heads})"
-    )]
-    FrontendSdpaGroupedQueryAttentionHeadsMismatch {
-        query_heads: i64,
-        key_heads: i64,
-        value_heads: i64,
-    },
-
-    #[error("frontend sdpa bias tensor must use a numeric data type")]
-    FrontendSdpaBiasDataTypeUnsupported,
-
-    #[error(
-        "frontend sdpa auxiliary output `{output}` request mismatch (requested {requested}, provided {provided})"
-    )]
-    FrontendSdpaAuxOutputRequestMismatch {
-        output: String,
-        requested: bool,
-        provided: bool,
-    },
-
-    #[error("frontend sdpa requested rng dump output is missing")]
-    FrontendSdpaRngDumpOutputMissing,
-
-    #[error("frontend sdpa attention scale is required for {operation}")]
-    FrontendSdpaAttentionScaleRequired { operation: String },
-
-    #[error("frontend sdpa tensor `{tensor_id}` must carry a scalar value for {operation}")]
-    FrontendSdpaScalarValueRequired {
-        tensor_id: TensorId,
-        operation: String,
-    },
-
-    #[error("frontend sdpa scalar data type `{data_type}` is unsupported")]
-    FrontendSdpaScalarDataTypeUnsupported { data_type: DataType },
-
-    #[error("frontend sdpa optional output `{output}` request mismatch")]
-    FrontendSdpaOptionalOutputMismatch { output: String },
-
-    #[error("frontend sdpa unified softmax requires both probability and sum descriptors")]
-    FrontendSdpaUnifiedSoftmaxDescriptorsIncomplete,
-
-    #[error("frontend sdpa unified implementation is unavailable for this configuration")]
-    FrontendSdpaUnifiedImplementationUnavailable,
-
-    #[error("frontend sdpa quantized output `{output}` is unsupported for {operation}")]
-    FrontendSdpaQuantizedAuxOutputUnsupported { operation: String, output: String },
-
-    #[error(
-        "frontend sdpa max sequence length key/value {requested} exceeds available cache sequence length {available}"
-    )]
-    FrontendSdpaMaxSequenceLengthExceedsCache { requested: i64, available: i64 },
-
-    #[error("frontend sdpa causal bottom-right mask cannot be combined with {modifier}")]
-    FrontendSdpaCausalBottomRightModifierConflict { modifier: String },
-
-    #[error("frontend sdpa causal bottom-right mask requires sequence length tensors")]
-    FrontendSdpaCausalBottomRightRequiresSequenceLengths,
-
-    #[error(
-        "frontend sdpa causal bottom-right query sequence length {query_sequence_length} exceeds key/value sequence length {key_sequence_length} without a padding mask"
-    )]
-    FrontendSdpaCausalBottomRightSequenceLengthUnsupported {
-        query_sequence_length: i64,
-        key_sequence_length: i64,
-    },
-
-    #[error(
-        "frontend sdpa causal bottom-right requires query and key/value sequence lengths to be multiples of 64 before cuDNN 9.6 (query {query_sequence_length}, key/value {key_sequence_length})"
-    )]
-    FrontendSdpaCausalBottomRightSequenceLengthAlignmentUnsupported {
-        query_sequence_length: i64,
-        key_sequence_length: i64,
-        actual_version: u64,
-    },
-
-    #[error(
-        "frontend sdpa cannot combine sliding-window and causal bottom-right masks before cuDNN 9.6 unless sequence lengths match"
-    )]
-    FrontendSdpaSlidingWindowCausalBottomRightAlignmentUnsupported {
-        query_sequence_length: i64,
-        key_sequence_length: i64,
-        actual_version: u64,
-    },
-
-    #[error(
-        "frontend sdpa alibi slopes require causal top-left or right-aligned sliding-window masking"
-    )]
-    FrontendSdpaAlibiAlignmentUnsupported,
-
-    #[error("frontend sdpa block mask requires unified cuDNN SDPA lowering")]
-    FrontendSdpaBlockMaskRequiresUnified,
-
-    #[error("frontend sdpa max sequence length key/value requires paged attention")]
-    FrontendSdpaMaxSequenceLengthRequiresPagedAttention,
-
-    #[error(
-        "frontend sdpa max sequence length key/value {max_sequence_length_key_value} does not match bias key/value dimension {bias_key_value_dimension}"
-    )]
-    FrontendSdpaMaxSequenceLengthBiasMismatch {
-        max_sequence_length_key_value: i64,
-        bias_key_value_dimension: i64,
-    },
-
-    #[error("frontend sdpa custom dropout requires both mask and scale tensors")]
-    FrontendSdpaCustomDropoutIncomplete,
-
-    #[error("frontend sdpa cannot combine internal dropout with custom dropout")]
-    FrontendSdpaDropoutModeConflict,
-
-    #[error("frontend sdpa dropout seed tensor requires a dropout offset tensor")]
-    FrontendSdpaDropoutSeedRequiresOffset,
-
-    #[error("frontend sdpa dropout requires a host or device seed")]
-    FrontendSdpaDropoutSeedRequired,
-
-    #[error("frontend sdpa dropout offset tensor requires internal dropout")]
-    FrontendSdpaDropoutOffsetRequiresDropout,
-
-    #[error(
-        "frontend {operation} sequence lengths require a padding mask, causal bottom-right mask, or score subgraph"
-    )]
-    FrontendSdpaSequenceLengthsRequireMaskOrSubgraph { operation: String },
-
-    #[error(
-        "frontend {operation} ragged offsets require a padding mask, additive mask, or score subgraph"
-    )]
-    FrontendSdpaRaggedOffsetsRequireMaskOrSubgraph { operation: String },
-
-    #[error(
-        "frontend sdpa ragged offsets require SM 90 or cuDNN 9.18.1+ (cuDNN {cudnn_version}, SM {sm_version:?})"
-    )]
-    FrontendSdpaRaggedOffsetsArchitectureUnsupported {
-        cudnn_version: u64,
-        sm_version: Option<i32>,
-    },
-
-    #[error("frontend sdpa paged attention requires sequence length tensors")]
-    FrontendSdpaPagedAttentionRequiresSequenceLengths,
-
-    #[error(
-        "frontend {operation} data type `{data_type}` requires cuDNN {min_version} or newer (actual {actual_version})"
-    )]
-    FrontendSdpaDataTypeRequiresCudnnVersion {
-        operation: String,
-        data_type: DataType,
-        min_version: String,
-        actual_version: u64,
-    },
-
-    #[error("frontend sdpa sliding window is unsupported with {reason} before cuDNN 9.10.2")]
-    FrontendSdpaSlidingWindowModifierUnsupported { reason: String, actual_version: u64 },
-
-    #[error("frontend sdpa sliding window alignment is unsupported for this configuration")]
-    FrontendSdpaSlidingWindowAlignmentUnsupported,
-
-    #[error(
-        "frontend sdpa sliding window query sequence length {query_sequence_length} exceeds key/value sequence length {key_sequence_length} without a padding mask"
-    )]
-    FrontendSdpaSlidingWindowSequenceLengthUnsupported {
-        query_sequence_length: i64,
-        key_sequence_length: i64,
-    },
-
-    #[error("frontend sdpa decode masking is unsupported through cuDNN 9.9")]
-    FrontendSdpaDecodeMaskingUnsupported { actual_version: u64 },
-
-    #[error(
-        "frontend sdpa cuDNN 9.14 requires causal-like masking when key/value sequence length exceeds 1024"
-    )]
-    FrontendSdpaCudnn914LongSequenceRequiresCausalMask { key_sequence_length: i64 },
-
-    #[error(
-        "frontend sdpa sink token requires query sequence length greater than one (got {query_sequence_length})"
-    )]
-    FrontendSdpaSinkTokenRequiresNonDecode { query_sequence_length: i64 },
-
-    #[error("frontend {operation} score subgraph cannot be combined with {modifier}")]
-    FrontendSdpaScoreSubgraphModifierConflict { operation: String, modifier: String },
-
-    #[error("frontend sdpa backward score subgraph bprop requires a score subgraph")]
-    FrontendSdpaBackwardScoreSubgraphBpropRequiresForward,
-
-    #[error("frontend sdpa backward rng dump requires dropout")]
-    FrontendSdpaBackwardRngDumpRequiresDropout,
-
-    #[error("frontend sdpa backward requested rng dump output is missing")]
-    FrontendSdpaBackwardRngDumpOutputMissing,
-
-    #[error("frontend sdpa backward requested bias gradient output is missing")]
-    FrontendSdpaBackwardBiasGradientOutputMissing,
-
-    #[error("frontend sdpa fp8 backward does not support bias gradients")]
-    FrontendSdpaFp8BackwardBiasGradientUnsupported,
-
-    #[error("frontend sdpa backward direct does not support auxiliary gradients")]
-    FrontendSdpaBackwardDirectAuxiliaryGradientsUnsupported,
-
-    #[error("frontend sdpa backward requires sequence length greater than one")]
-    FrontendSdpaBackwardSequenceLengthUnsupported,
-
-    #[error(
-        "frontend sdpa backward query heads must be divisible by key/value heads (q {query_heads}, k {key_heads}, v {value_heads})"
-    )]
-    FrontendSdpaBackwardGroupedQueryAttentionHeadsMismatch {
-        query_heads: i64,
-        key_heads: i64,
-        value_heads: i64,
-    },
-
-    #[error("frontend sdpa backward sink gradient requires a sink tensor")]
-    FrontendSdpaBackwardSinkGradientRequiresSink,
-
-    #[error("frontend sdpa backward max total sequence lengths require ragged tensors")]
-    FrontendSdpaBackwardMaxTotalSequenceLengthsRequireRagged,
-
-    #[error("frontend sdpa backward causal bottom-right requires SM 100 or newer")]
-    FrontendSdpaBackwardCausalBottomRightArchitectureUnsupported { sm_version: Option<i32> },
-
-    #[error(
-        "frontend sdpa backward causal bottom-right query sequence length {query_sequence_length} exceeds key/value sequence length {key_sequence_length}"
-    )]
-    FrontendSdpaBackwardCausalBottomRightSequenceLengthUnsupported {
-        query_sequence_length: i64,
-        key_sequence_length: i64,
-    },
-
-    #[error("frontend sdpa backward causal bottom-right does not support dropout")]
-    FrontendSdpaBackwardCausalBottomRightDropoutUnsupported,
-
-    #[error(
-        "frontend sdpa backward causal bottom-right requires query and key/value sequence lengths to be multiples of 64 (query {query_sequence_length}, key/value {key_sequence_length})"
-    )]
-    FrontendSdpaBackwardCausalBottomRightSequenceLengthAlignmentUnsupported {
-        query_sequence_length: i64,
-        key_sequence_length: i64,
-    },
-
-    #[error(
-        "frontend sdpa backward bias gradient is unsupported with ragged tensors on this architecture"
-    )]
-    FrontendSdpaBackwardBiasGradientRaggedUnsupported { sm_version: Option<i32> },
-
-    #[error(
-        "frontend sdpa backward deterministic algorithm is unsupported with bias gradients, dropout, or alibi on this architecture"
-    )]
-    FrontendSdpaBackwardDeterministicAlgorithmModifierUnsupported { sm_version: Option<i32> },
-
-    #[error(
-        "frontend sdpa backward deterministic algorithm is unsupported with ragged tensors on this architecture"
-    )]
-    FrontendSdpaBackwardDeterministicAlgorithmRaggedUnsupported {
-        sm_version: Option<i32>,
-        cudnn_version: u64,
-    },
-
-    #[error("frontend {operation} requires SM 90 or newer")]
-    FrontendSdpaQuantizedBackwardArchitectureUnsupported {
-        operation: String,
-        sm_version: Option<i32>,
-    },
-
-    #[error("frontend {operation} is unsupported with ragged tensors on SM 90")]
-    FrontendSdpaQuantizedBackwardRaggedUnsupported {
-        operation: String,
-        sm_version: Option<i32>,
-    },
-
-    #[error("frontend {operation} is unsupported with dropout on this architecture")]
-    FrontendSdpaQuantizedBackwardDropoutUnsupported {
-        operation: String,
-        sm_version: Option<i32>,
-    },
-
-    #[error("frontend {operation} does not support rng dump")]
-    FrontendSdpaQuantizedBackwardRngDumpUnsupported { operation: String },
-
-    #[error("frontend fp8 sdpa backward is unsupported by cuDNN 9.10")]
-    FrontendSdpaFp8BackwardCudnn910Unsupported,
-
-    #[error(
-        "frontend {operation} head dimensions are unsupported for this architecture (d_qk {d_qk}, d_v {d_v}, SM {sm_version:?})"
-    )]
-    FrontendSdpaQuantizedBackwardHeadDimensionUnsupported {
-        operation: String,
-        d_qk: i64,
-        d_v: i64,
-        sm_version: Option<i32>,
-    },
-
-    #[error("frontend {operation} ragged outputs are unsupported on SM 90")]
-    FrontendSdpaQuantizedBackwardRaggedOutputUnsupported {
-        operation: String,
-        sm_version: Option<i32>,
-    },
-
-    #[error(
-        "frontend {operation} output data type `{output_io_type}` is unsupported before cuDNN 9.13 on SM 100+"
-    )]
-    FrontendSdpaQuantizedOutputDataTypeRequiresCudnn913Sm100 {
-        operation: String,
-        output_io_type: DataType,
-        cudnn_version: u64,
-        sm_version: Option<i32>,
-    },
-
-    #[error(
-        "frontend {operation} is unsupported for {reason} (cuDNN {cudnn_version}, SM {sm_version:?}, data type {data_type}, d_qk {d_qk}, d_v {d_v})"
-    )]
-    FrontendSdpaArchitectureUnsupported {
-        operation: String,
-        reason: String,
-        cudnn_version: u64,
-        sm_version: Option<i32>,
-        data_type: DataType,
-        d_qk: i64,
-        d_v: i64,
-    },
-
-    #[error("frontend runtime overrides require dynamic shape or override shape enabled graph")]
-    FrontendRuntimeOverridesRequireShapeEnabledGraph,
-
-    #[error("frontend cuda graph provided to populate must be empty")]
-    FrontendCudaGraphPopulateRequiresEmptyGraph,
-
-    #[error("frontend kernel cache requires dynamic shape enabled graph")]
-    FrontendKernelCacheRequiresDynamicShape,
-
-    #[error("frontend deviceless compilation requires device properties")]
-    FrontendDevicelessRequiresDeviceProperties,
-
-    #[error("frontend graph-aware bindings require a compiled graph template")]
-    FrontendGraphAwareBindingsRequired,
-
-    #[error("frontend legacy softmax supports no aux outputs, stats only, or max plus sum_exp")]
-    FrontendSoftmaxLegacyOutputsUnsupported,
-
-    #[error("frontend diagonal band mask cannot set both left bound and shifted right bound")]
-    FrontendDiagonalBandMaskBoundsConflict,
-
-    #[error("frontend resample indices require max-pool mode")]
-    FrontendResampleIndicesRequireMaxPool,
-
-    #[error("frontend batch norm finalize running-stat tensors must be provided as a complete set")]
-    FrontendBatchNormFinalizeRunningStatsIncomplete,
-
-    #[error("frontend {operation} requires `{field}`")]
-    FrontendOperationFieldMissing { operation: String, field: String },
-
-    #[error(
-        "frontend feature `{feature}` requires cuDNN >= {min_version} (detected version {actual_version})"
-    )]
-    FrontendFeatureRequiresVersion {
-        feature: String,
-        min_version: String,
-        actual_version: u64,
-    },
-
-    #[error("frontend feature `{feature}` is unavailable: {reason}")]
-    FrontendFeatureUnavailable { feature: String, reason: String },
-
-    #[error("frontend kernel cache lock poisoned")]
-    FrontendKernelCacheLockPoisoned,
-
-    #[error("frontend plan cache lock poisoned")]
-    FrontendPlanCacheLockPoisoned,
-
-    #[error("frontend operation output is missing")]
-    FrontendOperationMissingOutput,
-
-    #[error("frontend internal state `{name}` is missing")]
-    FrontendInternalStateMissing { name: &'static str },
-
-    #[error("frontend graph schema version mismatch: {actual} (expected: ${expected})")]
-    FrontendGraphSchemaVersionMismatch { expected: String, actual: String },
-
-    #[error("compiled graph has no plan choices")]
-    FrontendGraphMissingPlanChoices,
-
-    #[error("frontend compilation failed: {0}")]
-    FrontendCompile(String),
-
+    /// A pointwise axis was supplied for an operation that does not generate indices.
+    #[error("pointwise axis requires index generation")]
+    PointwiseAxisRequiresIndexGeneration,
+
+    /// The execution-plan cache mutex is poisoned.
+    #[error("execution plan cache lock poisoned")]
+    ExecutionPlanCacheLockPoisoned,
+
+    /// The heuristic-mode B mutex is poisoned.
+    #[error("heuristic mode b lock poisoned")]
+    EngineHeuristicsLockPoisoned,
+
+    /// An operation requires an explicitly configured cuDNN stream.
     #[error("context stream is not set")]
     ContextStreamNotSet,
 
+    /// No compatible native execution engine is available.
     #[error("no available engines")]
     NoAvailableEngines,
 
+    /// Related descriptors do not describe the same required operation or resource.
     #[error("descriptor mismatch for `{name}`")]
-    DescriptorMismatch { name: String },
+    DescriptorMismatch {
+        /// Name of the invalid argument, attribute, or related resource.
+        name: Cow<'static, str>,
+    },
 
+    /// A stream belongs to another CUDA context.
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,
 
+    /// Resources that must share one cuDNN handle belong to different handles.
     #[error("cudnn contexts must match for `{name}`")]
-    ContextMismatch { name: String },
+    ContextMismatch {
+        /// Name of the invalid argument, attribute, or related resource.
+        name: Cow<'static, str>,
+    },
 
+    /// The supplied workspace has insufficient byte capacity.
     #[error("insufficient workspace size: {actual} bytes provided (required {required} bytes)")]
-    InsufficientWorkspaceSize { required: usize, actual: usize },
+    InsufficientWorkspaceSize {
+        /// Required workspace capacity in bytes.
+        required: usize,
+        /// Supplied workspace capacity in bytes.
+        actual: usize,
+    },
 
+    /// An operation requires a finalized backend descriptor.
     #[error("descriptor needs to be finalized")]
     DescriptorRequiredFinalized,
 
+    /// A descriptor was finalized before an operation that expects it to be unfinished.
     #[error("descriptor already finalized")]
     DescriptorAlreadyFinalized,
 
+    /// An attribute update attempted to modify a finalized descriptor.
     #[error("cannot modify finalized descriptor")]
     DescriptorCannotModifyFinalized,
 
+    /// A descriptor is not an execution-plan descriptor.
     #[error("descriptor expected execution plan")]
     DescriptorExpectedExecutionPlan,
 
+    /// A descriptor is not a variant-pack descriptor.
     #[error("descriptor expected variant pack")]
     DescriptorExpectedVariantPack,
 
+    /// A backend descriptor has the wrong native descriptor type.
     #[error("invalid backend descriptor type (expected {expected}, got {actual})")]
     InvalidBackendDescriptorType {
+        /// Native descriptor type required by the operation.
         expected: BackendDescriptorType,
+        /// Native descriptor type of the supplied resource.
         actual: BackendDescriptorType,
     },
 
+    /// A backend attribute returned an unexpected descriptor count.
     #[error("invalid backend descriptor count for `{name}`")]
-    InvalidBackendDescriptorCount { name: String },
+    InvalidBackendDescriptorCount {
+        /// Name of the invalid argument, attribute, or related resource.
+        name: Cow<'static, str>,
+    },
 
+    /// A requested backend descriptor attribute is absent.
     #[error("attribute `{0}` not found")]
     DescriptorAttributeNotFound(BackendAttributeName),
 
+    /// An engine configuration specifies the same knob more than once.
+    #[error("duplicate engine knob choice `{knob_type}`")]
+    DuplicateEngineKnobChoice {
+        /// Engine knob specified more than once.
+        knob_type: BackendKnobType,
+    },
+
+    /// A backend descriptor attribute has an invalid value.
     #[error("invalid attribute value for `{0}`: {1}")]
     DescriptorInvalidAttributeValue(BackendAttributeName, String),
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+/// Result of a cuDNN wrapper operation.
+pub type Result<T> = StdResult<T, Error>;
 
+impl Error {
+    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::OutOfRange { name: name.into() }
+    }
+
+    /// The native status when this error comes from a cuDNN call.
+    #[must_use]
+    pub fn status(&self) -> Option<Status> {
+        match self {
+            Self::Cudnn { code, .. } => Some(*code),
+            _ => None,
+        }
+    }
+}
+
+/// Captures the current thread's native diagnostic before any later cuDNN call can replace it.
+/// Consumes that diagnostic, unlike conversion from a plain [`Status`].
 impl From<sys::cudnnStatus_t> for Error {
     fn from(status: sys::cudnnStatus_t) -> Self {
+        let diagnostic = last_error_string();
         let code = Status::from(status);
-        Self::from(code)
+        let mut message = code.description().to_owned();
+        if !diagnostic.is_empty() {
+            message.push_str(": ");
+            message.push_str(&diagnostic);
+        }
+        Self::Cudnn { code, message }
     }
 }
 
@@ -838,11 +503,12 @@ impl From<Status> for Error {
     fn from(code: Status) -> Self {
         Self::Cudnn {
             code,
-            message: code.description(),
+            message: code.description().to_string(),
         }
     }
 }
 
+/// Converts a raw cuDNN status-returning expression into a crate [`Result`](crate::error::Result).
 #[macro_export]
 macro_rules! try_ffi {
     ($expr:expr) => {{
@@ -860,7 +526,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unknown_status_is_preserved_as_typed_cudnn_status() {
+    fn test_unknown_status_is_preserved_as_typed_cudnn_status() {
         let error = Error::from(Status::Unknown(12345));
 
         match error {
@@ -876,7 +542,7 @@ mod tests {
     }
 
     #[test]
-    fn known_status_round_trips_to_raw_status() {
+    fn test_known_status_round_trips_to_raw_status() {
         assert_eq!(
             sys::cudnnStatus_t::try_from(Status::NotSupported).unwrap(),
             sys::cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED

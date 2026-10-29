@@ -4,7 +4,7 @@ description = "Raw FFI bindings for Nvidia cuRAND."
 version = "0.1.0-alpha.2"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "curand", "bindings", "ffi"]
 include.workspace = true
@@ -13,9 +13,9 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["curand_13_3"]
+default = ["curand_13_4"]
 
-curand_13_3 = ["singe-cuda-sys/runtime_13_3"]
+curand_13_4 = ["singe-cuda-sys/runtime_13_4"]
 
 [dependencies]
 singe-cuda-sys.workspace = true

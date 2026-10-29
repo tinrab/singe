@@ -14,12 +14,13 @@ impl Context {
     /// - Returns [`crate::error::Status::InvalidStream`] if the stream is invalid or does not belong to the context.
     pub fn stream_id(&self, stream: &Stream, per_thread_stream: bool) -> Result<StreamId> {
         let mut stream_id = 0;
+        // SAFETY: `cuptiGetStreamIdEx` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cuptiGetStreamIdEx(
                 self.as_raw(),
                 stream.as_raw() as sys::CUstream,
-                per_thread_stream as u8,
-                &mut stream_id,
+                u8::from(per_thread_stream),
+                &raw mut stream_id,
             ))?;
         }
         Ok(StreamId::from(u64::from(stream_id)))
@@ -36,6 +37,7 @@ impl Context {
     // #[deprecated]
     // pub fn stream_id(&self, stream: &Stream) -> Result<StreamId> {
     //     let mut stream_id = 0;
+    // SAFETY: `cuptiGetStreamId` receives live handles owned by the wrappers and valid output locations.
     //     unsafe {
     //         try_ffi!(sys::cuptiGetStreamId(
     //             self.as_raw(),

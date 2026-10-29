@@ -1,3 +1,8 @@
+#![expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "BLAS and factorization operand names follow the standard mathematical API"
+)]
 use std::ptr;
 
 use singe_cuda::{data_type::DataType, memory::DeviceMemory};
@@ -6,7 +11,7 @@ use crate::{
     context::Context,
     error::{Error, Result},
     sys, try_ffi,
-    utility::to_i32,
+    utility::to_i64,
 };
 
 /// Supports the 64-bit integer interface.
@@ -24,9 +29,9 @@ use crate::{
 /// Returns an error if the context cannot be used with host pointer mode,
 /// `incx` is zero or too large for cuBLAS, the vector length is invalid, or
 /// cuBLAS rejects the operation.
-pub fn sscal(ctx: &Context, alpha: &f32, x: &mut DeviceMemory<f32>, incx: usize) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+pub fn sscal(context: &Context, alpha: &f32, x: &mut DeviceMemory<f32>, incx: usize) -> Result<()> {
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -36,11 +41,12 @@ pub fn sscal(ctx: &Context, alpha: &f32, x: &mut DeviceMemory<f32>, incx: usize)
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasSscal_v2_64` receives live handles owned by the wrappers and valid output locations.
     unsafe {
-        try_ffi!(sys::cublasSscal_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasSscal_v2_64(
+            context.as_raw(),
             n,
             alpha,
             x.as_mut_ptr(),
@@ -71,7 +77,7 @@ pub fn sscal(ctx: &Context, alpha: &f32, x: &mut DeviceMemory<f32>, incx: usize)
 /// vector shape, a type combination is unsupported, cuBLAS cannot allocate its
 /// reduction buffer, or cuBLAS rejects or fails the operation.
 pub fn nrm2_ex<TX, TResult>(
-    ctx: &Context,
+    context: &Context,
     x: &DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
@@ -79,8 +85,8 @@ pub fn nrm2_ex<TX, TResult>(
     result_type: DataType,
     execution_type: DataType,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -90,16 +96,17 @@ pub fn nrm2_ex<TX, TResult>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasNrm2Ex_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasNrm2Ex(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasNrm2Ex_64(
+            context.as_raw(),
             n,
-            x.as_ptr() as _,
+            x.as_ptr().cast(),
             x_type.into(),
             incx,
-            ptr::from_mut(result) as _,
+            ptr::from_mut(result).cast(),
             result_type.into(),
             execution_type.into(),
         ))?;
@@ -132,7 +139,7 @@ pub fn nrm2_ex<TX, TResult>(
 /// cannot allocate its reduction buffer, or cuBLAS rejects or fails the
 /// operation.
 pub fn dot_ex<TX, TY, TResult>(
-    ctx: &Context,
+    context: &Context,
     x: &DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
@@ -143,8 +150,8 @@ pub fn dot_ex<TX, TY, TResult>(
     result_type: DataType,
     execution_type: DataType,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -154,20 +161,21 @@ pub fn dot_ex<TX, TY, TResult>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDotEx_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDotEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDotEx_64(
+            context.as_raw(),
             n,
-            x.as_ptr() as _,
+            x.as_ptr().cast(),
             x_type.into(),
             incx,
-            y.as_ptr() as _,
+            y.as_ptr().cast(),
             y_type.into(),
             incy,
-            ptr::from_mut(result) as _,
+            ptr::from_mut(result).cast(),
             result_type.into(),
             execution_type.into(),
         ))?;
@@ -176,8 +184,15 @@ pub fn dot_ex<TX, TY, TResult>(
     Ok(())
 }
 
+/// Computes a dot product with explicit input, result, and execution types, conjugating `x` for complex data.
+///
+/// # Errors
+///
+/// Returns an error if an increment is zero, the strided vectors have different logical lengths, or a length or increment exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dotc_ex<TX, TY, TResult>(
-    ctx: &Context,
+    context: &Context,
     x: &DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
@@ -188,8 +203,8 @@ pub fn dotc_ex<TX, TY, TResult>(
     result_type: DataType,
     execution_type: DataType,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -199,20 +214,21 @@ pub fn dotc_ex<TX, TY, TResult>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDotcEx_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDotcEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDotcEx_64(
+            context.as_raw(),
             n,
-            x.as_ptr() as _,
+            x.as_ptr().cast(),
             x_type.into(),
             incx,
-            y.as_ptr() as _,
+            y.as_ptr().cast(),
             y_type.into(),
             incy,
-            ptr::from_mut(result) as _,
+            ptr::from_mut(result).cast(),
             result_type.into(),
             execution_type.into(),
         ))?;
@@ -231,7 +247,7 @@ pub fn dotc_ex<TX, TY, TResult>(
 /// either increment is zero or too large for cuBLAS, the vector lengths are
 /// incompatible, or cuBLAS rejects the operation.
 pub fn drot(
-    ctx: &Context,
+    context: &Context,
     x: &mut DeviceMemory<f64>,
     incx: usize,
     y: &mut DeviceMemory<f64>,
@@ -239,8 +255,8 @@ pub fn drot(
     c: &f64,
     s: &f64,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -250,12 +266,13 @@ pub fn drot(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDrot_v2_64` receives live handles owned by the wrappers and valid output locations.
     unsafe {
-        try_ffi!(sys::cublasDrot_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDrot_v2_64(
+            context.as_raw(),
             n,
             x.as_mut_ptr(),
             incx,
@@ -280,7 +297,7 @@ pub fn drot(
 /// incompatible, the supplied data type combination is not supported, or
 /// cuBLAS rejects the operation.
 pub fn rot_ex<TX, TY, TCS>(
-    ctx: &Context,
+    context: &Context,
     x: &mut DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
@@ -292,8 +309,8 @@ pub fn rot_ex<TX, TY, TCS>(
     cs_type: DataType,
     execution_type: DataType,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -303,21 +320,22 @@ pub fn rot_ex<TX, TY, TCS>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasRotEx_64` receives live handles owned by the wrappers and valid output locations.
     unsafe {
-        try_ffi!(sys::cublasRotEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasRotEx_64(
+            context.as_raw(),
             n,
-            x.as_mut_ptr() as _,
+            x.as_mut_ptr().cast(),
             x_type.into(),
             incx,
-            y.as_mut_ptr() as _,
+            y.as_mut_ptr().cast(),
             y_type.into(),
             incy,
-            ptr::from_ref(c) as _,
-            ptr::from_ref(s) as _,
+            ptr::from_ref(c).cast(),
+            ptr::from_ref(s).cast(),
             cs_type.into(),
             execution_type.into(),
         ))?;
@@ -334,13 +352,14 @@ pub fn rot_ex<TX, TY, TCS>(
 ///
 /// Returns an error if the context cannot be used with host pointer mode or
 /// cuBLAS rejects the operation.
-pub fn drotg(ctx: &Context, a: &mut f64, b: &mut f64, c: &mut f64, s: &mut f64) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+pub fn drotg(context: &Context, a: &mut f64, b: &mut f64, c: &mut f64, s: &mut f64) -> Result<()> {
+    context.bind()?;
+    context.require_host_pointer_mode()?;
 
+    // SAFETY: `cublasDrotg_v2` receives live handles owned by the wrappers.
     unsafe {
         try_ffi!(sys::cublasDrotg_v2(
-            ctx.as_raw(),
+            context.as_raw(),
             ptr::from_mut(a),
             ptr::from_mut(b),
             ptr::from_mut(c),
@@ -361,15 +380,15 @@ pub fn drotg(ctx: &Context, a: &mut f64, b: &mut f64, c: &mut f64, s: &mut f64) 
 /// either increment is zero or too large for cuBLAS, the vector lengths are
 /// incompatible, or cuBLAS rejects the operation.
 pub fn drotm(
-    ctx: &Context,
+    context: &Context,
     x: &mut DeviceMemory<f64>,
     incx: usize,
     y: &mut DeviceMemory<f64>,
     incy: usize,
     param: &[f64; 5],
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -379,12 +398,13 @@ pub fn drotm(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDrotm_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDrotm_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDrotm_v2_64(
+            context.as_raw(),
             n,
             x.as_mut_ptr(),
             incx,
@@ -406,19 +426,20 @@ pub fn drotm(
 /// Returns an error if the context cannot be used with host pointer mode or
 /// cuBLAS rejects the operation.
 pub fn drotmg(
-    ctx: &Context,
+    context: &Context,
     d1: &mut f64,
     d2: &mut f64,
     x1: &mut f64,
     y1: &f64,
     param: &mut [f64; 5],
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
 
+    // SAFETY: `cublasDrotmg_v2` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cublasDrotmg_v2(
-            ctx.as_raw(),
+            context.as_raw(),
             ptr::from_mut(d1),
             ptr::from_mut(d2),
             ptr::from_mut(x1),
@@ -447,7 +468,7 @@ pub fn drotmg(
 /// vector shape, a type combination is unsupported, or cuBLAS rejects or fails
 /// the operation.
 pub fn scal_ex<TAlpha, TX>(
-    ctx: &Context,
+    context: &Context,
     alpha: &TAlpha,
     alpha_type: DataType,
     x: &mut DeviceMemory<TX>,
@@ -455,8 +476,8 @@ pub fn scal_ex<TAlpha, TX>(
     incx: usize,
     execution_type: DataType,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -466,15 +487,16 @@ pub fn scal_ex<TAlpha, TX>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasScalEx_64` receives live handles owned by the wrappers and valid output locations.
     unsafe {
-        try_ffi!(sys::cublasScalEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasScalEx_64(
+            context.as_raw(),
             n,
-            ptr::from_ref(alpha) as _,
+            ptr::from_ref(alpha).cast(),
             alpha_type.into(),
-            x.as_mut_ptr() as _,
+            x.as_mut_ptr().cast(),
             x_type.into(),
             incx,
             execution_type.into(),
@@ -505,7 +527,7 @@ pub fn scal_ex<TAlpha, TX>(
 /// for the requested vector shape, a type combination is unsupported, or
 /// cuBLAS rejects or fails the operation.
 pub fn axpy_ex<TAlpha, TX, TY>(
-    ctx: &Context,
+    context: &Context,
     alpha: &TAlpha,
     alpha_type: DataType,
     x: &DeviceMemory<TX>,
@@ -516,8 +538,8 @@ pub fn axpy_ex<TAlpha, TX, TY>(
     incy: usize,
     execution_type: DataType,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -527,19 +549,20 @@ pub fn axpy_ex<TAlpha, TX, TY>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasAxpyEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasAxpyEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasAxpyEx_64(
+            context.as_raw(),
             n,
-            ptr::from_ref(alpha) as _,
+            ptr::from_ref(alpha).cast(),
             alpha_type.into(),
-            x.as_ptr() as _,
+            x.as_ptr().cast(),
             x_type.into(),
             incx,
-            y.as_mut_ptr() as _,
+            y.as_mut_ptr().cast(),
             y_type.into(),
             incy,
             execution_type.into(),
@@ -549,8 +572,14 @@ pub fn axpy_ex<TAlpha, TX, TY>(
     Ok(())
 }
 
+/// Copies corresponding strided vector elements using explicit input and output data types.
+///
+/// # Errors
+///
+/// Returns an error if an increment is zero, the strided vectors have different logical lengths, or a length or increment exceeds the native integer range.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn copy_ex<TX, TY>(
-    ctx: &Context,
+    context: &Context,
     x: &DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
@@ -558,7 +587,7 @@ pub fn copy_ex<TX, TY>(
     y_type: DataType,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -568,17 +597,18 @@ pub fn copy_ex<TX, TY>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasCopyEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasCopyEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasCopyEx_64(
+            context.as_raw(),
             n,
-            x.as_ptr() as _,
+            x.as_ptr().cast(),
             x_type.into(),
             incx,
-            y.as_mut_ptr() as _,
+            y.as_mut_ptr().cast(),
             y_type.into(),
             incy,
         ))?;
@@ -587,8 +617,14 @@ pub fn copy_ex<TX, TY>(
     Ok(())
 }
 
+/// Exchanges corresponding strided vector elements using explicit data types.
+///
+/// # Errors
+///
+/// Returns an error if an increment is zero, the strided vectors have different logical lengths, or a length or increment exceeds the native integer range.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn swap_ex<TX, TY>(
-    ctx: &Context,
+    context: &Context,
     x: &mut DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
@@ -596,7 +632,7 @@ pub fn swap_ex<TX, TY>(
     y_type: DataType,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -606,17 +642,18 @@ pub fn swap_ex<TX, TY>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasSwapEx_64` receives live handles owned by the wrappers and valid output locations.
     unsafe {
-        try_ffi!(sys::cublasSwapEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasSwapEx_64(
+            context.as_raw(),
             n,
-            x.as_mut_ptr() as _,
+            x.as_mut_ptr().cast(),
             x_type.into(),
             incx,
-            y.as_mut_ptr() as _,
+            y.as_mut_ptr().cast(),
             y_type.into(),
             incy,
         ))?;
@@ -625,14 +662,24 @@ pub fn swap_ex<TX, TY>(
     Ok(())
 }
 
+/// Returns the one-based index of the first vector element with maximum magnitude.
+///
+/// For complex values, magnitude is the sum of the absolute real and imaginary parts.
+/// Returns zero for an empty vector.
+///
+/// # Errors
+///
+/// Returns an error if an increment is zero, or a length or increment exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn iamax_ex<TX>(
-    ctx: &Context,
+    context: &Context,
     x: &DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
-) -> Result<i32> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+) -> Result<i64> {
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -642,14 +689,15 @@ pub fn iamax_ex<TX>(
         return Ok(0);
     }
 
-    let incx = to_i32(incx, "incx")?;
+    let incx = to_i64(incx, "incx")?;
     let mut result = 0;
 
+    // SAFETY: `cublasIamaxEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasIamaxEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasIamaxEx_64(
+            context.as_raw(),
             n,
-            x.as_ptr() as _,
+            x.as_ptr().cast(),
             x_type.into(),
             incx,
             &raw mut result,
@@ -659,14 +707,24 @@ pub fn iamax_ex<TX>(
     Ok(result)
 }
 
+/// Returns the one-based index of the first vector element with minimum magnitude.
+///
+/// For complex values, magnitude is the sum of the absolute real and imaginary parts.
+/// Returns zero for an empty vector.
+///
+/// # Errors
+///
+/// Returns an error if an increment is zero, or a length or increment exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn iamin_ex<TX>(
-    ctx: &Context,
+    context: &Context,
     x: &DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
-) -> Result<i32> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+) -> Result<i64> {
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -676,14 +734,15 @@ pub fn iamin_ex<TX>(
         return Ok(0);
     }
 
-    let incx = to_i32(incx, "incx")?;
+    let incx = to_i64(incx, "incx")?;
     let mut result = 0;
 
+    // SAFETY: `cublasIaminEx_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasIaminEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasIaminEx_64(
+            context.as_raw(),
             n,
-            x.as_ptr() as _,
+            x.as_ptr().cast(),
             x_type.into(),
             incx,
             &raw mut result,
@@ -693,8 +752,17 @@ pub fn iamin_ex<TX>(
     Ok(result)
 }
 
+/// Sums absolute vector values using explicit input, result, and execution types.
+///
+/// For complex values, sums the absolute real and imaginary parts.
+///
+/// # Errors
+///
+/// Returns an error if an increment is zero, or a length or increment exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn asum_ex<TX, TResult>(
-    ctx: &Context,
+    context: &Context,
     x: &DeviceMemory<TX>,
     x_type: DataType,
     incx: usize,
@@ -702,8 +770,8 @@ pub fn asum_ex<TX, TResult>(
     result_type: DataType,
     execution_type: DataType,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
@@ -713,16 +781,17 @@ pub fn asum_ex<TX, TResult>(
         return Ok(());
     }
 
-    let incx = to_i32(incx, "incx")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasAsumEx_64` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasAsumEx(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasAsumEx_64(
+            context.as_raw(),
             n,
-            x.as_ptr() as _,
+            x.as_ptr().cast(),
             x_type.into(),
             incx,
-            ptr::from_mut(result) as _,
+            ptr::from_mut(result).cast(),
             result_type.into(),
             execution_type.into(),
         ))?;
@@ -731,16 +800,16 @@ pub fn asum_ex<TX, TResult>(
     Ok(())
 }
 
-fn vector_len(length: usize, inc: usize) -> Result<i32> {
+fn vector_len(length: usize, inc: usize) -> Result<i64> {
     if length == 0 {
         return Ok(0);
     }
 
     let n = 1 + (length - 1) / inc;
-    i32::try_from(n).map_err(|_| Error::OutOfRange { name: "n".into() })
+    to_i64(n, "n")
 }
 
-fn vector_binary_len(x_length: usize, incx: usize, y_length: usize, incy: usize) -> Result<i32> {
+fn vector_binary_len(x_length: usize, incx: usize, y_length: usize, incy: usize) -> Result<i64> {
     let x_n = vector_len(x_length, incx)?;
     let y_n = vector_len(y_length, incy)?;
 
@@ -758,10 +827,10 @@ mod tests {
 
     #[test]
     fn test_sscal_scales_vector() -> Result<()> {
-        let ctx = setup_context()?;
+        let context = setup_context()?;
 
-        let mut x = DeviceMemory::from_slice(&[1.0_f32, 2.0, 3.0, 4.0])?;
-        sscal(&ctx, &2.5, &mut x, 1)?;
+        let mut x = DeviceMemory::from_slice(context.cuda_context(), &[1.0_f32, 2.0, 3.0, 4.0])?;
+        sscal(&context, &2.5, &mut x, 1)?;
 
         let result = x.copy_to_host_vec()?;
         assert_eq!(result, vec![2.5, 5.0, 7.5, 10.0]);
@@ -771,11 +840,11 @@ mod tests {
 
     #[test]
     fn test_drot_rotates_vectors() -> Result<()> {
-        let ctx = setup_context()?;
+        let context = setup_context()?;
 
-        let mut x = DeviceMemory::from_slice(&[1.0_f64, 2.0, 3.0, 4.0])?;
-        let mut y = DeviceMemory::from_slice(&[5.0_f64, 6.0, 7.0, 8.0])?;
-        drot(&ctx, &mut x, 1, &mut y, 1, &2.1, &1.2)?;
+        let mut x = DeviceMemory::from_slice(context.cuda_context(), &[1.0_f64, 2.0, 3.0, 4.0])?;
+        let mut y = DeviceMemory::from_slice(context.cuda_context(), &[5.0_f64, 6.0, 7.0, 8.0])?;
+        drot(&context, &mut x, 1, &mut y, 1, &2.1, &1.2)?;
 
         let x_result = x.copy_to_host_vec()?;
         let y_result = y.copy_to_host_vec()?;

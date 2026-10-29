@@ -1,4 +1,5 @@
 use std::{
+    ffi,
     ffi::{CStr, CString},
     fmt::{self, Debug, Formatter},
     marker::PhantomData,
@@ -10,7 +11,7 @@ use std::{
 use singe_cupti_sys as sys;
 
 use crate::{
-    error::{Error, Result},
+    error::{Error, Result, Status},
     try_ffi,
     types::{
         ApiCallbackSite, CallbackDomain, CallbackId, CallbackIdResource, CallbackIdState,
@@ -21,8 +22,10 @@ use crate::{
 
 type CallbackFn =
     dyn for<'a> FnMut(CallbackDomain, CallbackId, CallbackDataPointer<'a>) + Send + 'static;
+
 type CallbackBox = Box<CallbackFn>;
 
+/// Opaque callback-data pointer borrowed from a CUPTI callback invocation.
 #[derive(Debug, Clone, Copy)]
 pub struct CallbackDataPointer<'a> {
     ptr: *const (),
@@ -30,49 +33,69 @@ pub struct CallbackDataPointer<'a> {
 }
 
 impl CallbackDataPointer<'_> {
+    /// Returns whether CUPTI supplied a null callback-data pointer.
+    #[must_use]
     pub const fn is_null(self) -> bool {
         self.ptr.is_null()
     }
 
+    /// Decodes this pointer using `domain` and passes the borrowed payload to `f`.
+    ///
+    /// Use the domain delivered alongside this pointer by CUPTI. Returns `None` without calling `f` when the pointer is null; unrecognized domains produce [`CallbackPayload::Unknown`].
     pub fn with_decoded<R>(
         self,
         domain: CallbackDomain,
-        f: impl FnOnce(CallbackData<'_>) -> R,
+        f: impl FnOnce(CallbackPayload<'_>) -> R,
     ) -> Option<R> {
         if self.ptr.is_null() {
             return None;
         }
-        Some(f(unsafe { CallbackData::from_raw(domain, self.ptr) }))
+        // SAFETY: CUPTI keeps the non-null callback data valid for this callback, and `domain` selects its type.
+        Some(f(unsafe { CallbackPayload::from_raw(domain, self.ptr) }))
     }
 }
 
+/// Callback data decoded according to its CUPTI callback domain.
+///
+/// Payload references remain borrowed for the callback invocation.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
-pub enum CallbackData<'a> {
-    Api(ApiCallbackData<'a>),
-    Nvtx(NvtxData<'a>),
-    Resource(ResourceData<'a>),
-    Synchronize(SynchronizeData<'a>),
-    State(StateData<'a>),
+pub enum CallbackPayload<'a> {
+    /// CUDA driver or runtime API callback.
+    Api(ApiCallbackInfo<'a>),
+    /// NVTX callback.
+    Nvtx(NvtxCallbackInfo<'a>),
+    /// CUDA resource creation or destruction callback.
+    Resource(ResourceCallbackInfo<'a>),
+    /// CUDA context or stream synchronization callback.
+    Synchronize(SynchronizeCallbackInfo<'a>),
+    /// CUPTI state notification.
+    State(StateCallbackInfo<'a>),
+    /// Callback domain without a supported payload decoder.
     Unknown,
 }
 
-impl<'a> CallbackData<'a> {
+impl CallbackPayload<'_> {
     unsafe fn from_raw(domain: CallbackDomain, ptr: *const ()) -> Self {
         match domain {
-            CallbackDomain::DriverApi | CallbackDomain::RuntimeApi => Self::Api(ApiCallbackData {
+            CallbackDomain::DriverApi | CallbackDomain::RuntimeApi => Self::Api(ApiCallbackInfo {
+                // SAFETY: the caller upholds this function's safety contract.
                 raw: unsafe { &*ptr.cast::<sys::CUpti_CallbackData>() },
             }),
-            CallbackDomain::Resource => Self::Resource(ResourceData {
+            CallbackDomain::Resource => Self::Resource(ResourceCallbackInfo {
+                // SAFETY: the caller upholds this function's safety contract.
                 raw: unsafe { &*ptr.cast::<sys::CUpti_ResourceData>() },
             }),
-            CallbackDomain::Synchronize => Self::Synchronize(SynchronizeData {
+            CallbackDomain::Synchronize => Self::Synchronize(SynchronizeCallbackInfo {
+                // SAFETY: the caller upholds this function's safety contract.
                 handle: unsafe { &*ptr.cast::<sys::CUpti_SynchronizeData>() },
             }),
-            CallbackDomain::State => Self::State(StateData {
+            CallbackDomain::State => Self::State(StateCallbackInfo {
+                // SAFETY: the caller upholds this function's safety contract.
                 raw: unsafe { &*ptr.cast::<sys::CUpti_StateData>() },
             }),
-            CallbackDomain::Nvtx => Self::Nvtx(NvtxData {
+            CallbackDomain::Nvtx => Self::Nvtx(NvtxCallbackInfo {
+                // SAFETY: the caller upholds this function's safety contract.
                 raw: unsafe { &*ptr.cast::<sys::CUpti_NvtxData>() },
             }),
             _ => Self::Unknown,
@@ -80,121 +103,161 @@ impl<'a> CallbackData<'a> {
     }
 }
 
+/// Borrowed metadata for a CUDA driver or runtime API callback.
 #[derive(Debug, Clone, Copy)]
-pub struct ApiCallbackData<'a> {
+pub struct ApiCallbackInfo<'a> {
     raw: &'a sys::CUpti_CallbackData,
 }
 
-impl<'a> ApiCallbackData<'a> {
+impl<'a> ApiCallbackInfo<'a> {
+    /// Returns whether the callback occurs at API entry or exit.
+    #[must_use]
     pub fn site(self) -> ApiCallbackSite {
         ApiCallbackSite::from(self.raw.callbackSite)
     }
 
+    /// Returns the borrowed name of the API function issuing the callback, or `None` for a null native name pointer.
+    #[must_use]
     pub fn function_name(self) -> Option<&'a CStr> {
         if self.raw.functionName.is_null() {
             return None;
         }
+        // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
         Some(unsafe { CStr::from_ptr(self.raw.functionName) })
     }
 
+    /// Returns the borrowed symbol name for a driver or runtime launch callback, or `None` for a null pointer.
+    ///
+    /// For launch callbacks, the symbol is the kernel name; the native field is not meaningful for other API calls.
+    #[must_use]
     pub fn symbol_name(self) -> Option<&'a CStr> {
         if self.raw.symbolName.is_null() {
             return None;
         }
+        // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
         Some(unsafe { CStr::from_ptr(self.raw.symbolName) })
     }
 
+    /// Returns the process-unique identifier of the associated CUDA context.
+    #[must_use]
     pub fn context_id(self) -> ContextId {
         ContextId::from(self.raw.contextUid)
     }
 
+    /// Returns the identifier matching the corresponding driver or runtime API activity record.
+    #[must_use]
     pub fn correlation_id(self) -> CorrelationId {
         CorrelationId::from(self.raw.correlationId)
     }
 }
 
+/// Borrowed metadata for an NVTX callback.
 #[derive(Debug, Clone, Copy)]
-pub struct NvtxData<'a> {
+pub struct NvtxCallbackInfo<'a> {
     raw: &'a sys::CUpti_NvtxData,
 }
 
-impl<'a> NvtxData<'a> {
+impl<'a> NvtxCallbackInfo<'a> {
+    /// Returns the borrowed name of the API function issuing the callback, or `None` for a null native name pointer.
+    #[must_use]
     pub fn function_name(self) -> Option<&'a CStr> {
         if self.raw.functionName.is_null() {
             return None;
         }
+        // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
         Some(unsafe { CStr::from_ptr(self.raw.functionName) })
     }
 }
 
+/// Borrowed resource creation or destruction callback metadata.
 #[derive(Clone, Copy)]
-pub struct ResourceData<'a> {
+pub struct ResourceCallbackInfo<'a> {
     raw: &'a sys::CUpti_ResourceData,
 }
 
-impl ResourceData<'_> {
+impl ResourceCallbackInfo<'_> {
+    /// Returns whether the native callback includes a non-null CUDA context handle.
+    #[must_use]
     pub fn has_context(self) -> bool {
         !self.raw.context.is_null()
     }
 
+    /// Returns whether the native callback includes a non-null resource descriptor.
+    #[must_use]
     pub fn has_resource_descriptor(self) -> bool {
         !self.raw.resourceDescriptor.is_null()
     }
 }
 
-impl Debug for ResourceData<'_> {
+impl Debug for ResourceCallbackInfo<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ResourceData")
+        f.debug_struct("ResourceCallbackInfo")
             .field("has_context", &self.has_context())
             .field("has_resource_descriptor", &self.has_resource_descriptor())
             .finish()
     }
 }
 
+/// Borrowed CUDA context or stream synchronization callback metadata.
 #[derive(Debug, Clone, Copy)]
-pub struct SynchronizeData<'a> {
+pub struct SynchronizeCallbackInfo<'a> {
     handle: &'a sys::CUpti_SynchronizeData,
 }
 
-impl SynchronizeData<'_> {
+impl SynchronizeCallbackInfo<'_> {
+    /// Returns whether the native callback includes a non-null CUDA context handle.
+    #[must_use]
     pub fn has_context(self) -> bool {
         !self.handle.context.is_null()
     }
 
+    /// Returns whether the native stream handle is non-null.
+    ///
+    /// A null handle can represent the default stream; this query does not distinguish that case from an absent stream.
+    #[must_use]
     pub fn has_stream(self) -> bool {
         !self.handle.stream.is_null()
     }
 }
 
+/// Borrowed CUPTI state-notification metadata.
 #[derive(Clone, Copy)]
-pub struct StateData<'a> {
+pub struct StateCallbackInfo<'a> {
     raw: &'a sys::CUpti_StateData,
 }
 
-impl<'a> StateData<'a> {
-    pub fn notification_result(self) -> crate::error::Status {
+impl<'a> StateCallbackInfo<'a> {
+    /// Returns the CUPTI status associated with this state notification.
+    #[must_use]
+    pub fn notification_result(self) -> Status {
+        // SAFETY: the callback domain checked above selects this union field.
         let notification = unsafe { self.raw.__bindgen_anon_1.notification };
         notification.result.into()
     }
 
+    /// Returns the borrowed notification message, or `None` for a null native message pointer.
+    #[must_use]
     pub fn notification_message(self) -> Option<&'a CStr> {
+        // SAFETY: the callback domain checked above selects this union field.
         let notification = unsafe { self.raw.__bindgen_anon_1.notification };
         if notification.message.is_null() {
             return None;
         }
+        // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
         Some(unsafe { CStr::from_ptr(notification.message) })
     }
 }
 
-impl Debug for StateData<'_> {
+impl Debug for StateCallbackInfo<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("StateData")
+        f.debug_struct("StateCallbackInfo")
             .field("notification_result", &self.notification_result())
             .field("notification_message", &self.notification_message())
             .finish()
     }
 }
 
+/// Subscription settings and storage for CUPTI subscriber-name diagnostics.
 #[derive(Debug)]
 pub struct SubscriberParams {
     subscriber_name: Option<CString>,
@@ -203,6 +266,10 @@ pub struct SubscriberParams {
 }
 
 impl SubscriberParams {
+    /// Creates unnamed subscription settings that disallow multiple subscribers.
+    ///
+    /// Allocates the native minimum buffer capacity for an existing subscriber name.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             subscriber_name: None,
@@ -211,22 +278,36 @@ impl SubscriberParams {
         }
     }
 
+    /// Sets the subscriber name, which CUPTI copies when subscribing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `name` contains an interior nul byte.
     pub fn with_subscriber_name(mut self, name: &str) -> Result<Self> {
         self.subscriber_name = Some(CString::new(name)?);
         Ok(self)
     }
 
+    /// Sets whether CUPTI should permit multiple subscribers.
+    ///
+    /// CUPTI rejects subscription if it cannot honor this request; setting it does not itself establish runtime support.
+    #[must_use]
     pub fn with_multiple_subscribers(mut self, allow: bool) -> Self {
         self.allow_multiple_subscribers = allow;
         self
     }
 
+    /// Returns the subscriber name reported by the last subscription attempt, or `None` if no name was written.
+    ///
+    /// Copies the native diagnostic buffer into a string, replacing invalid UTF-8 sequences.
+    #[must_use]
     pub fn old_subscriber_name(&self) -> Option<String> {
         let ptr = self.old_subscriber_name.as_ptr();
         if ptr.is_null() || self.old_subscriber_name.first().copied() == Some(0) {
             return None;
         }
         Some(
+            // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
             unsafe { CStr::from_ptr(ptr) }
                 .to_string_lossy()
                 .into_owned(),
@@ -242,7 +323,7 @@ impl SubscriberParams {
                 .map_or(ptr::null(), |name| name.as_ptr()),
             oldSubscriberName: self.old_subscriber_name.as_mut_ptr(),
             oldSubscriberSize: self.old_subscriber_name.len() as u64,
-            allowMultipleSubscribers: self.allow_multiple_subscribers as u8,
+            allowMultipleSubscribers: u8::from(self.allow_multiple_subscribers),
             padding: [0; 7],
         }
     }
@@ -254,12 +335,28 @@ impl Default for SubscriberParams {
     }
 }
 
+/// Owns a CUPTI callback subscription and its Rust callback.
+///
+/// CUPTI invokes the callback on the host thread issuing the traced CUDA call. Callback panics are caught at the native trampoline. Subscription creation leaves callbacks disabled; enable the desired domains or identifiers explicitly.
 pub struct Subscriber {
     handle: Option<SubscriberHandle>,
     callback: Option<Box<CallbackBox>>,
 }
 
+impl Debug for Subscriber {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Subscriber").finish_non_exhaustive()
+    }
+}
+
 impl Subscriber {
+    /// Registers a Rust callback with unnamed, single-subscriber settings.
+    ///
+    /// Retains the callback until unsubscription or drop. Individual callbacks remain disabled until explicitly enabled.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUPTI cannot initialize or register the subscription, another subscriber prevents registration, or the returned handle is null.
     pub fn create<F>(callback: F) -> Result<Self>
     where
         F: for<'a> FnMut(CallbackDomain, CallbackId, CallbackDataPointer<'a>) + Send + 'static,
@@ -282,15 +379,16 @@ impl Subscriber {
         F: for<'a> FnMut(CallbackDomain, CallbackId, CallbackDataPointer<'a>) + Send + 'static,
     {
         let mut callback: Box<CallbackBox> = Box::new(Box::new(callback));
-        let userdata = callback.as_mut() as *mut CallbackBox;
+        let userdata = ptr::from_mut::<CallbackBox>(callback.as_mut());
         let mut handle = ptr::null_mut();
         let mut params = params.as_raw_mut();
+        // SAFETY: `cuptiSubscribe_v2` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuptiSubscribe_v2(
-                &mut handle,
+                &raw mut handle,
                 Some(callback_trampoline),
                 userdata.cast(),
-                &mut params,
+                &raw mut params,
             ))?;
         }
 
@@ -318,6 +416,7 @@ impl Subscriber {
     /// - Returns [`crate::error::Status::NotInitialized`] if CUPTI has not been initialized.
     pub fn unsubscribe(mut self) -> Result<()> {
         if let Some(handle) = self.handle.take() {
+            // SAFETY: `cuptiUnsubscribe` receives only plain values.
             unsafe {
                 try_ffi!(sys::cuptiUnsubscribe(handle))?;
             }
@@ -334,8 +433,9 @@ impl Subscriber {
     /// - Returns [`crate::error::Status::NotInitialized`] if CUPTI has not been initialized.
     pub fn enable_all_domains(&self, enable: bool) -> Result<()> {
         let handle = self.as_raw()?;
+        // SAFETY: `cuptiEnableAllDomains` receives only plain values.
         unsafe {
-            try_ffi!(sys::cuptiEnableAllDomains(enable as u32, handle))?;
+            try_ffi!(sys::cuptiEnableAllDomains(u32::from(enable), handle))?;
         }
         Ok(())
     }
@@ -348,8 +448,13 @@ impl Subscriber {
     /// - Returns [`crate::error::Status::NotInitialized`] if CUPTI has not been initialized.
     pub fn enable_domain(&self, enable: bool, domain: CallbackDomain) -> Result<()> {
         let handle = self.as_raw()?;
+        // SAFETY: `cuptiEnableDomain` receives only plain values.
         unsafe {
-            try_ffi!(sys::cuptiEnableDomain(enable as u32, handle, domain.into()))?;
+            try_ffi!(sys::cuptiEnableDomain(
+                u32::from(enable),
+                handle,
+                domain.into()
+            ))?;
         }
         Ok(())
     }
@@ -367,9 +472,10 @@ impl Subscriber {
         callback_id: CallbackId,
     ) -> Result<()> {
         let handle = self.as_raw()?;
+        // SAFETY: `cuptiEnableCallback` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cuptiEnableCallback(
-                enable as u32,
+                u32::from(enable),
                 handle,
                 domain.into(),
                 callback_id.as_raw(),
@@ -387,9 +493,10 @@ impl Subscriber {
     pub fn callback_state(&self, domain: CallbackDomain, callback_id: CallbackId) -> Result<bool> {
         let mut enable = 0u32;
         let handle = self.as_raw()?;
+        // SAFETY: `cuptiGetCallbackState` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cuptiGetCallbackState(
-                &mut enable,
+                &raw mut enable,
                 handle,
                 domain.into(),
                 callback_id.as_raw(),
@@ -398,17 +505,23 @@ impl Subscriber {
         Ok(enable != 0)
     }
 
+    /// Returns the enabled callback identifiers in `domain` for this subscriber.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the subscriber handle is absent, a native callback-list query rejects the handle or domain, or a returned count cannot be represented as `usize`.
     pub fn enabled_callbacks(&self, domain: CallbackDomain) -> Result<Vec<CallbackId>> {
         let mut buffer_size = 0u32;
         let mut enabled_count = 0u32;
         let handle = self.as_raw()?;
+        // SAFETY: `cuptiGetEnabledCallbacks` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuptiGetEnabledCallbacks(
                 handle,
                 domain.into(),
                 ptr::null_mut(),
-                &mut buffer_size,
-                &mut enabled_count,
+                &raw mut buffer_size,
+                &raw mut enabled_count,
             ))?;
         }
 
@@ -420,13 +533,14 @@ impl Subscriber {
         let mut callbacks = vec![0u32; len];
         let mut buffer_size = enabled_count;
         let mut enabled_count = 0u32;
+        // SAFETY: `cuptiGetEnabledCallbacks` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuptiGetEnabledCallbacks(
                 handle,
                 domain.into(),
                 callbacks.as_mut_ptr(),
-                &mut buffer_size,
-                &mut enabled_count,
+                &raw mut buffer_size,
+                &raw mut enabled_count,
             ))?;
         }
         callbacks.truncate(to_usize(enabled_count, "enabled_callbacks_count")?);
@@ -440,11 +554,12 @@ impl Subscriber {
     /// - Returns [`crate::error::Status::InvalidParameter`] if the callback domain or callback ID is invalid.
     pub fn callback_name(domain: CallbackDomain, callback_id: CallbackId) -> Result<String> {
         let mut name = ptr::null();
+        // SAFETY: `cuptiGetCallbackName` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cuptiGetCallbackName(
                 domain.into(),
                 callback_id.as_raw(),
-                &mut name
+                &raw mut name
             ))?;
         }
 
@@ -452,6 +567,7 @@ impl Subscriber {
             return Err(Error::NullHandle);
         }
 
+        // SAFETY: the pointer was checked for null, and the library keeps the NUL-terminated string alive while this value is borrowed.
         Ok(unsafe { CStr::from_ptr(name) }
             .to_string_lossy()
             .into_owned())
@@ -466,10 +582,11 @@ impl Subscriber {
     pub fn supported_domains() -> Result<Vec<CallbackDomain>> {
         let mut domain_count = 0;
         let mut domain_table = ptr::null_mut();
+        // SAFETY: `cuptiSupportedDomains` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuptiSupportedDomains(
-                &mut domain_count,
-                &mut domain_table,
+                &raw mut domain_count,
+                &raw mut domain_table,
             ))?;
         }
 
@@ -478,18 +595,34 @@ impl Subscriber {
         }
 
         let count = to_usize(domain_count, "domain_count")?;
+        // SAFETY: CUPTI returned a table of `count` domains, released only after this copy.
         let domains = unsafe { slice::from_raw_parts(domain_table.cast_const(), count) };
         Ok(domains.iter().copied().map(CallbackDomain::from).collect())
     }
 
+    /// Returns CUPTI's name for a resource callback identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUPTI cannot name the callback or rejects its domain or identifier, or returns a null name pointer.
     pub fn resource_callback_name(callback_id: CallbackIdResource) -> Result<String> {
         Self::callback_name(CallbackDomain::Resource, callback_id.into())
     }
 
+    /// Returns CUPTI's name for a synchronization callback identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUPTI cannot name the callback or rejects its domain or identifier, or returns a null name pointer.
     pub fn sync_callback_name(callback_id: CallbackIdSync) -> Result<String> {
         Self::callback_name(CallbackDomain::Synchronize, callback_id.into())
     }
 
+    /// Returns CUPTI's name for a state callback identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUPTI cannot name the callback or rejects its domain or identifier, or returns a null name pointer.
     pub fn state_callback_name(callback_id: CallbackIdState) -> Result<String> {
         Self::callback_name(CallbackDomain::State, callback_id.into())
     }
@@ -498,8 +631,12 @@ impl Subscriber {
 impl Drop for Subscriber {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
+            // SAFETY: `cuptiUnsubscribe` receives only plain values.
             unsafe {
-                let _ = sys::cuptiUnsubscribe(handle);
+                if let Err(error) = try_ffi!(sys::cuptiUnsubscribe(handle)) {
+                    #[cfg(debug_assertions)]
+                    eprintln!("failed to unsubscribe cupti callbacks: {error}");
+                }
             }
         }
         drop(self.callback.take());
@@ -507,22 +644,23 @@ impl Drop for Subscriber {
 }
 
 unsafe extern "C" fn callback_trampoline(
-    userdata: *mut std::ffi::c_void,
+    userdata: *mut ffi::c_void,
     domain: sys::CUpti_CallbackDomain,
     callback_id: sys::CUpti_CallbackId,
-    callback_data: *const std::ffi::c_void,
+    callback_data: *const ffi::c_void,
 ) {
     if userdata.is_null() {
         return;
     }
 
     let _ = catch_unwind(AssertUnwindSafe(|| {
+        // SAFETY: `userdata` is the boxed callback registered with this subscriber, which outlives the subscription.
         let callback = unsafe { &mut *userdata.cast::<CallbackBox>() };
         callback(
             CallbackDomain::from(domain),
             CallbackId::from(callback_id),
             CallbackDataPointer {
-                ptr: callback_data as _,
+                ptr: callback_data.cast(),
                 _a: PhantomData,
             },
         );
@@ -534,7 +672,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn callback_data_pointer_decodes_api_callback_data() {
+    fn test_callback_data_pointer_decodes_api_callback_data() {
         let function_name = CString::new("cuLaunchKernel").unwrap();
         let symbol_name = CString::new("kernel").unwrap();
         let raw = sys::CUpti_CallbackData {
@@ -554,7 +692,7 @@ mod tests {
         };
 
         let decoded = pointer.with_decoded(CallbackDomain::DriverApi, |data| match data {
-            CallbackData::Api(data) => {
+            CallbackPayload::Api(data) => {
                 assert_eq!(data.site(), ApiCallbackSite::Enter);
                 assert_eq!(
                     data.function_name().unwrap().to_str().unwrap(),
@@ -572,7 +710,7 @@ mod tests {
     }
 
     #[test]
-    fn callback_data_pointer_decodes_state_notification() {
+    fn test_callback_data_pointer_decodes_state_notification() {
         let message = CString::new("state changed").unwrap();
         let raw = sys::CUpti_StateData {
             __bindgen_anon_1: sys::CUpti_StateData__bindgen_ty_1 {
@@ -588,8 +726,8 @@ mod tests {
         };
 
         let decoded = pointer.with_decoded(CallbackDomain::State, |data| match data {
-            CallbackData::State(data) => {
-                assert_eq!(data.notification_result(), crate::error::Status::Success);
+            CallbackPayload::State(data) => {
+                assert_eq!(data.notification_result(), Status::Success);
                 assert_eq!(
                     data.notification_message().unwrap().to_str().unwrap(),
                     "state changed"
@@ -603,7 +741,7 @@ mod tests {
     }
 
     #[test]
-    fn callback_data_pointer_decodes_nvtx_callback_data() {
+    fn test_callback_data_pointer_decodes_nvtx_callback_data() {
         let function_name = CString::new("nvtxRangePushEx").unwrap();
         let raw = sys::CUpti_NvtxData {
             functionName: function_name.as_ptr(),
@@ -616,7 +754,7 @@ mod tests {
         };
 
         let decoded = pointer.with_decoded(CallbackDomain::Nvtx, |data| match data {
-            CallbackData::Nvtx(data) => {
+            CallbackPayload::Nvtx(data) => {
                 assert_eq!(
                     data.function_name().unwrap().to_str().unwrap(),
                     "nvtxRangePushEx"
@@ -630,7 +768,7 @@ mod tests {
     }
 
     #[test]
-    fn null_callback_data_pointer_does_not_decode() {
+    fn test_null_callback_data_pointer_does_not_decode() {
         let pointer = CallbackDataPointer {
             ptr: ptr::null(),
             _a: PhantomData,
@@ -644,7 +782,7 @@ mod tests {
     }
 
     #[test]
-    fn subscriber_params_default_raw_state_is_valid() {
+    fn test_subscriber_params_default_raw_state_is_valid() {
         let mut params = SubscriberParams::new();
         let raw = params.as_raw_mut();
 
@@ -663,7 +801,7 @@ mod tests {
     }
 
     #[test]
-    fn subscriber_params_builder_sets_name_and_multiple_subscribers() -> Result<()> {
+    fn test_subscriber_params_builder_sets_name_and_multiple_subscribers() -> Result<()> {
         let mut params = SubscriberParams::new()
             .with_subscriber_name("singe-cupti-test")?
             .with_multiple_subscribers(true);
@@ -671,6 +809,7 @@ mod tests {
 
         assert!(!raw.subscriberName.is_null());
         assert_eq!(
+            // SAFETY: the subscriber name was checked for null and points to the static name set above.
             unsafe { CStr::from_ptr(raw.subscriberName) }
                 .to_str()
                 .unwrap(),
@@ -681,7 +820,7 @@ mod tests {
     }
 
     #[test]
-    fn subscriber_params_rejects_interior_nul_names() {
+    fn test_subscriber_params_rejects_interior_nul_names() {
         let error = SubscriberParams::new()
             .with_subscriber_name("bad\0name")
             .unwrap_err();

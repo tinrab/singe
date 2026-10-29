@@ -2,16 +2,17 @@ mod common;
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::{DataType, bf16},
     error::{Error, Result, Status},
     frontend::{
-        composite::sdpa::SdpaInputs,
-        graph::{DataTypePolicy, Graph, GraphConfig},
+        composite::sdpa::{SdpaForwardOutputTensors, SdpaInputs},
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
-            AttentionConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
-            SdpaAuxOutputRequest,
+            AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode,
+            AttentionScoreConfig, AttentionSequenceInputs,
         },
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
 };
 
@@ -23,7 +24,7 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let context = common::ExampleContext::create()?;
 
     let b = 3_i64;
     let h = 4_i64;
@@ -41,78 +42,95 @@ fn run() -> Result<()> {
         ),
     );
 
-    let q = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_q, d_qk])?).with_id(1001),
-    );
-    let k = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_kv, d_qk])?).with_id(1002),
-    );
-    let v = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_kv, d_v])?).with_id(1003),
-    );
-    let scale = graph.tensor(TensorSpec::scalar_f32(0.123)?);
-    let sequence_length_query = graph
-        .tensor(TensorSpec::new(DataType::I32, Shape::contiguous([b, 1, 1, 1])?).with_id(1007));
-    let sequence_length_key_value = graph
-        .tensor(TensorSpec::new(DataType::I32, Shape::contiguous([b, 1, 1, 1])?).with_id(1008));
+    let q = graph.insert_tensor(
+        TensorId::new(1001),
+        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_q, d_qk])?),
+    )?;
+    let k = graph.insert_tensor(
+        TensorId::new(1002),
+        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_kv, d_qk])?),
+    )?;
+    let v = graph.insert_tensor(
+        TensorId::new(1003),
+        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_kv, d_v])?),
+    )?;
+    let scale = graph.tensor(TensorSpec::scalar_f32(0.123));
+    let sequence_length_query = graph.insert_tensor(
+        TensorId::new(1007),
+        TensorSpec::new(DataType::I32, Shape::contiguous([b, 1, 1, 1])?),
+    )?;
+    let sequence_length_key_value = graph.insert_tensor(
+        TensorId::new(1008),
+        TensorSpec::new(DataType::I32, Shape::contiguous([b, 1, 1, 1])?),
+    )?;
 
-    let outputs = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto(
         SdpaInputs {
             query: q,
             key: k,
             value: v,
             scale: scale,
         },
-        AttentionConfig::new(DataType::F32)
-            .with_aux_outputs(SdpaAuxOutputRequest::stats_only())
-            .with_score_config(AttentionScoreConfig::new().with_mask_mode(
-                AttentionMaskMode::CausalTopLeftWithPadding {
-                    sequence_length_query: sequence_length_query,
-                    sequence_length_key_value: sequence_length_key_value,
-                },
-            )),
+        AttentionConfig::new()
+            .with_compute_type(DataType::F32)
+            .with_score_config(
+                AttentionScoreConfig::new()
+                    .with_sequence_inputs(AttentionSequenceInputs::per_batch(
+                        sequence_length_query,
+                        sequence_length_key_value,
+                    ))
+                    .with_mask_mode(AttentionMaskMode::DiagonalBand(
+                        AttentionDiagonalBand::causal(AttentionDiagonalAlignment::TopLeft)
+                            .with_padding(true),
+                    )),
+            ),
+        SdpaForwardOutputTensors::new(TensorOutputConfig::new().output_tensor())
+            .with_stats(TensorOutputConfig::new().output_tensor()),
     )?;
-    let o = outputs.output();
-    let stats = outputs.stats();
+    let o = outputs.output;
+    let stats = outputs.stats;
 
     graph.replace_tensor(
         o,
         TensorSpec::new(
             DataType::BF16,
-            Shape::contiguous([b, h, s_q, d_v])?.with_strides(vec![
-                h * d_v,
-                d_v,
-                b * h * d_v,
-                1,
-            ])?,
+            Shape::with_strides([b, h, s_q, d_v], vec![h * d_v, d_v, b * h * d_v, 1])?,
         )
-        .output_tensor()
-        .with_id(1004),
+        .output_tensor(),
     )?;
     let stats = stats.expect("stats");
-    let stats_tensor = graph
-        .tensor_config(stats)?
-        .clone()
-        .output_tensor()
-        .with_id(1005);
+    let stats_tensor = graph.tensor_spec(stats)?.clone().output_tensor();
     graph.replace_tensor(stats, stats_tensor)?;
 
-    let compiled = graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
+    let compiled = graph.compile(
+        Some(&context.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+    )?;
 
     let mut seed = 123_456_789_u32;
-    let mut q_dev =
-        DeviceMemory::from_slice(&init_bf16_image((b * h * s_q * d_qk) as usize, &mut seed))?;
-    let mut k_dev =
-        DeviceMemory::from_slice(&init_bf16_image((b * h * s_kv * d_qk) as usize, &mut seed))?;
-    let mut v_dev =
-        DeviceMemory::from_slice(&init_bf16_image((b * h * s_kv * d_v) as usize, &mut seed))?;
-    let mut seq_len_q_dev = DeviceMemory::from_slice(&vec![20_i32; b as usize])?;
-    let mut seq_len_kv_dev = DeviceMemory::from_slice(&vec![20_i32; b as usize])?;
-    let mut o_dev = DeviceMemory::<bf16>::zeroes((b * h * s_q * d_v) as usize)?;
-    let mut stats_dev = DeviceMemory::<f32>::zeroes((b * h * s_q) as usize)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
+    let mut q_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_bf16_image((b * h * s_q * d_qk) as usize, &mut seed),
+    )?;
+    let mut k_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_bf16_image((b * h * s_kv * d_qk) as usize, &mut seed),
+    )?;
+    let mut v_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_bf16_image((b * h * s_kv * d_v) as usize, &mut seed),
+    )?;
+    let mut seq_len_q_dev =
+        DeviceMemory::from_slice(context.cudnn.cuda_context(), &vec![20_i32; b as usize])?;
+    let mut seq_len_kv_dev =
+        DeviceMemory::from_slice(context.cudnn.cuda_context(), &vec![20_i32; b as usize])?;
+    let mut o_dev =
+        DeviceMemory::<bf16>::zeroed(context.cudnn.cuda_context(), (b * h * s_q * d_v) as usize)?;
+    let mut stats_dev =
+        DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), (b * h * s_q) as usize)?;
+    let mut workspace = common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
 
-    let mut bindings = compiled.bindings();
+    let mut bindings = compiled.bindings()?;
     bindings.set(q, &mut q_dev)?;
     bindings.set(k, &mut k_dev)?;
     bindings.set(v, &mut v_dev)?;
@@ -121,9 +139,15 @@ fn run() -> Result<()> {
     bindings.set(o, &mut o_dev)?;
     bindings.set(stats, &mut stats_dev)?;
 
-    let mut cuda_graph = ctx.cudnn.cuda_context().create_graph()?;
-    match compiled.populate_cuda_graph(&ctx.cudnn, &bindings, Some(&mut workspace), &mut cuda_graph)
-    {
+    let mut cuda_graph = context.cudnn.cuda_context().create_graph()?;
+    // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
+    match unsafe {
+        compiled.populate_cuda_graph(
+            &context.cudnn,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            &mut cuda_graph,
+        )
+    } {
         Ok(()) => {}
         Err(Error::Cudnn { code, .. })
             if code == Status::NotSupported || code == Status::NotSupportedCudaGraphNativeApi =>
@@ -133,7 +157,14 @@ fn run() -> Result<()> {
         Err(error) => return Err(error),
     }
 
-    match compiled.update_cuda_graph(&ctx.cudnn, &bindings, Some(&mut workspace), &cuda_graph) {
+    // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
+    match unsafe {
+        compiled.update_cuda_graph(
+            &context.cudnn,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            &cuda_graph,
+        )
+    } {
         Ok(()) => Ok(()),
         Err(Error::Cudnn { code, .. })
             if code == Status::NotSupported || code == Status::NotSupportedCudaGraphNativeApi =>

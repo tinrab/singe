@@ -1,6 +1,8 @@
+use std::ptr;
+
 use singe_cuda::{
     data_type::{DataType, DataTypeLike},
-    memory::DeviceMemory,
+    view::{DeviceOutputView, DeviceView},
 };
 
 use crate::{
@@ -9,35 +11,43 @@ use crate::{
         require_host_workspace, require_info_buffer, require_pivot64_buffer,
         require_workspace_bytes, validate_x_matrix, validate_xlarft_inputs,
     },
-    error::Result,
-    layout::{ByteWorkspaceMut, MatrixMut, MatrixRef, VectorRef, WorkspaceSizes},
+    error::{Error, Result},
+    layout::{ByteWorkspaceMut, MatrixLayout, MatrixMut, MatrixRef, VectorRef, WorkspaceSizes},
     params::Params,
     sys, try_ffi,
     types::{DiagonalType, DirectMode, FillMode, Operation, StorevMode},
     utility::{to_i64, to_usize},
 };
 
+/// Queries device and host workspace capacities in bytes for Cholesky factorization.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn xpotrf_buffer_size<TA: DataTypeLike>(
-    ctx: &Context,
+    context: &Context,
     params: &Params,
     fill_mode: FillMode,
     n: usize,
-    a: MatrixRef<'_, TA>,
+    a: MatrixLayout,
     compute_type: DataType,
 ) -> Result<WorkspaceSizes> {
-    ctx.bind()?;
+    context.bind()?;
     let a_type = TA::data_type();
-    validate_x_matrix(n, n, a.data.byte_len(), a.leading_dimension, a_type)?;
+    a.validate(n, n)?;
     let mut device_bytes = 0;
     let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXpotrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXpotrf_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             fill_mode.into(),
             to_i64(n, "n")?,
             a_type.into(),
-            a.data.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i64(a.leading_dimension, "lda")?,
             compute_type.into(),
             &raw mut device_bytes,
@@ -92,7 +102,7 @@ pub fn xpotrf_buffer_size<TA: DataTypeLike>(
 ///
 /// **Valid combination of data type and compute type**
 ///
-/// | **data_type_a** | **compute_type** | **Meaning** |
+/// | **`data_type_a`** | **`compute_type`** | **Meaning** |
 /// | --- | --- | --- |
 /// | [`DataType::F32`] | [`DataType::F32`] | `SPOTRF` |
 /// | [`DataType::F64`] | [`DataType::F64`] | `DPOTRF` |
@@ -104,26 +114,40 @@ pub fn xpotrf_buffer_size<TA: DataTypeLike>(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, or if cuSOLVER reports
 /// an internal failure.
-pub fn xpotrf<TA: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn xpotrf<TA: DataTypeLike>(
+    context: &Context,
     params: &Params,
     fill_mode: FillMode,
     n: usize,
-    a: MatrixMut<'_, TA>,
+    mut a: MatrixMut<'_, TA>,
     compute_type: DataType,
-    workspace: ByteWorkspaceMut<'_>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: ByteWorkspaceMut<'_>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&dev_info)?;
+    context.validate_region(&workspace.device)?;
     let a_type = TA::data_type();
-    validate_x_matrix(n, n, a.data.byte_len(), a.leading_dimension, a_type)?;
-    require_info_buffer(dev_info)?;
-    let workspace_sizes = xpotrf_buffer_size(ctx, params, fill_mode, n, a.as_ref(), compute_type)?;
-    require_workspace_bytes(workspace.device.byte_len(), workspace_sizes.device_bytes)?;
+    validate_x_matrix(
+        n,
+        n,
+        a.data.region().byte_len(),
+        a.leading_dimension,
+        a_type,
+    )?;
+    require_info_buffer(dev_info.len())?;
+    let workspace_sizes =
+        xpotrf_buffer_size::<TA>(context, params, fill_mode, n, a.layout(), compute_type)?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
     require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXpotrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXpotrf(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             fill_mode.into(),
             to_i64(n, "n")?,
@@ -172,7 +196,7 @@ pub fn xpotrf<TA: DataTypeLike>(
 ///
 /// **Valid combination of data type and compute type**
 ///
-/// | **data_type_a** | **data_type_b** | **Meaning** |
+/// | **`data_type_a`** | **`data_type_b`** | **Meaning** |
 /// | --- | --- | --- |
 /// | [`DataType::F32`] | [`DataType::F32`] | `SPOTRS` |
 /// | [`DataType::F64`] | [`DataType::F64`] | `DPOTRS` |
@@ -184,25 +208,44 @@ pub fn xpotrf<TA: DataTypeLike>(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions, right-hand-side count, or leading dimensions are
 /// invalid, or if cuSOLVER reports an internal failure.
-pub fn xpotrs<TA: DataTypeLike, TB: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn xpotrs<TA: DataTypeLike, TB: DataTypeLike>(
+    context: &Context,
     params: &Params,
     fill_mode: FillMode,
     n: usize,
     nrhs: usize,
     a: MatrixRef<'_, TA>,
-    b: MatrixMut<'_, TB>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut b: MatrixMut<'_, TB>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&b.data)?;
+    context.validate_region(&dev_info)?;
     let a_type = TA::data_type();
     let b_type = TB::data_type();
-    validate_x_matrix(n, n, a.data.byte_len(), a.leading_dimension, a_type)?;
-    validate_x_matrix(n, nrhs, b.data.byte_len(), b.leading_dimension, b_type)?;
-    require_info_buffer(dev_info)?;
+    validate_x_matrix(
+        n,
+        n,
+        a.data.region().byte_len(),
+        a.leading_dimension,
+        a_type,
+    )?;
+    validate_x_matrix(
+        n,
+        nrhs,
+        b.data.region().byte_len(),
+        b.leading_dimension,
+        b_type,
+    )?;
+    require_info_buffer(dev_info.len())?;
+    // SAFETY: `cusolverDnXpotrs` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnXpotrs(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             fill_mode.into(),
             to_i64(n, "n")?,
@@ -219,31 +262,33 @@ pub fn xpotrs<TA: DataTypeLike, TB: DataTypeLike>(
     Ok(())
 }
 
+/// Queries device and host workspace capacities in bytes for triangular inversion.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn xtrtri_buffer_size<TA: DataTypeLike>(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     diagonal_type: DiagonalType,
     n: usize,
-    a: MatrixRef<'_, TA>,
+    a: MatrixLayout,
 ) -> Result<WorkspaceSizes> {
-    ctx.bind()?;
-    validate_x_matrix(
-        n,
-        n,
-        a.data.byte_len(),
-        a.leading_dimension,
-        TA::data_type(),
-    )?;
+    context.bind()?;
+    a.validate(n, n)?;
     let mut device_bytes = 0;
     let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXtrtri_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXtrtri_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             diagonal_type.into(),
             to_i64(n, "n")?,
             TA::data_type().into(),
-            a.data.as_ptr().cast_mut().cast(),
+            ptr::null_mut(),
             to_i64(a.leading_dimension, "lda")?,
             &raw mut device_bytes,
             &raw mut host_bytes,
@@ -292,30 +337,38 @@ pub fn xtrtri_buffer_size<TA: DataTypeLike>(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the data type is not
 /// supported, or if cuSOLVER reports an internal failure.
-pub fn xtrtri<TA: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn xtrtri<TA: DataTypeLike>(
+    context: &Context,
     fill_mode: FillMode,
     diagonal_type: DiagonalType,
     n: usize,
-    a: MatrixMut<'_, TA>,
-    workspace: ByteWorkspaceMut<'_>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut a: MatrixMut<'_, TA>,
+    mut workspace: ByteWorkspaceMut<'_>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&dev_info)?;
+    context.validate_region(&workspace.device)?;
     validate_x_matrix(
         n,
         n,
-        a.data.byte_len(),
+        a.data.region().byte_len(),
         a.leading_dimension,
         TA::data_type(),
     )?;
-    require_info_buffer(dev_info)?;
-    let workspace_sizes = xtrtri_buffer_size(ctx, fill_mode, diagonal_type, n, a.as_ref())?;
-    require_workspace_bytes(workspace.device.byte_len(), workspace_sizes.device_bytes)?;
+    require_info_buffer(dev_info.len())?;
+    let workspace_sizes =
+        xtrtri_buffer_size::<TA>(context, fill_mode, diagonal_type, n, a.layout())?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
     require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXtrtri` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXtrtri(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             diagonal_type.into(),
             to_i64(n, "n")?,
@@ -332,27 +385,35 @@ pub fn xtrtri<TA: DataTypeLike>(
     Ok(())
 }
 
+/// Queries device and host workspace capacities in bytes for LU factorization.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn xgetrf_buffer_size<TA: DataTypeLike>(
-    ctx: &Context,
+    context: &Context,
     params: &Params,
     m: usize,
     n: usize,
-    a: MatrixRef<'_, TA>,
+    a: MatrixLayout,
     compute_type: DataType,
 ) -> Result<WorkspaceSizes> {
-    ctx.bind()?;
+    context.bind()?;
     let a_type = TA::data_type();
-    validate_x_matrix(m, n, a.data.byte_len(), a.leading_dimension, a_type)?;
+    a.validate(m, n)?;
     let mut device_bytes = 0;
     let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXgetrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXgetrf_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             to_i64(m, "m")?,
             to_i64(n, "n")?,
             a_type.into(),
-            a.data.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i64(a.leading_dimension, "lda")?,
             compute_type.into(),
             &raw mut device_bytes,
@@ -402,7 +463,7 @@ pub fn xgetrf_buffer_size<TA: DataTypeLike>(
 ///
 /// **Valid combination of data type and compute type**
 ///
-/// | **data_type_a** | **compute_type** | **Meaning** |
+/// | **`data_type_a`** | **`compute_type`** | **Meaning** |
 /// | --- | --- | --- |
 /// | [`DataType::F32`] | [`DataType::F32`] | `SGETRF` |
 /// | [`DataType::F64`] | [`DataType::F64`] | `DGETRF` |
@@ -414,37 +475,54 @@ pub fn xgetrf_buffer_size<TA: DataTypeLike>(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, or if cuSOLVER reports
 /// an internal failure.
-pub fn xgetrf<TA: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn xgetrf<TA: DataTypeLike>(
+    context: &Context,
     params: &Params,
     m: usize,
     n: usize,
-    a: MatrixMut<'_, TA>,
-    pivots: Option<&mut DeviceMemory<i64>>,
+    mut a: MatrixMut<'_, TA>,
+    pivots: Option<DeviceOutputView<'_, i64>>,
     compute_type: DataType,
-    workspace: ByteWorkspaceMut<'_>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: ByteWorkspaceMut<'_>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
-    let a_type = TA::data_type();
-    validate_x_matrix(m, n, a.data.byte_len(), a.leading_dimension, a_type)?;
-    if let Some(pivots) = pivots.as_ref() {
-        require_pivot64_buffer(pivots, m.min(n))?;
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
     }
-    require_info_buffer(dev_info)?;
-    let workspace_sizes = xgetrf_buffer_size(ctx, params, m, n, a.as_ref(), compute_type)?;
-    require_workspace_bytes(workspace.device.byte_len(), workspace_sizes.device_bytes)?;
+    context.validate_region(&workspace.device)?;
+    let a_type = TA::data_type();
+    validate_x_matrix(
+        m,
+        n,
+        a.data.region().byte_len(),
+        a.leading_dimension,
+        a_type,
+    )?;
+    if let Some(pivots) = pivots.as_ref() {
+        require_pivot64_buffer(pivots.len(), m.min(n))?;
+    }
+    require_info_buffer(dev_info.len())?;
+    let workspace_sizes =
+        xgetrf_buffer_size::<TA>(context, params, m, n, a.layout(), compute_type)?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
     require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXgetrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXgetrf(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             to_i64(m, "m")?,
             to_i64(n, "n")?,
             a_type.into(),
             a.data.as_mut_ptr().cast(),
             to_i64(a.leading_dimension, "lda")?,
-            pivots.map_or(std::ptr::null_mut(), |p| p.as_mut_ptr()),
+            pivots.map_or(ptr::null_mut(), |mut p| p.as_mut_ptr()),
             compute_type.into(),
             workspace.device.as_mut_ptr().cast(),
             workspace_sizes.device_bytes as _,
@@ -485,7 +563,7 @@ pub fn xgetrf<TA: DataTypeLike>(
 ///
 /// **Valid combination of data type and compute type**
 ///
-/// | **data_type_a** | **data_type_b** | **Meaning** |
+/// | **`data_type_a`** | **`data_type_b`** | **Meaning** |
 /// | --- | --- | --- |
 /// | [`DataType::F32`] | [`DataType::F32`] | `SGETRS` |
 /// | [`DataType::F64`] | [`DataType::F64`] | `DGETRS` |
@@ -497,27 +575,47 @@ pub fn xgetrf<TA: DataTypeLike>(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimensions are invalid, or if cuSOLVER reports
 /// an internal failure.
-pub fn xgetrs<TA: DataTypeLike, TB: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn xgetrs<TA: DataTypeLike, TB: DataTypeLike>(
+    context: &Context,
     params: &Params,
     operation: Operation,
     n: usize,
     nrhs: usize,
     a: MatrixRef<'_, TA>,
-    pivots: &DeviceMemory<i64>,
-    b: MatrixMut<'_, TB>,
-    dev_info: &mut DeviceMemory<i32>,
+    pivots: DeviceView<'_, i64>,
+    mut b: MatrixMut<'_, TB>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&b.data)?;
+    context.validate_region(&pivots)?;
+    context.validate_region(&dev_info)?;
     let a_type = TA::data_type();
     let b_type = TB::data_type();
-    validate_x_matrix(n, n, a.data.byte_len(), a.leading_dimension, a_type)?;
-    require_pivot64_buffer(pivots, n)?;
-    validate_x_matrix(n, nrhs, b.data.byte_len(), b.leading_dimension, b_type)?;
-    require_info_buffer(dev_info)?;
+    validate_x_matrix(
+        n,
+        n,
+        a.data.region().byte_len(),
+        a.leading_dimension,
+        a_type,
+    )?;
+    require_pivot64_buffer(pivots.len(), n)?;
+    validate_x_matrix(
+        n,
+        nrhs,
+        b.data.region().byte_len(),
+        b.leading_dimension,
+        b_type,
+    )?;
+    require_info_buffer(dev_info.len())?;
+    // SAFETY: `cusolverDnXgetrs` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnXgetrs(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             operation.into(),
             to_i64(n, "n")?,
@@ -535,48 +633,40 @@ pub fn xgetrs<TA: DataTypeLike, TB: DataTypeLike>(
     Ok(())
 }
 
+/// Queries device and host workspace capacities in bytes for symmetric indefinite solving.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn xsytrs_buffer_size<TA: DataTypeLike, TB: DataTypeLike>(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     nrhs: usize,
-    a: MatrixRef<'_, TA>,
-    pivots: Option<&DeviceMemory<i64>>,
-    b: MatrixRef<'_, TB>,
+    a: MatrixLayout,
+    b: MatrixLayout,
 ) -> Result<WorkspaceSizes> {
-    ctx.bind()?;
-    validate_x_matrix(
-        n,
-        n,
-        a.data.byte_len(),
-        a.leading_dimension,
-        TA::data_type(),
-    )?;
-    validate_x_matrix(
-        n,
-        nrhs,
-        b.data.byte_len(),
-        b.leading_dimension,
-        TB::data_type(),
-    )?;
-    if let Some(pivots) = pivots {
-        require_pivot64_buffer(pivots, n)?;
-    }
+    context.bind()?;
+    a.validate(n, n)?;
+    b.validate(n, nrhs)?;
 
     let mut device_bytes = 0;
     let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXsytrs_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXsytrs_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i64(n, "n")?,
             to_i64(nrhs, "nrhs")?,
             TA::data_type().into(),
-            a.data.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i64(a.leading_dimension, "lda")?,
-            pivots.map_or(std::ptr::null(), DeviceMemory::as_ptr),
+            ptr::null(),
             TB::data_type().into(),
-            b.data.as_ptr().cast_mut().cast(),
+            ptr::null_mut(),
             to_i64(b.leading_dimension, "ldb")?,
             &raw mut device_bytes,
             &raw mut host_bytes,
@@ -592,15 +682,15 @@ pub fn xsytrs_buffer_size<TA: DataTypeLike, TB: DataTypeLike>(
 ///
 /// Solves a system of linear equations through the generic cuSOLVER routine.
 ///
-/// `A` contains the factorization produced by the typed `*sytrf` operations in this module.
+/// `A` contains the factorization produced by [`xsytrf`].
 /// Only the lower or upper part is meaningful; the other part is left untouched.
 ///
-/// Provide the pivot indices returned by the matching `*sytrf` operation, along
+/// Provide the pivot indices returned by the matching [`xsytrf`] operation, along
 /// with device and host workspace through `workspace`.
 /// Use [`xsytrs_buffer_size`] to determine the required sizes for
 /// `workspace.device` and `workspace.host`.
 /// To factorize and solve the symmetric system without pivoting, pass `None`
-/// for the pivot buffer to both the matching `*sytrf` operation and [`xsytrs`].
+/// for the pivot buffer to both the matching [`xsytrf`] operation and [`xsytrs`].
 ///
 /// If the reported `dev_info` value is `-i`, the `i`th parameter is invalid.
 ///
@@ -612,7 +702,7 @@ pub fn xsytrs_buffer_size<TA: DataTypeLike, TB: DataTypeLike>(
 ///
 /// **Valid combination of data type and compute type**
 ///
-/// | **data_type_a** | **data_type_b** | **Meaning** |
+/// | **`data_type_a`** | **`data_type_b`** | **Meaning** |
 /// | --- | --- | --- |
 /// | [`DataType::F32`] | [`DataType::F32`] | `SSYTRS` |
 /// | [`DataType::F64`] | [`DataType::F64`] | `DSYTRS` |
@@ -624,49 +714,61 @@ pub fn xsytrs_buffer_size<TA: DataTypeLike, TB: DataTypeLike>(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the matrix data type
 /// is not supported, or if cuSOLVER reports an internal failure.
-pub fn xsytrs<TA: DataTypeLike, TB: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn xsytrs<TA: DataTypeLike, TB: DataTypeLike>(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     nrhs: usize,
     a: MatrixRef<'_, TA>,
-    pivots: Option<&DeviceMemory<i64>>,
-    b: MatrixMut<'_, TB>,
-    workspace: ByteWorkspaceMut<'_>,
-    dev_info: &mut DeviceMemory<i32>,
+    pivots: Option<DeviceView<'_, i64>>,
+    mut b: MatrixMut<'_, TB>,
+    mut workspace: ByteWorkspaceMut<'_>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&b.data)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
+    }
+    context.validate_region(&workspace.device)?;
     validate_x_matrix(
         n,
         n,
-        a.data.byte_len(),
+        a.data.region().byte_len(),
         a.leading_dimension,
         TA::data_type(),
     )?;
     validate_x_matrix(
         n,
         nrhs,
-        b.data.byte_len(),
+        b.data.region().byte_len(),
         b.leading_dimension,
         TB::data_type(),
     )?;
     if let Some(pivots) = pivots {
-        require_pivot64_buffer(pivots, n)?;
+        require_pivot64_buffer(pivots.len(), n)?;
     }
-    require_info_buffer(dev_info)?;
-    let workspace_sizes = xsytrs_buffer_size(ctx, fill_mode, n, nrhs, a, pivots, b.as_ref())?;
-    require_workspace_bytes(workspace.device.byte_len(), workspace_sizes.device_bytes)?;
+    require_info_buffer(dev_info.len())?;
+    let workspace_sizes =
+        xsytrs_buffer_size::<TA, TB>(context, fill_mode, n, nrhs, a.layout(), b.layout())?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
     require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXsytrs` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnXsytrs(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i64(n, "n")?,
             to_i64(nrhs, "nrhs")?,
             TA::data_type().into(),
             a.data.as_ptr().cast(),
             to_i64(a.leading_dimension, "lda")?,
-            pivots.map_or(std::ptr::null(), DeviceMemory::as_ptr),
+            pivots.map_or(ptr::null(), |buffer| buffer.as_ptr()),
             TB::data_type().into(),
             b.data.as_mut_ptr().cast(),
             to_i64(b.leading_dimension, "ldb")?,
@@ -680,52 +782,55 @@ pub fn xsytrs<TA: DataTypeLike, TB: DataTypeLike>(
     Ok(())
 }
 
+/// Queries device and host workspace capacities in bytes for formation of the triangular factor of a block reflector.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn xlarft_buffer_size<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike>(
-    ctx: &Context,
+    context: &Context,
     params: &Params,
     direct: DirectMode,
     storev: StorevMode,
     n: usize,
     k: usize,
-    v: MatrixRef<'_, TV>,
-    tau: VectorRef<'_, TTau>,
-    t: MatrixRef<'_, TT>,
+    v: MatrixLayout,
+    t: MatrixLayout,
     compute_type: DataType,
 ) -> Result<WorkspaceSizes> {
-    ctx.bind()?;
+    context.bind()?;
     let v_type = TV::data_type();
     let tau_type = TTau::data_type();
     let t_type = TT::data_type();
-    validate_xlarft_inputs(
-        n,
-        k,
-        storev,
-        v.data.byte_len(),
-        v.leading_dimension,
-        v_type,
-        tau.data.byte_len(),
-        tau_type,
-        t.data.byte_len(),
-        t.leading_dimension,
-        t_type,
-    )?;
+    v.validate(n, k)
+        .and_then(|()| t.validate(k, k))
+        .and_then(|()| {
+            if k > n || storev != StorevMode::Columnwise {
+                Err(Error::InvalidMatrixShape)
+            } else {
+                Ok(())
+            }
+        })?;
     let mut device_bytes = 0;
     let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXlarft_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXlarft_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             direct.into(),
             storev.into(),
             to_i64(n, "n")?,
             to_i64(k, "k")?,
             v_type.into(),
-            v.data.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i64(v.leading_dimension, "ldv")?,
             tau_type.into(),
-            tau.data.as_ptr().cast(),
+            ptr::null(),
             t_type.into(),
-            t.data.as_ptr().cast_mut().cast(),
+            ptr::null_mut(),
             to_i64(t.leading_dimension, "ldt")?,
             compute_type.into(),
             &raw mut device_bytes,
@@ -760,7 +865,7 @@ pub fn xlarft_buffer_size<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike
 ///
 /// **Valid combinations of data types and compute types**
 ///
-/// | **data_type_v** | **data_type_tau** | **data_type_t** | **compute_type** | **Meaning** |
+/// | **`data_type_v`** | **`data_type_tau`** | **`data_type_t`** | **`compute_type`** | **Meaning** |
 /// | --- | --- | --- | --- | --- |
 /// | [`DataType::F32`] | [`DataType::F32`] | [`DataType::F32`] | [`DataType::F32`] | `SLARFT` |
 /// | [`DataType::F64`] | [`DataType::F64`] | [`DataType::F64`] | [`DataType::F64`] | `DLARFT` |
@@ -772,8 +877,11 @@ pub fn xlarft_buffer_size<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// reflector dimensions or storage mode are invalid, or if cuSOLVER reports an
 /// internal failure.
-pub fn xlarft<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn xlarft<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike>(
+    context: &Context,
     params: &Params,
     direct: DirectMode,
     storev: StorevMode,
@@ -781,11 +889,15 @@ pub fn xlarft<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike>(
     k: usize,
     v: MatrixRef<'_, TV>,
     tau: VectorRef<'_, TTau>,
-    t: MatrixMut<'_, TT>,
+    mut t: MatrixMut<'_, TT>,
     compute_type: DataType,
-    workspace: ByteWorkspaceMut<'_>,
+    mut workspace: ByteWorkspaceMut<'_>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&v.data)?;
+    context.validate_region(&tau.data)?;
+    context.validate_region(&t.data)?;
+    context.validate_region(&workspace.device)?;
     let v_type = TV::data_type();
     let tau_type = TTau::data_type();
     let t_type = TT::data_type();
@@ -793,32 +905,32 @@ pub fn xlarft<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike>(
         n,
         k,
         storev,
-        v.data.byte_len(),
+        v.data.region().byte_len(),
         v.leading_dimension,
         v_type,
-        tau.data.byte_len(),
+        tau.data.region().byte_len(),
         tau_type,
-        t.data.byte_len(),
+        t.data.region().byte_len(),
         t.leading_dimension,
         t_type,
     )?;
-    let workspace_sizes = xlarft_buffer_size(
-        ctx,
+    let workspace_sizes = xlarft_buffer_size::<TV, TTau, TT>(
+        context,
         params,
         direct,
         storev,
         n,
         k,
-        v,
-        tau,
-        t.as_ref(),
+        v.layout(),
+        t.layout(),
         compute_type,
     )?;
-    require_workspace_bytes(workspace.device.byte_len(), workspace_sizes.device_bytes)?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
     require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXlarft` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnXlarft(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             direct.into(),
             storev.into(),
@@ -837,6 +949,358 @@ pub fn xlarft<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike>(
             workspace_sizes.device_bytes as _,
             workspace.host.as_mut_ptr().cast(),
             workspace_sizes.host_bytes as _,
+        ))?;
+    }
+    Ok(())
+}
+
+/// Calculates the sizes needed for pre-allocated device and host workspace.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn xsytrf_buffer_size<TA: DataTypeLike>(
+    context: &Context,
+    params: &Params,
+    fill_mode: FillMode,
+    n: usize,
+    a: MatrixLayout,
+    compute_type: DataType,
+) -> Result<WorkspaceSizes> {
+    context.bind()?;
+    let a_type = TA::data_type();
+    a.validate(n, n)?;
+
+    let mut device_bytes = 0;
+    let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXsytrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
+    unsafe {
+        try_ffi!(sys::cusolverDnXsytrf_bufferSize(
+            context.as_raw(),
+            params.as_raw(),
+            fill_mode.into(),
+            to_i64(n, "n")?,
+            a_type.into(),
+            ptr::null_mut::<u8>().cast(),
+            to_i64(a.leading_dimension, "lda")?,
+            ptr::null(),
+            compute_type.into(),
+            &raw mut device_bytes,
+            &raw mut host_bytes,
+        ))?;
+    }
+    Ok(WorkspaceSizes::new(
+        to_usize(device_bytes, "device workspace size")?,
+        to_usize(host_bytes, "host workspace size")?,
+    ))
+}
+
+/// Computes the factorization of a symmetric indefinite matrix using
+/// Bunch-Kaufman diagonal pivoting and the generic API interface.
+///
+/// Only the lower or upper triangular part of `a` is meaningful. The other
+/// triangular part may also be used as workspace. If `pivots` is `None`, no
+/// pivoting is performed, which is not numerically stable.
+/// Each block of the diagonal factor is either a 1×1 or 2×2 block.
+/// `dev_info` reports an invalid parameter as a negative index, or a singular
+/// diagonal factor as a positive index. Use [`xsytrf_buffer_size`] for workspace.
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device or host workspace is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xsytrf<TA: DataTypeLike>(
+    context: &Context,
+    params: &Params,
+    fill_mode: FillMode,
+    n: usize,
+    mut a: MatrixMut<'_, TA>,
+    pivots: Option<DeviceOutputView<'_, i64>>,
+    compute_type: DataType,
+    mut workspace: ByteWorkspaceMut<'_>,
+    mut dev_info: DeviceOutputView<'_, i32>,
+) -> Result<()> {
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
+    }
+    context.validate_region(&workspace.device)?;
+    let a_type = TA::data_type();
+    validate_x_matrix(
+        n,
+        n,
+        a.data.region().byte_len(),
+        a.leading_dimension,
+        a_type,
+    )?;
+    if let Some(pivots) = pivots.as_ref() {
+        require_pivot64_buffer(pivots.len(), n)?;
+    }
+    require_info_buffer(dev_info.len())?;
+    let workspace_sizes =
+        xsytrf_buffer_size::<TA>(context, params, fill_mode, n, a.layout(), compute_type)?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
+    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXsytrf` receives live handles owned by the wrappers and valid output locations.
+    unsafe {
+        try_ffi!(sys::cusolverDnXsytrf(
+            context.as_raw(),
+            params.as_raw(),
+            fill_mode.into(),
+            to_i64(n, "n")?,
+            a_type.into(),
+            a.data.as_mut_ptr().cast(),
+            to_i64(a.leading_dimension, "lda")?,
+            pivots.map_or(ptr::null_mut(), |mut buffer| buffer.as_mut_ptr()),
+            compute_type.into(),
+            workspace.device.as_mut_ptr().cast(),
+            workspace_sizes.device_bytes as _,
+            workspace.host.as_mut_ptr().cast(),
+            workspace_sizes.host_bytes as _,
+            dev_info.as_mut_ptr().cast(),
+        ))?;
+    }
+    Ok(())
+}
+
+/// Calculates the sizes needed for pre-allocated device and host workspace.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn xhetrf_buffer_size<TA: DataTypeLike>(
+    context: &Context,
+    params: &Params,
+    fill_mode: FillMode,
+    n: usize,
+    a: MatrixLayout,
+    compute_type: DataType,
+) -> Result<WorkspaceSizes> {
+    context.bind()?;
+    let a_type = TA::data_type();
+    a.validate(n, n)?;
+
+    let mut device_bytes = 0;
+    let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXhetrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
+    unsafe {
+        try_ffi!(sys::cusolverDnXhetrf_bufferSize(
+            context.as_raw(),
+            params.as_raw(),
+            fill_mode.into(),
+            to_i64(n, "n")?,
+            a_type.into(),
+            ptr::null_mut::<u8>().cast(),
+            to_i64(a.leading_dimension, "lda")?,
+            ptr::null(),
+            compute_type.into(),
+            &raw mut device_bytes,
+            &raw mut host_bytes,
+        ))?;
+    }
+    Ok(WorkspaceSizes::new(
+        to_usize(device_bytes, "device workspace size")?,
+        to_usize(host_bytes, "host workspace size")?,
+    ))
+}
+
+/// Computes the factorization of a Hermitian indefinite matrix using
+/// Bunch-Kaufman diagonal pivoting and the generic API interface.
+///
+/// Only the lower or upper triangular part of `a` is meaningful. The other
+/// triangular part may also be used as workspace. If `pivots` is `None`, no
+/// pivoting is performed, which is not numerically stable.
+/// Each block of the diagonal factor is either a 1×1 or 2×2 block.
+/// `dev_info` reports an invalid parameter as a negative index, or a singular
+/// diagonal factor as a positive index. Use [`xhetrf_buffer_size`] for workspace.
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device or host workspace is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xhetrf<TA: DataTypeLike>(
+    context: &Context,
+    params: &Params,
+    fill_mode: FillMode,
+    n: usize,
+    mut a: MatrixMut<'_, TA>,
+    pivots: Option<DeviceOutputView<'_, i64>>,
+    compute_type: DataType,
+    mut workspace: ByteWorkspaceMut<'_>,
+    mut dev_info: DeviceOutputView<'_, i32>,
+) -> Result<()> {
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
+    }
+    context.validate_region(&workspace.device)?;
+    let a_type = TA::data_type();
+    validate_x_matrix(
+        n,
+        n,
+        a.data.region().byte_len(),
+        a.leading_dimension,
+        a_type,
+    )?;
+    if let Some(pivots) = pivots.as_ref() {
+        require_pivot64_buffer(pivots.len(), n)?;
+    }
+    require_info_buffer(dev_info.len())?;
+    let workspace_sizes =
+        xhetrf_buffer_size::<TA>(context, params, fill_mode, n, a.layout(), compute_type)?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
+    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXhetrf` receives live handles owned by the wrappers and valid output locations.
+    unsafe {
+        try_ffi!(sys::cusolverDnXhetrf(
+            context.as_raw(),
+            params.as_raw(),
+            fill_mode.into(),
+            to_i64(n, "n")?,
+            a_type.into(),
+            a.data.as_mut_ptr().cast(),
+            to_i64(a.leading_dimension, "lda")?,
+            pivots.map_or(ptr::null_mut(), |mut buffer| buffer.as_mut_ptr()),
+            compute_type.into(),
+            workspace.device.as_mut_ptr().cast(),
+            workspace_sizes.device_bytes as _,
+            workspace.host.as_mut_ptr().cast(),
+            workspace_sizes.host_bytes as _,
+            dev_info.as_mut_ptr().cast(),
+        ))?;
+    }
+    Ok(())
+}
+
+/// Calculates the sizes needed for pre-allocated device and host workspace.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn xhetrs_buffer_size<TA: DataTypeLike, TB: DataTypeLike>(
+    context: &Context,
+    params: &Params,
+    fill_mode: FillMode,
+    n: usize,
+    nrhs: usize,
+    a: MatrixLayout,
+    b: MatrixLayout,
+) -> Result<WorkspaceSizes> {
+    context.bind()?;
+    a.validate(n, n)?;
+    b.validate(n, nrhs)?;
+
+    let mut device_bytes = 0;
+    let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXhetrs_bufferSize` receives live handles owned by the wrappers and valid output locations.
+    unsafe {
+        try_ffi!(sys::cusolverDnXhetrs_bufferSize(
+            context.as_raw(),
+            params.as_raw(),
+            fill_mode.into(),
+            to_i64(n, "n")?,
+            to_i64(nrhs, "nrhs")?,
+            TA::data_type().into(),
+            ptr::null_mut::<u8>().cast(),
+            to_i64(a.leading_dimension, "lda")?,
+            ptr::null(),
+            TB::data_type().into(),
+            ptr::null_mut(),
+            to_i64(b.leading_dimension, "ldb")?,
+            &raw mut device_bytes,
+            &raw mut host_bytes,
+        ))?;
+    }
+    Ok(WorkspaceSizes::new(
+        to_usize(device_bytes, "device workspace size")?,
+        to_usize(host_bytes, "host workspace size")?,
+    ))
+}
+
+/// Solves a system of linear equations with a Hermitian indefinite coefficient matrix.
+///
+/// `a` contains the factorization from [`xhetrf`]; only its lower or upper
+/// triangular part is meaningful. Provide the pivot indices from that operation,
+/// or `None` when both factorization and solve omit pivoting.
+/// Supports complex single and double precision. Use [`xhetrs_buffer_size`]
+/// to size device and host workspace. Negative `dev_info` identifies an invalid parameter.
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device or host workspace is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn xhetrs<TA: DataTypeLike, TB: DataTypeLike>(
+    context: &Context,
+    params: &Params,
+    fill_mode: FillMode,
+    n: usize,
+    nrhs: usize,
+    a: MatrixRef<'_, TA>,
+    pivots: Option<DeviceView<'_, i64>>,
+    mut b: MatrixMut<'_, TB>,
+    mut workspace: ByteWorkspaceMut<'_>,
+    mut dev_info: DeviceOutputView<'_, i32>,
+) -> Result<()> {
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&b.data)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
+    }
+    context.validate_region(&workspace.device)?;
+    validate_x_matrix(
+        n,
+        n,
+        a.data.region().byte_len(),
+        a.leading_dimension,
+        TA::data_type(),
+    )?;
+    validate_x_matrix(
+        n,
+        nrhs,
+        b.data.region().byte_len(),
+        b.leading_dimension,
+        TB::data_type(),
+    )?;
+    if let Some(pivots) = pivots {
+        require_pivot64_buffer(pivots.len(), n)?;
+    }
+    require_info_buffer(dev_info.len())?;
+    let workspace_sizes =
+        xhetrs_buffer_size::<TA, TB>(context, params, fill_mode, n, nrhs, a.layout(), b.layout())?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
+    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXhetrs` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
+    unsafe {
+        try_ffi!(sys::cusolverDnXhetrs(
+            context.as_raw(),
+            params.as_raw(),
+            fill_mode.into(),
+            to_i64(n, "n")?,
+            to_i64(nrhs, "nrhs")?,
+            TA::data_type().into(),
+            a.data.as_ptr().cast(),
+            to_i64(a.leading_dimension, "lda")?,
+            pivots.map_or(ptr::null(), |buffer| buffer.as_ptr()),
+            TB::data_type().into(),
+            b.data.as_mut_ptr().cast(),
+            to_i64(b.leading_dimension, "ldb")?,
+            workspace.device.as_mut_ptr().cast(),
+            workspace_sizes.device_bytes as _,
+            workspace.host.as_mut_ptr().cast(),
+            workspace_sizes.host_bytes as _,
+            dev_info.as_mut_ptr().cast(),
         ))?;
     }
     Ok(())

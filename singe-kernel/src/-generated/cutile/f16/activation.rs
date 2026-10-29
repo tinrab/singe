@@ -3,22 +3,35 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     pub fn activation_unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f16, { [B] }>,
         input: &Tensor<f16, { [-1] }>,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
-        let one = constant(f16::from_f32(1.0), out.shape());
-        let half = constant(f16::from_f32(0.5), out.shape());
-        let third = constant(f16::from_f32(0.33333334), out.shape());
-        let three = constant(f16::from_f32(3.0), out.shape());
-        let six = constant(f16::from_f32(6.0), out.shape());
-        let pi = constant(f16::from_f32(std::f32::consts::PI), out.shape());
-        let one_eighty = constant(f16::from_f32(180.0), out.shape());
-        let selu_alpha = constant(f16::from_f32(1.6732632), out.shape());
-        let selu_scale = constant(f16::from_f32(1.050701), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
+        let one: Tile<f16, { [B] }> = constant(f16::ONE, out.shape());
+        let half: Tile<f32, { [B] }> = constant(0.5f32, out.shape());
+        let half: Tile<f16, { [B] }> = convert_tile(half);
+        let third: Tile<f32, { [B] }> = constant(0.33333334f32, out.shape());
+        let third: Tile<f16, { [B] }> = convert_tile(third);
+        let three: Tile<f32, { [B] }> = constant(3.0f32, out.shape());
+        let three: Tile<f16, { [B] }> = convert_tile(three);
+        let six: Tile<f32, { [B] }> = constant(6.0f32, out.shape());
+        let six: Tile<f16, { [B] }> = convert_tile(six);
+        let pi: Tile<f32, { [B] }> = constant(3.1415927f32, out.shape());
+        let pi: Tile<f16, { [B] }> = convert_tile(pi);
+        let one_eighty: Tile<f32, { [B] }> = constant(180.0f32, out.shape());
+        let one_eighty: Tile<f16, { [B] }> = convert_tile(one_eighty);
+        let selu_alpha: Tile<f32, { [B] }> = constant(1.6732632f32, out.shape());
+        let selu_alpha: Tile<f16, { [B] }> = convert_tile(selu_alpha);
+        let selu_scale: Tile<f32, { [B] }> = constant(1.050701f32, out.shape());
+        let selu_scale: Tile<f16, { [B] }> = convert_tile(selu_scale);
         let value = if OP == 0 {
             zero - x
         } else if OP == 1 {
@@ -72,14 +85,17 @@ mod kernels {
         } else if OP == 22 {
             half * log((one + x) / (one - x))
         } else if OP == 23 {
-            max_tile(x, zero)
+            let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
+            select(negative, zero, x)
         } else if OP == 24 {
             one / (one + exp(zero - x))
         } else if OP == 25 {
             x / (one + exp(zero - x))
         } else if OP == 26 {
-            let sqrt_2_over_pi = constant(f16::from_f32(0.7978846), out.shape());
-            let cubic_coeff = constant(f16::from_f32(0.044715), out.shape());
+            let sqrt_2_over_pi: Tile<f32, { [B] }> = constant(0.7978846f32, out.shape());
+            let sqrt_2_over_pi: Tile<f16, { [B] }> = convert_tile(sqrt_2_over_pi);
+            let cubic_coeff: Tile<f32, { [B] }> = constant(0.044715f32, out.shape());
+            let cubic_coeff: Tile<f16, { [B] }> = convert_tile(cubic_coeff);
             half * x * (one + tanh(sqrt_2_over_pi * (x + cubic_coeff * x * x * x)))
         } else if OP == 27 {
             let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
@@ -94,7 +110,8 @@ mod kernels {
         } else if OP == 31 {
             log2(x)
         } else if OP == 32 {
-            let ln_10 = constant(f16::from_f32(std::f32::consts::LN_10), out.shape());
+            let ln_10: Tile<f32, { [B] }> = constant(2.3025851f32, out.shape());
+            let ln_10: Tile<f16, { [B] }> = convert_tile(ln_10);
             log(x) / ln_10
         } else if OP == 33 {
             let root = pow(absf(x), third);
@@ -152,10 +169,11 @@ mod kernels {
         let gate_tile: Tile<f16, { [B] }> = load_tile_like(gate, out);
         let input_tile: Tile<f32, { [B] }> = convert_tile(input_tile);
         let gate_tile: Tile<f32, { [B] }> = convert_tile(gate_tile);
-        let one = constant(1.0f32, out.shape());
-        let zero = constant(0.0f32, out.shape());
+        let one: Tile<f32, { [B] }> = constant(1.0f32, out.shape());
+        let zero: Tile<f32, { [B] }> = constant(0.0f32, out.shape());
         let value = input_tile * gate_tile / (one + exp(zero - gate_tile));
-        out.store(convert_tile(value));
+        let value: Tile<f16, { [B] }> = convert_tile(value);
+        out.store(value);
     }
     #[cutile::entry()]
     pub fn relu_f16<const B: i32>(out: &mut Tensor<f16, { [B] }>, input: &Tensor<f16, { [-1] }>) {
@@ -237,7 +255,7 @@ mod kernels {
         negative_slope: f16,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
         let positive = cmpf(
             x,
             zero,
@@ -257,8 +275,8 @@ mod kernels {
         alpha: f16,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
-        let one = constant(f16::from_f32(1.0), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
+        let one: Tile<f16, { [B] }> = constant(f16::ONE, out.shape());
         let positive = cmpf(
             x,
             zero,
@@ -278,8 +296,8 @@ mod kernels {
         alpha: f16,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
-        let one = constant(f16::from_f32(1.0), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
+        let one: Tile<f16, { [B] }> = constant(f16::ONE, out.shape());
         let alpha = broadcast_scalar(alpha, out.shape());
         let positive = cmpf(
             x,
@@ -296,7 +314,7 @@ mod kernels {
         lambda: f16,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
         let lambda = broadcast_scalar(lambda, out.shape());
         let keep_positive = cmpf(x, lambda, predicate::GreaterThan, cmp_ordering::Ordered);
         let keep_negative = cmpf(x, zero - lambda, predicate::LessThan, cmp_ordering::Ordered);
@@ -309,7 +327,7 @@ mod kernels {
         lambda: f16,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
         let lambda = broadcast_scalar(lambda, out.shape());
         let positive = cmpf(x, lambda, predicate::GreaterThan, cmp_ordering::Ordered);
         let negative = cmpf(x, zero - lambda, predicate::LessThan, cmp_ordering::Ordered);

@@ -1,14 +1,16 @@
 use std::io::Cursor;
 
 use bomboni_request::parse::RequestParseInto;
+
 use prost::Message;
+
 use singe_onnx::proto::onnx::{
     GraphProto, ModelProto, NodeProto, OperatorSetIdProto, TensorProto, TensorShapeProto,
     TypeProto, ValueInfoProto, tensor_proto, tensor_shape_proto, type_proto,
 };
 
 #[test]
-fn decode_model_structure() {
+fn test_decode_model_structure() {
     let weight_data: Vec<_> = (0..=255).cycle().take(4096).collect();
     let model = ModelProto {
         ir_version: 13,
@@ -133,5 +135,29 @@ fn value_info(name: &str, dimensions: &[i64]) -> ValueInfoProto {
             ..Default::default()
         }),
         ..Default::default()
+    }
+}
+
+#[test]
+fn test_tensor_payload_fields_cannot_be_ambiguous_or_silently_discarded() {
+    let valid = TensorProto {
+        name: "weight".into(),
+        dims: vec![1],
+        data_type: tensor_proto::DataType::Float as i32,
+        float_data: vec![1.],
+        ..Default::default()
+    };
+    let mut ambiguous = valid.clone();
+    ambiguous.raw_data = 1_f32.to_le_bytes().to_vec();
+    let mut mismatched = valid.clone();
+    mismatched.float_data.clear();
+    mismatched.int64_data = vec![1];
+    let mut invalid_location = valid.clone();
+    invalid_location.data_location = 99;
+    let mut external_and_inline = valid;
+    external_and_inline.data_location = tensor_proto::DataLocation::External as i32;
+    for tensor in [ambiguous, mismatched, invalid_location, external_and_inline] {
+        let parsed: Result<singe_onnx::Tensor, _> = tensor.parse_into();
+        assert!(parsed.is_err());
     }
 }

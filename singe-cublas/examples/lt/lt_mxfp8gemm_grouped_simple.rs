@@ -9,6 +9,7 @@ use singe_cublas::{
     },
     types::{ComputeType, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext,
     data_type::DataType,
@@ -26,73 +27,79 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
-    let rows = DeviceMemory::from_slice(&[M, M])?;
-    let cols = DeviceMemory::from_slice(&[N, N])?;
-    let reduction = DeviceMemory::from_slice(&[K, K])?;
-    let lda = DeviceMemory::from_slice(&[M, M])?;
-    let ldb = DeviceMemory::from_slice(&[K, K])?;
-    let ldc = DeviceMemory::from_slice(&[M, M])?;
-    let ldd = DeviceMemory::from_slice(&[M, M])?;
+    let rows = DeviceMemory::from_slice(&cuda, &[M, M])?;
+    let cols = DeviceMemory::from_slice(&cuda, &[N, N])?;
+    let reduction = DeviceMemory::from_slice(&cuda, &[K, K])?;
+    let lda = DeviceMemory::from_slice(&cuda, &[M, M])?;
+    let ldb = DeviceMemory::from_slice(&cuda, &[K, K])?;
+    let ldc = DeviceMemory::from_slice(&cuda, &[M, M])?;
+    let ldd = DeviceMemory::from_slice(&cuda, &[M, M])?;
 
     let a_batches = [
-        DeviceMemory::from_slice(&vec![f8e4m3::from_bits(1); (M * K) as usize])?,
-        DeviceMemory::from_slice(&vec![f8e4m3::from_bits(1); (M * K) as usize])?,
+        DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); (M * K) as usize])?,
+        DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); (M * K) as usize])?,
     ];
     let b_batches = [
-        DeviceMemory::from_slice(&vec![f8e4m3::from_bits(1); (K * N) as usize])?,
-        DeviceMemory::from_slice(&vec![f8e4m3::from_bits(1); (K * N) as usize])?,
+        DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); (K * N) as usize])?,
+        DeviceMemory::from_slice(&cuda, &vec![f8e4m3::from_bits(1); (K * N) as usize])?,
     ];
     let c_batches = [
-        DeviceMemory::<bf16>::zeroes((M * N) as usize)?,
-        DeviceMemory::<bf16>::zeroes((M * N) as usize)?,
+        DeviceMemory::<bf16>::zeroed(&cuda, (M * N) as usize)?,
+        DeviceMemory::<bf16>::zeroed(&cuda, (M * N) as usize)?,
     ];
     let mut d_batches = [
-        DeviceMemory::<bf16>::zeroes((M * N) as usize)?,
-        DeviceMemory::<bf16>::zeroes((M * N) as usize)?,
+        DeviceMemory::<bf16>::zeroed(&cuda, (M * N) as usize)?,
+        DeviceMemory::<bf16>::zeroed(&cuda, (M * N) as usize)?,
     ];
     let scale_a_tensors = [
-        DeviceMemory::from_slice(&[f8ue8m0::from_bits(1)])?,
-        DeviceMemory::from_slice(&[f8ue8m0::from_bits(1)])?,
+        DeviceMemory::from_slice(&cuda, &[f8ue8m0::from_bits(1)])?,
+        DeviceMemory::from_slice(&cuda, &[f8ue8m0::from_bits(1)])?,
     ];
     let scale_b_tensors = [
-        DeviceMemory::from_slice(&[f8ue8m0::from_bits(1)])?,
-        DeviceMemory::from_slice(&[f8ue8m0::from_bits(1)])?,
+        DeviceMemory::from_slice(&cuda, &[f8ue8m0::from_bits(1)])?,
+        DeviceMemory::from_slice(&cuda, &[f8ue8m0::from_bits(1)])?,
     ];
 
     let a_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &a_batches
             .iter()
-            .map(DeviceMemory::as_ptr)
+            .map(DeviceMemory::as_device_ptr)
             .collect::<Vec<_>>(),
     )?;
     let b_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &b_batches
             .iter()
-            .map(DeviceMemory::as_ptr)
+            .map(DeviceMemory::as_device_ptr)
             .collect::<Vec<_>>(),
     )?;
     let c_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &c_batches
             .iter()
-            .map(DeviceMemory::as_ptr)
+            .map(DeviceMemory::as_device_ptr)
             .collect::<Vec<_>>(),
     )?;
     let mut d_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &d_batches
             .iter_mut()
-            .map(|batch| batch.as_mut_ptr())
+            .map(|batch| batch.as_device_ptr())
             .collect::<Vec<_>>(),
     )?;
     let a_scale_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &scale_a_tensors
             .iter()
-            .map(DeviceMemory::as_ptr)
+            .map(DeviceMemory::as_device_ptr)
             .collect::<Vec<_>>(),
     )?;
     let b_scale_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &scale_b_tensors
             .iter()
-            .map(DeviceMemory::as_ptr)
+            .map(DeviceMemory::as_device_ptr)
             .collect::<Vec<_>>(),
     )?;
 
@@ -124,27 +131,31 @@ fn main() -> Result<(), Box<dyn Error>> {
         &preference,
         1,
     )?;
-    let mut workspace = DeviceMemory::<u8>::create(heuristics[0].workspace_size)?;
+    let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, heuristics[0].workspace_size)?;
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
 
-    matmul(
-        &lt,
-        &desc,
-        &alpha,
-        &a_ptrs,
-        &a_layout,
-        &b_ptrs,
-        &b_layout,
-        &beta,
-        &c_ptrs,
-        &c_layout,
-        &mut d_ptrs,
-        &d_layout,
-        Some(&heuristics[0].algorithm),
-        Some(&mut workspace),
-        None,
-    )?;
+    // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
+    unsafe {
+        matmul(
+            &lt,
+            &desc,
+            &alpha,
+            &a_ptrs,
+            &a_layout,
+            &b_ptrs,
+            &b_layout,
+            &beta,
+            &c_ptrs,
+            &c_layout,
+            &mut d_ptrs,
+            &d_layout,
+            Some(&heuristics[0].algorithm),
+            Some(&mut workspace),
+            None,
+        )
+    }?;
+    cuda.synchronize()?;
 
     println!("lt_mxfp8gemm_grouped_simple groups: {}", rows.len());
     Ok(())

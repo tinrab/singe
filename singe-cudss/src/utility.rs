@@ -1,4 +1,4 @@
-use singe_core::checked_int;
+use singe_core::checked_conversions;
 use singe_cudss_sys as sys;
 
 use crate::{
@@ -6,24 +6,19 @@ use crate::{
     types::Layout,
 };
 
-pub fn to_size_t(value: impl TryInto<sys::size_t>, name: &str) -> Result<sys::size_t> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
-
-pub fn to_usize(value: impl TryInto<usize>, name: &str) -> Result<usize> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
-
-pub fn to_i64(value: impl TryInto<i64>, name: &str) -> Result<i64> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
+checked_conversions!(Error {
+    to_i32 -> i32,
+    to_size_t -> sys::size_t,
+    to_usize -> usize,
+    to_i64 -> i64,
+});
 
 pub fn ensure_exact_size(actual: usize, expected: usize, name: &str) -> Result<()> {
     if actual == expected {
         Ok(())
     } else {
         Err(Error::SizeMismatch {
-            name: name.into(),
+            name: name.to_owned().into(),
             expected,
             actual,
         })
@@ -35,7 +30,7 @@ pub fn ensure_at_most_size(actual: usize, expected: usize, name: &str) -> Result
         Ok(())
     } else {
         Err(Error::SizeMismatch {
-            name: name.into(),
+            name: name.to_owned().into(),
             expected,
             actual,
         })
@@ -46,7 +41,9 @@ pub fn validate_nonnegative(value: i64, name: &str) -> Result<()> {
     if value >= 0 {
         Ok(())
     } else {
-        Err(Error::InvalidMatrixDimension { name: name.into() })
+        Err(Error::InvalidMatrixDimension {
+            name: name.to_owned().into(),
+        })
     }
 }
 
@@ -78,7 +75,9 @@ pub fn checked_element_count(dimensions: &[i64], name: &str) -> Result<usize> {
         let dimension = to_usize(*dimension, name)?;
         count = count
             .checked_mul(dimension)
-            .ok_or_else(|| Error::OutOfRange { name: name.into() })?;
+            .ok_or_else(|| Error::OutOfRange {
+                name: name.to_owned().into(),
+            })?;
     }
     Ok(count)
 }

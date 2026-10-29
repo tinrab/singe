@@ -1,6 +1,7 @@
 use std::{env, fs};
 
 use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
+
 use singe_cutensor::{
     context::Context,
     error::{Error, Result, Status},
@@ -12,7 +13,7 @@ use singe_cutensor::{
 
 fn main() -> Result<()> {
     let cuda_context = CudaContext::create()?;
-    let context = Context::create(&cuda_context)?;
+    let mut context = Context::create(&cuda_context)?;
     let stream = cuda_context.create_stream()?;
 
     let cache_path = env::temp_dir().join("singe-cutensor-plan-cache.bin");
@@ -22,7 +23,7 @@ fn main() -> Result<()> {
             code: Status::IoError,
             ..
         }) => println!("no existing plan cache at {}", cache_path.display()),
-        Err(err) => return Err(err),
+        Err(error) => return Err(error),
     }
     context.resize_plan_cache(128)?;
 
@@ -42,10 +43,10 @@ fn main() -> Result<()> {
         .collect::<Vec<_>>();
     let host_c = vec![0.0_f32; extent_c.iter().product::<u64>() as usize];
 
-    let device_a = DeviceMemory::from_slice(&host_a)?;
-    let device_b = DeviceMemory::from_slice(&host_b)?;
-    let device_c_input = DeviceMemory::from_slice(&host_c)?;
-    let mut device_c = DeviceMemory::from_slice(&host_c)?;
+    let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
+    let device_b = DeviceMemory::from_slice(&cuda_context, &host_b)?;
+    let device_c_input = DeviceMemory::from_slice(&cuda_context, &host_c)?;
+    let mut device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
 
     const ALIGNMENT: u32 = 128;
 
@@ -77,7 +78,8 @@ fn main() -> Result<()> {
     for attempt in 0..3 {
         let plan = Plan::create(&context, &contraction, &preference, workspace_size)?;
         let mut workspace = if plan.required_workspace_size() > 0 {
-            Some(DeviceMemory::<u8>::create(
+            Some(DeviceMemory::<u8>::create_uninit(
+                &cuda_context,
                 plan.required_workspace_size_bytes()?,
             )?)
         } else {
@@ -86,16 +88,19 @@ fn main() -> Result<()> {
 
         let alpha = 1.1_f32;
         let beta = 0.0_f32;
-        plan.contract(
-            &alpha,
-            &device_a,
-            &device_b,
-            &beta,
-            &device_c_input,
-            &mut device_c,
-            workspace.as_mut(),
-            &stream,
-        )?;
+        // SAFETY: descriptors match these buffers; all resources remain live until stream synchronization below.
+        unsafe {
+            plan.contract(
+                &alpha,
+                &device_a,
+                &device_b,
+                &beta,
+                &device_c_input,
+                &mut device_c,
+                workspace.as_mut(),
+                &stream,
+            )
+        }?;
         stream.synchronize()?;
         println!(
             "plan-cache attempt {} used {} bytes of workspace",

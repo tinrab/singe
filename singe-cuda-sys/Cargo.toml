@@ -4,7 +4,7 @@ description = "Low-level FFI bindings for CUDA driver, runtime, NVRTC, NVVM, NVT
 version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "ffi", "bindings", "nvtx"]
 include.workspace = true
@@ -13,19 +13,21 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["driver_13_3", "runtime_13_3", "nvrtc_13_3", "nvvm_13_3", "nvtx_3"]
+default = ["driver_13_4", "runtime_13_4", "nvrtc_13_4", "nvvm_13_4", "nvtx_3", "nvjitlink_13_4"]
+
+nvjitlink_13_4 = []
 
 driver = []
-driver_13_3 = ["driver"]
+driver_13_4 = ["driver"]
 
 runtime = []
-runtime_13_3 = ["runtime"]
+runtime_13_4 = ["runtime"]
 
 nvrtc = []
-nvrtc_13_3 = ["nvrtc"]
+nvrtc_13_4 = ["nvrtc"]
 
 nvvm = []
-nvvm_13_3 = ["nvvm"]
+nvvm_13_4 = ["nvvm"]
 
 nvtx = []
 nvtx_3 = ["nvtx"]

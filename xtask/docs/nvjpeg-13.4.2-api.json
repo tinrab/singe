@@ -1,0 +1,2297 @@
+{
+  "nvjpegBackend_t": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "nvjpeg-backend",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend",
+    "doc": "The `nvjpegBackend_t` enum is used to select either default back-end by default, or use GPU decoding for baseline JPEG images, or use CPU for Huffman decoding.",
+    "signature": "typedef enum{NVJPEG_BACKEND_DEFAULT = 0,\nNVJPEG_BACKEND_HYBRID = 1,\nNVJPEG_BACKEND_GPU_HYBRID = 2,\nNVJPEG_BACKEND_HARDWARE = 3,\nNVJPEG_BACKEND_GPU_HYBRID_DEVICE = 4,\nNVJPEG_BACKEND_HARDWARE_DEVICE = 5,\nNVJPEG_BACKEND_LOSSLESS_JPEG = 6} nvjpegBackend_t;",
+    "members": {
+      "NVJPEG_BACKEND_DEFAULT": {
+        "doc": "Back-end is selected internally."
+      },
+      "NVJPEG_BACKEND_HYBRID": {
+        "doc": "Uses CPU for Huffman decoding."
+      },
+      "NVJPEG_BACKEND_GPU_HYBRID": {
+        "doc": "Uses GPU for Huffman decoding. `nvjpegDecodeBatched` will use GPU decoding for baseline JPEG images with interleaved scan when batch size is greater than 50. The [Decode API\u2014Decoupled Decoding](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decoupled-decode-api) will use GPU assisted Huffman decoding."
+      },
+      "NVJPEG_BACKEND_HARDWARE": {
+        "doc": "Uses [Hardware Acceleration](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-hardware-accelaration) for decode. Supports baseline JPEG images with single scan with 1 or 3 channels. 410 and 411 chroma subsamplings are not supported."
+      },
+      "NVJPEG_BACKEND_GPU_HYBRID_DEVICE": {
+        "doc": "Supports input bitstream on device memory. Can be used only with batched decode APIs for baseline JPEG images without restart intervals."
+      },
+      "NVJPEG_BACKEND_HARDWARE_DEVICE": {
+        "doc": "Supports input bitstream on device memory. Can be used only with batched decode APIs. Uses [Hardware Acceleration](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-hardware-accelaration) for decode. Supports baseline JPEG images with single scan with 1 or 3 channels. 410 and 411 chroma subsamplings are not supported."
+      },
+      "NVJPEG_BACKEND_LOSSLESS_JPEG": {
+        "doc": "Supports lossless jpeg bitstreams as defined in the jpeg 92 standard. Bitstreams with up to 2 channels and prediction mode 1 are supported."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStream_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-bitstream-handle",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-bitstream-handle",
+    "doc": "This handle stores the bit-stream parameters on the host. This helps retrieve bitstream meta-data using APIs defined in [nvJPEG Stream API](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-stream-api).",
+    "signature": "struct nvjpegJpegStream;",
+    "deprecated": false
+  },
+  "nvjpegBufferDevice_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-decode-device-buffer-handle",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-device-buffer-handle",
+    "doc": "This `nvjpegBufferDevice_t` is used by decoder states to store the intermediate information in device memory.",
+    "signature": "struct nvjpegBufferDevice;",
+    "deprecated": false
+  },
+  "nvjpegDecodeParams_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-decode-parameter-handle",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-parameter-handle",
+    "doc": "This decoder parameter handle stores the parameters like output format, and the ROI decode parameters that are set using APIs defined in [nvJPEG Chroma Subsampling](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-chroma-subsampling).",
+    "signature": "struct nvjpegDecodeParams;",
+    "deprecated": false
+  },
+  "nvjpegBufferPinned_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-decode-pinned-buffer-handle",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-pinned-buffer-handle",
+    "doc": "This `nvjpegBufferPinned_t` handle is used by decoder states to store the intermediate information on pinned memory.",
+    "signature": "struct nvjpegBufferPinned;",
+    "deprecated": false
+  },
+  "nvjpegJpegDecoder_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-decoder-handle",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decoder-handle",
+    "doc": "This decoder handle stores the intermediate decoder data, which is shared across the decoding stages. This decoder handle is initialized for a given `nvjpegBackend_t`. It is used as input to the [Decode API\u2014Decoupled Decoding](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decoupled-decode-api).",
+    "signature": "struct nvjpegJpegDecoder;",
+    "deprecated": false
+  },
+  "nvjpegPinnedAllocator_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-host-pinned-memory-allocator-interface",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-host-pinned-memory-allocator-interface",
+    "doc": "When the `nvjpegPinnedAllocator_t *allocator` parameter in the `nvjpegCreateEx()` function is set as a pointer to the above `nvjpegPinnedAllocator_t` structure, then this structure will be used for allocating and releasing host pinned memory for copying data to/from device. The function prototypes for the memory allocation and memory freeing functions are similar to the `cudaHostAlloc()` and `cudaFreeHost()` functions. They will return 0 in case of success, and non-zero otherwise.\n\nHowever, if the `nvjpegPinnedAllocator_t *allocator` parameter in the `nvjpegCreateEx()` function is set to NULL, then the default memory allocation functions `cudaHostAlloc()` and `cudaFreeHost()` will be used. When using `nvjpegCreate()` or `nvjpegCreateSimple()` function to create library handle, the default host pinned memory allocator will be used.",
+    "signature": "typedef int(*tPinnedMalloc)(void **,\nsize_t,\nunsigned int flags);",
+    "deprecated": false
+  },
+  "nvjpegPinnedAllocatorV2_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-extended-host-pinned-memory-allocator-interface",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-extended-host-pinned-memory-allocator-interface",
+    "doc": "Extended pinned allocators support stream ordered allocations along with user defined context information `pinned_ctx`. When invoking the allocators, nvJPEG will pass `pinned_ctx` as input to the extended pinned allocators.",
+    "signature": "typedef int(*tPinnedMallocV2)(void * ctx,\nvoid ** ptr,\nsize_t size,\ncudaStream_t stream);",
+    "deprecated": false
+  },
+  "nvjpegImage_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-image",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-image",
+    "doc": "The `nvjpegImage_t` structure (or structures, in the case of batched decode) is used to fill with the pointers and pitches of allocated buffers. The `nvjpegImage_t` structure that holds the output pointers.",
+    "signature": "typedef struct{unsigned char * channel[NVJPEG_MAX_COMPONENT];\nsize_t pitch[NVJPEG_MAX_COMPONENT];} nvjpegImage_t;",
+    "fields": {
+      "NVJPEG_MAX_COMPONENT": {
+        "kind": "enumerator",
+        "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-image",
+        "doc": "Maximum number of color components the nvJPEG library supports. For generic images, this is the maximum number of encoded channels that the library is able to decompress.",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegDevAllocator_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-device-memory-allocator-interface",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-device-memory-allocator-interface",
+    "doc": "Users can tell the library to use their own device memory allocator. The function prototypes for the memory allocation and memory freeing functions are similar to the `cudaMalloc() `and `cudaFree()` functions. They should return 0 in case of success, and non-zero otherwise. A pointer to the `nvjpegDevAllocator_t` structure, with properly filled fields, should be provided to the `nvjpegCreate()` function. NULL is accepted, in which case the default memory allocation functions `cudaMalloc()` and `cudaFree()` is used.\n\nWhen the `nvjpegDevAllocator_t *allocator` parameter in the `nvjpegCreate()` or `nvjpegCreateEx()` function is set as a pointer to the above `nvjpegDevAllocator_t` structure, then this structure is used for allocating and releasing the device memory. The function prototypes for the memory allocation and memory freeing functions are similar to the `cudaMalloc()` and `cudaFree()` functions. They should return 0 in case of success, and non-zero otherwise.\n\nHowever, if the `nvjpegDevAllocator_t *allocator` parameter in the `nvjpegCreate()` or `nvjpegCreateEx()` function is set to NULL, then the default memory allocation functions `cudaMalloc()` and `cudaFree()` will be used. When using `nvjpegCreateSimple()` function to create library handle the default device memory allocator will be used.",
+    "signature": "typedef int(*tDevMalloc)(void **,\nsize_t);",
+    "deprecated": false
+  },
+  "nvjpegDevAllocatorV2_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-extended-device-memory-allocator-interface",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-extended-device-memory-allocator-interface",
+    "doc": "Extended device allocators support stream ordered allocations along with user defined context information `dev_ctx`. When invoking the allocators, nvJPEG will pass `dev_ctx` as input to the extended device allocators.",
+    "signature": "typedef int(*tDevMallocV2)(void * ctx,\nvoid ** ptr,\nsize_t size,\ncudaStream_t stream);",
+    "deprecated": false
+  },
+  "nvjpegJpegState_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-opaque-jpeg-decoding-state-handle",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-opaque-jpeg-decoding-state-handle",
+    "doc": "The `nvjpegJpegState` structure stores the temporary JPEG information. It should be initialized before any usage. This JPEG state handle can be reused after being used in another decoding. The same JPEG handle should be used across the decoding phases for the same image or batch. Multiple threads are allowed to share the JPEG state handle only when processing same batch during first phase (`nvjpegDecodePhaseOne`).",
+    "signature": "struct nvjpegJpegState;",
+    "deprecated": false
+  },
+  "nvjpegHandle_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpeg-opaque-library-handle-struct",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-opaque-library-handle-struct",
+    "doc": "The library handle is used in any consecutive nvJPEG library calls, and should be initialized first.\n\nThe library handle is thread safe, and can be used by multiple threads simultaneously.",
+    "signature": "struct nvjpegHandle;",
+    "deprecated": false
+  },
+  "nvjpegJpegEncoding_t": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "nvjpeg-jpeg-encoding",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-encoding",
+    "doc": "The `nvjpegJpegEncoding_t` enum lists the JPEG encoding types that are supported by the nvJPEG library The enum values are based on the markers defined in the JPEG specification.",
+    "signature": "typedef enum{NVJPEG_ENCODING_UNKNOWN = 0x0,\nNVJPEG_ENCODING_BASELINE_DCT = 0xc0,\nNVJPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_HUFFMAN = 0xc1,\nNVJPEG_ENCODING_PROGRESSIVE_DCT_HUFFMAN = 0xc2,\nNVJPEG_ENCODING_LOSSLESS_HUFFMAN = 0xc3} nvjpegJpegEncoding_t;",
+    "members": {
+      "NVJPEG_ENCODING_UNKNOWN": {
+        "doc": "This value is returned for all the JPEG markers not supported by the nvJPEG library."
+      },
+      "NVJPEG_ENCODING_BASELINE_DCT": {
+        "doc": "Corresponds to the JPEG marker 0xc0, refer to the JPEG spec for more details."
+      },
+      "NVJPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_HUFFMAN": {
+        "doc": "Corresponds to the JPEG marker 0xc1, refer to the JPEG spec for more details."
+      },
+      "NVJPEG_ENCODING_PROGRESSIVE_DCT_HUFFMAN": {
+        "doc": "Corresponds to the JPEG marker 0xc2, refer to the JPEG spec for more details."
+      },
+      "NVJPEG_ENCODING_LOSSLESS_HUFFMAN": {
+        "doc": "Corresponds to the JPEG marker 0xc3, refer to the JPEG spec for more details."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegScaleFactor_t": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "nvjpeg-scale-factor",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-scale-factor",
+    "doc": "The `nvjpegScaleFactor_t` enum lists all the scale factors supported by the library. This feature is supported when nvjpeg handles are intstaniated using [`nvjpegBackend_t::NVJPEG_BACKEND_HARDWARE`].",
+    "signature": "typedef enum{NVJPEG_SCALE_NONE = 0,\nNVJPEG_SCALE_1_BY_2 = 1,\nNVJPEG_SCALE_1_BY_4 = 2,\nNVJPEG_SCALE_1_BY_8 = 3} nvjpegScaleFactor_t;",
+    "members": {
+      "NVJPEG_SCALE_NONE": {
+        "doc": "Decoded output is not scaled."
+      },
+      "NVJPEG_SCALE_1_BY_2": {
+        "doc": "Decoded output width and height are scaled by a factor of 1/2."
+      },
+      "NVJPEG_SCALE_1_BY_4": {
+        "doc": "Decoded output width and height are scaled by a factor of 1/4."
+      },
+      "NVJPEG_SCALE_1_BY_8": {
+        "doc": "Decoded output width and height are scaled by a factor of 1/8."
+      }
+    },
+    "deprecated": false
+  },
+  "NVJPEG_FLAGS_DEFAULT": {
+    "kind": "define",
+    "page": "index.html",
+    "anchor": "nvjpeg-flags",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags",
+    "doc": "nvJPEG flags provide additional controls when initializing the library using [nvjpegCreateEx()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex) or [nvjpegCreateExV2()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex-v2). It is possible to combine the flags as they are bit fields.",
+    "signature": "",
+    "deprecated": false
+  },
+  "NVJPEG_FLAGS_HW_DECODE_NO_PIPELINE": {
+    "kind": "define",
+    "page": "index.html",
+    "anchor": "nvjpeg-flags",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags",
+    "doc": "nvJPEG flags provide additional controls when initializing the library using [nvjpegCreateEx()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex) or [nvjpegCreateExV2()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex-v2). It is possible to combine the flags as they are bit fields.",
+    "signature": "",
+    "deprecated": false
+  },
+  "NVJPEG_FLAGS_ENABLE_MEMORY_POOLS": {
+    "kind": "define",
+    "page": "index.html",
+    "anchor": "nvjpeg-flags",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags",
+    "doc": "nvJPEG flags provide additional controls when initializing the library using [nvjpegCreateEx()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex) or [nvjpegCreateExV2()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex-v2). It is possible to combine the flags as they are bit fields.",
+    "signature": "",
+    "deprecated": false
+  },
+  "NVJPEG_FLAGS_BITSTREAM_STRICT": {
+    "kind": "define",
+    "page": "index.html",
+    "anchor": "nvjpeg-flags",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags",
+    "doc": "nvJPEG flags provide additional controls when initializing the library using [nvjpegCreateEx()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex) or [nvjpegCreateExV2()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex-v2). It is possible to combine the flags as they are bit fields.",
+    "signature": "",
+    "deprecated": false
+  },
+  "NVJPEG_FLAGS_REDUCED_MEMORY_DECODE": {
+    "kind": "define",
+    "page": "index.html",
+    "anchor": "nvjpeg-flags",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags",
+    "doc": "nvJPEG flags provide additional controls when initializing the library using [nvjpegCreateEx()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex) or [nvjpegCreateExV2()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex-v2). It is possible to combine the flags as they are bit fields.",
+    "signature": "",
+    "deprecated": false
+  },
+  "NVJPEG_FLAGS_REDUCED_MEMORY_DECODE_ZERO_COPY": {
+    "kind": "define",
+    "page": "index.html",
+    "anchor": "nvjpeg-flags",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags",
+    "doc": "nvJPEG flags provide additional controls when initializing the library using [nvjpegCreateEx()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex) or [nvjpegCreateExV2()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex-v2). It is possible to combine the flags as they are bit fields.",
+    "signature": "",
+    "deprecated": false
+  },
+  "NVJPEG_FLAGS_UPSAMPLING_WITH_INTERPOLATION": {
+    "kind": "define",
+    "page": "index.html",
+    "anchor": "nvjpeg-flags",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags",
+    "doc": "nvJPEG flags provide additional controls when initializing the library using [nvjpegCreateEx()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex) or [nvjpegCreateExV2()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-create-ex-v2). It is possible to combine the flags as they are bit fields.",
+    "signature": "",
+    "deprecated": false
+  },
+  "nvjpegExifOrientation_t": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "nvjpeg-exif-orientation",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation",
+    "doc": "The `nvjpegExifOrientation_t` enum represents the exif orientation in a jfif(jpeg) file. Exif orientation information is typically used to denote the digital camera sensor orientation at the time of image capture.",
+    "signature": "typedef enum{NVJPEG_ORIENTATION_UNKNOWN = 0,\nNVJPEG_ORIENTATION_NORMAL = 1,\nNVJPEG_ORIENTATION_FLIP_HORIZONTAL = 2,\nNVJPEG_ORIENTATION_ROTATE_180 = 3,\nNVJPEG_ORIENTATION_FLIP_VERTICAL = 4,\nNVJPEG_ORIENTATION_TRANSPOSE = 5,\nNVJPEG_ORIENTATION_ROTATE_90 = 6,\nNVJPEG_ORIENTATION_TRANSVERSE = 7,\nNVJPEG_ORIENTATION_ROTATE_270 = 8} nvjpegExifOrientation_t;",
+    "members": {
+      "NVJPEG_ORIENTATION_UNKNOWN": {
+        "doc": "Exif orientation information is not available in the bitstream."
+      },
+      "NVJPEG_ORIENTATION_NORMAL": {
+        "doc": "Decode output remains unchanged."
+      },
+      "NVJPEG_ORIENTATION_FLIP_HORIZONTAL": {
+        "doc": "Decoded output should be mirrored/flipped horizontally."
+      },
+      "NVJPEG_ORIENTATION_ROTATE_180": {
+        "doc": "Decoded output should be rotated 180 degrees."
+      },
+      "NVJPEG_ORIENTATION_FLIP_VERTICAL": {
+        "doc": "Decoded output should be mirrored/flipped vertically."
+      },
+      "NVJPEG_ORIENTATION_TRANSPOSE": {
+        "doc": "Decoded output should be flipped/mirrored horizontally followed by a 90 degrees counter-clockwise rotation."
+      },
+      "NVJPEG_ORIENTATION_ROTATE_90": {
+        "doc": "Decoded output should be rotated 90 degrees counter-clockwise."
+      },
+      "NVJPEG_ORIENTATION_TRANSVERSE": {
+        "doc": "Decoded output should be flipped/mirrored horizontally followed by a 270 degrees counter-clockwise rotation."
+      },
+      "NVJPEG_ORIENTATION_ROTATE_270": {
+        "doc": "Decoded output should be rotated 270 degrees counter-clockwise."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegGetProperty": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeggetproperty",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeggetproperty",
+    "doc": "Gets the numeric value for the major or minor version, or the patch level, of the nvJPEG library.",
+    "signature": "nvjpegStatus_t nvjpegGetProperty(libraryPropertyType type,\nint * value);",
+    "parameters": {
+      "type": {
+        "doc": "One of the supported `libraryPropertyType` values, that is, MAJOR_VERSION, MINOR_VERSION or PATCH_LEVEL."
+      },
+      "value": {
+        "doc": "The numeric value corresponding to the specific `libraryPropertyType` requested."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegGetCudartProperty": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeggetcudartproperty",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeggetcudartproperty",
+    "doc": "Gets the numeric value for the major version, minor version, or the patch level of the CUDA toolkit that was used to build nvJPEG library. For the same information on the nvJPEG library itself, see [nvjpegGetProperty()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-get-property).",
+    "signature": "nvjpegStatus_t nvjpegGetCudartProperty(libraryPropertyType type,\nint * value);",
+    "parameters": {
+      "type": {
+        "doc": "One of the supported `libraryPropertyType` values, that is, MAJOR_VERSION, MINOR_VERSION or PATCH_LEVEL."
+      },
+      "value": {
+        "doc": "The numeric value corresponding to the specific `libraryPropertyType` requested."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegcreate-deprecated",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegcreate-deprecated",
+    "doc": "Allocates and initializes the library handle.\n\nNote.",
+    "signature": "nvjpegStatus_t nvjpegCreate(nvjpegBackend_t backend,\nnvjpegDevAllocator_t * allocator,\nnvjpegHandle_t * handle);",
+    "deprecated": true,
+    "parameters": {
+      "backend": {
+        "doc": "Backend parameter for [nvjpegDecodeBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-batched) API. If this is set to DEFAULT then it automatically chooses one of the underlying algorithms."
+      },
+      "allocator": {
+        "doc": "Device memory allocator. See [nvJPEG Device Memory Allocator Interface](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-memory-allocator-interface) structure description. If NULL is provided, then the default CUDA runtime `cudaMalloc() `and `cudaFree()` functions will be used."
+      },
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    }
+  },
+  "nvjpegCreateSimple": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegcreatesimple",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegcreatesimple",
+    "doc": "Allocates and initializes the library handle, with default codec implementations selected by library and default memory allocators.",
+    "signature": "nvjpegStatus_t nvjpegCreateSimple(nvjpegHandle_t * handle);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegCreateEx": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegcreateex",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegcreateex",
+    "doc": "Allocates and initializes the library handle using the provided arguments.",
+    "signature": "nvjpegStatus_t nvjpegCreateEx(nvjpegBackend_t backend,\nnvjpegDevAllocator_t * dev_allocator,\nnvjpegPinnedAllocator_t * pinned_allocator,\nunsigned int flags,\nnvjpegHandle_t * handle);",
+    "parameters": {
+      "backend": {
+        "doc": "Backend parameter for [nvjpegDecodeBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-batched) API. If this is set to DEFAULT then it automatically chooses one of the underlying algorithms."
+      },
+      "dev_allocator": {
+        "doc": "Device memory allocator. See `nvjpegDevAllocator_t` structure description. If NULL is provided, then the default CUDA runtime functions `cudaMalloc()` and `cudaFree()` will be used."
+      },
+      "pinned_allocator": {
+        "doc": "Pinned host memory allocator. See `nvjpegPinnedAllocator_t `structure description. If NULL is provided, then the default CUDA runtime functions `cudaHostAlloc()` and `cudaFreeHost()` will be used."
+      },
+      "flags": {
+        "doc": "Refer to [nvJPEG Flags](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags) for details."
+      },
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegCreateExV2": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegcreateexv2",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegcreateexv2",
+    "doc": "Allocates and initializes the library handle using the provided arguments.",
+    "signature": "nvjpegStatus_t nvjpegCreateExV2(nvjpegBackend_t backend,\nnvjpegDevAllocatorV2_t * dev_allocator,\nnvjpegPinnedAllocatorV2_t * pinned_allocator,\nunsigned int flags,\nnvjpegHandle_t * handle);",
+    "parameters": {
+      "backend": {
+        "doc": "Backend parameter for [nvjpegDecodeBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-batched) API. If this is set to DEFAULT then it automatically chooses one of the underlying algorithms."
+      },
+      "dev_allocator": {
+        "doc": "Extended device memory allocator. See `nvjpegDevAllocatorV2_t_t` structure description. Cannot be NULL."
+      },
+      "pinned_allocator": {
+        "doc": "Extended pinned memory allocator. See `nvjpegPinnedAllocatorV2_t `structure description. Cannot be NULL."
+      },
+      "flags": {
+        "doc": "Refer to [nvJPEG Flags](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-flags) for details."
+      },
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdestroy",
+    "doc": "Releases the library handle.",
+    "signature": "nvjpegStatus_t nvjpegDestroy(nvjpegHandle_t handle);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle to release."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegSetDeviceMemoryPadding": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegsetdevicememorypadding",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegsetdevicememorypadding",
+    "doc": "Use the provided padding for all device memory allocations with specified library handle. A large number will help to amortize the need for device memory reallocations when needed.",
+    "signature": "nvjpegStatus_t nvjpegSetDeviceMemoryPadding(size_t padding,\nnvjpegHandle_t handle);",
+    "parameters": {
+      "padding": {
+        "doc": "Device memory padding to use for all further device memory allocations."
+      },
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegGetDeviceMemoryPadding": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeggetdevicememorypadding",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeggetdevicememorypadding",
+    "doc": "Retrieve the device memory padding that is currently used for the specified library handle.",
+    "signature": "nvjpegStatus_t nvjpegGetDeviceMemoryPadding(size_t * padding,\nnvjpegHandle_t handle);",
+    "parameters": {
+      "padding": {
+        "doc": "Device memory padding that is currently used for device memory allocations."
+      },
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegSetPinnedMemoryPadding": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegsetpinnedmemorypadding",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegsetpinnedmemorypadding",
+    "doc": "Use the provided padding for all pinned host memory allocations with specified library handle. A large number will help to amortize the need for pinned host memory reallocations when needed.",
+    "signature": "nvjpegStatus_t nvjpegSetPinnedMemoryPadding(size_t padding,\nnvjpegHandle_t handle);",
+    "parameters": {
+      "padding": {
+        "doc": "Pinned host memory padding to use for all further pinned host memory allocations."
+      },
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegGetPinnedMemoryPadding": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeggetpinnedmemorypadding",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeggetpinnedmemorypadding",
+    "doc": "Retrieve the pinned host memory padding that is currently used for specified library handle.",
+    "signature": "nvjpegStatus_t nvjpegGetPinnedMemoryPadding(size_t * padding,\nnvjpegHandle_t handle);",
+    "parameters": {
+      "padding": {
+        "doc": "Pinned host memory padding that is currently used for pinned host memory allocations."
+      },
+      "handle": {
+        "doc": "The library handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegGetHardwareDecoderInfo": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeggethardwaredecoderinfo",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeggethardwaredecoderinfo",
+    "doc": "Retrieve hardware decoder details such as number of engines and number of cores available in each engine.",
+    "signature": "nvjpegStatus_t nvjpegGetHardwareDecoderInfo(nvjpegHandle_t handle,\nunsigned int * num_engines,\nunsigned int * num_cores_per_engine);",
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStateCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstatecreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstatecreate",
+    "doc": "Allocates and initializes the internal structure required for the JPEG processing.",
+    "signature": "nvjpegStatus_t nvjpegJpegStateCreate(nvjpegHandle_t handle,\nnvjpegJpegState_t * jpeg_handle);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "jpeg_handle": {
+        "doc": "The image state handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStateDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstatedestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstatedestroy",
+    "doc": "Releases the image internal structure.",
+    "signature": "nvjpegStatus_t nvjpegJpegStateDestroy(nvjpegJpegState handle);",
+    "parameters": {
+      "handle": {
+        "doc": "The image state handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecoderCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodercreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodercreate",
+    "doc": "Creates a decoder handle.",
+    "signature": "nvjpegStatus_t nvjpegDecoderCreate(nvjpegHandle_t nvjpeg_handle,\nnvjpegBackend_t implementation,\nnvjpegJpegDecoder_t * decoder_handle);",
+    "parameters": {
+      "nvjpeg_handle": {
+        "doc": "Library handle."
+      },
+      "backend": {
+        "doc": "Backend parameter for the decoder_handle.The back end applies to all the functions under the [decoupled API](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decoupled-decode-api), when called with this handle."
+      },
+      "decoder_handle": {
+        "doc": "Decoder state handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecoderDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecoderdestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecoderdestroy",
+    "doc": "Destroys the decoder handle.",
+    "signature": "nvjpegStatus_t nvjpegDecoderDestroy(nvjpegJpegDecoder_t decoder_handle);",
+    "parameters": {
+      "decoder_handle": {
+        "doc": "Decoder handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecoderJpegSupported": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecoderjpegsupported",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecoderjpegsupported",
+    "doc": "Determines whether the `decoder_handle` is able to handle the bit-stream stored in `jpeg_stream`.",
+    "signature": "nvjpegStatus_t nvjpegDecoderJpegSupported(nvjpegJpegDecoder_t decoder_handle,\nnvjpegJpegStream_t jpeg_stream,\nnvjpegDecodeParams_t decode_params,\nint * is_supported);",
+    "parameters": {
+      "decoder_handle": {
+        "doc": "Decoder state handle."
+      },
+      "jpeg_stream": {
+        "doc": "Bit stream meta-data."
+      },
+      "decode_params": {
+        "doc": "Decoder output configuration."
+      },
+      "is_supported": {
+        "doc": "Return value of 0 indicates bitstream can be decoded by the `decoder_handle`, non zero value indicates that the bitstream is not supported."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecoderStateCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecoderstatecreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecoderstatecreate",
+    "doc": "Creates the `decoder_state` internal structure. The `decoder_state` is associated with the [nvJPEG Backend](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend) implementation that was used to create the `decoder_handle`.",
+    "signature": "nvjpegStatus_t nvjpegDecoderStateCreate(nvjpegHandle_t nvjpeg_handle,\nnvjpegJpegDecoder_t decoder_handle,\nnvjpegJpegState_t * decoder_state);",
+    "parameters": {
+      "nvjpeg_handle": {
+        "doc": "Library handle."
+      },
+      "decoder_handle": {
+        "doc": "Decoder handle."
+      },
+      "decoder_state": {
+        "doc": "nvJPEG Image State Handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamcreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamcreate",
+    "doc": "Creates `jpeg_stream` that is used to parse the JPEG bitstream and store bitstream parameters.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamCreate(nvjpegHandle_t handle,\nnvjpegJpegStream_t * jpeg_stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "jpeg_stream": {
+        "doc": "Bitstream handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamdestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamdestroy",
+    "doc": "Destroys the `jpeg_stream` structure.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamDestroy(nvjpegJpegStream_t * jpeg_stream);",
+    "parameters": {
+      "jpeg_stream": {
+        "doc": "Bitstream handle."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferPinnedCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferpinnedcreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferpinnedcreate",
+    "doc": "Creates a pinned buffer handle.",
+    "signature": "nvjpegStatus_t nvjpegBufferPinnedCreate(nvjpegHandle_t handle,\nnvjpegPinnedAllocator_t * pinned_allocator,\nnvjpegBufferPinned_t * buffer);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "pinned_allocator": {
+        "doc": "Pinned host memory allocator. See `nvjpegPinnedAllocator_t` structure description."
+      },
+      "buffer": {
+        "doc": "nvJPEG pinned buffer object."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferPinnedCreateV2": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferpinnedcreatev2",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferpinnedcreatev2",
+    "doc": "Creates a pinned buffer handle using extended allocators.",
+    "signature": "nvjpegStatus_t nvjpegBufferPinnedCreateV2(nvjpegHandle_t handle,\nnvjpegPinnedAllocatorV2_t * pinned_allocator,\nnvjpegBufferPinned_t * buffer);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "pinned_allocator": {
+        "doc": "Extended pinned host memory allocator. See [nvJPEG Extended Host Pinned Memory Allocator Interface](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-host-pinned-memory-allocator-interface-v2) structure description."
+      },
+      "buffer": {
+        "doc": "nvJPEG pinned buffer object."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferPinnedDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferpinneddestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferpinneddestroy",
+    "doc": "Destroys a pinned buffer handle.",
+    "signature": "nvjpegStatus_t nvjpegBufferPinnedDestroy(nvjpegBufferPinned_t buffer);",
+    "parameters": {
+      "buffer": {
+        "doc": "nvJPEG pinned buffer object."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegStateAttachPinnedBuffer": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegstateattachpinnedbuffer",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegstateattachpinnedbuffer",
+    "doc": "Link the nvJPEG pinned buffer handle to `decoder_state`. The `pinned_buffer` is used by the decoder to store the intermediate information that is used across the decoding stages. Pinned buffer can be attached to different decoder states, which helps to switch between implementations without allocating extra memory.",
+    "signature": "nvjpegStatus_t nvjpegStateAttachPinnedBuffer(nvjpegJpegState_t decoder_state,\nnvjpegBufferPinned_t pinned_buffer);",
+    "parameters": {
+      "decoder_state": {
+        "doc": "nvJPEG decoder state."
+      },
+      "pinned_buffer": {
+        "doc": "nvJPEG pinned buffer container."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferPinnedRetrieve": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferpinnedretrieve",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferpinnedretrieve",
+    "doc": "Retrieves the pinned memory pointer and size from the nvJPEG pinned buffer handle. Allows the application to re-use the memory once the decode is complete.",
+    "signature": "nvjpegStatus_t nvjpegBufferPinnedRetrieve(nvjpegBufferPinned_t buffer,\nsize_t * size,\nvoid ** ptr);",
+    "parameters": {
+      "buffer": {
+        "doc": "nvJPEG pinned buffer container."
+      },
+      "size": {
+        "doc": "Size in bytes of the pinned buffer."
+      },
+      "ptr": {
+        "doc": "Pointer to the pinned buffer."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferPinnedResize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferpinnedresize",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferpinnedresize",
+    "doc": "Resize the pinned buffer to the specified size in bytes. This API can be used to pre-allocate the pinned buffer\nto a large value and avoid allocator calls during decode.",
+    "signature": "nvjpegStatus_t nvjpegBufferPinnedResize(nvjpegBufferPinned_t buffer,\nsize_t size,\ncudaStream_t stream);",
+    "parameters": {
+      "buffer": {
+        "doc": "nvJPEG pinned buffer container."
+      },
+      "size": {
+        "doc": "Size in bytes of the pinned buffer."
+      },
+      "stream": {
+        "doc": "CUDA stream to use when `nvjpegBufferPinned_t buffer` is initialized using stream ordered allocators."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferDeviceCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferdevicecreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferdevicecreate",
+    "doc": "Creates the device buffer handle.",
+    "signature": "nvjpegStatus_t nvjpegBufferDeviceCreate(nvjpegHandle_t handle,\nnvjpegDevAllocator_t * device_allocator,\nnvjpegBufferDevice_t * buffer);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "device_allocator": {
+        "doc": "Device memory allocator. See the [nvJPEG Device Memory Allocator Interface](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-memory-allocator-interface) structure description."
+      },
+      "buffer": {
+        "doc": "nvJPEG device buffer container."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferDeviceCreateV2": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferdevicecreatev2",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferdevicecreatev2",
+    "doc": "Creates the device buffer handle using extended allocators.",
+    "signature": "nvjpegStatus_t nvjpegBufferDeviceCreateV2(nvjpegHandle_t handle,\nnvjpegDevAllocatorV2_t * device_allocator,\nnvjpegBufferDevice_t * buffer);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "device_allocator": {
+        "doc": "Extended device memory allocator. See `nvjpegDevAllocatorV2_t_t` structure description."
+      },
+      "buffer": {
+        "doc": "nvJPEG device buffer container."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferDeviceDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferdevicedestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferdevicedestroy",
+    "doc": "Destroys the device buffer handle.",
+    "signature": "nvjpegStatus_t nvjpegBufferDeviceDestroy(nvjpegBufferDevice_t buffer);",
+    "parameters": {
+      "buffer": {
+        "doc": "nvJPEG device buffer container. Device pointers are stored within the host structures."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegStateAttachDeviceBuffer": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegstateattachdevicebuffer",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegstateattachdevicebuffer",
+    "doc": "Link the nvJPEG device buffer handle to the `decoder_state`. The `device_buffer` is used by the decoder to store the intermediate information that is used across the decoding stages. Device buffer can be attached to different decoder states, which helps to switch between implementations without allocating extra memory.",
+    "signature": "nvjpegStatus_t nvjpegStateAttachDeviceBuffer(nvjpegJpegState_t decoder_state,\nnvjpegBufferDevice_t device_buffer);",
+    "parameters": {
+      "decoder_state": {
+        "doc": "nvJPEG decoder state."
+      },
+      "buffer": {
+        "doc": "nvJPEG device buffer container. Device pointers are stored within the host structures."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferDeviceRetrieve": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferdeviceretrieve",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferdeviceretrieve",
+    "doc": "Retrieve the device memory pointer and size from the nvJPEG device buffer handle. Allows the application to re-use the memory after the decode is complete.",
+    "signature": "nvjpegStatus_t nvjpegBufferDeviceRetrieve(nvjpegBufferDevice_t buffer,\nsize_t * size,\nvoid ** ptr);",
+    "parameters": {
+      "buffer": {
+        "doc": "nvJPEG device buffer container."
+      },
+      "size": {
+        "doc": "Device buffer size in bytes."
+      },
+      "ptr": {
+        "doc": "Pointer to the device buffer."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegBufferDeviceResize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegbufferdeviceresize",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegbufferdeviceresize",
+    "doc": "Resize the device buffer to the specified size in bytes. This API can be used to pre-allocate the device buffer\nto a large value and avoid allocator calls during decode.",
+    "signature": "nvjpegStatus_t nvjpegBufferDeviceResize(nvjpegBufferDevice_t buffer,\nsize_t size,\ncudaStream_t stream);",
+    "parameters": {
+      "buffer": {
+        "doc": "nvJPEG device buffer container."
+      },
+      "size": {
+        "doc": "Size in bytes of the device buffer."
+      },
+      "stream": {
+        "doc": "CUDA stream to use when `nvjpegBufferDevice_t buffer` is initialized using stream ordered allocators."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeParamsCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodeparamscreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodeparamscreate",
+    "doc": "Creates a handle for the parameters. The parameters that can be programmed include: output format, ROI decode, CMYK to RGB conversion.",
+    "signature": "nvjpegStatus_t nvjpegDecodeParamsCreate(nvjpegHandle_t handle,\nnvjpegDecodeParams_t * decode_params);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "decode_params": {
+        "doc": "Decode output parameters."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeParamsDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodeparamsdestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodeparamsdestroy",
+    "doc": "Destroys the `decode_params` handle.",
+    "signature": "nvjpegStatus_t nvjpegDecodeParamsDestroy(nvjpegDecodeParams_t * decode_params);",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode output parameters."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegGetImageInfo": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeggetimageinfo",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeggetimageinfo",
+    "doc": "Decodes the JPEG header and retrieves the basic information about the image.",
+    "signature": "nvjpegStatus_t nvjpegGetImageInfo(nvjpegHandle_t handle,\nconst unsigned char * data,\nsize_t length,\nint * nComponents,\nnvjpegChromaSubsampling_t * subsampling,\nint * widths,\nint * heights);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "data": {
+        "doc": "Pointer to the encoded data."
+      },
+      "length": {
+        "doc": "Size of the encoded data in bytes."
+      },
+      "nComponents": {
+        "doc": "Number of channels in the jpeg encoded data."
+      },
+      "subsampling": {
+        "doc": "Chroma subsampling for the 1- or 3- channel encoding."
+      },
+      "widths": {
+        "doc": "Pointer to the first element of array of size NVJPEG_MAX_COMPONENT, where the width of each channel (up to NVJPEG_MAX_COMPONENT) will be saved. If the channel is not encoded, then the corresponding value would be zero."
+      },
+      "heights": {
+        "doc": "Pointer to the first element of array of size NVJPEG_MAX_COMPONENT, where the height of each channel (up to NVJPEG_MAX_COMPONENT) will be saved. If the channel is not encoded, then the corresponding value would be zero."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamParse": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamparse",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamparse",
+    "doc": "Parses the bitstream and stores the metadata in the `jpeg_stream` struct.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamParse(nvjpegHandle_t handle,\nconst unsigned char * data,\nsize_t length,\nint save_metadata,\nint save_stream,\nnvjpegJpegStream_t jpeg_stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "data": {
+        "doc": "Pointer to the bit-stream."
+      },
+      "length": {
+        "doc": "Bit-stream size."
+      },
+      "save_metadata": {
+        "doc": "(Not enabled. Marked for future use). If not 0, then the JPEG stream metadata (headers, app markers, etc.) will be saved in the internal `JpegStream` structure for future usage. If 0, then the meta data (headers, app markerms etc.) will be discarded."
+      },
+      "save_stream": {
+        "doc": "If not 0, then the whole jpeg stream will be copied to the internal JpegStream structure, and the pointer to the JPEG file data will not be needed after this call. If 0, then `JpegStream` will just save the pointers (to JPEG file data), and these pointers will be used later during the image decoding."
+      },
+      "jpeg_stream": {
+        "doc": "The nvJPEG bitstream handle that stores the parsed bitstream information."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamParseHeader": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamparseheader",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamparseheader",
+    "doc": "Parses only the header of the bit-stream and stores the header information in the `jpeg_stream` struct.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamParseHeader(nvjpegHandle_t handle,\nconst unsigned char * data,\nsize_t length,\nnvjpegJpegStream_t jpeg_stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "data": {
+        "doc": "Pointer to the bit-stream."
+      },
+      "length": {
+        "doc": "Bit-stream size."
+      },
+      "jpeg_stream": {
+        "doc": "The nvJPEG bitstream handle that stores the parsed bitstream information."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamParseTables": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamparsetables",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamparsetables",
+    "doc": "To be used when decoding TIFF files with JPEG compression. Parses the JPEG tables bitstream and stores the jpeg tables in `jpeg_stream`.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamParseTables(nvjpegHandle_t handle,\nconst unsigned char * data,\nsize_t length,\nnvjpegJpegStream_t jpeg_stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "data": {
+        "doc": "Pointer to the JPEG tables bitstream. Can be set to NULL to reset the JPEG tables."
+      },
+      "length": {
+        "doc": "JPEG tables bitstream size."
+      },
+      "jpeg_stream": {
+        "doc": "The nvJPEG bitstream handle that stores the parsed bitstream information."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamGetFrameDimensions": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamgetframedimensions",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamgetframedimensions",
+    "doc": "Extracts the JPEG frame dimensions from the bitstream.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamGetFrameDimensions(nvjpegJpegStream_t jpeg_stream,\nunsigned int * width,\nunsigned int * height);",
+    "parameters": {
+      "jpeg_stream": {
+        "doc": "Bitstream handle."
+      },
+      "width": {
+        "doc": "Frame height."
+      },
+      "height": {
+        "doc": "Frame width."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamGetComponentsNum": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamgetcomponentsnum",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamgetcomponentsnum",
+    "doc": "Extracts the JPEG frame dimensions from the bitstream.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamGetComponentsNum(nvjpegJpegStream_t jpeg_stream,\nunsigned int * components_num);",
+    "parameters": {
+      "jpeg_stream": {
+        "doc": "Bitstream handle."
+      },
+      "components_num": {
+        "doc": "Number of encoded channels in the input."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamGetComponentDimensions": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamgetcomponentdimensions",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamgetcomponentdimensions",
+    "doc": "Extracts the component dimensions from the bitstream.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamGetComponentDimensions(nvjpegJpegStream_t jpeg_stream,\nunsigned int component,\nunsigned int * width,\nunsigned int * height)",
+    "parameters": {
+      "jpeg_stream": {
+        "doc": "Bitstream handle."
+      },
+      "component": {
+        "doc": "Component index."
+      },
+      "width": {
+        "doc": "Component height."
+      },
+      "height": {
+        "doc": "Component width."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamGetChromaSubsampling": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamgetchromasubsampling",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamgetchromasubsampling",
+    "doc": "Gets the chroma subsampling from the `jpeg_stream`. For grayscale (single channel) images it returns NVJPEG_CSS_GRAY. For 3-channel images it tries to assign one of the known chroma sub-sampling values based on the sampling information present in the bitstream, else it returns NVJPEG_CSS_UNKNOWN. If the number of channels is 2 or 4, then it returns NVJPEG_CSS_UNKNOWN.",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamGetChromaSubsampling(nvjpegJpegStream_t jpeg_stream,\nnvjpegChromaSubsampling_t * chroma_subsampling);",
+    "parameters": {
+      "jpeg_stream": {
+        "doc": "Bitstream handle."
+      },
+      "chroma_subsampling": {
+        "doc": "Chroma subsampling for the 1- or 3- channel encoding."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamGetJpegEncoding": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamgetjpegencoding",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamgetjpegencoding",
+    "doc": "This function obtains the JPEG encoding type from the `jpeg_stream`. For baseline images it returns [`nvjpegJpegEncoding_t::NVJPEG_ENCODING_BASELINE_DCT`]. For progressive images it returns [`nvjpegJpegEncoding_t::NVJPEG_ENCODING_PROGRESSIVE_DCT_HUFFMAN`].",
+    "signature": "nvjpegStatus_t nvjpegJpegStreamGetJpegEncoding(nvjpegJpegStream_t jpeg_stream,\nnvjpegJpegEncoding_t * jpeg_encoding);",
+    "parameters": {
+      "jpeg_stream": {
+        "doc": "Input bitstream handle."
+      },
+      "jpeg_encoding": {
+        "doc": "Encoding type obtained\u2014baseline or progressive."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamGetExifOrientation": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamgetexiforientation",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamgetexiforientation",
+    "doc": "Extracts the exif orientation from the bitstream. Returns [`nvjpegExifOrientation_t::NVJPEG_ORIENTATION_UNKNOWN`] if the exif marker/orientation information is not present.",
+    "signature": "nvjpegStatus_t NVJPEGAPI nvjpegJpegStreamGetExifOrientation(nvjpegJpegStream_t jpeg_stream,\nnvjpegExifOrientation_t * orientation_flag);",
+    "parameters": {
+      "jpeg_stream": {
+        "doc": "Bitstream handle."
+      },
+      "orientation_flag": {
+        "doc": "Exif orientation in JPEG stream."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegJpegStreamGetSamplePrecision": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegjpegstreamgetsampleprecision",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegjpegstreamgetsampleprecision",
+    "doc": "Extracts the sample precision(bit depth) from the bitstream.",
+    "signature": "nvjpegStatus_t NVJPEGAPI nvjpegJpegStreamGetSamplePrecision(nvjpegJpegStream_t jpeg_stream,\nunsigned int * precision);",
+    "parameters": {
+      "jpeg_stream": {
+        "doc": "Bitstream handle."
+      },
+      "precision": {
+        "doc": "Sample precision value."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecode": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecode",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecode",
+    "doc": "Decodes a single image, and writes the decoded image in the desired format to the output buffers. This function is asynchronous with respect to the host. All GPU tasks for this function will be submitted to the provided stream.\n\nFrom CUDA 11 onwards, `nvjpegDecode()` picks the best available back-end for a given image, user no longer has control on this. If there is a need to select the back-end, then consider using [nvjpegDecodeJpeg()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-jpeg). This is a new API added in CUDA 11 which allows user to control the back-end.",
+    "signature": "nvjpegStatus_t nvjpegDecode(nvjpegHandle_t handle,\nnvjpegJpegState_t jpeg_handle,\nconst unsigned char * data,\nsize_t length,\nnvjpegOutputFormat_t output_format,\nnvjpegImage_t * destination,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "jpeg_handle": {
+        "doc": "The image state handle."
+      },
+      "data": {
+        "doc": "Pointer to the encoded data."
+      },
+      "length": {
+        "doc": "Size of the encoded data in bytes."
+      },
+      "output_format": {
+        "doc": "Format in which the decoded output will be saved."
+      },
+      "destination": {
+        "doc": "Pointer to the structure that describes the output destination. This structure should be on the host (CPU), but the pointers in this structure should be pointing to the device (i.e., GPU) memory. See `nvjpegImage_t.`"
+      },
+      "stream": {
+        "doc": "The CUDA stream where all of the GPU work will be submitted."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeBatchedInitialize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodebatchedinitialize",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodebatchedinitialize",
+    "doc": "This function initializes the batched decoder state. The initialization parameters include the batch size, the maximum number of CPU threads, and the specific output format in which the decoded image will be saved. This function should be called once, prior to decoding the batches of images. Any currently running batched decoding should be finished before calling this function.",
+    "signature": "nvjpegStatus_t nvjpegDecodeBatchedInitialize(nvjpegHandle_t handle,\nnvjpegJpegState_t jpeg_handle,\nint batch_size,\nint max_cpu_threads,\nnvjpegOutputFormat_t output_format);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "jpeg_handle": {
+        "doc": "The image state handle."
+      },
+      "batch_size": {
+        "doc": "Batch size."
+      },
+      "max_cpu_threads": {
+        "doc": "This parameter is no longer used by the library."
+      },
+      "output_format": {
+        "doc": "Format in which the decoded output will be saved."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeBatched": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodebatched",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodebatched",
+    "doc": "Decodes the batch of images, and writes them to the buffers described in the `destination` parameter in a format provided to `nvjpegDecodeBatchedInitialize()` function. This function is asynchronous with respect to the host. All GPU tasks for this function will be submitted to the provided stream.",
+    "signature": "nvjpegStatus_t nvjpegDecodeBatched(nvjpegHandle_t handle,\nnvjpegJpegState_t jpeg_handle,\nconst unsigned char * const * data,\nconst size_t * lengths,\nnvjpegImage_t * destinations,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "jpeg_handle": {
+        "doc": "The image state handle."
+      },
+      "data": {
+        "doc": "Pointer to the first element of array of the input data. The size of the array is assumed to be batch_size provided to `nvjpegDecodeBatchedInitialize()` batch initialization function."
+      },
+      "lengths": {
+        "doc": "Pointer to the first element of array of input sizes. Size of array is assumed to be batch_size provided to `nvjpegDecodeBatchedInitialize()`, the batch initialization function."
+      },
+      "destinations": {
+        "doc": "Pointer to the first element of array of output descriptors. The size of array is assumed to be batch_size provided to `nvjpegDecodeBatchedInitialize(),` the batch initialization function. See also `nvjpegImage_t`."
+      },
+      "stream": {
+        "doc": "The CUDA stream where all the GPU work will be submitted."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeBatchedEx": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodebatchedex",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodebatchedex",
+    "doc": "This API helps to Decodes the batch of images with ROI, and writes them to the buffers described in the `destination` parameter in a format provided to `nvjpegDecodeBatchedInitialize()` function. This function is asynchronous with respect to the host. All GPU tasks for this function will be submitted to the provided stream.",
+    "signature": "nvjpegStatus_t nvjpegDecodeBatchedEx(nvjpegHandle_t handle,\nnvjpegJpegState_t jpeg_handle,\nconst unsigned char * const * data,\nconst size_t * lengths,\nnvjpegImage_t * destinations,\nnvjpegDecodeParams_t * decode_params,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "nvjpeg library handle."
+      },
+      "jpeg_handle": {
+        "doc": "The image state handle."
+      },
+      "data": {
+        "doc": "Pointer to the first element of array of the input data. The size of the array is assumed to be `batch_size` provided to `nvjpegDecodeBatchedInitialize()` batch initialization function."
+      },
+      "lengths": {
+        "doc": "Pointer to the first element of array of input sizes."
+      },
+      "destinations": {
+        "doc": "Pointer to the first element of array of output descriptors. The size of array is assumed to be `batch_size` provided to `nvjpegDecodeBatchedInitialize()`, the batch initialization function. See also `nvjpegImage_t`."
+      },
+      "decode_params": {
+        "doc": "Setting ROI Decode parameters."
+      },
+      "stream": {
+        "doc": "The CUDA stream where all the GPU work will be submitted."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeBatchedSupported": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodebatchedsupported",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodebatchedsupported",
+    "doc": "This API helps determine whether an image can be decoded by [nvjpegDecodeBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-batched). User can parse the bitstream header using [nvjpegJpegStreamParseHeader()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-stream-parse-header) and then call this API to determine whether the image can be decoded.",
+    "signature": "nvjpegStatus_t nvjpegDecodeBatchedSupported(nvjpegHandle_t handle,\nnvjpegJpegStream_t jpeg_stream,\nint * is_supported);",
+    "parameters": {
+      "handle": {
+        "doc": "nvjpeg library handle."
+      },
+      "jpeg_stream": {
+        "doc": "Bit stream meta-data."
+      },
+      "is_supported": {
+        "doc": "Return value of 0 indicates bitstream can be decoded by the `decoder_handle`, non zero value indicates that the bitstream is not supported."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeBatchedSupportedEx": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodebatchedsupportedex",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodebatchedsupportedex",
+    "doc": "This API helps determine whether an image can be decoded by [nvjpegDecodeBatchedEx()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-batched-ex). User can parse the bitstream header using [nvjpegJpegStreamParseHeader()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-stream-parse-header) and set the ROI in the decode params then call this API to determine whether the image can be decoded.",
+    "signature": "nvjpegStatus_t nvjpegDecodeBatchedSupportedEx(nvjpegHandle_t handle,\nnvjpegJpegStream_t jpeg_stream,\nnvjpegDecodeParams_t decode_params,\nint * is_supported);",
+    "parameters": {
+      "handle": {
+        "doc": "nvjpeg library handle."
+      },
+      "jpeg_stream": {
+        "doc": "Bit stream meta-data."
+      },
+      "decode_params": {
+        "doc": "Setting ROI Decode parameters."
+      },
+      "is_supported": {
+        "doc": "Return value of 0 indicates bitstream can be decoded by the `decoder_handle`, a non zero value indicates that the bitstream is not supported."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeBatchedPreAllocate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodebatchedpreallocate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodebatchedpreallocate",
+    "doc": "When decoding images with varying sizes and chroma subsampling, performance is limited by the repeated cuda calls made by the library to free/allocate device memory. This API mitigates this issue by allocating device memory prior to the actual decoding. Users have the option to call this API with values that are unlikely to be exceeded when [nvjpegDecodeBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-batched) is called.\n\nNote\n\nNote:\nThis functionality is available only when the `nvjpegHandle_t `is instantiated using [`nvjpegBackend_t::NVJPEG_BACKEND_HARDWARE`]. It is currently a No Op for other backends.\n\nThis API only provides a hint for initial allocation. If the image dimensions at the time of decode exceed what was provided, then the library will resize the device buffers.\n\nIf the images being decoded have different chroma subsamplings, then the `chroma_subsampling` field should be set to NVJPEG_CSS_444 to ensure that the device memory can be reused.",
+    "signature": "nvjpegStatus_t nvjpegDecodeBatchedPreAllocate(nvjpegHandle_t handle,\nnvjpegJpegState_t jpeg_handle,\nint batch_size,\nint width,\nint height,\nnvjpegChromaSubsampling_t chroma_subsampling,\nnvjpegOutputFormat_t output_format);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "jpeg_handle": {
+        "doc": "The image state handle."
+      },
+      "batch_size": {
+        "doc": "Batch size."
+      },
+      "width": {
+        "doc": "Maximum width of image that will be decoded."
+      },
+      "height": {
+        "doc": "Maximum height of image that will be decoded."
+      },
+      "chroma_subsampling": {
+        "doc": "Chroma-subsampling of the images."
+      },
+      "output_format": {
+        "doc": "Format in which the decoded output will be saved."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeBatchedParseJpegTables": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodebatchedparsejpegtables",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodebatchedparsejpegtables",
+    "doc": "To be used along with batched decode APIs when decoding JPEG bitstreams from a TIFF file. This function parses the JPEG tables bitstream to extract the JPEG tables. The external Huffman and quantization tables will be applied to all the JPEG bitstreams in the batch.",
+    "signature": "nvjpegStatus_t nvjpegDecodeBatchedParseJpegTables(nvjpegHandle_t handle,\nnvjpegJpegState_t jpeg_handle,\nconst unsigned char * data,\nconst size_t length);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "jpeg_handle": {
+        "doc": "The image state handle."
+      },
+      "data": {
+        "doc": "Pointer to the JPEG tables bitstream. Can be set to NULL to reset the jpeg tables."
+      },
+      "length": {
+        "doc": "JPEG tables bitstream size."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeJpegHost": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodejpeghost",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodejpeghost",
+    "doc": "This is the first stage of the decoupled decoding process. It is done entirely on the host, hence it is synchronous with respect to the host.\n\nIf a pinned buffer is attached to the decoder state, then the pinned buffer object will be used to allocate the pinned memory required for the host decoding phase. There wouldn\u2019t be allocation if the pinned buffer object already handles the required amount of pinned memory.\n\nIf a pinned buffer object is not attached, then the state will use heap host memory to allocate the memory required for the host processing.\n\nIn this phase, device is not participating. Hence the device selection, device initialization, and device memory initialization can be done later in the decoding process.\n\nThis function works on a parsed stream. The parsed stream handle that is available after calling the [nvjpegJpegStreamParse()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-stream-parse) function should be provided to this function.\n\nNote\n\n[nvjpegJpegStreamParse()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-stream-parse) should return [`nvjpegStatus_t::NVJPEG_STATUS_SUCCESS`] before `nvjpegDecodeJpegHost` is called.",
+    "signature": "nvjpegStatus_t nvjpegDecodeJpegHost(nvjpegHandle_t handle,\nnvjpegJpegDecoder_t decoder,\nnvjpegJpegState_t decoder_state,\nnvjpegDecodeParams_t decode_params,\nnvjpegJpegStream_t jpeg_stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "decoder": {
+        "doc": "The nvJPEG decoder handle."
+      },
+      "decoder_state": {
+        "doc": "The nvJPEG decoder state handle."
+      },
+      "decode_params": {
+        "doc": "Handle to decode the output properties."
+      },
+      "jpeg_stream": {
+        "doc": "Handle to the parsed bitstream data."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeJpegTransferToDevice": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodejpegtransfertodevice",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodejpegtransfertodevice",
+    "doc": "This phase contains both host and device operations. Hence it is a mix of synchronous and asynchronous operations with respect to the host. All the device operations will be submitted to the provided stream.\n\nThis phase should be called only after the host phase with the same decoder handle, decoder state handle and parsed jpeg stream handle. Device should be initialized and device\nbuffer should be attached to `decoder_state` handle using [nvjpegStateAttachDeviceBuffer()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-state-attach-device-buffer) prior to calling this API. This device buffer object will be\nresized to the required amount of memory if needed. For the host memory buffer, this phase will use whatever was used in the host phase: either the attached pinned buffer or the state\u2019s host memory buffer.\n\nNote\n\n[nvjpegDecodeJpegHost()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-jpeg-host) should return [`nvjpegStatus_t::NVJPEG_STATUS_SUCCESS`] before `nvjpegDecodeJpegTransferToDevice` is called.",
+    "signature": "nvjpegStatus_t nvjpegDecodeJpegTransferToDevice(nvjpegHandle_t handle,\nnvjpegJpegDecoder_t decoder,\nnvjpegJpegState_t decoder_state,\nnvjpegJpegStream_t jpeg_stream,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "decoder": {
+        "doc": "The nvJPEG decoder handle."
+      },
+      "decoder_state": {
+        "doc": "The nvJPEG decoder state handle."
+      },
+      "jpeg_stream": {
+        "doc": "Handle to the parsed bitstream data."
+      },
+      "stream": {
+        "doc": "The CUDA stream to which all the GPU tasks will be submitted."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeJpegDevice": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodejpegdevice",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodejpegdevice",
+    "doc": "This phase consists of decode operations that take place mainly on the device (no significant host side computation is done). Hence this phase is asynchronous with respect to the host. This phase should be called after [nvjpegDecodeJpegTransferToDevice()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-jpeg-transfer-to-device) for a given `decoder_state` handle and decoder handle.\n\nIn this function call, the host memory buffers are not used, so if the pinned buffer was attached to the state, then it can be reused somewhere else. Note that at this point the Jpeg stream handle is not needed anymore, since parts that are needed for device decoding will be copied to the device memory in the previous phase.\n\nNote\n\n[nvjpegDecodeJpegTransferToDevice()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-jpeg-transfer-to-device) should return [`nvjpegStatus_t::NVJPEG_STATUS_SUCCESS`] before `nvjpegDecodeJpegDevice` is called.",
+    "signature": "nvjpegStatus_t nvjpegDecodeJpegDevice(nvjpegHandle_t handle,\nnvjpegJpegDecoder_t decoder,\nnvjpegJpegState_t decoder_state,\nnvjpegImage_t * destination,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "decoder": {
+        "doc": "The nvJPEG decoder handle."
+      },
+      "decoder_state": {
+        "doc": "The nvJPEG decoder state handle."
+      },
+      "destination": {
+        "doc": "Pointer to a structure that describes the output destination. This structure should be on host, but the pointers in this structure should be pointing to the device memory. See [nvJPEG Image](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-image) for details."
+      },
+      "stream": {
+        "doc": "The CUDA stream to which all the GPU tasks will be submitted."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeJpeg": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodejpeg",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodejpeg",
+    "doc": "This is a single phase API with the flexibility to select nvJPEG back-end when creating an `nvjpegJpegDecoder_t` object. The user has the option to call this API instead of making three separate calls to [nvjpegDecodeJpegHost()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-jpeg-host), [nvjpegDecodeJpegTransferToDevice()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-jpeg-transfer-to-device), and [nvjpegDecodeJpegDevice()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decode-jpeg-device).\n\nIt is required to atttach the device buffer to the decoder state before calling this API. The pinned buffer is optional. If the pinned buffer is not attached, then heap memory will be used for host processing.\n\nThis function works on a parsed stream. The parsed stream handle that is available after calling the [nvjpegJpegStreamParse()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-stream-parse) function should be provided to this function.\n\nNote\n\n[nvjpegJpegStreamParse()](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-stream-parse) should return [`nvjpegStatus_t::NVJPEG_STATUS_SUCCESS`] before `nvjpegDecodeJpeg` is called.",
+    "signature": "nvjpegStatus_t nvjpegDecodeJpeg(nvjpegHandle_t handle,\nnvjpegJpegDecoder_t decoder,\nnvjpegJpegState_t decoder_state,\nnvjpegJpegStream_t jpeg_bitstream,\nnvjpegImage_t * destination,\nnvjpegDecodeParams_t decode_params,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "The library handle."
+      },
+      "decoder": {
+        "doc": "The nvJPEG decoder handle."
+      },
+      "decoder_state": {
+        "doc": "The nvJPEG decoder state handle."
+      },
+      "jpeg_stream": {
+        "doc": "Handle to the parsed bitstream data."
+      },
+      "destination": {
+        "doc": "Pointer to a structure that describes the output destination. This structure should be on the host, but the pointers in this structure should be pointing to the device memory. See [nvJPEG Image](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-image) for details."
+      },
+      "decode_params": {
+        "doc": "The handle which stores the decode output properties."
+      },
+      "stream": {
+        "doc": "The CUDA stream to which all the GPU tasks will be submitted."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeParamsSetOutputFormat": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodeparamssetoutputformat",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodeparamssetoutputformat",
+    "doc": "This function is used to set the decode output format. See `nvjpegOutputFormat_t` described in step 6 of [Single Image Decoding](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-single-image-decoding). The output parameter of `nvjpegOutputFormat_t` defaults to `NVJPEG_OUTPUT_UNCHANGED` if not set using this API.",
+    "signature": "nvjpegStatus_t nvjpegDecodeParamsSetOutputFormat(nvjpegDecodeParams_t decode_params,\nnvjpegOutputFormat_t output_format);",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode output parameter handle."
+      },
+      "output_format": {
+        "doc": "See step 6 of [Single Image Decoding](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-single-image-decoding)."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeParamsSetROI": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodeparamssetroi",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodeparamssetroi",
+    "doc": "This function enables the region of interest-only (ROI-only) decode. To disable the ROI-only, i.e., to decode the whole image, set:\n\n* `offset_x` = 0,\n* `offset_y` = 0,\n* `roi_width` = -1, and\n* `roi_height` = -1.\n\nNote\n\nROI decode is disabled by default. It is not supported when the nvJPEG decoder handle is created using [`nvjpegBackend_t::NVJPEG_BACKEND_HARDWARE`].\n\nThe ROI window cannot go out of image bounds. That is:\n\n* `offset_x` cannot be lower than zero, or\n* `offset_x + roi_width` cannot be larger than the JPEG image width.\n\nIf the output format is NVJPEG_OUTPUT_YUV or NVJPEG_OUTPUT_UNCHANGED, then the `offset_x `and `offset_y` values have to be multiples of the maximum subsampling factor, as defined in the JPEG standard.",
+    "signature": "nvjpegStatus_t nvjpegDecodeParamsSetROI(nvjpegDecodeParams_t decode_params,\nint offset_x,\nint offset_y,\nint roi_width,\nint roi_height);",
+    "parameters": {
+      "decode_params": {
+        "doc": "The decode output parameter handle."
+      },
+      "offset_x": {
+        "doc": "Image offset along the horizontal direction relative to the top left corner."
+      },
+      "offset_y": {
+        "doc": "Image offset along the vertical direction relative to the top left corner."
+      },
+      "roi_width": {
+        "doc": "Image width relative to `offset_x`."
+      },
+      "roi_height": {
+        "doc": "Image height relative to `offset_y`."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeParamsSetAllowCMYK": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodeparamssetallowcmyk",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodeparamssetallowcmyk",
+    "doc": "If enabled, the nvJPEG library assumes that the JPEG with 4 encoded color components is in CMYK colorspace, and enables the conversion to RGB/YUV colorspace. The CMYK-to-RGB conversion is disabled by default. The conversion is based on the subtractive scheme\u2014this behavior matches OpenCV\u2019s handling of 4-component JPEGs.",
+    "signature": "nvjpegStatus_t nvjpegDecodeParamsSetAllowCMYK(nvjpegDecodeParams_t decode_params,\nint allow_cmyk);",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode output parameter handle."
+      },
+      "allow_cmyk": {
+        "doc": "Enable CMYK to RGB conversion."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeParamsSetScaleFactor": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodeparamssetscalefactor",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodeparamssetscalefactor",
+    "doc": "Allows the user to scale decode output.\n\nNote\n\nThis feature is currently supported only when nvJPEG decoder handle is created using [`nvjpegBackend_t::NVJPEG_BACKEND_HARDWARE`].",
+    "signature": "nvjpegStatus_t nvjpegDecodeParamsSetScaleFactor(nvjpegDecodeParams_t decode_params,\nnvjpegScaleFactor_t scale_factor);",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode output parameter handle."
+      },
+      "scale_factor": {
+        "doc": "Set the scaling factor for the decode output."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegDecodeParamsSetExifOrientation": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegdecodeparamssetexiforientation",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegdecodeparamssetexiforientation",
+    "doc": "This function is used to generate the decoded output based on the exif orientation parameter. When ExifOrientation is enabled, the output buffers should be allocated based on the rotated dimensions. If the orientation is set as [`nvjpegExifOrientation_t::NVJPEG_ORIENTATION_UNKNOWN`], the library will default to `NVJPEG_ORIENTATION_HORIZONTAL`.\n\n**ROI Decode and EXIF rotation**\n\nExif rotation and ROI Decode can be enabled together. The ROI coordinates should be in the rotated space.",
+    "signature": "nvjpegStatus_t nvjpegDecodeParamsSetExifOrientation(nvjpegDecodeParams_t decode_params,\nnvjpegExifOrientation_t orientation);",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode output parameter handle."
+      },
+      "orientation": {
+        "doc": "Set the exif orientation for the decode output."
+      }
+    },
+    "return_value": {
+      "doc": "`nvjpegStatus_t` \u2014 An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegStatus_t": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "nvjpeg-api-return-codes",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes",
+    "doc": "The nvJPEG API adheres to the following return codes and their indicators:\n\n**Description of the returned error codes:**.",
+    "signature": "typedef enum{NVJPEG_STATUS_SUCCESS = 0,\nNVJPEG_STATUS_NOT_INITIALIZED = 1,\nNVJPEG_STATUS_INVALID_PARAMETER = 2,\nNVJPEG_STATUS_BAD_JPEG = 3,\nNVJPEG_STATUS_JPEG_NOT_SUPPORTED = 4,\nNVJPEG_STATUS_ALLOCATOR_FAILURE = 5,\nNVJPEG_STATUS_EXECUTION_FAILED = 6,\nNVJPEG_STATUS_ARCH_MISMATCH = 7,\nNVJPEG_STATUS_INTERNAL_ERROR = 8,\nNVJPEG_STATUS_IMPLEMENTATION_NOT_SUPPORTED = 9} nvjpegStatus_t;",
+    "members": {
+      "NVJPEG_STATUS_SUCCESS": {
+        "doc": "The API call has finished successfully. Note that many of the calls are asynchronous and some of the errors may be seen only after synchronization."
+      },
+      "NVJPEG_STATUS_NOT_INITIALIZED": {
+        "doc": "The library handle was not initialized. A call to `nvjpegCreate()` is required to initialize the handle."
+      },
+      "NVJPEG_STATUS_INVALID_PARAMETER": {
+        "doc": "Wrong parameter was passed. For example, a null pointer as input data, or an image index not in the allowed range."
+      },
+      "NVJPEG_STATUS_BAD_JPEG": {
+        "doc": "Cannot parse the JPEG stream. Check that the encoded JPEG stream and its size parameters are correct."
+      },
+      "NVJPEG_STATUS_JPEG_NOT_SUPPORTED": {
+        "doc": "Attempting to decode a JPEG stream that is not supported by the nvJPEG library."
+      },
+      "NVJPEG_STATUS_ALLOCATOR_FAILURE": {
+        "doc": "The user-provided allocator functions, for either memory allocation or for releasing the memory, returned a non-zero code."
+      },
+      "NVJPEG_STATUS_EXECUTION_FAILED": {
+        "doc": "Error during the execution of the device tasks."
+      },
+      "NVJPEG_STATUS_ARCH_MISMATCH": {
+        "doc": "The device capabilities are not enough for the set of input parameters provided (input parameters such as backend, encoded stream parameters, output format)."
+      },
+      "NVJPEG_STATUS_INTERNAL_ERROR": {
+        "doc": "Error during the execution of the device tasks."
+      },
+      "NVJPEG_STATUS_IMPLEMENTATION_NOT_SUPPORTED": {
+        "doc": "Not supported."
+      },
+      "NVJPEG_STATUS_INCOMPLETE_BITSTREAM": {
+        "doc": "Bitstream input data incomplete."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegChromaSubsampling_t": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "nvjpeg-chroma-subsampling",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-chroma-subsampling",
+    "doc": "One of the outputs of the `nvjpegGetImageInfo()` API is `nvjpegChromaSubsampling_t`. This parameter is an `enum` type, and its enumerator list comprises of the chroma subsampling property retrieved from the encoded JPEG image. The `nvjpegGetImageInfo()` function currently supports the following chroma subsampling types.",
+    "signature": "typedef enum{NVJPEG_CSS_444,\nNVJPEG_CSS_422,\nNVJPEG_CSS_420,\nNVJPEG_CSS_440,\nNVJPEG_CSS_411,\nNVJPEG_CSS_410,\nNVJPEG_CSS_GRAY,\nNVJPEG_CSS_410V,\nNVJPEG_CSS_UNKNOWN} nvjpegChromaSubsampling_t;",
+    "deprecated": false
+  },
+  "nvjpegInputFormat_t": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "nvjpeginputformat-t",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeginputformat-t",
+    "doc": "The `nvjpegInputFormat_t` enum is used to select the color model and pixel format of the input image.\n\nIf the input format is [`nvjpegInputFormat_t::NVJPEG_INPUT_NV12`], the input subsampling (parameter to the `nvjpegEncode*` functions) and the subsampling factor set by `nvjpegEncoderParamsSetSamplingFactors` must both be `NVJPEG_CSS_420`. If this condition is not met, the `nvjpegEncode*` functions will return [`nvjpegStatus_t::NVJPEG_STATUS_INVALID_PARAMETER`].",
+    "signature": "typedef enum{NVJPEG_INPUT_YUV = 1,\nNVJPEG_INPUT_RGB = 3,\nNVJPEG_INPUT_BGR = 4,\nNVJPEG_INPUT_RGBI = 5,\nNVJPEG_INPUT_BGRI = 6,\nNVJPEG_INPUT_NV12 = 8} nvjpegInputFormat_t;",
+    "members": {
+      "NVJPEG_INPUT_YUV": {
+        "doc": "Input image is in YUV color model. Pixel format is planar YUV."
+      },
+      "NVJPEG_INPUT_RGB": {
+        "doc": "Input image is in RGB color model. Pixel format is planar RGB."
+      },
+      "NVJPEG_INPUT_BGR": {
+        "doc": "Input image is in RGB color model. Pixel format is planar BGR."
+      },
+      "NVJPEG_INPUT_RGBI": {
+        "doc": "Input image is in RGB color model. Pixel format is interleaved RGB."
+      },
+      "NVJPEG_INPUT_BGRI": {
+        "doc": "Input image is in RGB color model. Pixel format is interleaved BGR."
+      },
+      "NVJPEG_INPUT_NV12": {
+        "doc": "Input image is in YUV color model. Pixel format is NV12 with separated Y and interleaved UV."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncBackend_t": {
+    "kind": "enum",
+    "page": "index.html",
+    "anchor": "nvjpegencbackend-t",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencbackend-t",
+    "doc": "The `nvjpegEncBackend_t` enum is used to select the encoder backend.\n\nHardware engines can only be used if all of the following conditions are met:\n\n* Hardware engines are available.\n* Either [`nvjpegEncBackend_t::NVJPEG_ENC_BACKEND_DEFAULT`] or [`nvjpegEncBackend_t::NVJPEG_ENC_BACKEND_HARDWARE`] is used. Note that ``` NVJPEG_ENC_BACKEND_DEFAULT` is implied by`, `nvjpegEncoderStateCreate`() ```\n* Input subsampling (parameter to the `nvjpegEncode*` functions) and the subsampling factor set by `nvjpegEncoderParamsSetSamplingFactors` are both `NVJPEG_CSS_420`.\n* Optimized Huffman is not used.\n* Baseline JPEG only.\n* Image width and height are even numbers between 16 and 16384.\n\nWhen at least one condition is not met, nvJPEG will either\n- Fallback to use CUDA encoder if [`nvjpegEncBackend_t::NVJPEG_ENC_BACKEND_DEFAULT`] is used.\n- Return [`nvjpegStatus_t::NVJPEG_STATUS_INVALID_PARAMETER`] if [`nvjpegEncBackend_t::NVJPEG_ENC_BACKEND_HARDWARE`] is used.",
+    "signature": "typedef enum{NVJPEG_ENC_BACKEND_DEFAULT = 0,\nNVJPEG_ENC_BACKEND_GPU = 1,\nNVJPEG_ENC_BACKEND_HARDWARE = 2,} nvjpegEncBackend_t;",
+    "members": {
+      "NVJPEG_ENC_BACKEND_DEFAULT": {
+        "doc": "Use hardware engine if possible. If not, fallback to CUDA encoder."
+      },
+      "NVJPEG_ENC_BACKEND_GPU": {
+        "doc": "Always use CUDA encoder."
+      },
+      "NVJPEG_ENC_BACKEND_HARDWARE": {
+        "doc": "Always use hardware engine. Do not fallback to CUDA."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderState_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpegencoderstate-t",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderstate-t",
+    "doc": "The `nvjpegEncoderState_t` structure stores intermediate buffers and variables used for compression.\n\nNote\n\nTo use multiple hardware encoder engines if available, create multiple encoder states with this function.\nEach state object will be automatically associated with a different hardware engine, in a round-robin fashion.",
+    "deprecated": false
+  },
+  "nvjpegEncoderParams_t": {
+    "kind": "type",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparams-t",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparams-t",
+    "doc": "The `nvjpegEncoderParams_t` structure stores JPEG encode parameters.",
+    "deprecated": false
+  },
+  "nvjpegGetHardwareEncoderInfo": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeggethardwareencoderinfo",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeggethardwareencoderinfo",
+    "doc": "Retrieve the number of hardware encoder engines.",
+    "signature": "nvjpegStatus_t nvjpegGetHardwareEncoderInfo(nvjpegHandle_t handle,\nunsigned int * num_engines);",
+    "return_value": {
+      "doc": "`nvjpegStatus_t` - An error code as specified in [nvJPEG API Return Codes](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes)."
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderStateCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderstatecreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderstatecreate",
+    "doc": "Creates encoder state that stores intermediate buffers used in compression.",
+    "signature": "nvjpegStatus_t nvjpegEncoderStateCreate(nvjpegHandle_t handle,\nnvjpegEncoderState_t * encoder_state,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_state": {
+        "doc": "Pointer to the encoder state structure, where the new state will be placed."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderStateCreateWithBackend": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderstatecreatewithbackend",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderstatecreatewithbackend",
+    "doc": "Creates encoder state with a specified encoder backend, that stores intermediate buffers used in compression.",
+    "signature": "nvjpegStatus_t nvjpegEncoderStateCreateWithBackend(nvjpegHandle_t handle,\nnvjpegEncoderState_t * encoder_state,\nnvjpegEncBackend_t backend,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_state": {
+        "doc": "Pointer to the encoder state structure, where the new state will be placed."
+      },
+      "backend": {
+        "doc": "The encoder backend to use. See [nvjpegEncoderState_t](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderstate-t)."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderStateDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderstatedestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderstatedestroy",
+    "doc": "Destroys the encoder state.",
+    "signature": "nvjpegStatus_t nvjpegEncoderStateDestroy(nvjpegEncoderState_t encoder_state);",
+    "parameters": {
+      "encoder_state": {
+        "doc": "Encoder state structure that will be released."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsCreate": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamscreate",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamscreate",
+    "doc": "Creates the structure that holds the compression parameters.",
+    "signature": "nvjpegStatus_t nvjpegEncoderParamsCreate(nvjpegHandle_t handle,\nnvjpegEncoderParams_t * encoder_params,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_params": {
+        "doc": "Pointer to the location where the new parameters structure will be placed."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsDestroy": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamsdestroy",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamsdestroy",
+    "doc": "Destroys the encoder parameters structure.",
+    "signature": "nvjpegEncoderParamsDestroy(nvjpegEncoderParams_t encoder_params);",
+    "parameters": {
+      "encoder_params": {
+        "doc": "Encoder params structure that will be released."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsSetEncoding": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamssetencoding",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamssetencoding",
+    "doc": "Sets the parameter quality in the encoder parameters structure.",
+    "signature": "nvjpegStatus_t nvjpegEncoderParamsSetEncoding(nvjpegEncoderParams_t encoder_params,\nnvjpegJpegEncoding_t etype,\ncudaStream_t stream);",
+    "parameters": {
+      "encoder_params": {
+        "doc": "Encoder parameters structure handle."
+      },
+      "etype": {
+        "doc": "Encoding type selection (Baseline/Progressive). Default is Baseline."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsSetQuality": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamssetquality",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamssetquality",
+    "doc": "Sets the parameter quality in the encoder parameters structure.",
+    "signature": "nvjpegStatus_t nvjpegEncoderParamsSetQuality(nvjpegEncoderParams_t encoder_params,\nconst int quality,\ncudaStream_t stream);",
+    "parameters": {
+      "encoder_params": {
+        "doc": "Encoder parameterss structure handle."
+      },
+      "quality": {
+        "doc": "Integer value of quality between 1 and 100, where 100 is the highest quality. Default value is 70."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsSetOptimizedHuffman": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamssetoptimizedhuffman",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamssetoptimizedhuffman",
+    "doc": "Sets whether or not to use optimized Huffman. Using optimized Huffman produces smaller JPEG bitstream sizes with the same quality, but with slower performance.",
+    "signature": "nvjpegStatus_t nvjpegEncoderParamsSetOptimizedHuffman(nvjpegEncoderParams_t encoder_params,\nconst int optimized,\ncudaStream_t stream);",
+    "parameters": {
+      "encoder_params": {
+        "doc": "Encoder parameters structure handle."
+      },
+      "optimized": {
+        "doc": "If this value is 0 then non-optimized Huffman will be used. Otherwise optimized version will be used. Default value is 0."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsSetSamplingFactors": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamssetsamplingfactors",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamssetsamplingfactors",
+    "doc": "Sets which chroma subsampling will be used for JPEG compression.",
+    "signature": "nvjpegStatus_t nvjpegEncoderParamsSetSamplingFactors(nvjpegEncoderParams_t encoder_params,\nconst nvjpegChromaSubsampling_t chroma_subsampling,\ncudaStream_t stream);",
+    "parameters": {
+      "encoder_params": {
+        "doc": "Encoder parameters structure handle."
+      },
+      "chroma_subsampling": {
+        "doc": "Chroma subsampling that will be used for JPEG compression. If the input is in YUV color model and `chroma_subsampling` is different from the subsampling factors of source image, then the NVJPEG library will convert subsampling to the value of `chroma_subsampling`. Default value is 4:4:4."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsSetRestartInterval": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamssetrestartinterval",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamssetrestartinterval",
+    "doc": "Sets which restart interval will be used for JPEG compression.\nThe restart interval is the number of Minimum Coded Units (MCUs) between restart markers.\nRestart interval is only supported when hardware encode engines are available, otherwise it is ignored.",
+    "signature": "nvjpegStatus_t nvjpegEncoderParamsSetRestartInterval(nvjpegEncoderParams_t encoder_params,\nunsigned int restart_interval,\ncudaStream_t stream);",
+    "parameters": {
+      "encoder_params": {
+        "doc": "Encoder parameters structure handle."
+      },
+      "restart_interval": {
+        "doc": "Restart interval that will be used for JPEG compression. Default value is 0 (no restart markers)."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncodeGetBufferSize": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencodegetbuffersize",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencodegetbuffersize",
+    "doc": "Returns the maximum possible buffer size that is needed to store the compressed JPEG stream, for the given input parameters.",
+    "signature": "nvjpegStatus_t nvjpegEncodeGetBufferSize(nvjpegHandle_t handle,\nconst nvjpegEncoderParams_t encoder_params,\nint image_width,\nint image_height,\nsize_t * max_stream_length);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_params": {
+        "doc": "Encoder parameters structure handle."
+      },
+      "image_width": {
+        "doc": "Input image width."
+      },
+      "image_height": {
+        "doc": "Input image height."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncodeYUV": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeg-encode-yuv",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-encode-yuv",
+    "doc": "Compresses the image in YUV colorspace to JPEG stream using the provided parameters, and stores it in the state structure.",
+    "signature": "nvjpegStatus_t nvjpegEncodeYUV(nvjpegHandle_t handle,\nnvjpegEncoderState_t encoder_state,\nconst nvjpegEncoderParams_t encoder_params,\nconst nvjpegImage_t * source,\nnvjpegChromaSubsampling_t chroma_subsampling,\nint image_width,\nint image_height,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_state": {
+        "doc": "Internal structure that holds the temporary buffers required for the compression and also stores the final compressed JPEG stream."
+      },
+      "encoder_params": {
+        "doc": "Encoder parameters structure handle."
+      },
+      "source": {
+        "doc": "Pointer to the `nvjpeg` structure that holds the device pointers to the `Y, U(Cb) and V(Cr)` image planes and the respective strides."
+      },
+      "chroma_subsampling": {
+        "doc": "Chroma subsampling of the input data."
+      },
+      "image_width": {
+        "doc": "Input image width."
+      },
+      "image_height": {
+        "doc": "Input image height."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncodeImage": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeg-encode-image",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-encode-image",
+    "doc": "Compresses the image in the provided format to the JPEG stream using the provided parameters, and stores it in the state structure.",
+    "signature": "nvjpegStatus_t nvjpegEncodeImage(nvjpegHandle_t handle,\nnvjpegEncoderState_t encoder_state,\nconst nvjpegEncoderParams_t encoder_params,\nconst nvjpegImage_t * source,\nnvjpegInputFormat_t input_format,\nint image_width,\nint image_height,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_state": {
+        "doc": "Internal structure that holds the temporary buffers required for the compression and also stores the final compressed JPEG stream."
+      },
+      "encoder_params": {
+        "doc": "Encoder parameters structure handle."
+      },
+      "source": {
+        "doc": "Pointer to the `nvjpeg` structure that holds the device pointers to the `Y, U(Cb) and V(Cr)` image planes and the respective strides."
+      },
+      "input_format": {
+        "doc": "Value of `nvjpegInputFormat_t` type that describes the input data."
+      },
+      "image_width": {
+        "doc": "Input image width."
+      },
+      "image_height": {
+        "doc": "Input image height."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncode": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpeg-encode",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-encode",
+    "doc": "Compresses the image in the provided format to the JPEG stream using the provided parameters, and stores it in the state structure.\nThis function is more general than both `nvjpegEncodeYUV` and `nvjpegEncodeImage`, and can be used instead of those two.\nIt also must be used when the input format is [`nvjpegInputFormat_t::NVJPEG_INPUT_NV12`].",
+    "signature": "nvjpegStatus_t nvjpegEncode(nvjpegHandle_t handle,\nnvjpegEncoderState_t encoder_state,\nconst nvjpegEncoderParams_t encoder_params,\nconst nvjpegImage_t * source,\nnvjpegChromaSubsampling_t input_subsampling,\nnvjpegInputFormat_t input_format,\nint image_width,\nint image_height,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_state": {
+        "doc": "Internal structure that holds the temporary buffers required for the compression and also stores the final compressed JPEG stream."
+      },
+      "encoder_params": {
+        "doc": "Encoder parameters structure handle."
+      },
+      "source": {
+        "doc": "Pointer to the `nvjpeg` structure that holds the device pointers to the `Y, U(Cb) and V(Cr)` image planes and the respective strides."
+      },
+      "input_subsampling": {
+        "doc": "Value of `nvjpegChromaSubsampling_t` type that describes the input data. Ignored for non-YUV input formats."
+      },
+      "input_format": {
+        "doc": "Value of `nvjpegInputFormat_t` type that describes the input data."
+      },
+      "image_width": {
+        "doc": "Input image width."
+      },
+      "image_height": {
+        "doc": "Input image height."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncodeRetrieveBitstream": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderetrievebitstream",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderetrievebitstream",
+    "doc": "Retrieves the compressed stream from the encoder state that was previously used in one of the encoder functions.\n\n* If `data` parameter is NULL then the encoder will return compressed stream size in the `length` parameter.\n* If `data` is not NULL then the provided `length` parameter should contain the `data` buffer size.\n* If the provided `length` is less than compressed stream size, then an error will be returned. Otherwise the compressed stream will be stored in the `data` buffer and the actual compressed buffer size will be stored in the `length` parameter.",
+    "signature": "nvjpegStatus_t nvjpegEncodeRetrieveBitstream(nvjpegHandle_t handle,\nnvjpegEncoderState_t encoder_state,\nunsigned char * data,\nsize_t * length,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_state": {
+        "doc": "The `encoder_state` that was previously used in one of the encoder functions."
+      },
+      "data": {
+        "doc": "Pointer to the buffer in the host memory where the compressed stream will be stored. Can be NULL (see description)."
+      },
+      "length": {
+        "doc": "Pointer to the input buffer size. On return the NVJPEG library will store the actual compressed stream size in this parameter.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncodeRetrieveBitstreamDevice": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderetrievebitstreamdevice",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderetrievebitstreamdevice",
+    "doc": "Retrieves the compressed stream from the encoder state that was previously used in one of the encoder functions.\n\n* `data` parameter should be on device memory\n* If `data` parameter is NULL then the encoder will return compressed stream size in the `length` parameter.\n* If `data` is not NULL then the provided `length` parameter should contain the `data` buffer size.\n* If the provided `length` is less than compressed stream size, then an error will be returned. Otherwise the compressed stream will be stored in the `data` buffer and the actual compressed buffer size will be stored in the `length` parameter.",
+    "signature": "nvjpegStatus_t nvjpegEncodeRetrieveBitstreamDevice(nvjpegHandle_t handle,\nnvjpegEncoderState_t encoder_state,\nunsigned char * data,\nsize_t * length,\ncudaStream_t stream);",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "encoder_state": {
+        "doc": "The `encoder_state` that was previously used in one of the encoder functions."
+      },
+      "data": {
+        "doc": "Pointer to the buffer in the device memory where the compressed stream will be stored. Can be NULL (see description)."
+      },
+      "length": {
+        "doc": "Pointer to the input buffer size. On return the NVJPEG library will store the actual compressed stream size in this parameter.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsCopyMetadata": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamscopymetadata",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamscopymetadata",
+    "doc": "Copies the metadata (JFIF, APP, EXT, and COM markers) from the parsed stream.",
+    "signature": "nvjpegStatus_t nvjpegEncoderParamsCopyMetadata(nvjpegEncoderState_t encoder_state,\nnvjpegEncoderParams_t encode_params,\nnvjpegJpegStream_t jpeg_stream,\ncudaStream_t stream);",
+    "parameters": {
+      "encoder_state": {
+        "doc": "Internal structure that stores the temporary buffers required for the compression."
+      },
+      "encode_params": {
+        "doc": "Encoder parameters that will be used for compression."
+      },
+      "jpeg_stream": {
+        "doc": "Input parsed stream."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpegEncoderParamsCopyQuantizationTables": {
+    "kind": "function",
+    "page": "index.html",
+    "anchor": "nvjpegencoderparamscopyquantizationtables",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencoderparamscopyquantizationtables",
+    "doc": "Copies the quantization tables from the parsed stream.",
+    "signature": "nvjpegStatus_t nvjpegEncoderParamsCopyQuantizationTables(nvjpegEncoderParams_t encode_params,\nnvjpegJpegStream_t jpeg_stream,\ncudaStream_t stream);",
+    "parameters": {
+      "encode_params": {
+        "doc": "Encoder parameters that will be used for compression."
+      },
+      "jpeg_stream": {
+        "doc": "Input parsed stream."
+      },
+      "stream": {
+        "doc": "CUDA stream where all the required device operations will be placed."
+      }
+    },
+    "deprecated": false
+  }
+}

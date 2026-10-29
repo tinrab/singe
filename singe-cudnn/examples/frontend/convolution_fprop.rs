@@ -1,50 +1,49 @@
 mod common;
 
+use std::env::args;
+
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::{DataType, f16},
-    error::Result,
+    error::{Error, Result},
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{CompileConfig, ConvolutionConfig, HeuristicMode},
-        plan::BuildPlanPolicy,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::ConvolutionConfig,
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
 };
 
-fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
-    let mut values = Vec::with_capacity(size);
-    for _ in 0..size {
-        *seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
-        values.push((*seed as f32) * 2.328_306_4e-10_f32);
-    }
-    values
-}
-
 fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
-    init_f32_image(size, seed)
+    common::init_f32_image(size, seed)
         .into_iter()
         .map(f16::from_f32)
         .collect()
 }
 
-fn count_nonfinite_f16(values: &[f16]) -> usize {
-    values
-        .iter()
-        .filter(|value| !value.to_f32().is_finite())
-        .count()
-}
-
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-
+    let depthwise = args().any(|argument| argument == "--depthwise");
     let n = 16;
-    let c = 128;
+    let c = 128_i64;
     let h = 64;
     let w = 64;
-    let k = 256;
-    let r = 1;
-    let s = 1;
+    let k = if depthwise { c } else { 256 };
+    let r = if depthwise { 3 } else { 1 };
+    let s = r;
+    let padding = if depthwise { 1 } else { 0 };
+    let groups = i64::try_from(
+        common::positive_usize_argument("--groups", if depthwise { 128 } else { 1 })?.get(),
+    )
+    .map_err(|_| Error::OutOfRange {
+        name: "--groups".into(),
+    })?;
+    if c % groups != 0 || k % groups != 0 || (depthwise && groups != c) {
+        return Err(Error::OutOfRange {
+            name: "--groups".into(),
+        });
+    }
+    let filter_channels = c / groups;
+    let example = common::ExampleContext::create()?;
 
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
@@ -54,73 +53,80 @@ fn run() -> Result<()> {
         ),
     );
 
-    let x = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])?,
-        )
-        .with_id(1002)
-        .with_name("image"),
-    );
-    let w_tensor = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([k, c, r, s])?.with_strides([c * r * s, 1, c * s, c])?,
-        )
-        .with_id(1001)
-        .with_name("filter"),
-    );
-    let y = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([n, k, h, w])?.with_strides([k * h * w, 1, k * w, k])?,
-        )
-        .with_id(1003),
-    );
-    graph.convolution_forward(
-        x,
-        w_tensor,
-        y,
-        ConvolutionConfig::new(DataType::F32, 2)
-            .with_pre_paddings(vec![0, 0])
-            .with_post_paddings(vec![0, 0])
-            .with_strides([1, 1])
-            .with_dilations(vec![1, 1]),
+    let x = graph.insert_tensor(
+        TensorId::new(1002),
+        TensorSpec::new(DataType::F16, Shape::channels_last([n, c, h, w])?).with_name("image"),
     )?;
-
-    let compiled = match graph.compile_with_config(
-        &ctx.cudnn,
-        &CompileConfig::new()
-            .with_heuristic_modes(vec![HeuristicMode::A])
-            .with_build_policy(BuildPlanPolicy::AllSupported),
-    ) {
-        Ok(compiled) => compiled,
-        Err(error) => return Err(error),
+    let w_tensor = graph.insert_tensor(
+        TensorId::new(1001),
+        TensorSpec::new(
+            DataType::F16,
+            Shape::channels_last([k, filter_channels, r, s])?,
+        )
+        .with_name("filter"),
+    )?;
+    let config = ConvolutionConfig::new(2)
+        .with_name("convolution")
+        .with_scaling(1.0, 1.0)
+        .with_pre_paddings([padding, padding])
+        .with_post_paddings([padding, padding])
+        .with_strides([1, 1])
+        .with_dilations([1, 1]);
+    // Both forms accumulate into initialized caller storage using the native beta parameter.
+    let y = if args().any(|argument| argument == "--explicit") {
+        let y = graph.insert_tensor(
+            TensorId::new(1003),
+            TensorSpec::new(DataType::F16, Shape::channels_last([n, k, h, w])?)
+                .with_name("response"),
+        )?;
+        graph.convolution_forward_into(x, w_tensor, y, config)?;
+        y
+    } else {
+        graph.convolution_forward(
+            x,
+            w_tensor,
+            config,
+            TensorOutputConfig::new().output_tensor(),
+        )?
     };
 
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+
     let mut half_seed = 123_456_789_u32;
-    let mut x_dev =
-        DeviceMemory::from_slice(&init_f16_image((n * c * h * w) as usize, &mut half_seed))?;
-    let mut w_dev =
-        DeviceMemory::from_slice(&init_f16_image((k * c * r * s) as usize, &mut half_seed))?;
-    let mut y_dev =
-        DeviceMemory::from_slice(&init_f16_image((n * k * h * w) as usize, &mut half_seed))?;
-    let mut workspace = common::workspace(compiled.max_workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    bindings.set(x, &mut x_dev)?;
-    bindings.set(w_tensor, &mut w_dev)?;
+    let x_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f16_image(graph.shape(x)?.storage_span()?, &mut half_seed),
+    )?;
+    let w_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f16_image(graph.shape(w_tensor)?.storage_span()?, &mut half_seed),
+    )?;
+    let mut y_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f16_image(graph.shape(y)?.storage_span()?, &mut half_seed),
+    )?;
+    let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(x, &x_dev)?;
+    bindings.set_input(w_tensor, &w_dev)?;
     bindings.set(y, &mut y_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    // SAFETY: the plan, inputs, accumulated output and workspace remain live until
+    // stream completion, including when native execution returns an enqueue error.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
-    let y_host = y_dev.copy_to_host_vec()?;
-    let y_first = y_host[0].to_f32();
-    let y_last = y_host[y_host.len() - 1].to_f32();
-    let y_checksum = y_host.iter().map(|value| value.to_f32()).sum::<f32>();
-    let y_nonfinite = count_nonfinite_f16(&y_host);
-
+    let output = compiled.tensor_info(y)?;
     println!(
-        "y: first={y_first}, last={y_last}, checksum={y_checksum}, nonfinite={y_nonfinite}, len={}",
-        y_host.len()
+        "groups={groups}, filter channels/group={filter_channels}, {:?}: {:?}",
+        output.spec.name,
+        output.spec.shape.dimensions()
     );
 
     Ok(())

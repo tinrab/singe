@@ -1,7 +1,3 @@
-mod memory_ops;
-
-mod custom_ops;
-
-mod registration;
-
 mod collectives;
+pub mod custom_ops;
+mod registration;

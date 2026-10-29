@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     #[cutile::entry()]
     pub unsafe fn max_pool2d_f64(
         out: *mut f64,
@@ -72,15 +74,17 @@ mod kernels {
                 let input_ptrs: PointerTile<*mut f64, { [128] }> = input_base.broadcast(tile_shape);
                 let input_ptrs: PointerTile<*mut f64, { [128] }> =
                     input_ptrs.offset_tile(source_offsets);
-                let result: (Tile<f64, { [128] }>, Token) = load_ptr_tko(
-                    input_ptrs,
-                    ordering::Weak,
-                    None::<scope::TileBlock>,
-                    Some(valid),
-                    Some(f64::NEG_INFINITY),
-                    None,
-                    Latency::<0>,
-                );
+                let result: (Tile<f64, { [128] }>, Token) = unsafe {
+                    load_ptr_tko(
+                        input_ptrs,
+                        ordering::Weak,
+                        None::<scope::TileBlock>,
+                        Some(valid),
+                        Some(f64::NEG_INFINITY),
+                        None,
+                        Latency::<0>,
+                    )
+                };
                 values = maxf(values, result.0, nan::Enabled, ftz::Disabled);
             }
         }
@@ -89,15 +93,17 @@ mod kernels {
         let out_base: PointerTile<*mut f64, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(output_mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(output_mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -196,15 +202,17 @@ mod kernels {
                 let input_ptrs: PointerTile<*mut f64, { [128] }> = input_base.broadcast(tile_shape);
                 let input_ptrs: PointerTile<*mut f64, { [128] }> =
                     input_ptrs.offset_tile(source_offsets);
-                let result: (Tile<f64, { [128] }>, Token) = load_ptr_tko(
-                    input_ptrs,
-                    ordering::Weak,
-                    None::<scope::TileBlock>,
-                    Some(valid),
-                    Some(0.0f64),
-                    None,
-                    Latency::<0>,
-                );
+                let result: (Tile<f64, { [128] }>, Token) = unsafe {
+                    load_ptr_tko(
+                        input_ptrs,
+                        ordering::Weak,
+                        None::<scope::TileBlock>,
+                        Some(valid),
+                        Some(0.0f64),
+                        None,
+                        Latency::<0>,
+                    )
+                };
                 sum = sum + result.0;
                 count = count + select(valid, one_f64, zero_f64);
                 padded_count = padded_count + select(padded_valid, one_f64, zero_f64);
@@ -226,15 +234,17 @@ mod kernels {
         let out_base: PointerTile<*mut f64, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(output_mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(output_mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 

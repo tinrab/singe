@@ -1,14 +1,23 @@
 mod common;
 
+use std::env::args;
+
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::pointwise::PointwiseMode,
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorId, TensorSpec},
+    },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{ConvolutionConfig, HeuristicMode, PointwiseOperation},
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{ConvolutionConfig, PointwiseOperation},
+        plan::{
+            BuildPlanPolicy, CompileConfig, CompiledGraph, ExecuteArgs, HeuristicMode,
+            NativePlanRestoreTarget, NativePlanSerializationConfig, NativePlanSet,
+            NativePlanStructure,
+        },
     },
     math::NanPropagation,
 };
@@ -24,21 +33,6 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .into_iter()
         .map(f16::from_f32)
         .collect()
-}
-
-fn verify_output(y_host: &[f16]) {
-    let first = y_host[0].to_f32();
-    let last = y_host[y_host.len() - 1].to_f32();
-    let checksum = y_host.iter().map(|value| value.to_f32()).sum::<f32>();
-    let nonfinite = y_host
-        .iter()
-        .filter(|value| !value.to_f32().is_finite())
-        .count();
-
-    println!(
-        "y: first={first}, last={last}, checksum={checksum}, nonfinite={nonfinite}, len={}",
-        y_host.len()
-    );
 }
 
 fn build_graph() -> Result<Graph> {
@@ -61,107 +55,164 @@ fn build_graph() -> Result<Graph> {
             ),
     );
 
-    let x = graph.tensor(
+    let x = graph.insert_tensor(
+        X_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])?,
-        )
-        .with_id(X_ID),
-    );
-    let w_tensor = graph.tensor(
+            Shape::with_strides([n, c, h, w], [c * h * w, 1, c * w, c])?,
+        ),
+    )?;
+    let w_tensor = graph.insert_tensor(
+        W_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([k, c, r, s])?.with_strides([c * r * s, 1, c * s, c])?,
-        )
-        .with_id(W_ID),
-    );
-    let conv = graph.convolution_forward_infer(
+            Shape::with_strides([k, c, r, s], [c * r * s, 1, c * s, c])?,
+        ),
+    )?;
+    let conv = graph.convolution_forward(
         x,
         w_tensor,
-        ConvolutionConfig::new(DataType::F32, 2)
+        ConvolutionConfig::new(2)
+            .with_compute_type(DataType::F32)
             .with_padding(vec![1, 1])
             .with_strides([1, 1])
             .with_dilations(vec![1, 1]),
+        TensorOutputConfig::new().with_data_type(DataType::F16),
     )?;
-    let conv_virtual = graph.tensor_config(conv)?.clone().virtual_tensor();
-    graph.replace_tensor(conv, conv_virtual)?;
-    let scale = graph.tensor(
+    let scale = graph.insert_tensor(
+        SCALE_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([1, k, 1, 1])?.with_strides([k, 1, k, k])?,
+            Shape::with_strides([1, k, 1, 1], [k, 1, k, k])?,
+        ),
+    )?;
+    let scaled = graph.pointwise(
+        PointwiseOperation::binary(
+            PointwiseMode::Mul,
+            conv,
+            scale,
+            TensorOutputConfig::new()
+                .with_data_type(DataType::F16)
+                .virtual_tensor(),
         )
-        .with_id(SCALE_ID),
-    );
-    let scaled = graph.pointwise_binary_infer(conv, scale, PointwiseMode::Mul, DataType::F32)?;
-    let scaled_virtual = graph.tensor_config(scaled)?.clone().virtual_tensor();
-    graph.replace_tensor(scaled, scaled_virtual)?;
-    let bias = graph.tensor(
+        .with_compute_type(Some(DataType::F32)),
+    )?;
+    let bias = graph.insert_tensor(
+        BIAS_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([1, k, 1, 1])?.with_strides([k, 1, k, k])?,
+            Shape::with_strides([1, k, 1, 1], [k, 1, k, k])?,
+        ),
+    )?;
+    let biased = graph.pointwise(
+        PointwiseOperation::binary(
+            PointwiseMode::Add,
+            scaled,
+            bias,
+            TensorOutputConfig::new()
+                .with_data_type(DataType::F16)
+                .virtual_tensor(),
         )
-        .with_id(BIAS_ID),
-    );
-    let biased = graph.pointwise_binary_infer(scaled, bias, PointwiseMode::Add, DataType::F32)?;
-    let biased_virtual = graph.tensor_config(biased)?.clone().virtual_tensor();
-    graph.replace_tensor(biased, biased_virtual)?;
-    let y = graph.tensor(
+        .with_compute_type(Some(DataType::F32)),
+    )?;
+    let y = graph.insert_tensor(
+        Y_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([n, k, h, w])?.with_strides([k * h * w, 1, k * w, k])?,
-        )
-        .with_id(Y_ID),
-    );
-    graph.pointwise(PointwiseOperation::Unary {
+            Shape::with_strides([n, k, h, w], [k * h * w, 1, k * w, k])?,
+        ),
+    )?;
+    graph.pointwise_into(PointwiseOperation::Unary {
+        name: None,
         mode: PointwiseMode::ReluFwd,
         input: biased,
         output: y,
-        compute_type: DataType::F32,
+        compute_type: Some(DataType::F32),
         nan_propagation: NanPropagation::NotPropagate,
         alpha1: 1.0,
         axis: None,
-    });
+    })?;
 
     Ok(graph)
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let mut example = common::ExampleContext::create()?;
     let graph = build_graph()?;
+    let all_plans = args().any(|argument| argument == "--all-plans");
+    let plan_only = args().any(|argument| argument == "--plan-only");
+    let no_warmup = args().any(|argument| argument == "--no-warmup");
 
-    let compiled = graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
-    let serialized = compiled.serialize()?;
-    let restored =
-        singe_cudnn::frontend::plan::CompiledGraph::deserialize(&ctx.cudnn, &serialized)?;
+    let config = CompileConfig::new()
+        .with_heuristic_modes([HeuristicMode::A])
+        .with_build_policy(if all_plans {
+            BuildPlanPolicy::AllSupported
+        } else {
+            BuildPlanPolicy::FirstSupported
+        });
+    let compiled = graph.compile(Some(&example.cudnn), &config)?;
+    let serialized = compiled.serialize(NativePlanSerializationConfig {
+        plans: if all_plans {
+            NativePlanSet::All
+        } else {
+            NativePlanSet::Selected
+        },
+        structure: if plan_only {
+            NativePlanStructure::Omit
+        } else {
+            NativePlanStructure::Include
+        },
+    })?;
+    let target = if no_warmup {
+        NativePlanRestoreTarget::ContextWithoutWarmup(&example.cudnn)
+    } else {
+        NativePlanRestoreTarget::Context(&mut example.cudnn)
+    };
+    // SAFETY: this unmodified artifact contains the native plans and binding metadata just serialized together.
+    let restored = unsafe { CompiledGraph::deserialize(target, &serialized) }?;
+    drop(compiled);
+    drop(graph);
 
-    println!("Restored graph name: {:?}", restored.graph().name());
     println!(
-        "Restored frontend graph name: {:?}",
-        restored.graph().name()
+        "Restored graph name: {:?}",
+        restored.graph().and_then(Graph::name)
     );
-    println!("Names match: {}", restored.names()? == compiled.names()?);
+    println!(
+        "Declared recipe name: {:?}",
+        restored.recipe().and_then(Graph::name)
+    );
+    let workspace_bytes = restored.workspace_size();
+    println!(
+        "Restored plans: {:?}, workspace: {workspace_bytes} bytes",
+        restored.names()
+    );
 
     let mut seed = 123_456_789_u32;
-    let mut x_dev =
-        DeviceMemory::from_slice(&init_f16_image((4 * 32 * 16 * 16) as usize, &mut seed))?;
-    let mut w_dev =
-        DeviceMemory::from_slice(&init_f16_image((64 * 32 * 3 * 3) as usize, &mut seed))?;
-    let mut scale_dev = DeviceMemory::from_slice(&init_f16_image(64, &mut seed))?;
-    let mut bias_dev = DeviceMemory::from_slice(&init_f16_image(64, &mut seed))?;
-    let mut y_dev = DeviceMemory::<f16>::zeroes((4 * 64 * 16 * 16) as usize)?;
-    let mut workspace = common::workspace(restored.workspace_size()?)?;
+    let cuda = example.cudnn.cuda_context();
+    let inputs = [X_ID, W_ID, SCALE_ID, BIAS_ID]
+        .into_iter()
+        .map(|id| -> Result<_> {
+            let elements = restored.tensor_info(id)?.spec.shape.storage_span()?;
+            let host = init_f16_image(elements, &mut seed);
+            Ok((id, DeviceMemory::from_slice(cuda, &host)?))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let output_elements = restored.tensor_info(Y_ID)?.spec.shape.storage_span()?;
+    let mut y_dev = DeviceMemory::<f16>::zeroed(cuda, output_elements)?;
+    let mut workspace = common::workspace(cuda, workspace_bytes)?;
 
-    let mut bindings = restored.bindings();
-    bindings
-        .set(X_ID, &mut x_dev)?
-        .set(W_ID, &mut w_dev)?
-        .set(SCALE_ID, &mut scale_dev)?
-        .set(BIAS_ID, &mut bias_dev)?
-        .set(Y_ID, &mut y_dev)?;
-    restored.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-
-    let y_host = y_dev.copy_to_host_vec()?;
-    verify_output(&y_host);
+    let mut bindings = restored.bindings()?;
+    for (id, memory) in &inputs {
+        bindings.set_input(*id, &memory.view())?;
+    }
+    bindings.set(Y_ID, &mut y_dev)?;
+    // SAFETY: restored plan metadata, initialized inputs, writable output and workspace remain live through completion.
+    example.execute_and_wait(|context| unsafe {
+        restored.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
     Ok(())
 }

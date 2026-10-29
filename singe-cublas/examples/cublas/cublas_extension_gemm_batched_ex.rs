@@ -13,23 +13,29 @@ fn main() -> Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
-    let a0 = DeviceMemory::from_slice(&[1.0_f64, 3.0, 2.0, 4.0])?;
-    let a1 = DeviceMemory::from_slice(&[5.0_f64, 7.0, 6.0, 8.0])?;
-    let b0 = DeviceMemory::from_slice(&[5.0_f64, 7.0, 6.0, 8.0])?;
-    let b1 = DeviceMemory::from_slice(&[9.0_f64, 11.0, 10.0, 12.0])?;
-    let c0 = DeviceMemory::<f64>::zeroes(4)?;
-    let c1 = DeviceMemory::<f64>::zeroes(4)?;
+    let a0 = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 2.0, 4.0])?;
+    let a1 = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
+    let b0 = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
+    let b1 = DeviceMemory::from_slice(&cuda, &[9.0_f64, 11.0, 10.0, 12.0])?;
+    let c0 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
+    let c1 = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
 
     let a = [
+        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
         unsafe { DevicePtr::from_raw(a0.as_ptr().cast_mut().cast::<()>()) },
+        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
         unsafe { DevicePtr::from_raw(a1.as_ptr().cast_mut().cast::<()>()) },
     ];
     let b = [
+        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
         unsafe { DevicePtr::from_raw(b0.as_ptr().cast_mut().cast::<()>()) },
+        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
         unsafe { DevicePtr::from_raw(b1.as_ptr().cast_mut().cast::<()>()) },
     ];
     let mut c = [
+        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
         unsafe { DevicePtr::from_raw(c0.as_ptr().cast_mut().cast::<()>()) },
+        // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
         unsafe { DevicePtr::from_raw(c1.as_ptr().cast_mut().cast::<()>()) },
     ];
 

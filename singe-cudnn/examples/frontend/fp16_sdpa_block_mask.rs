@@ -1,17 +1,20 @@
 mod common;
 
+use std::env::args;
+
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
-    cudart_version,
+    backend::tensor::{Shape, TensorId, TensorSpec},
     data_type::{DataType, bf16},
-    error::{Error, Result, Status},
+    error::Result,
     frontend::{
-        composite::sdpa::SdpaInputs,
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{AttentionConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode},
+        composite::sdpa::{SdpaForwardOutputTensors, SdpaInputs},
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{
+            AttentionConfig, AttentionImplementation, AttentionMaskMode, AttentionScoreConfig,
+        },
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
-    version,
 };
 
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
@@ -22,23 +25,18 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let example = common::ExampleContext::create()?;
 
-    if cudart_version()? < 12_000 {
-        println!("frontend_fp16_sdpa_block_mask: skipped, requires CUDA toolkit 12.0+");
-        return Ok(());
-    }
-    if version()? < 91_400 {
-        println!("frontend_fp16_sdpa_block_mask: skipped, requires cuDNN 9.14.0+");
-        return Ok(());
-    }
-
-    let properties = ctx.cudnn.cuda_context().device().properties()?;
-    let sm = properties.major * 10 + properties.minor;
-    if !(100..=120).contains(&sm) {
-        println!("frontend_fp16_sdpa_block_mask: skipped, requires Blackwell Computing GPU");
-        return Ok(());
-    }
+    let compute_type = if args().any(|argument| argument == "--fp16-compute") {
+        DataType::F16
+    } else {
+        DataType::F32
+    };
+    let implementation = if args().any(|argument| argument == "--unified") {
+        AttentionImplementation::Unified
+    } else {
+        AttentionImplementation::Auto
+    };
 
     let b = 3_i64;
     let h_q = 4_i64;
@@ -60,128 +58,121 @@ fn run() -> Result<()> {
         ),
     );
 
-    let q = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_qk])?).with_id(1001),
-    );
-    let k = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_k, s_kv, d_qk])?).with_id(1002),
-    );
-    let v = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_v, s_kv, d_v])?).with_id(1003),
-    );
-    let scale = graph.tensor(TensorSpec::scalar_f32(0.123)?);
+    let q = graph.insert_tensor(
+        TensorId::new(1001),
+        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_q, s_q, d_qk])?),
+    )?;
+    let k = graph.insert_tensor(
+        TensorId::new(1002),
+        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_k, s_kv, d_qk])?),
+    )?;
+    let v = graph.insert_tensor(
+        TensorId::new(1003),
+        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h_v, s_kv, d_v])?),
+    )?;
+    let scale = graph.tensor(TensorSpec::scalar_f32(0.123));
 
     let block_rows = (s_q + tile_m - 1) / tile_m;
     let block_cols = ((s_kv + tile_n - 1) / tile_n + 7) / 8;
-    let block_mask = graph.tensor(
+    let block_mask = graph.insert_tensor(
+        TensorId::new(1009),
         TensorSpec::new(
             DataType::U8,
-            Shape::contiguous([b, h_q, block_rows, block_cols])?.with_strides(vec![
-                h_q * block_rows * block_cols,
-                block_rows * block_cols,
-                block_cols,
-                1,
-            ])?,
-        )
-        .with_id(1009),
-    );
+            Shape::with_strides(
+                [b, h_q, block_rows, block_cols],
+                vec![
+                    h_q * block_rows * block_cols,
+                    block_rows * block_cols,
+                    block_cols,
+                    1,
+                ],
+            )?,
+        ),
+    )?;
 
-    let outputs = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto(
         SdpaInputs {
             query: q,
             key: k,
             value: v,
-            scale: scale,
+            scale,
         },
-        AttentionConfig::new(DataType::F32).with_score_config(
-            AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::Block(block_mask)),
-        ),
+        AttentionConfig::new()
+            .with_compute_type(compute_type)
+            .with_implementation(implementation)
+            .with_score_config(
+                AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::Block(block_mask)),
+            ),
+        SdpaForwardOutputTensors::new(TensorOutputConfig::new().output_tensor()),
     )?;
-    let o = outputs.output();
-    let stats = outputs.stats();
+    let o = outputs.output;
+    let stats = outputs.stats;
 
     graph.replace_tensor(
         o,
         TensorSpec::new(
             DataType::BF16,
-            Shape::contiguous([b, h_q, s_q, d_v])?.with_strides(vec![
-                h_q * d_v,
-                d_v,
-                b * h_q * d_v,
-                1,
-            ])?,
+            Shape::with_strides([b, h_q, s_q, d_v], vec![h_q * d_v, d_v, b * h_q * d_v, 1])?,
         )
-        .output_tensor()
-        .with_id(1004),
+        .output_tensor(),
     )?;
     if let Some(stats) = stats {
-        let tensor = graph
-            .tensor_config(stats)?
-            .clone()
-            .output_tensor()
-            .with_id(1005);
+        let tensor = graph.tensor_spec(stats)?.clone().output_tensor();
         graph.replace_tensor(stats, tensor)?;
     }
 
-    let compiled = match graph.compile(&ctx.cudnn, &[HeuristicMode::A]) {
-        Ok(compiled) => compiled,
-        Err(error) => {
-            if matches!(
-                error,
-                Error::Cudnn { code, .. }
-                    if code == Status::NotSupported
-                        || code == Status::NotSupportedGraphPattern
-                        || code == Status::NotSupportedShape
-                        || code == Status::NotSupportedDataType
-                        || code == Status::NotSupportedLayout
-            ) {
-                println!("frontend_fp16_sdpa_block_mask: skipped, block mask not supported");
-                return Ok(());
-            }
-            return Err(error);
-        }
-    };
+    let q_elements = graph.shape(q)?.storage_span()?;
+    let k_elements = graph.shape(k)?.storage_span()?;
+    let v_elements = graph.shape(v)?.storage_span()?;
+    let output_elements = graph.shape(o)?.storage_span()?;
+    let mask_elements = graph.shape(block_mask)?.storage_span()?;
+    let stats_elements = stats
+        .map(|id| graph.shape(id)?.storage_span())
+        .transpose()?;
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+    )?;
 
     let mut seed = 987_654_321_u32;
-    let mut q_dev =
-        DeviceMemory::from_slice(&init_bf16_image((b * h_q * s_q * d_qk) as usize, &mut seed))?;
-    let mut k_dev = DeviceMemory::from_slice(&init_bf16_image(
-        (b * h_k * s_kv * d_qk) as usize,
-        &mut seed,
-    ))?;
-    let mut v_dev =
-        DeviceMemory::from_slice(&init_bf16_image((b * h_v * s_kv * d_v) as usize, &mut seed))?;
-    let mut o_dev = DeviceMemory::<bf16>::zeroes((b * h_q * s_q * d_v) as usize)?;
-    let mut block_mask_dev =
-        DeviceMemory::<u8>::zeroes((b * h_q * block_rows * block_cols) as usize)?;
-    let mut stats_dev = DeviceMemory::<f32>::zeroes((b * h_q * s_q) as usize)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
+    let q_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(q_elements, &mut seed),
+    )?;
+    let k_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(k_elements, &mut seed),
+    )?;
+    let v_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(v_elements, &mut seed),
+    )?;
+    let mut o_dev = DeviceMemory::<bf16>::zeroed(example.cudnn.cuda_context(), output_elements)?;
+    let block_mask_dev = DeviceMemory::<u8>::zeroed(example.cudnn.cuda_context(), mask_elements)?;
+    let mut stats_dev = stats_elements
+        .map(|elements| DeviceMemory::<f32>::zeroed(example.cudnn.cuda_context(), elements))
+        .transpose()?;
+    let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
 
-    let mut bindings = compiled.bindings();
-    bindings.set(q, &mut q_dev)?;
-    bindings.set(k, &mut k_dev)?;
-    bindings.set(v, &mut v_dev)?;
-    bindings.set(block_mask, &mut block_mask_dev)?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(q, &q_dev.view())?;
+    bindings.set_input(k, &k_dev.view())?;
+    bindings.set_input(v, &v_dev.view())?;
+    bindings.set_input(block_mask, &block_mask_dev.view())?;
     bindings.set(o, &mut o_dev)?;
-    if let Some(stats) = stats {
-        bindings.set(stats, &mut stats_dev)?;
+    if let Some(stats) = stats
+        && let Some(stats_dev) = &mut stats_dev
+    {
+        bindings.set(stats, stats_dev)?;
     }
 
-    if let Err(error) = compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace)) {
-        if matches!(
-            error,
-            Error::Cudnn { code, .. }
-                if code == Status::NotSupported
-                    || code == Status::NotSupportedGraphPattern
-                    || code == Status::NotSupportedShape
-                    || code == Status::NotSupportedDataType
-                    || code == Status::NotSupportedLayout
-        ) {
-            println!("frontend_fp16_sdpa_block_mask: skipped, block mask not supported");
-            return Ok(());
-        }
-        return Err(error);
-    }
+    // SAFETY: initialized inputs, writable outputs, native plan and workspace remain live through completion.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 mod common;
 
-use singe_cuda::{memory::DeviceMemory, types::DevicePtr};
+use singe_cuda::{context::Context, memory::DeviceMemory, types::DevicePtr};
 use singe_cudss::{
     error::Result,
     matrix::{DenseMatrixDescriptor, Matrix},
@@ -8,6 +8,7 @@ use singe_cudss::{
 };
 
 fn main() -> Result<()> {
+    let cuda = Context::create()?;
     println!("cuDSS example: dense matrix helper APIs");
     println!("cuDSS version: {}", singe_cudss::version()?);
 
@@ -17,8 +18,8 @@ fn main() -> Result<()> {
     let len = (leading_dim * cols) as usize;
 
     let host_values: Vec<_> = (1..=len).map(|value| value as f64).collect();
-    let values = DeviceMemory::from_slice(&host_values)?;
-    let replacement_values = DeviceMemory::from_slice(&{
+    let values = DeviceMemory::from_slice(&cuda, &host_values)?;
+    let replacement_values = DeviceMemory::from_slice(&cuda, &{
         let mut values = vec![0.0f64; len];
         values[1] = -4.0;
         values
@@ -31,13 +32,14 @@ fn main() -> Result<()> {
             leading_dim,
             layout: Layout::ColumnMajor,
         },
-        &values,
+        values.view(),
     )?;
 
     let info = matrix.dense_info()?;
     assert_eq!(info.rows, rows);
     assert_eq!(info.columns, cols);
     assert_eq!(info.leading_dim, leading_dim);
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(info.values, unsafe {
         DevicePtr::from_raw(values.as_mut_ptr().cast())
     });
@@ -45,8 +47,9 @@ fn main() -> Result<()> {
     assert_eq!(info.layout, Layout::ColumnMajor);
     println!("dense_info matched the original descriptor");
 
-    matrix.set_values(&replacement_values)?;
+    matrix.set_values(replacement_values.view())?;
     let info = matrix.dense_info()?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(info.values, unsafe {
         DevicePtr::from_raw(replacement_values.as_mut_ptr().cast())
     });

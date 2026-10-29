@@ -8,6 +8,7 @@ use singe_cublas::{
     },
     types::{ComputeType, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext,
     data_type::DataType,
@@ -20,10 +21,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&[f16::from_f32(1.0), f16::from_f32(2.0)])?;
-    let b = DeviceMemory::from_slice(&[f16::from_f32(3.0), f16::from_f32(4.0)])?;
-    let c = DeviceMemory::<f16>::zeroes(2)?;
-    let mut d = DeviceMemory::<f16>::zeroes(2)?;
+    let a = DeviceMemory::from_slice(&cuda, &[f16::from_f32(1.0), f16::from_f32(2.0)])?;
+    let b = DeviceMemory::from_slice(&cuda, &[f16::from_f32(3.0), f16::from_f32(4.0)])?;
+    let c = DeviceMemory::<f16>::zeroed(&cuda, 2)?;
+    let mut d = DeviceMemory::<f16>::zeroed(&cuda, 2)?;
 
     let plane_offset = size_of::<f16>() as i64;
 
@@ -44,10 +45,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let beta = Complex32::new(0.0, 0.0);
     // `matrix_transform` is not involved here: the plane offsets make cuBLASLt
     // interpret the single allocation as planar complex storage.
-    matmul(
-        &lt, &desc, &alpha, &a, &a_layout, &b, &b_layout, &beta, &c, &c_layout, &mut d, &c_layout,
-        None, None, None,
-    )?;
+    // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
+    unsafe {
+        matmul(
+            &lt, &desc, &alpha, &a, &a_layout, &b, &b_layout, &beta, &c, &c_layout, &mut d,
+            &c_layout, None, None, None,
+        )
+    }?;
+    cuda.synchronize()?;
 
     let result = d.copy_to_host_vec()?;
     assert_eq!(result, vec![f16::from_f32(-5.0), f16::from_f32(10.0)]);

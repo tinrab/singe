@@ -9,14 +9,13 @@ generate:
     )
     enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
 
-    bindgen {{cupti_include_path}}/cupti.h \
+    bindgen {{cupti_include_path}}/cupti_target.h \
         $enum_args \
         --allowlist-item "^cupti.*" \
         --allowlist-item "^CUpti.*" \
         --allowlist-item "^CUPTI.*" \
         --blocklist-item "^CUDA.*" \
         --blocklist-item "^NV.*" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -26,7 +25,13 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -fparse-all-comments \
+            -fretain-comments-from-system-headers \
             -I {{cupti_include_path}} \
+            -include cupti.h \
+            -include cupti_profiler_host.h \
+            -include cupti_profiler_target.h \
+            -include cupti_range_profiler.h \
         > bindings.rs
 
     CUPTI_API_VERSION=$(grep -m1 -Eo 'CUPTI_API_VERSION[^=]*=[[:space:]]*[0-9]+' bindings.rs | grep -Eo '[0-9]+' | tail -n1)

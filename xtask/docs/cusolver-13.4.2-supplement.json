@@ -1,0 +1,592 @@
+{
+  "CUBLAS_DIRECT_BACKWARD": {
+    "doc": "Backward.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverdirectmode-t"
+  },
+  "CUBLAS_DIRECT_FORWARD": {
+    "doc": "Forward.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverdirectmode-t"
+  },
+  "CUBLAS_FILL_MODE_FULL": {
+    "doc": "The full matrix is filled.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUBLAS_FILL_MODE_LOWER": {
+    "doc": "The lower part of the matrix is filled.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUBLAS_FILL_MODE_UPPER": {
+    "doc": "The upper part of the matrix is filled.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUBLAS_OP_C": {
+    "doc": "The conjugate transpose operation is selected.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUBLAS_OP_N": {
+    "doc": "The non-transpose operation is selected.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUBLAS_OP_T": {
+    "doc": "The transpose operation is selected.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUBLAS_STOREV_COLUMNWISE": {
+    "doc": "Columnwise.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverstorevmode-t"
+  },
+  "CUBLAS_STOREV_ROWWISE": {
+    "doc": "Rowwise.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverstorevmode-t"
+  },
+  "CUDALIBMG_GRID_MAPPING_COL_MAJOR": {
+    "doc": "Column-major ordering.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUDALIBMG_GRID_MAPPING_ROW_MAJOR": {
+    "doc": "Row-major ordering.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUDA_R_32F": {
+    "doc": "32F mixed real-complex",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUDA_R_64F": {
+    "doc": "64F mixed real-complex",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVERDN_GETRF": {
+    "doc": "Corresponds to `Getrf`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverdnfunction-t"
+  },
+  "CUSOLVER_ALG_1": {
+    "doc": "Uses a single algorithm for consistent accuracy over all n.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_ALLOW_NON_DETERMINISTIC_RESULTS": {
+    "doc": "Allow non-deterministic results.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_DEFAULT_MATH": {
+    "doc": "This is the default math mode. Tensor Cores will be used whenever possible.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_DETERMINISTIC_RESULTS": {
+    "doc": "Compute deterministic results.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_EIG_COMP_I": {
+    "doc": "The unitary matrix is initialized to the identity matrix.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_EIG_COMP_N": {
+    "doc": "Only eigenvalues are computed.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_EIG_COMP_V": {
+    "doc": "The product of the matrix given on entry with the orthogonal transformations accumulated during the computational routine is returned.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_EIG_MODE_NOVECTOR": {
+    "doc": "Only eigenvalues are computed.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_EIG_MODE_VECTOR": {
+    "doc": "Both eigenvalues and eigenvectors are computed.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_EIG_TYPE_1": {
+    "doc": "A\\*x = lambda\\*B\\*x",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_EIG_TYPE_2": {
+    "doc": "A\\*B\\*x = lambda\\*x",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_EIG_TYPE_3": {
+    "doc": "B\\*A\\*x = lambda\\*x",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_FACTORIZATION_ALG0": {
+    "doc": "Algorithm 0. (default).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverrffactorization-t"
+  },
+  "CUSOLVER_FACTORIZATION_ALG1": {
+    "doc": "Algorithm 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverrffactorization-t"
+  },
+  "CUSOLVER_FACTORIZATION_ALG2": {
+    "doc": "Algorithm 2. Domino-based scheme.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_FP32_EMULATED_BF16X9_MATH": {
+    "doc": "Use FP32 emulation according to the configured emulation strategy (see [cusolverDnSetEmulationStrategy()](https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverdnsetemulationstrategy)).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_FP32_FP64_EMULATED_MATH": {
+    "doc": "Combination of `CUSOLVER_FP32_EMULATED_BF16X9_MATH` and `CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH": {
+    "doc": "Use FP64 emulation according to the configured emulation strategy (see [cusolverDnSetEmulationStrategy()](https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverdnsetemulationstrategy)).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_IRS_REFINE_CLASSICAL": {
+    "doc": "Classical iterative refinement solver. Similar to the one used in LAPACK routines.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverirsrefinement-t"
+  },
+  "CUSOLVER_IRS_REFINE_CLASSICAL_GMRES": {
+    "doc": "Classical iterative refinement solver that uses the GMRES (Generalized Minimal Residual) internally to solve the correction equation at each iteration. We call the *classical refinement iteration* the outer iteration while the *GMRES* is called inner iteration. Note that if the tolerance of the inner GMRES is set very low, lets say to machine precision, then the outer *classical refinement iteration* will performs only one iteration and thus this option will behave like [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverirsrefinement-t"
+  },
+  "CUSOLVER_IRS_REFINE_GMRES": {
+    "doc": "GMRES (Generalized Minimal Residual) based iterative refinement solver. In recent study, the GMRES method has drawn the scientific community attention for its ability to be used as refinement solver that outperforms the classical iterative refinement method. Based on our experimentation, we recommend this setting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverirsrefinement-t"
+  },
+  "CUSOLVER_IRS_REFINE_GMRES_GMRES": {
+    "doc": "Similar to [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL_GMRES`] which consists of classical refinement process that uses GMRES to solve the inner correction system; here it is a GMRES (Generalized Minimal Residual) based iterative refinement solver that uses another GMRES internally to solve the preconditioned system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverirsrefinement-t"
+  },
+  "CUSOLVER_IRS_REFINE_NONE": {
+    "doc": "No refinement solver, the IRS solver performs a factorization followed by a solve without any refinement. For example if the IRS solver was `cusolverDnIRSXgesv()`, this is equivalent to a Xgesv routine without refinement and where the factorization is carried out in the lowest precision. If for example the main precision was CUSOLVER_R_64F and the lowest was CUSOLVER_R_64F as well, then this is equivalent to a call to `cusolverDnDgesv()`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverirsrefinement-t"
+  },
+  "CUSOLVER_IRS_REFINE_NOT_SET": {
+    "doc": "Solver is not set; this value is what is set when creating the `params` structure. IRS solver will return an error.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverirsrefinement-t"
+  },
+  "CUSOLVER_MATRIX_FORMAT_CSC": {
+    "doc": "Matrix format CSC is assumed.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_MATRIX_FORMAT_CSR": {
+    "doc": "Matrix format CSR is assumed. (default)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_NUMERIC_BOOST_NOT_USED": {
+    "doc": "Numeric boosting not used. (default)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_NUMERIC_BOOST_USED": {
+    "doc": "Numeric boosting used.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_RESET_VALUES_FAST_MODE_OFF": {
+    "doc": "Fast mode disabled. (default)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_RESET_VALUES_FAST_MODE_ON": {
+    "doc": "Fast mode enabled.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_STATUS_ALLOC_FAILED": {
+    "doc": "Resource allocation failed inside the cuSolver library. This is usually caused by a `cudaMalloc()` failure.\n\n**To correct:** prior to the function call, deallocate previously allocated memory as much as possible.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_STATUS_ARCH_MISMATCH": {
+    "doc": "The function requires a feature absent from the device architecture; usually caused by the lack of support for atomic operations or double precision.\n\n**To correct:** compile and run the application on a device with compute capability 5.0 or above.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_STATUS_EXECUTION_FAILED": {
+    "doc": "The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.\n\n**To correct:** check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_STATUS_INTERNAL_ERROR": {
+    "doc": "An internal cuSolver operation failed. This error is usually caused by a `cudaMemcpyAsync()` failure.\n\n**To correct:** check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed. Also, check that the memory passed as a parameter to the routine is not being deallocated prior to the routine’s completion.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_STATUS_INVALID_VALUE": {
+    "doc": "An unsupported value or parameter was passed to the function (a negative vector size, for example).\n\n**To correct:** ensure that all the parameters being passed have valid values.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED": {
+    "doc": "The matrix type is not supported by this function. This is usually caused by passing an invalid matrix descriptor to the function.\n\n**To correct:** check that the fields in `descrA` were set correctly.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_STATUS_NOT_INITIALIZED": {
+    "doc": "The cuSolver library was not initialized. This is usually caused by the lack of a prior call, an error in the CUDA Runtime API called by the cuSolver routine, or an error in the hardware setup.\n\n**To correct:** call `cusolverDnCreate()` prior to the function call; and check that the hardware, an appropriate version of the driver, and the cuSolver library are correctly installed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_STATUS_NOT_SUPPORTED": {
+    "doc": "The parameter combination is not supported, for example batched version is not supported or `M &lt; N` is not supported.\n\n**To correct:** consult the documentation, and use a supported configuration.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_STATUS_SUCCESS": {
+    "doc": "The operation completed successfully.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#id28"
+  },
+  "CUSOLVER_TRIANGULAR_SOLVE_ALG1": {
+    "doc": "Algorithm 1. (default).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverrftriangularsolve-t"
+  },
+  "CUSOLVER_TRIANGULAR_SOLVE_ALG2": {
+    "doc": "Algorithm 2. Domino-based scheme.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_TRIANGULAR_SOLVE_ALG3": {
+    "doc": "Algorithm 3. Domino-based scheme.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_UNIT_DIAGONAL_ASSUMED_L": {
+    "doc": "Unit diagonal is assumed in lower triangular factor.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_UNIT_DIAGONAL_ASSUMED_U": {
+    "doc": "Unit diagonal is assumed in upper triangular factor.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_UNIT_DIAGONAL_STORED_L": {
+    "doc": "Unit diagonal is stored in lower triangular factor (default).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "CUSOLVER_UNIT_DIAGONAL_STORED_U": {
+    "doc": "Unit diagonal is stored in upper triangular factor.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "XF_array": {
+    "doc": "Array of pointers of size `batchSize`, each pointer points to the dense matrix that contains the right-hand-sides `F` and solutions `X` (of size `ldxf*nrhs`).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "array_d_A": {
+    "doc": "A host pointer array of dimension `G`. It contains a distributed <type> array containing `sub(A)` of dimension `N * N`. On exit, `sub(A)` contains the factors `L` or `U`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "array_d_B": {
+    "doc": "A host pointer array of dimension `G`. It contains a distributed <type> array containing `sub(B)` of dimension `N * NRHS`. On exit, `sub(A)` contains the solution to the linear system.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "array_d_IPIV": {
+    "doc": "A host pointer array of dimension `G`. it contains a distributed integer array containing `sub(IPIV)` of size `min(M,N)`. `sub(IPIV)` contains pivot indices.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "array_d_work": {
+    "doc": "A host pointer array of dimension `G`. `array_d_work[j]` points to a device working space in `j-th` device, <type> array of size `lwork`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "csrValA_array": {
+    "doc": "Array of pointers of size `batchSize`, each pointer points to the array of values corresponding to the non-zero elements in the matrix.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "d_A_nrmF": {
+    "doc": "$\\Vert A \\Vert\\_F$ (Frobenius norm of `A`). If `NULL`, the computation is skipped.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "d_info": {
+    "doc": "If `info = 0`, the operation is successful. If `info = -i`, the `i-th` parameter is wrong (not counting handle).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "d_rcond": {
+    "doc": "Reciprocal condition number $1/\\text{cond}(A, \\text{fro})$. If `NULL`, the computation is skipped. Undefined if a user-supplied $\\xi > 0$ was provided via `d_res_nrm`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "d_res_nrm": {
+    "doc": "On input, if `*d_res_nrm >= 0`, it overrides the perturbation $\\xi$ (skipping automatic search). On output, reports $\\Vert A - U\\_p \\cdot H \\Vert\\_2$.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "executed_sweeps": {
+    "doc": "Number of executed sweeps.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "gels_irs_infos": {
+    "doc": "Info structure, where information about a particular solve will be stored. The `gels_irs_infos` structure correspond to a particular call. Thus different calls requires different `gels_irs_infos` structure otherwise, it will be overwritten.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "gels_irs_params": {
+    "doc": "Configuration parameters structure, can serve one or more calls to any IRS solver",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "gesv_irs_infos": {
+    "doc": "Info structure, where information about a particular solve will be stored. The `gesv_irs_infos` structure correspond to a particular call. Thus different calls requires different `gesv_irs_infos` structure otherwise, it will be overwritten.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "gesv_irs_params": {
+    "doc": "Configuration parameters structure, can serve one or more calls to any IRS solver",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Li": {
+    "doc": "The array of column indices corresponding to the non-zero elements in the matrix `L`. It is assumed that this array is sorted by row and by column within each row. The array size is `h_nnzL`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Lp": {
+    "doc": "The array of offsets corresponding to the start of each row in the arrays `h_Li` and `h_Lx`. This array has also an extra entry at the end that stores the number of non-zero elements in the matrix `L`. The array size is `n+1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Lx": {
+    "doc": "The array of values corresponding to the non-zero elements in the matrix `L`. It is assumed that this array is sorted by row and by column within each row. The array size is `h_nnzL`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Mi": {
+    "doc": "The array of column indices corresponding to the non-zero elements in the matrix. It is assumed that this array is sorted by row and by column within each row. The array size is `h_nnzM`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Mp": {
+    "doc": "The array of offsets corresponding to the start of each row in the arrays `h_Mi` and `h_Mx`. This array has also an extra entry at the end that stores the number of non-zero elements in the matrix `M`. The array size is `n+1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Mx": {
+    "doc": "The array of values corresponding to the non-zero elements in the matrix. It is assumed that this array is sorted by row and by column within each row. The array size is `h_nnzM`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_P": {
+    "doc": "The left permutation (often associated with pivoting). The array size in `n`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Q": {
+    "doc": "The right permutation (often associated with reordering). The array size in `n`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_RnrmF": {
+    "doc": "<double> array of size `batchSize`. `h_RnrmF[i]` is norm of residual of `i-th` matrix. If `0 < info[i] < min(m,n)+1`, `h_RnrmF[i]` reports the residual as if `rank` of the `i-th` matrix had been set to `info[i]-1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Ui": {
+    "doc": "The array of column indices corresponding to the non-zero elements in the matrix `U`. It is assumed that this array is sorted by row and by column within each row. The array size is `h_nnzU`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Up": {
+    "doc": "The array of offsets corresponding to the start of each row in the arrays `h_Ui` and `h_Ux`. This array has also an extra entry at the end that stores the number of non-zero elements in the matrix `U`. The array size is `n+1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_Ux": {
+    "doc": "The array of values corresponding to the non-zero elements in the matrix `U`. It is assumed that this array is sorted by row and by column within each row. The array size is `h_nnzU`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrColIndA": {
+    "doc": "The array of column indices corresponding to the non-zero elements in the matrix. It is assumed that this array is sorted by row and by column within each row. The array size is `nnzA`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrColIndL": {
+    "doc": "The array of column indices corresponding to the non-zero elements in the matrix `L`. It is assumed that this array is sorted by row and by column within each row. The array size is `nnzL`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrColIndU": {
+    "doc": "The array of column indices corresponding to the non-zero elements in the matrix `U`. It is assumed that this array is sorted by row and by column within each row. The array size is `nnzU`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrRowPtrA": {
+    "doc": "The array of offsets corresponding to the start of each row in the arrays `h_csrColIndA` and `h_csrValA`. This array has also an extra entry at the end that stores the number of non-zero elements in the matrix. The array size is `n+1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrRowPtrL": {
+    "doc": "The array of offsets corresponding to the start of each row in the arrays `h_csrColIndL` and `h_csrValL`. This array has also an extra entry at the end that stores the number of non-zero elements in the matrix `L`. The array size is `n+1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrRowPtrU": {
+    "doc": "The array of offsets corresponding to the start of each row in the arrays `h_csrColIndU` and `h_csrValU`. This array has also an extra entry at the end that stores the number of non-zero elements in the matrix `U`. The array size is `n+1`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrValA": {
+    "doc": "The array of values corresponding to the non-zero elements in the matrix. It is assumed that this array is sorted by row and by column within each row. The array size is `nnzA`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrValA_array": {
+    "doc": "Array of pointers of size `batchSize`, each pointer points to the array of values corresponding to the non-zero elements in the matrix.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrValL": {
+    "doc": "The array of values corresponding to the non-zero elements in the matrix `L`. It is assumed that this array is sorted by row and by column within each row. The array size is `nnzL`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_csrValU": {
+    "doc": "The array of values corresponding to the non-zero elements in the matrix `U`. It is assumed that this array is sorted by row and by column within each row. The array size is `nnzU`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_err_sigma": {
+    "doc": "Magnitude of the perturbation, showing the accuracy of SVD.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_meig": {
+    "doc": "Integer. The total number of eigenvalues found. 0 <= `h_meig` <= n. If `range` = `CUSOLVER_EIG_RANGE_ALL`, `h_meig` = n, and if `range` = `CUSOLVER_EIG_RANGE_I`, `h_meig` = `iu-il`+1.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_nnzL": {
+    "doc": "The number of non-zero elements of matrix `L`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_nnzM": {
+    "doc": "The number of non-zero elements of matrix `M`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "h_nnzU": {
+    "doc": "The number of non-zero elements of matrix `U`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "left_bottom_corner": {
+    "doc": "Left bottom corner of the box.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "lowest_precision_type": {
+    "doc": "Allowed lowest compute type (for example CUSOLVER_R_16F for half precision computation). See the table in the [cusolverDnIRSParamsSetSolverPrecisions()](https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverdnirsparamssetsolverprecisions) section above for the supported precisions.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "lwork_bytes": {
+    "doc": "Pointer to a variable where required size of temporary workspace in bytes will be stored. Can’t be NULL.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "max_iters": {
+    "doc": "Maximum total number of iterations allowed for the refinement solver.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "max_sweeps": {
+    "doc": "Maximum number of sweeps.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "maxiters_inner": {
+    "doc": "Maximum number of allowed inner iterations for the inner refinement solver. Meaningful when the refinement solver is a two-levels solver such as CUSOLVER_IRS_REFINE_CLASSICAL_GMRES or CUSOLVER_IRS_REFINE_GMRES_GMRES. Value should be less or equal to `MaxIters`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "min_norm": {
+    "doc": ", x=pinv(A)*b`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "num_eigs": {
+    "doc": "Number of algebraic eigenvalues in a box.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "outer_niters": {
+    "doc": "The number of iterations of the outer refinement loop of the IRS solver.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "residual_history": {
+    "doc": "Returns a void pointer to the matrix of the convergence history residual norms. See the description above for the relation between the residual norm datatype and the inout datatype.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "right_upper_corner": {
+    "doc": "Right upper corner of the box.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "solver_lowest_precision": {
+    "doc": "Allowed lowest compute type (for example CUSOLVER_R_16F for half precision computation). See the table below for the supported precisions.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "solver_main_precision": {
+    "doc": "Allowed Inputs/Outputs datatype (for example CUSOLVER_R_FP64 for a real double precision data). See the table below for the supported precisions.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "sort_eig": {
+    "doc": "If `sort_eig` is zero, the eigenvalues are not sorted.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  },
+  "sort_svd": {
+    "doc": "If `sort_svd` is zero, the singular values are not sorted.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cusolver/v13.4.2"
+  }
+}

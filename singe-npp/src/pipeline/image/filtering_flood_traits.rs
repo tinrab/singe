@@ -1,11 +1,16 @@
 use crate::{
+    ImageViewMut,
     context::StreamContext,
     error::Result,
-    image::view::ImageViewMut,
     types::{ConnectedRegion, ImageNormalization, Point},
 };
 
-pub trait FloodFillImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait FloodFillImage<T, L> {
     type Value;
 
     fn flood_fill_image(

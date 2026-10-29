@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     pub fn softmax_impl<
         const BM: i32,
@@ -21,9 +26,7 @@ mod kernels {
             input_tile_raw
         };
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
-        let col_iota = col_iota
-            .reshape(const_shape![1i32, BN])
-            .broadcast(out.shape());
+        let col_iota = col_iota.reshape(const_shape![1, BN]).broadcast(out.shape());
         let input_shape: [i32; 2] = get_tensor_shape(input);
         let cols_tile = broadcast_scalar(input_shape[1], out.shape());
         let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);

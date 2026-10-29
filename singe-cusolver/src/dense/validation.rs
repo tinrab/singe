@@ -1,4 +1,8 @@
-use singe_cuda::{data_type::DataType, memory::DeviceMemory};
+#![expect(
+    clippy::similar_names,
+    reason = "BLAS and factorization operand names follow the standard mathematical API"
+)]
+use singe_cuda::{data_type::DataType, view::DeviceRepr};
 
 use crate::{
     error::{Error, Result},
@@ -45,36 +49,36 @@ pub fn require_host_workspace(actual: usize, required: usize) -> Result<()> {
     Ok(())
 }
 
-pub fn require_info_buffer(dev_info: &DeviceMemory<i32>) -> Result<()> {
-    if dev_info.is_empty() {
+pub fn require_info_buffer(len: usize) -> Result<()> {
+    if len == 0 {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn require_info_entries(dev_info: &DeviceMemory<i32>, required: usize) -> Result<()> {
-    if dev_info.len() < required {
+pub fn require_info_entries(len: usize, required: usize) -> Result<()> {
+    if len < required {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn require_pivot_buffer(pivots: &DeviceMemory<i32>, required: usize) -> Result<()> {
-    if pivots.len() < required {
+pub fn require_pivot_buffer(len: usize, required: usize) -> Result<()> {
+    if len < required {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn require_pivot64_buffer(pivots: &DeviceMemory<i64>, required: usize) -> Result<()> {
-    if pivots.len() < required {
+pub fn require_pivot64_buffer(len: usize, required: usize) -> Result<()> {
+    if len < required {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
 }
 
-pub fn require_tau_buffer<T>(tau: &DeviceMemory<T>, required: usize) -> Result<()> {
-    if tau.len() < required {
+pub fn require_tau_buffer(len: usize, required: usize) -> Result<()> {
+    if len < required {
         return Err(Error::InvalidVectorShape);
     }
     Ok(())
@@ -128,16 +132,25 @@ pub fn validate_orgbr_inputs(
     lda: usize,
     tau_len: usize,
 ) -> Result<()> {
-    if m == 0 || n == 0 || k == 0 {
-        return Err(Error::InvalidMatrixShape);
-    }
+    validate_orgbr_shape(side, m, n, k)?;
     validate_matrix(m, n, a_len, lda)?;
-    if tau_len < k {
+    let reflectors = match side {
+        SideMode::Left => m.min(k),
+        SideMode::Right => n.min(k),
+    };
+    if tau_len < reflectors {
         return Err(Error::InvalidVectorShape);
     }
+    Ok(())
+}
+
+pub fn validate_orgbr_shape(side: SideMode, m: usize, n: usize, k: usize) -> Result<()> {
+    if m == 0 || n == 0 {
+        return Err(Error::InvalidMatrixShape);
+    }
     match side {
-        SideMode::Left if m < n || k > m => Err(Error::InvalidMatrixShape),
-        SideMode::Right if n < m || k > n => Err(Error::InvalidMatrixShape),
+        SideMode::Left if m < n || n < m.min(k) => Err(Error::InvalidMatrixShape),
+        SideMode::Right if n < m || m < n.min(k) => Err(Error::InvalidMatrixShape),
         _ => Ok(()),
     }
 }
@@ -185,7 +198,7 @@ pub fn validate_ormtr_inputs(
     Ok(())
 }
 
-pub fn validate_batched_square_matrix_pointers<T>(
+pub fn validate_batched_square_matrix_pointers<T: DeviceRepr>(
     n: usize,
     matrices: BatchedMatrixRef<'_, T>,
 ) -> Result<()> {
@@ -198,7 +211,7 @@ pub fn validate_batched_square_matrix_pointers<T>(
     Ok(())
 }
 
-pub fn validate_batched_vector_pointers<T>(
+pub fn validate_batched_vector_pointers<T: DeviceRepr>(
     n: usize,
     vectors: BatchedVectorRef<'_, T>,
 ) -> Result<()> {

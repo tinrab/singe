@@ -1,4 +1,5 @@
-use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory, stream::StreamBinding};
+
 use singe_cutensor::{
     context::Context,
     error::Result,
@@ -55,11 +56,11 @@ fn main() -> Result<()> {
         .map(|index| -0.125_f32 * (index as f32 + 1.0))
         .collect::<Vec<_>>();
 
-    let device_a = DeviceMemory::from_slice(&host_a)?;
-    let device_b = DeviceMemory::from_slice(&host_b)?;
-    let device_c = DeviceMemory::from_slice(&host_c)?;
-    let device_d_input = DeviceMemory::from_slice(&host_d)?;
-    let mut device_e = DeviceMemory::from_slice(&host_d)?;
+    let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
+    let device_b = DeviceMemory::from_slice(&cuda_context, &host_b)?;
+    let device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
+    let device_d_input = DeviceMemory::from_slice(&cuda_context, &host_d)?;
+    let mut device_e = DeviceMemory::from_slice(&cuda_context, &host_d)?;
 
     const ALIGNMENT: u32 = 128;
 
@@ -86,7 +87,8 @@ fn main() -> Result<()> {
     )?;
     let plan = Plan::create(&context, &contraction, &preference, workspace_size)?;
     let mut workspace = if plan.required_workspace_size() > 0 {
-        Some(DeviceMemory::<u8>::create(
+        Some(DeviceMemory::<u8>::create_uninit(
+            &cuda_context,
             plan.required_workspace_size_bytes()?,
         )?)
     } else {
@@ -95,18 +97,22 @@ fn main() -> Result<()> {
 
     let alpha = 1.25_f32;
     let beta = -0.75_f32;
-    plan.contract_trinary(
-        &alpha,
-        &device_a,
-        &device_b,
-        &device_c,
-        &beta,
-        &device_d_input,
-        &mut device_e,
-        workspace.as_mut(),
-        &stream,
-    )?;
-    stream.synchronize()?;
+    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+        // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+        unsafe {
+            plan.contract_trinary(
+                &alpha,
+                &device_a,
+                &device_b,
+                &device_c,
+                &beta,
+                &device_d_input,
+                &mut device_e,
+                workspace.as_mut(),
+                &stream,
+            )
+        }
+    })?;
 
     let result = device_e.copy_to_host_vec()?;
     let mut expected = vec![0.0_f32; result.len()];

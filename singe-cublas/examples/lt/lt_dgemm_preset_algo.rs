@@ -23,10 +23,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&[1.0_f64, 3.0, 2.0, 4.0])?;
-    let b = DeviceMemory::from_slice(&[5.0_f64, 7.0, 6.0, 8.0])?;
-    let c = DeviceMemory::<f64>::zeroes((M * N) as usize)?;
-    let mut d = DeviceMemory::<f64>::zeroes((M * N) as usize)?;
+    let a = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 2.0, 4.0])?;
+    let b = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 6.0, 8.0])?;
+    let c = DeviceMemory::<f64>::zeroed(&cuda, (M * N) as usize)?;
+    let mut d = DeviceMemory::<f64>::zeroed(&cuda, (M * N) as usize)?;
 
     let a_layout = MatrixLayout::create(DataType::F64, M, K, M as i64)?;
     let b_layout = MatrixLayout::create(DataType::F64, K, N, K as i64)?;
@@ -49,38 +49,48 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
 
     let tile = sys::cublasLtMatmulTile_t::CUBLASLT_MATMUL_TILE_16x16;
-    let split_k = 2_i32;
-    algorithm.set_config_attribute(MatmulAlgorithmConfigAttribute::TileId, &tile)?;
-    algorithm.set_config_attribute(MatmulAlgorithmConfigAttribute::SplitKCount, &split_k)?;
-    algorithm.set_config_attribute(
-        MatmulAlgorithmConfigAttribute::ReductionScheme,
-        &sys::cublasLtReductionScheme_t::from(ReductionScheme::InPlace),
-    )?;
+    // SAFETY: TileId stores the native cublasLtMatmulTile_t enum.
+    unsafe { algorithm.set_config_attribute(MatmulAlgorithmConfigAttribute::TileId, &tile) }?;
+    algorithm.set_split_k_count(2)?;
+    // SAFETY: ReductionScheme stores the native cublasLtReductionScheme_t enum.
+    unsafe {
+        algorithm.set_config_attribute(
+            MatmulAlgorithmConfigAttribute::ReductionScheme,
+            &sys::cublasLtReductionScheme_t::from(ReductionScheme::InPlace),
+        )
+    }?;
 
     let heuristic = check_matmul_algorithm(
         &lt, &desc, &a_layout, &b_layout, &c_layout, &d_layout, &algorithm,
     )?;
-    let mut workspace = DeviceMemory::<u8>::create(WORKSPACE_BYTES.max(heuristic.workspace_size))?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    let mut workspace = unsafe {
+        DeviceMemory::<u8>::create_unchecked(&cuda, WORKSPACE_BYTES.max(heuristic.workspace_size))
+    }?;
 
     let alpha = 1.0_f64;
     let beta = 0.0_f64;
-    matmul(
-        &lt,
-        &desc,
-        &alpha,
-        &a,
-        &a_layout,
-        &b,
-        &b_layout,
-        &beta,
-        &c,
-        &c_layout,
-        &mut d,
-        &d_layout,
-        Some(&algorithm),
-        Some(&mut workspace),
-        None,
-    )?;
+    // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
+    unsafe {
+        matmul(
+            &lt,
+            &desc,
+            &alpha,
+            &a,
+            &a_layout,
+            &b,
+            &b_layout,
+            &beta,
+            &c,
+            &c_layout,
+            &mut d,
+            &d_layout,
+            Some(&algorithm),
+            Some(&mut workspace),
+            None,
+        )
+    }?;
+    cuda.synchronize()?;
 
     let result = d.copy_to_host_vec()?;
     println!("lt_dgemm_preset_algo result: {result:?}");

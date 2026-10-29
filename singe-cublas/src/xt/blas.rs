@@ -13,7 +13,9 @@ trait XtScalar: Sized {
     type Raw;
 
     fn ptr(value: &Self) -> *const Self::Raw;
+
     fn slice_ptr(values: &[Self]) -> *const Self::Raw;
+
     fn slice_mut_ptr(values: &mut [Self]) -> *mut Self::Raw;
 }
 
@@ -86,9 +88,13 @@ macro_rules! impl_gemm {
         #[doc = $doc]
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             transpose_a: Operation,
             transpose_b: Operation,
             m: usize,
@@ -116,9 +122,10 @@ macro_rules! impl_gemm {
                 c.len(),
                 ldc,
             )?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     transpose_a.into(),
                     transpose_b.into(),
                     m as _,
@@ -144,9 +151,13 @@ macro_rules! impl_syrk {
         #[doc = $doc]
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             fill_mode: FillMode,
             transpose_a: Operation,
             n: usize,
@@ -159,9 +170,10 @@ macro_rules! impl_syrk {
             ldc: usize,
         ) -> Result<()> {
             validate_syrk(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     fill_mode.into(),
                     transpose_a.into(),
                     n as _,
@@ -184,9 +196,13 @@ macro_rules! impl_herk {
         #[doc = $doc]
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             fill_mode: FillMode,
             transpose_a: Operation,
             n: usize,
@@ -199,9 +215,10 @@ macro_rules! impl_herk {
             ldc: usize,
         ) -> Result<()> {
             validate_syrk(transpose_a, n, k, a.len(), lda, c.len(), ldc)?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     fill_mode.into(),
                     transpose_a.into(),
                     n as _,
@@ -224,9 +241,13 @@ macro_rules! impl_syr2k_like {
         #[doc = $doc]
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             fill_mode: FillMode,
             transpose_a: Operation,
             n: usize,
@@ -241,9 +262,10 @@ macro_rules! impl_syr2k_like {
             ldc: usize,
         ) -> Result<()> {
             validate_syr2k(transpose_a, n, k, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     fill_mode.into(),
                     transpose_a.into(),
                     n as _,
@@ -268,9 +290,13 @@ macro_rules! impl_her2k_like {
         #[doc = $doc]
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             fill_mode: FillMode,
             transpose_a: Operation,
             n: usize,
@@ -285,9 +311,10 @@ macro_rules! impl_her2k_like {
             ldc: usize,
         ) -> Result<()> {
             validate_syr2k(transpose_a, n, k, a.len(), lda, b.len(), ldb, c.len(), ldc)?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     fill_mode.into(),
                     transpose_a.into(),
                     n as _,
@@ -312,9 +339,13 @@ macro_rules! impl_symm {
         #[doc = $doc]
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             side: SideMode,
             fill_mode: FillMode,
             m: usize,
@@ -339,9 +370,10 @@ macro_rules! impl_symm {
                 c.len(),
                 ldc,
             )?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     side.into(),
                     fill_mode.into(),
                     m as _,
@@ -367,9 +399,13 @@ macro_rules! impl_trsm {
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
         /// The solution overwrites `b`.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             side: SideMode,
             fill_mode: FillMode,
             transpose_a: Operation,
@@ -383,9 +419,10 @@ macro_rules! impl_trsm {
             ldb: usize,
         ) -> Result<()> {
             validate_triangular_solve(side, m, n, a.len(), lda, b.len(), ldb)?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     side.into(),
                     fill_mode.into(),
                     transpose_a.into(),
@@ -409,9 +446,13 @@ macro_rules! impl_trmm {
         #[doc = $doc]
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             side: SideMode,
             fill_mode: FillMode,
             transpose_a: Operation,
@@ -437,9 +478,10 @@ macro_rules! impl_trmm {
                 c.len(),
                 ldc,
             )?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     side.into(),
                     fill_mode.into(),
                     transpose_a.into(),
@@ -466,9 +508,13 @@ macro_rules! impl_spmm {
         ///
         /// Matrices use cuBLAS column-major layout and host-accessible memory.
         /// `ap` stores the symmetric matrix in packed format.
-
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
+        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
-            ctx: &Context,
+            context: &Context,
             side: SideMode,
             fill_mode: FillMode,
             m: usize,
@@ -491,9 +537,10 @@ macro_rules! impl_spmm {
                 c.len(),
                 ldc,
             )?;
+            // SAFETY: the `ffi` entry point receives live handles owned by the wrappers.
             unsafe {
                 try_ffi!(sys::$ffi(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     side.into(),
                     fill_mode.into(),
                     m as _,
@@ -518,18 +565,21 @@ impl_gemm!(
     f32,
     "Performs single-precision host-memory GEMM through cuBLASXt."
 );
+
 impl_gemm!(
     dgemm,
     cublasXtDgemm,
     f64,
     "Performs double-precision host-memory GEMM through cuBLASXt."
 );
+
 impl_gemm!(
     cgemm,
     cublasXtCgemm,
     Complex32,
     "Performs single-precision complex host-memory GEMM through cuBLASXt."
 );
+
 impl_gemm!(
     zgemm,
     cublasXtZgemm,
@@ -543,18 +593,21 @@ impl_syrk!(
     f32,
     "Performs single-precision host-memory SYRK through cuBLASXt."
 );
+
 impl_syrk!(
     dsyrk,
     cublasXtDsyrk,
     f64,
     "Performs double-precision host-memory SYRK through cuBLASXt."
 );
+
 impl_syrk!(
     csyrk,
     cublasXtCsyrk,
     Complex32,
     "Performs single-precision complex host-memory SYRK through cuBLASXt."
 );
+
 impl_syrk!(
     zsyrk,
     cublasXtZsyrk,
@@ -569,6 +622,7 @@ impl_herk!(
     f32,
     "Performs single-precision complex host-memory HERK through cuBLASXt."
 );
+
 impl_herk!(
     zherk,
     cublasXtZherk,
@@ -583,18 +637,21 @@ impl_syr2k_like!(
     f32,
     "Performs single-precision host-memory SYR2K through cuBLASXt."
 );
+
 impl_syr2k_like!(
     dsyr2k,
     cublasXtDsyr2k,
     f64,
     "Performs double-precision host-memory SYR2K through cuBLASXt."
 );
+
 impl_syr2k_like!(
     csyr2k,
     cublasXtCsyr2k,
     Complex32,
     "Performs single-precision complex host-memory SYR2K through cuBLASXt."
 );
+
 impl_syr2k_like!(
     zsyr2k,
     cublasXtZsyr2k,
@@ -609,6 +666,7 @@ impl_her2k_like!(
     f32,
     "Performs single-precision complex host-memory HERKX through cuBLASXt."
 );
+
 impl_her2k_like!(
     zherkx,
     cublasXtZherkx,
@@ -623,18 +681,21 @@ impl_trsm!(
     f32,
     "Performs single-precision host-memory TRSM through cuBLASXt."
 );
+
 impl_trsm!(
     dtrsm,
     cublasXtDtrsm,
     f64,
     "Performs double-precision host-memory TRSM through cuBLASXt."
 );
+
 impl_trsm!(
     ctrsm,
     cublasXtCtrsm,
     Complex32,
     "Performs single-precision complex host-memory TRSM through cuBLASXt."
 );
+
 impl_trsm!(
     ztrsm,
     cublasXtZtrsm,
@@ -648,18 +709,21 @@ impl_symm!(
     f32,
     "Performs single-precision host-memory SYMM through cuBLASXt."
 );
+
 impl_symm!(
     dsymm,
     cublasXtDsymm,
     f64,
     "Performs double-precision host-memory SYMM through cuBLASXt."
 );
+
 impl_symm!(
     csymm,
     cublasXtCsymm,
     Complex32,
     "Performs single-precision complex host-memory SYMM through cuBLASXt."
 );
+
 impl_symm!(
     zsymm,
     cublasXtZsymm,
@@ -673,6 +737,7 @@ impl_symm!(
     Complex32,
     "Performs single-precision complex host-memory HEMM through cuBLASXt."
 );
+
 impl_symm!(
     zhemm,
     cublasXtZhemm,
@@ -686,18 +751,21 @@ impl_syr2k_like!(
     f32,
     "Performs single-precision host-memory SYRKX through cuBLASXt."
 );
+
 impl_syr2k_like!(
     dsyrkx,
     cublasXtDsyrkx,
     f64,
     "Performs double-precision host-memory SYRKX through cuBLASXt."
 );
+
 impl_syr2k_like!(
     csyrkx,
     cublasXtCsyrkx,
     Complex32,
     "Performs single-precision complex host-memory SYRKX through cuBLASXt."
 );
+
 impl_syr2k_like!(
     zsyrkx,
     cublasXtZsyrkx,
@@ -712,6 +780,7 @@ impl_her2k_like!(
     f32,
     "Performs single-precision complex host-memory HER2K through cuBLASXt."
 );
+
 impl_her2k_like!(
     zher2k,
     cublasXtZher2k,
@@ -726,18 +795,21 @@ impl_spmm!(
     f32,
     "Performs single-precision host-memory SPMM through cuBLASXt."
 );
+
 impl_spmm!(
     dspmm,
     cublasXtDspmm,
     f64,
     "Performs double-precision host-memory SPMM through cuBLASXt."
 );
+
 impl_spmm!(
     cspmm,
     cublasXtCspmm,
     Complex32,
     "Performs single-precision complex host-memory SPMM through cuBLASXt."
 );
+
 impl_spmm!(
     zspmm,
     cublasXtZspmm,
@@ -751,18 +823,21 @@ impl_trmm!(
     f32,
     "Performs single-precision host-memory TRMM through cuBLASXt."
 );
+
 impl_trmm!(
     dtrmm,
     cublasXtDtrmm,
     f64,
     "Performs double-precision host-memory TRMM through cuBLASXt."
 );
+
 impl_trmm!(
     ctrmm,
     cublasXtCtrmm,
     Complex32,
     "Performs single-precision complex host-memory TRMM through cuBLASXt."
 );
+
 impl_trmm!(
     ztrmm,
     cublasXtZtrmm,
@@ -995,13 +1070,12 @@ fn validate_three_matrices(
 }
 
 fn required_packed_triangular_len(n: usize) -> Result<usize> {
-    n.checked_mul(n.checked_add(1).ok_or(Error::OutOfRange {
-        name: "packed triangular length".into(),
-    })?)
+    n.checked_mul(
+        n.checked_add(1)
+            .ok_or(Error::out_of_range("packed triangular length"))?,
+    )
     .and_then(|value| value.checked_div(2))
-    .ok_or(Error::OutOfRange {
-        name: "packed triangular length".into(),
-    })
+    .ok_or(Error::out_of_range("packed triangular length"))
 }
 
 fn side_dimension(side: SideMode, m: usize, n: usize) -> usize {
@@ -1016,8 +1090,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rejects_short_gemm_matrix() {
-        let err = validate_gemm(
+    fn test_rejects_short_gemm_matrix() {
+        let error = validate_gemm(
             Operation::NonTranspose,
             Operation::NonTranspose,
             2,
@@ -1031,11 +1105,11 @@ mod tests {
             2,
         )
         .unwrap_err();
-        assert!(matches!(err, Error::InvalidMatrixShape));
+        assert!(matches!(error, Error::InvalidMatrixShape));
     }
 
     #[test]
-    fn accepts_transposed_gemm_shapes() -> Result<()> {
+    fn test_accepts_transposed_gemm_shapes() -> Result<()> {
         validate_gemm(
             Operation::Transpose,
             Operation::NonTranspose,
@@ -1052,9 +1126,9 @@ mod tests {
     }
 
     #[test]
-    fn rejects_short_packed_matrix() {
-        let err = validate_packed_symmetric_matrix_multiply(SideMode::Left, 3, 2, 5, 6, 3, 6, 3)
+    fn test_rejects_short_packed_matrix() {
+        let error = validate_packed_symmetric_matrix_multiply(SideMode::Left, 3, 2, 5, 6, 3, 6, 3)
             .unwrap_err();
-        assert!(matches!(err, Error::InvalidMatrixShape));
+        assert!(matches!(error, Error::InvalidMatrixShape));
     }
 }

@@ -1,549 +1,500 @@
-use std::collections::BTreeMap;
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use crate::{
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{BackendTensorReordering, Shape, TensorId, TensorSpec},
+    },
     data_type::DataType,
     error::{Error, Result},
     frontend::{
         composite::sdpa::{
-            UnifiedSdpaSubgraph,
-            support::{SDPA_SCORE_SUBGRAPH, sdpa_mask_scalar},
+            UnifiedSdpaSubgraph, infer_sdpa_scores_shape,
+            support::{SDPA_SCORE_SUBGRAPH, bounded_sdpa_window, sdpa_mask_scalar},
         },
-        graph::{AliasBinding, Graph},
-        infer::*,
-        operation::*,
-        support::CUDNN_8_9_0_2,
+        error::Error as FrontendError,
+        graph::{Graph, RuntimeShapeConstraints, StorageView, TensorOutputConfig},
+        operation::{
+            AlibiBias, AttentionBackwardHeuristicOverride, AttentionDiagonalAlignment,
+            AttentionDiagonalBand, AttentionDropoutConfig, AttentionSequenceInputs,
+            DiagonalBandMaskBound, DiagonalBandMaskConfig, DirectSdpaDropout,
+            DirectSdpaForwardConfig, Operation, PointwiseOperation, RandomNumberDistribution,
+            RandomNumberGeneratorConfig, SdpaScoreModifiers, SdpaScoreSubgraph, SequenceLength,
+        },
     },
-    math::NanPropagation,
-    pointwise::PointwiseMode,
-    tensor::{BackendTensorReordering, Shape, TensorId, TensorSpec},
+    utility::to_i32,
 };
 
 impl Graph {
-    pub(in crate::frontend::composite::sdpa) fn sdpa_aux_data_type(&self) -> DataType {
-        self.effective_compute_data_type(DataType::F32)
+    pub(crate) fn sdpa_score_data_type(&self) -> DataType {
+        self.effective_intermediate_data_type(DataType::F32)
     }
 
-    pub(in crate::frontend::composite::sdpa) fn pointwise_binary_virtual_infer_as(
-        &mut self,
-        lhs: TensorId,
-        rhs: TensorId,
-        mode: PointwiseMode,
-        compute_type: DataType,
-        output_data_type: DataType,
-    ) -> Result<TensorId> {
-        let lhs_tensor = self.tensor_config(lhs)?.clone();
-        let rhs_tensor = self.tensor_config(rhs)?.clone();
-        let output_shape = infer_binary_pointwise_output(&lhs_tensor.shape, &rhs_tensor.shape)?;
-        let output = self.tensor(TensorSpec::new(output_data_type, output_shape).virtual_tensor());
-        self.pointwise(PointwiseOperation::Binary {
-            mode,
-            lhs,
-            rhs,
-            output,
-            compute_type,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
-        Ok(output)
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn normalize_attention_config_for_forward_version(
-        &self,
-        cudnn_version: u64,
-        config: AttentionConfig,
-    ) -> AttentionConfig {
-        if cudnn_version > CUDNN_8_9_0_2
-            && config
-                .dropout()
-                .is_some_and(|dropout| dropout.probability() == 0.0)
-        {
-            let modifiers = *config.modifiers();
-            let score_subgraph = config.score_subgraph().cloned();
-            config.with_score_config(AttentionScoreConfig::from_parts(modifiers, score_subgraph))
-        } else {
-            config
-        }
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn attention_dropout_random_number_generator_config(
-        &self,
-        probability: f32,
-        seed_source: AttentionDropoutSeedSource,
-        offset: Option<TensorId>,
-    ) -> Result<RandomNumberGeneratorConfig> {
-        let probability = f64::from(1.0 - probability);
-        let rng_config = match seed_source {
-            AttentionDropoutSeedSource::Host(seed) => {
-                let mut rng_config = RandomNumberGeneratorConfig::bernoulli(probability, seed);
-                if let Some(offset) = offset {
-                    rng_config = rng_config.with_offset(offset);
-                }
-                rng_config
-            }
-            AttentionDropoutSeedSource::Device(seed) => {
-                let offset = offset.ok_or(Error::FrontendSdpaDropoutSeedRequiresOffset)?;
-                RandomNumberGeneratorConfig::bernoulli(probability, 0)
-                    .with_seed_tensor(seed, offset)
-            }
-        };
-
-        Ok(rng_config)
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn attention_dropout_random_number_generator_dump(
+    pub(crate) fn attention_dropout_random_number_generator_dump(
         &mut self,
         dropout: AttentionDropoutConfig,
-        offset: Option<TensorId>,
         scores_shape: &Shape,
     ) -> Result<TensorId> {
-        let rng_config = self.attention_dropout_random_number_generator_config(
-            dropout.probability(),
+        let rng_config = RandomNumberGeneratorConfig::new(
+            RandomNumberDistribution::Bernoulli {
+                probability: dropout.keep_probability(),
+            },
             dropout.seed_source(),
-            offset,
-        )?;
+        );
         let rng_dump = self.tensor(TensorSpec::new(DataType::F32, scores_shape.clone()));
-        self.random_number_generator(rng_dump, rng_config)?;
+        self.random_number_generator_into(rng_dump, rng_config)?;
         Ok(rng_dump)
     }
 
-    pub(in crate::frontend::composite::sdpa) fn clone_tensor_into_subgraph(
+    pub(crate) fn capture_tensor_into_subgraph(
         &self,
-        subgraph: &mut Graph,
-        cloned_tensors: &mut BTreeMap<TensorId, TensorId>,
+        subgraph: &mut Self,
+        tensor_captures: &mut BTreeMap<TensorId, TensorId>,
+        shared_tensors: &BTreeSet<TensorId>,
         tensor: TensorId,
     ) -> Result<TensorId> {
-        if let Some(cloned) = cloned_tensors.get(&tensor).copied() {
-            return Ok(cloned);
+        if let Some(captured_tensor) = tensor_captures.get(&tensor).copied() {
+            return Ok(captured_tensor);
         }
 
-        let source = self.tensor_config(tensor)?.clone();
+        let source = self.tensor_spec(tensor)?.clone();
         let ragged_offset = source.ragged_offset;
-        let cloned = subgraph.tensor(source.clear_ragged_offset());
-        cloned_tensors.insert(tensor, cloned);
+        let captured_tensor = if shared_tensors.contains(&tensor) {
+            subgraph.insert_tensor(tensor, source.with_ragged_offset_reference(None))?
+        } else {
+            subgraph.tensor(source.with_ragged_offset_reference(None))
+        };
+        tensor_captures.insert(tensor, captured_tensor);
 
         if let Some(ragged_offset) = ragged_offset {
-            let cloned_ragged_offset =
-                self.clone_tensor_into_subgraph(subgraph, cloned_tensors, ragged_offset)?;
-            subgraph.set_ragged_offset(cloned, cloned_ragged_offset)?;
+            let captured_ragged_offset = self.capture_tensor_into_subgraph(
+                subgraph,
+                tensor_captures,
+                shared_tensors,
+                ragged_offset,
+            )?;
+            subgraph.set_ragged_offset(captured_tensor, captured_ragged_offset)?;
         }
 
-        Ok(cloned)
+        Ok(captured_tensor)
     }
 
+    pub(crate) fn sdpa_diagonal_band_mask(
+        &mut self,
+        scores: TensorId,
+        band: AttentionDiagonalBand,
+        mut sequence: AttentionSequenceInputs<TensorId>,
+    ) -> Result<TensorId> {
+        if !band.has_bounds() {
+            return Ok(scores);
+        }
+        self.validate_tensor_rank(scores, 4, "attention mask score rank")?;
+        if band.alignment() == AttentionDiagonalAlignment::TopLeft {
+            sequence = AttentionSequenceInputs::default();
+        } else {
+            let shape = self.shape(scores)?;
+            let fixed_lengths = [shape.dimensions()[2], shape.dimensions()[3]];
+            for (lengths, fixed) in [&mut sequence.query, &mut sequence.key_value]
+                .into_iter()
+                .zip(fixed_lengths)
+            {
+                if lengths.is_none() {
+                    let length = to_i32(fixed, "attention fixed sequence length")?;
+                    let tensor = self.tensor(
+                        TensorSpec::constant(length).with_shape(Shape::contiguous([1, 1, 1, 1])?),
+                    );
+                    *lengths = Some(SequenceLength::PerBatch(tensor));
+                }
+            }
+        }
+        self.sdpa_native_window_mask(scores, sequence, band.left_window(), band.right_window())
+    }
+
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "unbound sequence masks use f32 tensors to represent diagonal offsets"
+    )]
+    fn sdpa_native_window_mask(
+        &mut self,
+        mut scores: TensorId,
+        sequence: AttentionSequenceInputs<TensorId>,
+        left_window: Option<i64>,
+        right_window: Option<i64>,
+    ) -> Result<TensorId> {
+        self.validate_tensor_rank(scores, 4, "attention mask score rank")?;
+        let shape = self.shape(scores)?;
+        let (query, key_value) = (shape.dimensions()[2], shape.dimensions()[3]);
+        let (left_maximum, right_maximum) = if sequence.is_empty() {
+            (query, key_value - 1)
+        } else {
+            let extent = query
+                .checked_add(key_value)
+                .ok_or_else(|| Error::out_of_range("attention shifted window extent"))?;
+            (extent, extent - 1)
+        };
+        let left_window = bounded_sdpa_window(left_window, left_maximum, "attention left window")?;
+        let right_window =
+            bounded_sdpa_window(right_window, right_maximum, "attention right window")?;
+        if let Some(right) = right_window {
+            let tensor = self.tensor_spec(scores)?.clone();
+            let negative_inf = self.tensor(sdpa_mask_scalar(tensor.data_type, f32::NEG_INFINITY)?);
+            let mut config =
+                DiagonalBandMaskConfig::new(PointwiseMode::CmpGe).with_sequence_inputs(sequence);
+            if right != 0 {
+                let shift = self.tensor(
+                    TensorSpec::constant(right).with_shape(Shape::contiguous([1, 1, 1, 1])?),
+                );
+                config = config.with_bound(DiagonalBandMaskBound::Right { shift: Some(shift) });
+            }
+            let output = self.tensor(tensor.virtual_tensor());
+            self.diagonal_band_mask_into(scores, negative_inf, output, config)?;
+            scores = output;
+        }
+        if let Some(left) = left_window {
+            let tensor = self.tensor_spec(scores)?.clone();
+            let negative_inf = self.tensor(sdpa_mask_scalar(tensor.data_type, f32::NEG_INFINITY)?);
+            let bound = if sequence.is_empty() {
+                TensorSpec::constant(left as f32).with_shape(Shape::contiguous([1, 1, 1, 1])?)
+            } else {
+                TensorSpec::constant(left).with_shape(Shape::contiguous([1, 1, 1, 1])?)
+            };
+            let bound = self.tensor(bound);
+            let output = self.tensor(tensor.virtual_tensor());
+            self.diagonal_band_mask_into(
+                scores,
+                negative_inf,
+                output,
+                DiagonalBandMaskConfig::new(PointwiseMode::CmpGt)
+                    .with_sequence_inputs(sequence)
+                    .with_bound(DiagonalBandMaskBound::Left(bound)),
+            )?;
+            scores = output;
+        }
+        Ok(scores)
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the composite attention operation builds and validates its complete tensor graph"
+    )]
     pub(crate) fn build_sdpa_unified_subgraph(
         &self,
         q: TensorId,
         k: TensorId,
-        config: DirectSdpaForwardConfig,
+        v: TensorId,
+        config: &DirectSdpaForwardConfig,
         score_modifiers: SdpaScoreModifiers,
         score_subgraph: Option<&SdpaScoreSubgraph>,
     ) -> Result<Option<UnifiedSdpaSubgraph>> {
-        let mut cloned_tensors = BTreeMap::new();
-        let q_tensor = self.tensor_config(q)?.clone();
-        let k_tensor = self.tensor_config(k)?.clone();
-        let effective_k_shape = if let Some(page_table_k) = config.page_table_k() {
-            let sequence_length_key_value = config
-                .sequence_length_key_value()
-                .ok_or(Error::FrontendSdpaPagedAttentionRequiresSequenceLengths)?;
-            let seq_len_kv_tensor = self.tensor_config(sequence_length_key_value)?.clone();
-            let page_table_k_tensor = self.tensor_config(page_table_k)?.clone();
-            infer_paged_cache_output(
-                &k_tensor.shape,
-                &seq_len_kv_tensor.shape,
-                &page_table_k_tensor.shape,
-                true,
-            )?
-        } else {
-            k_tensor.shape.clone()
-        };
         if !score_modifiers.has_pre_softmax_subgraph_modifier() && score_subgraph.is_none() {
             return Ok(None);
         }
-
-        let mut subgraph = Graph::new();
-        subgraph.sm_version = self.sm_version;
-        subgraph
-            .data_type_policy
-            .inherit_compute_policy_from(self.data_type_policy);
-        subgraph.dynamic_shape_enabled = self.dynamic_shape_enabled;
-        subgraph.override_shape_enabled = self.override_shape_enabled;
-
-        let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &effective_k_shape)?;
-        let input = subgraph.tensor(
-            TensorSpec::new(self.sdpa_aux_data_type(), scores_shape.clone()).virtual_tensor(),
+        let mut tensor_captures = BTreeMap::new();
+        let mut shared_tensors = self
+            .tensor_records()?
+            .into_iter()
+            .filter_map(|(id, record)| record.access.is_some().then_some(id))
+            .collect::<BTreeSet<_>>();
+        shared_tensors.extend(
+            self.tensors
+                .iter()
+                .filter_map(|(&id, tensor)| tensor.is_virtual().then_some(id)),
         );
+        shared_tensors.retain(|id| {
+            self.tensors
+                .get(id)
+                .is_some_and(|tensor| !tensor.is_by_value() && !tensor.is_workspace())
+        });
+        let q_tensor = self.tensor_spec(q)?.clone();
+        let sequence_length_hint = score_modifiers.bias().or_else(|| {
+            config
+                .dropout()
+                .and_then(DirectSdpaDropout::random_number_generator_dump)
+        });
+        let kv = self.infer_direct_sdpa_kv_shapes(k, v, config, sequence_length_hint)?;
+
+        let mut subgraph = self.new_subgraph();
+        if let Some(score_subgraph) = score_subgraph {
+            subgraph
+                .runtime
+                .reserved_tensor_ids
+                .extend(score_subgraph.graph().tensors.keys().copied());
+        }
+        subgraph.config.sm_version = self.config.sm_version;
+        subgraph.config.data_type_policy = config
+            .data_type_policy()
+            .with_defaults(self.config.data_type_policy);
+        subgraph.config.dynamic_shape_enabled = self.config.dynamic_shape_enabled;
+        subgraph.config.override_shape_enabled = self.config.override_shape_enabled;
+
+        let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &kv.key)?;
+        let score_data_type = subgraph.sdpa_score_data_type();
+        let input = subgraph
+            .tensor(TensorSpec::new(score_data_type, scores_shape.clone()).virtual_tensor());
         let mut output = input;
 
-        if let Some(bias) = score_modifiers.bias() {
-            let score_subgraph_captures_bias = score_subgraph
-                .is_some_and(|score_subgraph| score_subgraph.graph().tensor_config(bias).is_ok());
-            let bias = self.clone_tensor_into_subgraph(&mut subgraph, &mut cloned_tensors, bias)?;
-            if !score_subgraph_captures_bias {
-                output = subgraph.pointwise_binary_infer(
-                    output,
-                    bias,
-                    PointwiseMode::Add,
-                    DataType::F32,
+        if let Some(score_subgraph) = score_subgraph {
+            subgraph.validate_score_subgraph(score_subgraph, &scores_shape, SDPA_SCORE_SUBGRAPH)?;
+            for id in score_subgraph.captured_tensor_ids() {
+                let source = if self.tensors.contains_key(&id) {
+                    self
+                } else {
+                    score_subgraph
+                        .graph()
+                        .captured_tensor_owner(id)
+                        .ok_or(FrontendError::TensorNotFound(id))?
+                };
+                source.capture_tensor_into_subgraph(
+                    &mut subgraph,
+                    &mut tensor_captures,
+                    &shared_tensors,
+                    id,
                 )?;
             }
-        }
-        if let Some(alibi_slopes) = score_modifiers.alibi_slopes() {
-            let alibi_slopes =
-                self.clone_tensor_into_subgraph(&mut subgraph, &mut cloned_tensors, alibi_slopes)?;
-            let alibi_bias = subgraph.alibi_bias(output, alibi_slopes)?;
-            output = subgraph.pointwise_binary_infer(
+            output = subgraph.import_score_subgraph(
+                score_subgraph,
                 output,
-                alibi_bias,
-                PointwiseMode::Add,
-                DataType::F32,
+                SDPA_SCORE_SUBGRAPH,
+                Some(&tensor_captures),
+            )?;
+        }
+        if let Some(bias) = score_modifiers.bias() {
+            let bias = self.capture_tensor_into_subgraph(
+                &mut subgraph,
+                &mut tensor_captures,
+                &shared_tensors,
+                bias,
+            )?;
+            output = subgraph.pointwise(
+                PointwiseOperation::binary(
+                    PointwiseMode::Add,
+                    output,
+                    bias,
+                    TensorOutputConfig::new().with_data_type(DataType::F32),
+                )
+                .with_compute_type(DataType::F32),
+            )?;
+        }
+        if let Some(alibi) = score_modifiers.alibi() {
+            let alibi_slopes = match alibi {
+                AlibiBias::Slopes(slopes) => self.capture_tensor_into_subgraph(
+                    &mut subgraph,
+                    &mut tensor_captures,
+                    &shared_tensors,
+                    slopes,
+                )?,
+                AlibiBias::Standard => {
+                    subgraph.standard_alibi_slopes(q_tensor.shape.dimensions()[1])?
+                }
+            };
+            let alibi_bias = subgraph.alibi_bias(output, alibi_slopes)?;
+            output = subgraph.pointwise(
+                PointwiseOperation::binary(
+                    PointwiseMode::Add,
+                    output,
+                    alibi_bias,
+                    TensorOutputConfig::new().with_data_type(DataType::F32),
+                )
+                .with_compute_type(DataType::F32),
             )?;
         }
         if let Some(additive_mask) = score_modifiers.additive_mask() {
-            let additive_mask =
-                self.clone_tensor_into_subgraph(&mut subgraph, &mut cloned_tensors, additive_mask)?;
-            output = subgraph.pointwise_binary_infer(
-                output,
+            let additive_mask = self.capture_tensor_into_subgraph(
+                &mut subgraph,
+                &mut tensor_captures,
+                &shared_tensors,
                 additive_mask,
-                PointwiseMode::Add,
-                DataType::F32,
+            )?;
+            output = subgraph.pointwise(
+                PointwiseOperation::binary(
+                    PointwiseMode::Add,
+                    output,
+                    additive_mask,
+                    TensorOutputConfig::new().with_data_type(DataType::F32),
+                )
+                .with_compute_type(DataType::F32),
             )?;
         }
-        if let Some(score_subgraph) = score_subgraph {
-            self.validate_score_subgraph(score_subgraph, &scores_shape, SDPA_SCORE_SUBGRAPH)?;
-            output = subgraph.import_score_subgraph(score_subgraph, output, SDPA_SCORE_SUBGRAPH)?;
-        }
-        if score_modifiers.causal_mask() {
-            let output_tensor = subgraph.tensor_config(output)?.clone();
-            let masked = subgraph.tensor(
-                TensorSpec::new(output_tensor.data_type, output_tensor.shape.clone())
-                    .virtual_tensor(),
-            );
-            let negative_inf = subgraph.tensor(sdpa_mask_scalar(
-                output_tensor.data_type,
-                f32::NEG_INFINITY,
-            )?);
-            subgraph.diagonal_band_mask(
-                output,
-                negative_inf,
-                masked,
-                DiagonalBandMaskConfig::new(PointwiseMode::CmpGe),
-            )?;
-            output = masked;
-        }
-        if let Some((left_window, right_window)) = score_modifiers.sliding_window() {
-            let sliding_mask =
-                subgraph.diagonal_band_mask_composite(output, left_window, Some(right_window))?;
-            output = subgraph.pointwise_binary_infer(
-                output,
-                sliding_mask,
-                PointwiseMode::Add,
-                DataType::F32,
-            )?;
-        }
-        if score_modifiers.causal_bottom_right() {
-            let (sequence_length_query, sequence_length_key_value) = score_modifiers
-                .sequence_lengths()
-                .ok_or(Error::FrontendSdpaCausalBottomRightRequiresSequenceLengths)?;
-            let sequence_length_query = self.clone_tensor_into_subgraph(
-                &mut subgraph,
-                &mut cloned_tensors,
-                sequence_length_query,
-            )?;
-            let sequence_length_key_value = self.clone_tensor_into_subgraph(
-                &mut subgraph,
-                &mut cloned_tensors,
-                sequence_length_key_value,
-            )?;
-            let mask = subgraph.causal_bottom_right_mask(
-                output,
-                sequence_length_query,
-                sequence_length_key_value,
-            )?;
-            output =
-                subgraph.pointwise_binary_infer(output, mask, PointwiseMode::Add, DataType::F32)?;
+        if let Some(band) = score_modifiers.diagonal_band() {
+            let sequence = if band.has_bounds()
+                && band.alignment() == AttentionDiagonalAlignment::BottomRight
+            {
+                score_modifiers.sequence_inputs().try_map(|tensor| {
+                    self.capture_tensor_into_subgraph(
+                        &mut subgraph,
+                        &mut tensor_captures,
+                        &shared_tensors,
+                        tensor,
+                    )
+                })?
+            } else {
+                AttentionSequenceInputs::default()
+            };
+            output = subgraph.sdpa_diagonal_band_mask(output, band, sequence)?;
         }
 
-        let output_tensor = subgraph.tensor_config(output)?.clone();
-        if !output_tensor.is_virtual {
-            subgraph.replace_tensor(output, output_tensor.virtual_tensor())?;
+        if subgraph.operations.is_empty() && output == input {
+            return Ok(None);
         }
 
+        let captured_tensors = tensor_captures
+            .keys()
+            .map(|&id| {
+                let tensor = self
+                    .tensors
+                    .get(&id)
+                    .or_else(|| {
+                        score_subgraph.and_then(|graph| {
+                            graph
+                                .graph()
+                                .captured_tensor_owner(id)
+                                .and_then(|owner| owner.tensors.get(&id))
+                        })
+                    })
+                    .ok_or(FrontendError::TensorNotFound(id))?;
+                Ok((id, tensor.clone()))
+            })
+            .collect::<Result<BTreeMap<_, _>>>()?;
         Ok(Some(UnifiedSdpaSubgraph {
             graph: subgraph,
             input,
             output,
-            cloned_tensors,
+            tensor_captures,
+            captured_tensors,
         }))
     }
 
-    pub(in crate::frontend::composite::sdpa) fn remap_score_subgraph_tensor(
+    pub(crate) fn remap_score_subgraph_tensor(
         tensor_map: &BTreeMap<TensorId, TensorId>,
         tensor: TensorId,
         error_name: &str,
     ) -> Result<TensorId> {
-        tensor_map
-            .get(&tensor)
-            .copied()
-            .ok_or_else(|| Error::FrontendCompile(format!("{error_name} tensor remap failed")))
+        tensor_map.get(&tensor).copied().ok_or_else(|| {
+            FrontendError::Compile(format!("{error_name} tensor remap failed")).into()
+        })
     }
 
-    pub(in crate::frontend::composite::sdpa) fn remap_score_subgraph_optional_tensor(
-        tensor_map: &BTreeMap<TensorId, TensorId>,
-        tensor: Option<TensorId>,
-        error_name: &str,
-    ) -> Result<Option<TensorId>> {
-        tensor
-            .map(|tensor| Self::remap_score_subgraph_tensor(tensor_map, tensor, error_name))
-            .transpose()
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn import_score_subgraph_operation(
-        &self,
-        operation: &Operation,
-        tensor_map: &BTreeMap<TensorId, TensorId>,
-        error_name: &str,
-    ) -> Result<Operation> {
-        let remap = |tensor| Self::remap_score_subgraph_tensor(tensor_map, tensor, error_name);
-        let remap_optional =
-            |tensor| Self::remap_score_subgraph_optional_tensor(tensor_map, tensor, error_name);
-
-        match operation {
-            Operation::Matmul(MatmulOperation::Matmul { a, b, c, config }) => {
-                Ok(Operation::Matmul(MatmulOperation::Matmul {
-                    a: remap(*a)?,
-                    b: remap(*b)?,
-                    c: remap(*c)?,
-                    config: {
-                        let mut config = config.clone();
-                        if let Some(m_override) = remap_optional(config.m_override())? {
-                            config = config.with_m_override(m_override);
-                        }
-                        if let Some(k_override) = remap_optional(config.k_override())? {
-                            config = config.with_k_override(k_override);
-                        }
-                        config
-                    },
-                }))
-            }
-            Operation::Pointwise(pointwise) => Ok(Operation::Pointwise(match pointwise {
-                PointwiseOperation::Unary {
-                    mode,
-                    input,
-                    output,
-                    compute_type,
-                    nan_propagation,
-                    alpha1,
-                    axis,
-                } => PointwiseOperation::Unary {
-                    mode: *mode,
-                    input: remap(*input)?,
-                    output: remap(*output)?,
-                    compute_type: *compute_type,
-                    nan_propagation: *nan_propagation,
-                    alpha1: *alpha1,
-                    axis: *axis,
-                },
-                PointwiseOperation::ReluForward {
-                    input,
-                    output,
-                    compute_type,
-                    nan_propagation,
-                    lower_clip,
-                    upper_clip,
-                    lower_clip_slope,
-                    axis,
-                } => PointwiseOperation::ReluForward {
-                    input: remap(*input)?,
-                    output: remap(*output)?,
-                    compute_type: *compute_type,
-                    nan_propagation: *nan_propagation,
-                    lower_clip: *lower_clip,
-                    upper_clip: *upper_clip,
-                    lower_clip_slope: *lower_clip_slope,
-                    axis: *axis,
-                },
-                PointwiseOperation::Binary {
-                    mode,
-                    lhs,
-                    rhs,
-                    output,
-                    compute_type,
-                    nan_propagation,
-                    alpha1,
-                    alpha2,
-                } => PointwiseOperation::Binary {
-                    mode: *mode,
-                    lhs: remap(*lhs)?,
-                    rhs: remap(*rhs)?,
-                    output: remap(*output)?,
-                    compute_type: *compute_type,
-                    nan_propagation: *nan_propagation,
-                    alpha1: *alpha1,
-                    alpha2: *alpha2,
-                },
-                PointwiseOperation::Ternary {
-                    mode,
-                    x,
-                    b,
-                    t,
-                    output,
-                    compute_type,
-                    nan_propagation,
-                    alpha1,
-                    alpha2,
-                } => PointwiseOperation::Ternary {
-                    mode: *mode,
-                    x: remap(*x)?,
-                    b: remap(*b)?,
-                    t: remap(*t)?,
-                    output: remap(*output)?,
-                    compute_type: *compute_type,
-                    nan_propagation: *nan_propagation,
-                    alpha1: *alpha1,
-                    alpha2: *alpha2,
-                },
-            })),
-            Operation::Reduction(reduction) => Ok(Operation::Reduction(match reduction {
-                ReductionOperation::Reduce {
-                    op,
-                    input,
-                    output,
-                    compute_type,
-                    is_deterministic,
-                } => ReductionOperation::Reduce {
-                    op: *op,
-                    input: remap(*input)?,
-                    output: remap(*output)?,
-                    compute_type: *compute_type,
-                    is_deterministic: *is_deterministic,
-                },
-            })),
-            Operation::Tensor(TensorOperation::Reshape { input, output }) => {
-                Ok(Operation::Tensor(TensorOperation::Reshape {
-                    input: remap(*input)?,
-                    output: remap(*output)?,
-                }))
-            }
-            Operation::Tensor(TensorOperation::Slice {
-                input,
-                output,
-                starts,
-                limits,
-                strides,
-                byte_offset,
-            }) => Ok(Operation::Tensor(TensorOperation::Slice {
-                input: remap(*input)?,
-                output: remap(*output)?,
-                starts: starts.clone(),
-                limits: limits.clone(),
-                strides: strides.clone(),
-                byte_offset: *byte_offset,
-            })),
-            Operation::Tensor(TensorOperation::Transpose {
-                input,
-                output,
-                permutation,
-            }) => Ok(Operation::Tensor(TensorOperation::Transpose {
-                input: remap(*input)?,
-                output: remap(*output)?,
-                permutation: permutation.clone(),
-            })),
-            Operation::Tensor(TensorOperation::Concat {
-                inputs,
-                output,
-                axis,
-                in_place,
-            }) => Ok(Operation::Tensor(TensorOperation::Concat {
-                inputs: inputs
-                    .iter()
-                    .copied()
-                    .map(remap)
-                    .collect::<Result<Vec<_>>>()?,
-                output: remap(*output)?,
-                axis: *axis,
-                in_place: *in_place,
-            })),
-            Operation::AttentionPrimitive(AttentionPrimitiveOperation::DiagonalBandMask {
-                x,
-                b,
-                y,
-                comparison_mode,
-                sequence_length_query,
-                sequence_length_key_value,
-                left_bound,
-                shift_right_bound,
-            }) => Ok(Operation::AttentionPrimitive(
-                AttentionPrimitiveOperation::DiagonalBandMask {
-                    x: remap(*x)?,
-                    b: remap(*b)?,
-                    y: remap(*y)?,
-                    comparison_mode: *comparison_mode,
-                    sequence_length_query: remap_optional(*sequence_length_query)?,
-                    sequence_length_key_value: remap_optional(*sequence_length_key_value)?,
-                    left_bound: remap_optional(*left_bound)?,
-                    shift_right_bound: remap_optional(*shift_right_bound)?,
-                },
-            )),
-            Operation::AttentionPrimitive(AttentionPrimitiveOperation::Softmax {
-                x,
-                y,
-                stats,
-                max,
-                sum_exp,
-                sink,
-            }) => Ok(Operation::AttentionPrimitive(
-                AttentionPrimitiveOperation::Softmax {
-                    x: remap(*x)?,
-                    y: remap(*y)?,
-                    stats: remap_optional(*stats)?,
-                    max: remap_optional(*max)?,
-                    sum_exp: remap_optional(*sum_exp)?,
-                    sink: remap_optional(*sink)?,
-                },
-            )),
-            _ => Err(Error::FrontendCompile(format!(
-                "{error_name} contains unsupported operation"
-            ))),
-        }
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn import_score_subgraph(
+    pub(crate) fn import_score_subgraph(
         &mut self,
         score_subgraph: &SdpaScoreSubgraph,
         replacement_input: TensorId,
         error_name: &str,
+        captures: Option<&BTreeMap<TensorId, TensorId>>,
     ) -> Result<TensorId> {
-        let source_graph = score_subgraph.graph();
-        source_graph.tensor_config(score_subgraph.input())?;
-        source_graph.tensor_config(score_subgraph.output())?;
+        let mut combined = self.clone();
+        let output = combined.import_score_subgraph_in_place(
+            score_subgraph,
+            replacement_input,
+            error_name,
+            captures,
+        )?;
+        *self = combined;
+        Ok(output)
+    }
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the composite attention operation builds and validates its complete tensor graph"
+    )]
+    fn import_score_subgraph_in_place(
+        &mut self,
+        score_subgraph: &SdpaScoreSubgraph,
+        replacement_input: TensorId,
+        error_name: &str,
+        captures: Option<&BTreeMap<TensorId, TensorId>>,
+    ) -> Result<TensorId> {
+        let source_policy = score_subgraph.graph().config.data_type_policy;
+        let mut source_graph = Cow::Borrowed(score_subgraph.graph());
+        if source_graph.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                Operation::AttentionForward(_) | Operation::AttentionBackward(_)
+            )
+        }) {
+            let source = source_graph.to_mut();
+            source.config.sm_version = self.config.sm_version.or(source.config.sm_version);
+            source.config.dynamic_shape_enabled |= self.config.dynamic_shape_enabled;
+            source.config.override_shape_enabled |= self.config.override_shape_enabled;
+            source
+                .runtime
+                .reserved_tensor_ids
+                .extend(self.tensors.keys().copied());
+            source
+                .runtime
+                .reserved_tensor_ids
+                .extend(self.runtime.reserved_tensor_ids.iter().copied());
+            source.config.data_type_policy = source
+                .config
+                .data_type_policy
+                .with_defaults(self.config.data_type_policy);
+            source.retain_attention_alignment()?;
+            source.promote_attention_ragged_offsets()?;
+            source.expand_attention_requests()?;
+            source.expand_attention_backward_requests()?;
+        }
+        source_graph.tensor_spec(score_subgraph.input())?;
+        source_graph.tensor_spec(score_subgraph.output())?;
 
         let mut tensor_map = BTreeMap::new();
         tensor_map.insert(score_subgraph.input(), replacement_input);
+        let view_targets = source_graph
+            .storage_views
+            .iter()
+            .map(|binding| binding.target)
+            .collect::<BTreeSet<_>>();
 
         for (&source_tensor_id, source_tensor) in &source_graph.tensors {
             if source_tensor_id == score_subgraph.input() {
                 continue;
             }
+            if view_targets.contains(&source_tensor_id) {
+                let view = self.tensor(source_tensor.clone().with_ragged_offset_reference(None));
+                tensor_map.insert(source_tensor_id, view);
+                continue;
+            }
 
-            if let Ok(existing) = self.tensor_config(source_tensor_id) {
+            let captured_tensor = captures
+                .and_then(|captures| captures.get(&source_tensor_id))
+                .copied()
+                .unwrap_or(source_tensor_id);
+            if let Ok(existing) = self.tensor_spec(captured_tensor) {
                 let existing_tensor = existing.clone();
+                let promoted_layout =
+                    Self::attention_index_layout_is_promotion(&existing_tensor, source_tensor)?;
+                let existing_promoted_layout =
+                    Self::attention_index_layout_is_promotion(source_tensor, &existing_tensor)?;
                 if existing_tensor.data_type != source_tensor.data_type
-                    || existing_tensor.shape.dimensions() != source_tensor.shape.dimensions()
-                    || existing_tensor.shape.strides() != source_tensor.shape.strides()
+                    || (!promoted_layout
+                        && !existing_promoted_layout
+                        && (existing_tensor.shape.dimensions() != source_tensor.shape.dimensions()
+                            || existing_tensor.shape.strides() != source_tensor.shape.strides()))
                 {
-                    return Err(Error::FrontendCompile(format!(
-                        "{error_name} captured tensor id {source_tensor_id} shape mismatch"
-                    )));
+                    return Err(FrontendError::Compile(format!(
+                        "{error_name} captured_tensor tensor id {source_tensor_id} shape mismatch"
+                    ))
+                    .into());
                 }
-                tensor_map.insert(source_tensor_id, source_tensor_id);
+                if promoted_layout {
+                    self.promote_index_tensors([captured_tensor])?;
+                }
+                self.tensor_spec_mut(captured_tensor)?.byte_alignment = existing_tensor
+                    .byte_alignment
+                    .max(source_tensor.byte_alignment);
+                tensor_map.insert(source_tensor_id, captured_tensor);
+            } else if !source_tensor.is_virtual()
+                && !source_tensor.is_constant()
+                && !source_tensor.is_workspace()
+            {
+                let captured_tensor = self.insert_tensor(
+                    source_tensor_id,
+                    source_tensor.clone().with_ragged_offset_reference(None),
+                )?;
+                tensor_map.insert(source_tensor_id, captured_tensor);
             } else {
-                let cloned = self.tensor(
-                    source_tensor
-                        .clone()
-                        .with_id(TensorId::generate())
-                        .clear_ragged_offset(),
-                );
+                let cloned = self.tensor(source_tensor.clone().with_ragged_offset_reference(None));
                 tensor_map.insert(source_tensor_id, cloned);
             }
         }
@@ -562,8 +513,8 @@ impl Graph {
             }
         }
 
-        for binding in &source_graph.alias_bindings {
-            self.alias_bindings.push(AliasBinding {
+        for binding in &source_graph.storage_views {
+            self.storage_views.push(StorageView {
                 source: Self::remap_score_subgraph_tensor(&tensor_map, binding.source, error_name)?,
                 target: Self::remap_score_subgraph_tensor(&tensor_map, binding.target, error_name)?,
                 byte_offset: binding.byte_offset,
@@ -574,99 +525,82 @@ impl Graph {
             .operations
             .iter()
             .map(|operation| {
-                self.import_score_subgraph_operation(operation, &tensor_map, error_name)
+                let mut imported = operation.try_map_tensor_ids(
+                    &|tensor| Self::remap_score_subgraph_tensor(&tensor_map, tensor, error_name),
+                    &|tensor| {
+                        tensor_map
+                            .get(&tensor)
+                            .or_else(|| captures.and_then(|captures| captures.get(&tensor)))
+                            .map(|&target| self.capture_target(target))
+                            .transpose()
+                    },
+                )?;
+                imported.inherit_data_type_policy(source_policy);
+                Ok(imported)
             })
             .collect::<Result<Vec<_>>>()?;
+        for (&source_tensor_id, bounds) in &source_graph.runtime_shape_constraints {
+            let tensor =
+                Self::remap_score_subgraph_tensor(&tensor_map, source_tensor_id, error_name)?;
+            let source = source_graph.tensor_spec(source_tensor_id)?;
+            bounds.validate_for(source)?;
+            let bounds =
+                if Self::attention_index_layout_is_promotion(source, self.tensor_spec(tensor)?)? {
+                    RuntimeShapeConstraints::create(
+                        [bounds.min_dimensions[0], 1, 1, 1],
+                        [bounds.max_dimensions[0], 1, 1, 1],
+                    )?
+                } else {
+                    bounds.clone()
+                };
+            let bounds = match self.runtime_shape_constraints.get(&tensor) {
+                Some(existing) => bounds.intersection(existing)?,
+                None => bounds,
+            };
+            bounds.validate_for(self.tensor_spec(tensor)?)?;
+            self.runtime_shape_constraints.insert(tensor, bounds);
+        }
+        for &source_tensor_id in &source_graph.vector_aligned_tensors {
+            self.vector_aligned_tensors
+                .insert(Self::remap_score_subgraph_tensor(
+                    &tensor_map,
+                    source_tensor_id,
+                    error_name,
+                )?);
+        }
+        AttentionBackwardHeuristicOverride::retain_into(
+            &mut self.attention_backward_heuristic_overrides,
+            source_graph.attention_backward_heuristic_overrides.clone(),
+        );
         self.operations.extend(imported_operations);
 
         Self::remap_score_subgraph_tensor(&tensor_map, score_subgraph.output(), error_name)
     }
 
-    pub(in crate::frontend::composite::sdpa) fn validate_mxfp8_scale_tensor(
+    pub(crate) fn validate_mxfp8_scale_tensor(
         &self,
         scale: TensorId,
-        name: &str,
+        name: &'static str,
     ) -> Result<()> {
-        let scale_tensor = self.tensor_config(scale)?;
-        if scale_tensor.data_type != DataType::F8E8M0 {
-            return Err(Error::FrontendTensorDataTypeMismatch {
+        let scale_tensor = self.tensor_spec(scale)?;
+        if scale_tensor.data_type != DataType::F8UE8M0 {
+            return Err(FrontendError::TensorDataTypeMismatch {
                 tensor_id: scale,
-                operation: name.into(),
-                expected: DataType::F8E8M0,
+                operation: name,
+                expected: DataType::F8UE8M0,
                 actual: scale_tensor.data_type,
-            });
+            }
+            .into());
         }
         if scale_tensor.reordering != Some(BackendTensorReordering::F8_128x4) {
-            return Err(Error::FrontendTensorLayoutMismatch {
+            return Err(FrontendError::TensorLayoutMismatch {
                 tensor_id: scale,
-                operation: name.into(),
+                operation: name,
                 reason: "expected f8 128x4 reordering".into(),
-            });
+            }
+            .into());
         }
 
         Ok(())
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn mxfp8_attn_scale_tensor(
-        &mut self,
-        attention_scale: TensorId,
-        name: &str,
-        compute_type: DataType,
-    ) -> Result<TensorId> {
-        let attn_scale_value = self
-            .tensor_config(attention_scale)?
-            .scalar_value
-            .ok_or_else(|| Error::FrontendSdpaScalarValueRequired {
-                tensor_id: attention_scale,
-                operation: name.into(),
-            })?;
-        Ok(self.tensor(
-            TensorSpec::new(compute_type, Shape::contiguous([1, 1, 1, 1])?)
-                .with_scalar_value(attn_scale_value)?,
-        ))
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn mxfp8_dequantize_input_infer(
-        &mut self,
-        input: TensorId,
-        scale: TensorId,
-        output_data_type: DataType,
-    ) -> Result<TensorId> {
-        self.block_scale_dequantize_infer(
-            input,
-            scale,
-            BlockScaleDequantizeConfig::new(output_data_type, vec![1, 32]),
-        )
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn mxfp8_dequantize_transposed_input_infer(
-        &mut self,
-        input: TensorId,
-        scale: TensorId,
-        output_data_type: DataType,
-    ) -> Result<TensorId> {
-        let input_t = self.transpose_last_two(input)?;
-        let scale_t = self.transpose_last_two(scale)?;
-        self.block_scale_dequantize_infer(
-            input_t,
-            scale_t,
-            BlockScaleDequantizeConfig::new(output_data_type, vec![32, 1]),
-        )
-    }
-
-    pub(in crate::frontend::composite::sdpa) fn mxfp8_dequantize_sequence_scaled_input_infer(
-        &mut self,
-        input: TensorId,
-        scale: TensorId,
-        output_data_type: DataType,
-    ) -> Result<TensorId> {
-        let input_t = self.transpose_last_two(input)?;
-        let scale_t = self.transpose_last_two(scale)?;
-        let dequantized_t = self.block_scale_dequantize_infer(
-            input_t,
-            scale_t,
-            BlockScaleDequantizeConfig::new(output_data_type, vec![1, 32]),
-        )?;
-        self.transpose_last_two(dequantized_t)
     }
 }

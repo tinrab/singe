@@ -1,18 +1,18 @@
 //! Recurrent/state-space preprocessing helpers.
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use singe_cuda::types::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceSlice, DeviceSliceMut},
+    view::{DeviceInput, DeviceOutput},
 };
 
 #[cfg(feature = "cutile")]
 use crate::cuda::cutile;
 use crate::{
-    cuda::interop::{borrowed_stream, input_pointer, output_pointer},
+    cuda::interop::{input_pointer, write_only_pointer},
     error::{Error, Result},
     utility::{checked_element_count, checked_rank4_len, ensure_len},
 };
@@ -45,14 +45,21 @@ macro_rules! gated_delta_rule_preprocess_fn {
         ///
         /// `b_in` and `a_in` are `[rows, hidden]`; `a_log` and `dt_bias` are `[hidden]`.
         /// The kernel writes `beta = sigmoid(b_in)` and `g = -exp(a_log) * softplus(a_in + dt_bias)` using stable softplus.
-        pub fn $name(
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read, with preceding producers ordered before use.
+        /// Retain every allocation in the stream's context through completion on every
+        /// path and throughout captured replay. Output ranges must be exclusive,
+        /// mutually disjoint, and disjoint from readable input ranges.
+        pub unsafe fn $name(
             stream: &Stream,
-            beta_out: &mut impl DeviceSliceMut<$ty>,
-            g_out: &mut impl DeviceSliceMut<$ty>,
-            b_in: &impl DeviceSlice<$ty>,
-            a_in: &impl DeviceSlice<$ty>,
-            a_log: &impl DeviceSlice<$ty>,
-            dt_bias: &impl DeviceSlice<$ty>,
+            beta_out: &mut impl DeviceOutput<$ty>,
+            g_out: &mut impl DeviceOutput<$ty>,
+            b_in: &impl DeviceInput<$ty>,
+            a_in: &impl DeviceInput<$ty>,
+            a_log: &impl DeviceInput<$ty>,
+            dt_bias: &impl DeviceInput<$ty>,
             rows: usize,
             hidden: usize,
         ) -> Result<()> {
@@ -63,22 +70,26 @@ macro_rules! gated_delta_rule_preprocess_fn {
             ensure_len(a_in.len(), len)?;
             ensure_len(a_log.len(), hidden)?;
             ensure_len(dt_bias.len(), hidden)?;
-            let stream = borrowed_stream(stream)?;
-            cutile::recurrent::$name(
-                &stream,
-                output_pointer(beta_out),
-                output_pointer(g_out),
-                input_pointer(b_in),
-                input_pointer(a_in),
-                input_pointer(a_log),
-                input_pointer(dt_bias),
-                rows,
-                hidden,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::recurrent::$name(
+                    &stream,
+                    write_only_pointer(beta_out),
+                    write_only_pointer(g_out),
+                    input_pointer(b_in),
+                    input_pointer(a_in),
+                    input_pointer(a_log),
+                    input_pointer(dt_bias),
+                    rows,
+                    hidden,
+                )
+            }
         }
     };
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! gated_delta_rule_preprocess_g_f32_fn {
     ($name:ident, $ty:ty) => {
         /// Prepares Gated Delta Rule recurrent inputs and stores the gate in f32.
@@ -86,14 +97,21 @@ macro_rules! gated_delta_rule_preprocess_g_f32_fn {
         /// This is the mixed-output variant of [`gated_delta_rule_preprocess_f16`]
         /// and [`gated_delta_rule_preprocess_bf16`] for recurrent paths that keep
         /// `g = -exp(a_log) * softplus(a_in + dt_bias)` in f32.
-        pub fn $name(
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read, with preceding producers ordered before use.
+        /// Retain every allocation in the stream's context through completion on every
+        /// path and throughout captured replay. Output ranges must be exclusive,
+        /// mutually disjoint, and disjoint from readable input ranges.
+        pub unsafe fn $name(
             stream: &Stream,
-            beta_out: &mut impl DeviceSliceMut<$ty>,
-            g_out: &mut impl DeviceSliceMut<f32>,
-            b_in: &impl DeviceSlice<$ty>,
-            a_in: &impl DeviceSlice<$ty>,
-            a_log: &impl DeviceSlice<$ty>,
-            dt_bias: &impl DeviceSlice<$ty>,
+            beta_out: &mut impl DeviceOutput<$ty>,
+            g_out: &mut impl DeviceOutput<f32>,
+            b_in: &impl DeviceInput<$ty>,
+            a_in: &impl DeviceInput<$ty>,
+            a_log: &impl DeviceInput<$ty>,
+            dt_bias: &impl DeviceInput<$ty>,
             rows: usize,
             hidden: usize,
         ) -> Result<()> {
@@ -104,44 +122,59 @@ macro_rules! gated_delta_rule_preprocess_g_f32_fn {
             ensure_len(a_in.len(), len)?;
             ensure_len(a_log.len(), hidden)?;
             ensure_len(dt_bias.len(), hidden)?;
-            let stream = borrowed_stream(stream)?;
-            cutile::recurrent::$name(
-                &stream,
-                output_pointer(beta_out),
-                output_pointer(g_out),
-                input_pointer(b_in),
-                input_pointer(a_in),
-                input_pointer(a_log),
-                input_pointer(dt_bias),
-                rows,
-                hidden,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::recurrent::$name(
+                    &stream,
+                    write_only_pointer(beta_out),
+                    write_only_pointer(g_out),
+                    input_pointer(b_in),
+                    input_pointer(a_in),
+                    input_pointer(a_log),
+                    input_pointer(dt_bias),
+                    rows,
+                    hidden,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 gated_delta_rule_preprocess_fn!(gated_delta_rule_preprocess_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 gated_delta_rule_preprocess_fn!(gated_delta_rule_preprocess_f16, f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 gated_delta_rule_preprocess_fn!(gated_delta_rule_preprocess_bf16, bf16);
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 gated_delta_rule_preprocess_g_f32_fn!(gated_delta_rule_preprocess_f16_g_f32, f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 gated_delta_rule_preprocess_g_f32_fn!(gated_delta_rule_preprocess_bf16_g_f32, bf16);
 
 macro_rules! recurrent_gated_delta_rule_no_state_fn {
     ($name:ident, $ty:ty) => {
-        pub fn $name(
+        /// Evaluates the gated delta rule from zero state and writes every token output.
+        /// The zero state lives in kernel registers and needs no initialized output storage.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read, with preceding producers ordered before use.
+        /// Retain every allocation in the stream's context through completion on every
+        /// path and throughout captured replay. Output ranges must be exclusive,
+        /// mutually disjoint, and disjoint from readable input ranges.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            query: &impl DeviceSlice<$ty>,
-            key: &impl DeviceSlice<$ty>,
-            value: &impl DeviceSlice<$ty>,
-            gate: &impl DeviceSlice<$ty>,
-            beta: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            query: &impl DeviceInput<$ty>,
+            key: &impl DeviceInput<$ty>,
+            value: &impl DeviceInput<$ty>,
+            gate: &impl DeviceInput<$ty>,
+            beta: &impl DeviceInput<$ty>,
             config: RecurrentGatedDeltaRuleConfig,
         ) -> Result<()> {
             let params = validate_recurrent_gated_delta_rule_no_state(
@@ -153,37 +186,49 @@ macro_rules! recurrent_gated_delta_rule_no_state_fn {
                 beta.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::recurrent::$name(
-                &stream,
-                output_pointer(out),
-                output_pointer(out),
-                input_pointer(query),
-                input_pointer(key),
-                input_pointer(value),
-                input_pointer(gate),
-                input_pointer(beta),
-                input_pointer(query),
-                params,
-                false,
-                false,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::recurrent::$name(
+                    &stream,
+                    write_only_pointer(out),
+                    write_only_pointer(out),
+                    input_pointer(query),
+                    input_pointer(key),
+                    input_pointer(value),
+                    input_pointer(gate),
+                    input_pointer(beta),
+                    input_pointer(query),
+                    params,
+                    false,
+                    false,
+                )
+            }
         }
     };
 }
 
 macro_rules! recurrent_gated_delta_rule_with_state_fn {
     ($name:ident, $base_name:ident, $ty:ty) => {
-        pub fn $name(
+        /// Reads initial state and writes every token output and final-state element.
+        /// The destination state is not read before it is produced.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read, with preceding producers ordered before use.
+        /// Retain every allocation in the stream's context through completion on every
+        /// path and throughout captured replay. Output ranges must be exclusive,
+        /// mutually disjoint, and disjoint from readable input ranges.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            final_state: &mut impl DeviceSliceMut<$ty>,
-            query: &impl DeviceSlice<$ty>,
-            key: &impl DeviceSlice<$ty>,
-            value: &impl DeviceSlice<$ty>,
-            gate: &impl DeviceSlice<$ty>,
-            beta: &impl DeviceSlice<$ty>,
-            initial_state: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            final_state: &mut impl DeviceOutput<$ty>,
+            query: &impl DeviceInput<$ty>,
+            key: &impl DeviceInput<$ty>,
+            value: &impl DeviceInput<$ty>,
+            gate: &impl DeviceInput<$ty>,
+            beta: &impl DeviceInput<$ty>,
+            initial_state: &impl DeviceInput<$ty>,
             config: RecurrentGatedDeltaRuleConfig,
         ) -> Result<()> {
             let params = validate_recurrent_gated_delta_rule_with_state(
@@ -197,35 +242,46 @@ macro_rules! recurrent_gated_delta_rule_with_state_fn {
                 initial_state.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::recurrent::$base_name(
-                &stream,
-                output_pointer(out),
-                output_pointer(final_state),
-                input_pointer(query),
-                input_pointer(key),
-                input_pointer(value),
-                input_pointer(gate),
-                input_pointer(beta),
-                input_pointer(initial_state),
-                params,
-                true,
-                true,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::recurrent::$base_name(
+                    &stream,
+                    write_only_pointer(out),
+                    write_only_pointer(final_state),
+                    input_pointer(query),
+                    input_pointer(key),
+                    input_pointer(value),
+                    input_pointer(gate),
+                    input_pointer(beta),
+                    input_pointer(initial_state),
+                    params,
+                    true,
+                    true,
+                )
+            }
         }
     };
 }
 
 macro_rules! chunk_gated_delta_rule_no_state_fn {
     ($name:ident, $ty:ty) => {
-        pub fn $name(
+        /// Evaluates chunked gated delta recurrence from zero state and writes every output.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read, with preceding producers ordered before use.
+        /// Retain every allocation in the stream's context through completion on every
+        /// path and throughout captured replay. Output ranges must be exclusive,
+        /// mutually disjoint, and disjoint from readable input ranges.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            query: &impl DeviceSlice<$ty>,
-            key: &impl DeviceSlice<$ty>,
-            value: &impl DeviceSlice<$ty>,
-            gate: &impl DeviceSlice<$ty>,
-            beta: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            query: &impl DeviceInput<$ty>,
+            key: &impl DeviceInput<$ty>,
+            value: &impl DeviceInput<$ty>,
+            gate: &impl DeviceInput<$ty>,
+            beta: &impl DeviceInput<$ty>,
             config: ChunkGatedDeltaRuleConfig,
         ) -> Result<()> {
             validate_chunk_gated_delta_rule_no_state(
@@ -237,43 +293,54 @@ macro_rules! chunk_gated_delta_rule_no_state_fn {
                 beta.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::recurrent::$name(
-                &stream,
-                output_pointer(out),
-                output_pointer(out),
-                input_pointer(query),
-                input_pointer(key),
-                input_pointer(value),
-                input_pointer(gate),
-                input_pointer(beta),
-                input_pointer(query),
-                config.batch,
-                config.time,
-                config.heads,
-                config.qk_dim,
-                config.value_dim,
-                config.chunk_size,
-                config.use_qk_l2norm,
-                false,
-                false,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::recurrent::$name(
+                    &stream,
+                    write_only_pointer(out),
+                    write_only_pointer(out),
+                    input_pointer(query),
+                    input_pointer(key),
+                    input_pointer(value),
+                    input_pointer(gate),
+                    input_pointer(beta),
+                    input_pointer(query),
+                    config.batch,
+                    config.time,
+                    config.heads,
+                    config.qk_dim,
+                    config.value_dim,
+                    config.chunk_size,
+                    config.use_qk_l2norm,
+                    false,
+                    false,
+                )
+            }
         }
     };
 }
 
 macro_rules! chunk_gated_delta_rule_with_state_fn {
     ($name:ident, $base_name:ident, $ty:ty) => {
-        pub fn $name(
+        /// Reads initial state and writes every chunked output and final-state element.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read, with preceding producers ordered before use.
+        /// Retain every allocation in the stream's context through completion on every
+        /// path and throughout captured replay. Output ranges must be exclusive,
+        /// mutually disjoint, and disjoint from readable input ranges.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            final_state: &mut impl DeviceSliceMut<$ty>,
-            query: &impl DeviceSlice<$ty>,
-            key: &impl DeviceSlice<$ty>,
-            value: &impl DeviceSlice<$ty>,
-            gate: &impl DeviceSlice<$ty>,
-            beta: &impl DeviceSlice<$ty>,
-            initial_state: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            final_state: &mut impl DeviceOutput<$ty>,
+            query: &impl DeviceInput<$ty>,
+            key: &impl DeviceInput<$ty>,
+            value: &impl DeviceInput<$ty>,
+            gate: &impl DeviceInput<$ty>,
+            beta: &impl DeviceInput<$ty>,
+            initial_state: &impl DeviceInput<$ty>,
             config: ChunkGatedDeltaRuleConfig,
         ) -> Result<()> {
             validate_chunk_gated_delta_rule_with_state(
@@ -287,51 +354,58 @@ macro_rules! chunk_gated_delta_rule_with_state_fn {
                 initial_state.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::recurrent::$base_name(
-                &stream,
-                output_pointer(out),
-                output_pointer(final_state),
-                input_pointer(query),
-                input_pointer(key),
-                input_pointer(value),
-                input_pointer(gate),
-                input_pointer(beta),
-                input_pointer(initial_state),
-                config.batch,
-                config.time,
-                config.heads,
-                config.qk_dim,
-                config.value_dim,
-                config.chunk_size,
-                config.use_qk_l2norm,
-                true,
-                true,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::recurrent::$base_name(
+                    &stream,
+                    write_only_pointer(out),
+                    write_only_pointer(final_state),
+                    input_pointer(query),
+                    input_pointer(key),
+                    input_pointer(value),
+                    input_pointer(gate),
+                    input_pointer(beta),
+                    input_pointer(initial_state),
+                    config.batch,
+                    config.time,
+                    config.heads,
+                    config.qk_dim,
+                    config.value_dim,
+                    config.chunk_size,
+                    config.use_qk_l2norm,
+                    true,
+                    true,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 recurrent_gated_delta_rule_no_state_fn!(recurrent_gated_delta_rule_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 recurrent_gated_delta_rule_no_state_fn!(recurrent_gated_delta_rule_f16, f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 recurrent_gated_delta_rule_no_state_fn!(recurrent_gated_delta_rule_bf16, bf16);
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 recurrent_gated_delta_rule_with_state_fn!(
     recurrent_gated_delta_rule_f32_with_state,
     recurrent_gated_delta_rule_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 recurrent_gated_delta_rule_with_state_fn!(
     recurrent_gated_delta_rule_f16_with_state,
     recurrent_gated_delta_rule_f16,
     f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 recurrent_gated_delta_rule_with_state_fn!(
     recurrent_gated_delta_rule_bf16_with_state,
     recurrent_gated_delta_rule_bf16,
@@ -340,16 +414,24 @@ recurrent_gated_delta_rule_with_state_fn!(
 
 macro_rules! recurrent_gated_delta_rule_decode_with_state_fn {
     ($name:ident, $cutile_fn:ident, $ty:ty) => {
-        pub fn $name(
+        /// Reads one decode step and initial state, then writes the complete output and final state.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read, with preceding producers ordered before use.
+        /// Retain every allocation in the stream's context through completion on every
+        /// path and throughout captured replay. Output ranges must be exclusive,
+        /// mutually disjoint, and disjoint from readable input ranges.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            final_state: &mut impl DeviceSliceMut<$ty>,
-            query: &impl DeviceSlice<$ty>,
-            key: &impl DeviceSlice<$ty>,
-            value: &impl DeviceSlice<$ty>,
-            gate: &impl DeviceSlice<$ty>,
-            beta: &impl DeviceSlice<$ty>,
-            initial_state: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            final_state: &mut impl DeviceOutput<$ty>,
+            query: &impl DeviceInput<$ty>,
+            key: &impl DeviceInput<$ty>,
+            value: &impl DeviceInput<$ty>,
+            gate: &impl DeviceInput<$ty>,
+            beta: &impl DeviceInput<$ty>,
+            initial_state: &impl DeviceInput<$ty>,
             config: RecurrentGatedDeltaRuleConfig,
         ) -> Result<()> {
             let params = validate_recurrent_gated_delta_rule_decode_with_state(
@@ -363,63 +445,72 @@ macro_rules! recurrent_gated_delta_rule_decode_with_state_fn {
                 initial_state.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::recurrent::$cutile_fn(
-                &stream,
-                output_pointer(out),
-                output_pointer(final_state),
-                input_pointer(query),
-                input_pointer(key),
-                input_pointer(value),
-                input_pointer(gate),
-                input_pointer(beta),
-                input_pointer(initial_state),
-                params,
-                true,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::recurrent::$cutile_fn(
+                    &stream,
+                    write_only_pointer(out),
+                    write_only_pointer(final_state),
+                    input_pointer(query),
+                    input_pointer(key),
+                    input_pointer(value),
+                    input_pointer(gate),
+                    input_pointer(beta),
+                    input_pointer(initial_state),
+                    params,
+                    true,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 recurrent_gated_delta_rule_decode_with_state_fn!(
     recurrent_gated_delta_rule_decode_f32_with_state,
     recurrent_gated_delta_rule_decode_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 recurrent_gated_delta_rule_decode_with_state_fn!(
     recurrent_gated_delta_rule_decode_f16_with_state,
     recurrent_gated_delta_rule_decode_f16,
     f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 recurrent_gated_delta_rule_decode_with_state_fn!(
     recurrent_gated_delta_rule_decode_bf16_with_state,
     recurrent_gated_delta_rule_decode_bf16,
     bf16
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 chunk_gated_delta_rule_no_state_fn!(chunk_gated_delta_rule_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 chunk_gated_delta_rule_no_state_fn!(chunk_gated_delta_rule_f16, f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 chunk_gated_delta_rule_no_state_fn!(chunk_gated_delta_rule_bf16, bf16);
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 chunk_gated_delta_rule_with_state_fn!(
     chunk_gated_delta_rule_f32_with_state,
     chunk_gated_delta_rule_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 chunk_gated_delta_rule_with_state_fn!(
     chunk_gated_delta_rule_f16_with_state,
     chunk_gated_delta_rule_f16,
     f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 chunk_gated_delta_rule_with_state_fn!(
     chunk_gated_delta_rule_bf16_with_state,
     chunk_gated_delta_rule_bf16,
@@ -603,7 +694,7 @@ mod tests {
     use crate::error::Error;
 
     #[test]
-    fn recurrent_gated_delta_rule_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_validation_accepts_exact_lengths() -> Result<()> {
         let config = recurrent_validation_config();
         validate_recurrent_gated_delta_rule_no_state(168, 60, 60, 168, 24, 24, config)?;
         validate_recurrent_gated_delta_rule_with_state(168, 280, 60, 60, 168, 24, 24, 280, config)?;
@@ -611,16 +702,19 @@ mod tests {
     }
 
     #[test]
-    fn recurrent_gated_delta_rule_validation_rejects_short_gate() {
+    fn test_recurrent_gated_delta_rule_validation_rejects_short_gate() {
         let config = recurrent_validation_config();
         assert!(matches!(
             validate_recurrent_gated_delta_rule_no_state(168, 60, 60, 168, 23, 24, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 
     #[test]
-    fn recurrent_gated_delta_rule_validation_rejects_bad_head_mapping() {
+    fn test_recurrent_gated_delta_rule_validation_rejects_bad_head_mapping() {
         let mut config = recurrent_validation_config();
         config.query_heads = 3;
         assert!(matches!(
@@ -630,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn recurrent_gated_delta_rule_validation_rejects_too_wide_qk_dim() {
+    fn test_recurrent_gated_delta_rule_validation_rejects_too_wide_qk_dim() {
         let mut config = recurrent_validation_config();
         config.qk_dim = 129;
         assert!(matches!(
@@ -640,7 +734,7 @@ mod tests {
     }
 
     #[test]
-    fn recurrent_gated_delta_rule_decode_validation_accepts_time_one() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_decode_validation_accepts_time_one() -> Result<()> {
         let config = recurrent_decode_validation_config();
         validate_recurrent_gated_delta_rule_decode_with_state(
             48, 240, 20, 20, 48, 8, 8, 240, config,
@@ -649,7 +743,7 @@ mod tests {
     }
 
     #[test]
-    fn recurrent_gated_delta_rule_decode_validation_rejects_time_not_one() {
+    fn test_recurrent_gated_delta_rule_decode_validation_rejects_time_not_one() {
         let mut config = recurrent_decode_validation_config();
         config.time = 2;
         assert!(matches!(
@@ -661,14 +755,14 @@ mod tests {
     }
 
     #[test]
-    fn chunk_gated_delta_rule_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_chunk_gated_delta_rule_validation_accepts_exact_lengths() -> Result<()> {
         let config = chunk_validation_config();
         validate_chunk_gated_delta_rule_no_state(180, 120, 120, 180, 30, 30, config)?;
         validate_chunk_gated_delta_rule_with_state(180, 144, 120, 120, 180, 30, 30, 144, config)
     }
 
     #[test]
-    fn chunk_gated_delta_rule_validation_rejects_zero_chunk_size() {
+    fn test_chunk_gated_delta_rule_validation_rejects_zero_chunk_size() {
         let mut config = chunk_validation_config();
         config.chunk_size = 0;
         assert!(matches!(
@@ -678,13 +772,16 @@ mod tests {
     }
 
     #[test]
-    fn chunk_gated_delta_rule_validation_rejects_short_final_state() {
+    fn test_chunk_gated_delta_rule_validation_rejects_short_final_state() {
         let config = chunk_validation_config();
         assert!(matches!(
             validate_chunk_gated_delta_rule_with_state(
                 180, 143, 120, 120, 180, 30, 30, 144, config
             ),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 

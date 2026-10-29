@@ -31,7 +31,6 @@ generate:
         --blocklist-item "^CUDA.*" \
         --blocklist-item "^CUstream.*" \
         --blocklist-item "^CUresult.*" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -42,6 +41,7 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -fparse-all-comments \
             -x c++ \
             -I {{cuda_path}}/include \
             -I {{cufile_include_path}} \

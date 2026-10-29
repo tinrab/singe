@@ -1,18 +1,19 @@
 //! Small convolution and layout-specific convolution helpers.
 
-#[cfg(feature = "dtype-bf16")]
+use ::cutile::cuda_async::device_buffer::DevicePointer;
+#[cfg(feature = "dtype_bf16")]
 use singe_cuda::types::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceSlice, DeviceSliceMut},
+    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
 };
 
 #[cfg(feature = "cutile")]
 use crate::cuda::cutile;
 use crate::{
-    cuda::interop::{borrowed_stream, input_pointer, output_pointer},
+    cuda::interop::{input_pointer, output_pointer},
     error::{Error, Result},
     utility::{checked_element_count, ensure_len},
 };
@@ -242,13 +243,21 @@ macro_rules! causal_conv1d_update_silu_fn {
         /// `[batch, channels, kernel_size]` and is shifted left by one slot per
         /// channel before inserting the new input at `kernel_size - 1`.
         /// `weight` is `[channels, kernel_size]` and `bias` is `[channels]`.
-        pub fn $name(
+        /// Decode requires initialized rolling state and updates it in place.
+        ///
+        /// # Safety
+        ///
+        /// Retain all ranges and exclusive writable access through completion on
+        /// every path and throughout replay. Order prior accesses before launch.
+        /// Inputs must be valid when read in the stream's context and disjoint from writes.
+        /// Order preceding producers before every read, including graph replay.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
             conv_state: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
-            weight: &impl DeviceSlice<$ty>,
-            bias: &impl DeviceSlice<$ty>,
+            input: &impl DeviceInput<$ty>,
+            weight: &impl DeviceInput<$ty>,
+            bias: &impl DeviceInput<$ty>,
             batch: usize,
             channels: usize,
             kernel_size: usize,
@@ -263,18 +272,21 @@ macro_rules! causal_conv1d_update_silu_fn {
                 channels,
                 kernel_size,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::conv::$name(
-                &stream,
-                output_pointer(out),
-                output_pointer(conv_state),
-                input_pointer(input),
-                input_pointer(weight),
-                input_pointer(bias),
-                batch,
-                channels,
-                kernel_size,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::conv::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    output_pointer(conv_state),
+                    input_pointer(input),
+                    input_pointer(weight),
+                    input_pointer(bias),
+                    batch,
+                    channels,
+                    kernel_size,
+                )
+            }
         }
     };
 }
@@ -286,13 +298,21 @@ macro_rules! causal_conv1d_prefill_silu_fn {
         /// `input` and `out` use `[batch, channels, time]` layout. Values before
         /// the beginning of the sequence are zero-padded, and `conv_state`
         /// receives the final `[batch, channels, kernel_size]` rolling window.
-        pub fn $name(
+        /// Prefill fully writes both destinations without reading the prior state.
+        ///
+        /// # Safety
+        ///
+        /// Retain all ranges and exclusive writable access through completion on
+        /// every path and throughout replay. Order prior accesses before launch.
+        /// Inputs must be valid when read in the stream's context and disjoint from writes.
+        /// Order preceding producers before every read, including graph replay.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            conv_state: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
-            weight: &impl DeviceSlice<$ty>,
-            bias: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            conv_state: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
+            weight: &impl DeviceInput<$ty>,
+            bias: &impl DeviceInput<$ty>,
             batch: usize,
             channels: usize,
             kernel_size: usize,
@@ -311,122 +331,155 @@ macro_rules! causal_conv1d_prefill_silu_fn {
                 input_length,
                 output_length,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::conv::$name(
-                &stream,
-                output_pointer(out),
-                output_pointer(conv_state),
-                input_pointer(input),
-                input_pointer(weight),
-                input_pointer(bias),
-                batch,
-                channels,
-                kernel_size,
-                input_length,
-                output_length,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::conv::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    DevicePointer::from_cu_deviceptr(conv_state.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(weight),
+                    input_pointer(bias),
+                    batch,
+                    channels,
+                    kernel_size,
+                    input_length,
+                    output_length,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 causal_conv1d_update_silu_fn!(causal_conv1d_update_silu_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 causal_conv1d_update_silu_fn!(causal_conv1d_update_silu_f16, f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 causal_conv1d_update_silu_fn!(causal_conv1d_update_silu_bf16, bf16);
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 causal_conv1d_prefill_silu_fn!(causal_conv1d_prefill_silu_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 causal_conv1d_prefill_silu_fn!(causal_conv1d_prefill_silu_f16, f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 causal_conv1d_prefill_silu_fn!(causal_conv1d_prefill_silu_bf16, bf16);
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv2d_bias_gelu_f32(
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped NCHW convolution with channel bias and GELU.
+/// Only batch output elements are written; stride gaps remain untouched.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv2d_bias_gelu_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
-    bias: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
+    bias: &impl DeviceInput<f32>,
     config: Conv2dConfig,
 ) -> Result<()> {
     let (output_h, output_w) =
         config.validate_lengths(out.len(), input.len(), weight.len(), bias.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv2d_bias_gelu_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        input_pointer(bias),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.input_h,
-        config.input_w,
-        output_h,
-        output_w,
-        config.kernel_h,
-        config.kernel_w,
-        config.stride_h,
-        config.stride_w,
-        config.padding_h,
-        config.padding_w,
-        config.dilation_h,
-        config.dilation_w,
-        config.groups,
-        config.input_batch_stride,
-        config.output_batch_stride,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv2d_bias_gelu_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            input_pointer(bias),
+            config.batch,
+            config.channels_in,
+            config.channels_out,
+            config.input_h,
+            config.input_w,
+            output_h,
+            output_w,
+            config.kernel_h,
+            config.kernel_w,
+            config.stride_h,
+            config.stride_w,
+            config.padding_h,
+            config.padding_w,
+            config.dilation_h,
+            config.dilation_w,
+            config.groups,
+            config.input_batch_stride,
+            config.output_batch_stride,
+        )
+    }
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! conv2d_bias_gelu_half_fn {
     ($name:ident, $ty:ty, $cutile_fn:ident) => {
-        pub fn $name(
+        /// Computes grouped NCHW convolution with channel bias and GELU.
+        /// Only batch output elements are written; stride gaps remain untouched.
+        ///
+        /// # Safety
+        ///
+        /// Retain all ranges and exclusive writable access through completion on
+        /// every path and throughout replay. Order prior accesses before launch.
+        /// Inputs must be valid when read in the stream's context and disjoint from writes.
+        /// Order preceding producers before every read, including graph replay.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
-            weight: &impl DeviceSlice<$ty>,
-            bias: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
+            weight: &impl DeviceInput<$ty>,
+            bias: &impl DeviceInput<$ty>,
             config: Conv2dConfig,
         ) -> Result<()> {
             let (output_h, output_w) =
                 config.validate_lengths(out.len(), input.len(), weight.len(), bias.len())?;
-            let stream = borrowed_stream(stream)?;
-            cutile::conv::$cutile_fn(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                input_pointer(weight),
-                input_pointer(bias),
-                config.batch,
-                config.channels_in,
-                config.channels_out,
-                config.input_h,
-                config.input_w,
-                output_h,
-                output_w,
-                config.kernel_h,
-                config.kernel_w,
-                config.stride_h,
-                config.stride_w,
-                config.padding_h,
-                config.padding_w,
-                config.dilation_h,
-                config.dilation_w,
-                config.groups,
-                config.input_batch_stride,
-                config.output_batch_stride,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::conv::$cutile_fn(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(weight),
+                    input_pointer(bias),
+                    config.batch,
+                    config.channels_in,
+                    config.channels_out,
+                    config.input_h,
+                    config.input_w,
+                    output_h,
+                    output_w,
+                    config.kernel_h,
+                    config.kernel_w,
+                    config.stride_h,
+                    config.stride_w,
+                    config.padding_h,
+                    config.padding_w,
+                    config.dilation_h,
+                    config.dilation_w,
+                    config.groups,
+                    config.input_batch_stride,
+                    config.output_batch_stride,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 conv2d_bias_gelu_half_fn!(conv2d_bias_gelu_f16, f16, conv2d_bias_gelu_f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 conv2d_bias_gelu_half_fn!(conv2d_bias_gelu_bf16, bf16, conv2d_bias_gelu_bf16);
 
 impl BatchedConv1dConfig {
@@ -576,186 +629,263 @@ impl CausalConv1dWindowConfig {
     }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_f32(
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution into f32 output.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
     config: Conv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_causal_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        config.channels_in,
-        config.channels_out,
-        config.input_length,
-        output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_causal_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            config.channels_in,
+            config.channels_out,
+            config.input_length,
+            output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_batched_f32(
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution into f32 output over strided batches.
+/// Only batch output elements are written; stride gaps remain untouched.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_batched_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
     config: BatchedConv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_batched_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.input_length,
-        output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-        config.input_batch_stride,
-        config.output_batch_stride,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_batched_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            config.batch,
+            config.channels_in,
+            config.channels_out,
+            config.input_length,
+            output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+            config.input_batch_stride,
+            config.output_batch_stride,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_f16_f32(
+#[cfg(feature = "dtype_f16")]
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution into f32 output.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f16>,
-    weight: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f16>,
+    weight: &impl DeviceInput<f16>,
     config: Conv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_causal_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        config.channels_in,
-        config.channels_out,
-        config.input_length,
-        output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_causal_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            config.channels_in,
+            config.channels_out,
+            config.input_length,
+            output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_batched_f16_f32(
+#[cfg(feature = "dtype_f16")]
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution into f32 output over strided batches.
+/// Only batch output elements are written; stride gaps remain untouched.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_batched_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f16>,
-    weight: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f16>,
+    weight: &impl DeviceInput<f16>,
     config: BatchedConv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_batched_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.input_length,
-        output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-        config.input_batch_stride,
-        config.output_batch_stride,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_batched_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            config.batch,
+            config.channels_in,
+            config.channels_out,
+            config.input_length,
+            output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+            config.input_batch_stride,
+            config.output_batch_stride,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution into f32 output.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_bf16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<bf16>,
-    weight: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<bf16>,
+    weight: &impl DeviceInput<bf16>,
     config: Conv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_causal_bf16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        config.channels_in,
-        config.channels_out,
-        config.input_length,
-        output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_causal_bf16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            config.channels_in,
+            config.channels_out,
+            config.input_length,
+            output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_batched_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution into f32 output over strided batches.
+/// Only batch output elements are written; stride gaps remain untouched.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_batched_bf16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<bf16>,
-    weight: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<bf16>,
+    weight: &impl DeviceInput<bf16>,
     config: BatchedConv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_batched_bf16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.input_length,
-        output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-        config.input_batch_stride,
-        config.output_batch_stride,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_batched_bf16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            config.batch,
+            config.channels_in,
+            config.channels_out,
+            config.input_length,
+            output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+            config.input_batch_stride,
+            config.output_batch_stride,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_im2col_f32(
+#[cfg(feature = "dtype_f32")]
+/// Materializes grouped channels-first convolution windows as compact im2col rows.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_im2col_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     config: Conv1dConfig,
 ) -> Result<()> {
     let input_values = checked_element_count(config.channels_in, config.input_length)?;
@@ -771,230 +901,315 @@ pub fn conv1d_im2col_f32(
         right_padding: config.right_padding,
         input_batch_stride: input_values,
     };
-    conv1d_batched_im2col_f32(stream, out, input, im2col)
+    // SAFETY: the caller establishes the queued convolution contract.
+    unsafe { conv1d_batched_im2col_f32(stream, out, input, im2col) }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_batched_im2col_f32(
+#[cfg(feature = "dtype_f32")]
+/// Materializes grouped im2col rows from strided channels-first input batches.
+/// Only batch output elements are written; stride gaps remain untouched.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_batched_im2col_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
     config: Conv1dIm2colConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_batched_im2col_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        config.batch,
-        config.channels_in,
-        config.input_length,
-        output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-        config.input_batch_stride,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_batched_im2col_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            config.batch,
+            config.channels_in,
+            config.input_length,
+            output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+            config.input_batch_stride,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_bias_activation_f32(
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution with channel bias and optional GELU.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_bias_activation_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
-    bias: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
+    bias: &impl DeviceInput<f32>,
     config: Conv1dConfig,
     activation: Conv1dActivation,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
     ensure_len(bias.len(), config.channels_out)?;
-    let stream = borrowed_stream(stream)?;
+    let stream = stream.to_cuda_core()?;
     match activation {
-        Conv1dActivation::None => cutile::conv::conv1d_causal_bias_f32(
-            &stream,
-            output_pointer(out),
-            input_pointer(input),
-            input_pointer(weight),
-            input_pointer(bias),
-            config.channels_in,
-            config.channels_out,
-            config.input_length,
-            output_length,
-            config.kernel_size,
-            config.stride,
-            config.dilation,
-            config.groups,
-            config.left_padding,
-        ),
-        Conv1dActivation::Gelu => cutile::conv::conv1d_causal_bias_gelu_f32(
-            &stream,
-            output_pointer(out),
-            input_pointer(input),
-            input_pointer(weight),
-            input_pointer(bias),
-            config.channels_in,
-            config.channels_out,
-            config.input_length,
-            output_length,
-            config.kernel_size,
-            config.stride,
-            config.dilation,
-            config.groups,
-            config.left_padding,
-        ),
+        // SAFETY: the caller upholds this function's safety contract.
+        Conv1dActivation::None => unsafe {
+            cutile::conv::conv1d_causal_bias_f32(
+                &stream,
+                DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                input_pointer(input),
+                input_pointer(weight),
+                input_pointer(bias),
+                config.channels_in,
+                config.channels_out,
+                config.input_length,
+                output_length,
+                config.kernel_size,
+                config.stride,
+                config.dilation,
+                config.groups,
+                config.left_padding,
+            )
+        },
+        // SAFETY: the caller upholds this function's safety contract.
+        Conv1dActivation::Gelu => unsafe {
+            cutile::conv::conv1d_causal_bias_gelu_f32(
+                &stream,
+                DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                input_pointer(input),
+                input_pointer(weight),
+                input_pointer(bias),
+                config.channels_in,
+                config.channels_out,
+                config.input_length,
+                output_length,
+                config.kernel_size,
+                config.stride,
+                config.dilation,
+                config.groups,
+                config.left_padding,
+            )
+        },
     }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_f32(
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution with left padding.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_causal_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
     config: CausalConv1dConfig,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_causal_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        config.channels_in,
-        config.channels_out,
-        config.input_length,
-        output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_causal_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            config.channels_in,
+            config.channels_out,
+            config.input_length,
+            output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_bias_f32(
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped channels-first convolution with left padding and channel bias.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_causal_bias_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
-    bias: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
+    bias: &impl DeviceInput<f32>,
     config: CausalConv1dConfig,
 ) -> Result<()> {
-    conv1d_causal_bias_activation_f32(
-        stream,
-        out,
-        input,
-        weight,
-        bias,
-        config,
-        Conv1dActivation::None,
-    )
+    // SAFETY: the caller establishes the queued convolution contract.
+    unsafe {
+        conv1d_causal_bias_activation_f32(
+            stream,
+            out,
+            input,
+            weight,
+            bias,
+            config,
+            Conv1dActivation::None,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_bias_activation_f32(
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped left-padded convolution with channel bias and optional GELU.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_causal_bias_activation_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
-    bias: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
+    bias: &impl DeviceInput<f32>,
     config: CausalConv1dConfig,
     activation: Conv1dActivation,
 ) -> Result<()> {
     let output_length = config.validate_lengths(out.len(), input.len(), weight.len())?;
     ensure_len(bias.len(), config.channels_out)?;
-    let stream = borrowed_stream(stream)?;
+    let stream = stream.to_cuda_core()?;
     match activation {
-        Conv1dActivation::None => cutile::conv::conv1d_causal_bias_f32(
-            &stream,
-            output_pointer(out),
-            input_pointer(input),
-            input_pointer(weight),
-            input_pointer(bias),
-            config.channels_in,
-            config.channels_out,
-            config.input_length,
-            output_length,
-            config.kernel_size,
-            config.stride,
-            config.dilation,
-            config.groups,
-            config.left_padding,
-        ),
-        Conv1dActivation::Gelu => cutile::conv::conv1d_causal_bias_gelu_f32(
-            &stream,
-            output_pointer(out),
-            input_pointer(input),
-            input_pointer(weight),
-            input_pointer(bias),
-            config.channels_in,
-            config.channels_out,
-            config.input_length,
-            output_length,
-            config.kernel_size,
-            config.stride,
-            config.dilation,
-            config.groups,
-            config.left_padding,
-        ),
+        // SAFETY: the caller upholds this function's safety contract.
+        Conv1dActivation::None => unsafe {
+            cutile::conv::conv1d_causal_bias_f32(
+                &stream,
+                DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                input_pointer(input),
+                input_pointer(weight),
+                input_pointer(bias),
+                config.channels_in,
+                config.channels_out,
+                config.input_length,
+                output_length,
+                config.kernel_size,
+                config.stride,
+                config.dilation,
+                config.groups,
+                config.left_padding,
+            )
+        },
+        // SAFETY: the caller upholds this function's safety contract.
+        Conv1dActivation::Gelu => unsafe {
+            cutile::conv::conv1d_causal_bias_gelu_f32(
+                &stream,
+                DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                input_pointer(input),
+                input_pointer(weight),
+                input_pointer(bias),
+                config.channels_in,
+                config.channels_out,
+                config.input_length,
+                output_length,
+                config.kernel_size,
+                config.stride,
+                config.dilation,
+                config.groups,
+                config.left_padding,
+            )
+        },
     }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_bias_gelu_f32(
+#[cfg(feature = "dtype_f32")]
+/// Computes grouped left-padded convolution with channel bias and GELU.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_causal_bias_gelu_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
-    bias: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
+    bias: &impl DeviceInput<f32>,
     config: CausalConv1dConfig,
 ) -> Result<()> {
-    conv1d_causal_bias_activation_f32(
-        stream,
-        out,
-        input,
-        weight,
-        bias,
-        config,
-        Conv1dActivation::Gelu,
-    )
+    // SAFETY: the caller establishes the queued convolution contract.
+    unsafe {
+        conv1d_causal_bias_activation_f32(
+            stream,
+            out,
+            input,
+            weight,
+            bias,
+            config,
+            Conv1dActivation::Gelu,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_bias_gelu_f32_window(
+#[cfg(feature = "dtype_f32")]
+/// Computes channel-biased GELU convolution for the configured input and output time window.
+///
+/// # Safety
+///
+/// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all ranges and exclusive writable access until completion on every path
+/// and throughout graph replay. Order prior accesses before the launch.
+pub unsafe fn conv1d_causal_bias_gelu_f32_window(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
-    bias: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weight: &impl DeviceInput<f32>,
+    bias: &impl DeviceInput<f32>,
     config: CausalConv1dWindowConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), input.len(), weight.len())?;
     ensure_len(bias.len(), config.channels_out)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::conv::conv1d_causal_bias_gelu_f32_window(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weight),
-        input_pointer(bias),
-        config.channels_in,
-        config.channels_out,
-        config.input_start,
-        config.input_length,
-        config.output_start,
-        config.output_length,
-        config.kernel_size,
-        config.stride,
-        config.dilation,
-        config.groups,
-        config.left_padding,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::conv::conv1d_causal_bias_gelu_f32_window(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weight),
+            input_pointer(bias),
+            config.channels_in,
+            config.channels_out,
+            config.input_start,
+            config.input_length,
+            config.output_start,
+            config.output_length,
+            config.kernel_size,
+            config.stride,
+            config.dilation,
+            config.groups,
+            config.left_padding,
+        )
+    }
 }
 
 fn validate_conv1d_config(config: Conv1dConfig) -> Result<()> {
@@ -1270,20 +1485,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn causal_conv1d_update_silu_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_causal_conv1d_update_silu_validation_accepts_exact_lengths() -> Result<()> {
         validate_causal_conv1d_update_silu(10, 40, 10, 20, 5, 2, 5, 4)
     }
 
     #[test]
-    fn causal_conv1d_update_silu_validation_rejects_short_state() {
+    fn test_causal_conv1d_update_silu_validation_rejects_short_state() {
         assert!(matches!(
             validate_causal_conv1d_update_silu(10, 39, 10, 20, 5, 2, 5, 4),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 
     #[test]
-    fn causal_conv1d_update_silu_validation_rejects_zero_channels() {
+    fn test_causal_conv1d_update_silu_validation_rejects_zero_channels() {
         assert!(matches!(
             validate_causal_conv1d_update_silu(0, 0, 0, 0, 0, 0, 0, 0),
             Err(Error::InvalidLength)
@@ -1291,20 +1509,23 @@ mod tests {
     }
 
     #[test]
-    fn causal_conv1d_prefill_silu_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_causal_conv1d_prefill_silu_validation_accepts_exact_lengths() -> Result<()> {
         validate_causal_conv1d_prefill_silu(60, 40, 60, 20, 5, 2, 5, 4, 6, 6)
     }
 
     #[test]
-    fn causal_conv1d_prefill_silu_validation_rejects_short_output() {
+    fn test_causal_conv1d_prefill_silu_validation_rejects_short_output() {
         assert!(matches!(
             validate_causal_conv1d_prefill_silu(59, 40, 60, 20, 5, 2, 5, 4, 6, 6),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 
     #[test]
-    fn causal_conv1d_prefill_silu_validation_rejects_zero_output_length() {
+    fn test_causal_conv1d_prefill_silu_validation_rejects_zero_output_length() {
         assert!(matches!(
             validate_causal_conv1d_prefill_silu(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
             Err(Error::InvalidLength)

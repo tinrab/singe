@@ -1,3 +1,4 @@
+cuda_path := "$CUDA_PATH"
 cusolver_include_path := "$CUSOLVER_INCLUDE_PATH"
 
 generate:
@@ -32,7 +33,6 @@ generate:
         --blocklist-item "^cuda.*" \
         --blocklist-item "^CUDA.*" \
         --blocklist-item "^libraryPropertyType.*" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -42,6 +42,7 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -I {{cuda_path}}/include \
             -I {{cusolver_include_path}} \
         > bindings.rs
 

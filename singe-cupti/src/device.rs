@@ -12,11 +12,12 @@ use crate::{error::Result, try_ffi, types::DeviceVirtualizationMode};
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
 pub fn supports_compute_capability(major: i32, minor: i32) -> Result<bool> {
     let mut support = 0;
+    // SAFETY: `cuptiComputeCapabilitySupported` receives valid output locations.
     unsafe {
         try_ffi!(sys::cuptiComputeCapabilitySupported(
             major,
             minor,
-            &mut support,
+            &raw mut support,
         ))?;
     }
     Ok(support != 0)
@@ -30,10 +31,11 @@ pub fn supports_compute_capability(major: i32, minor: i32) -> Result<bool> {
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
 pub fn supports_device(device: Device) -> Result<bool> {
     let mut support = 0;
+    // SAFETY: `cuptiDeviceSupported` receives valid output locations.
     unsafe {
         try_ffi!(sys::cuptiDeviceSupported(
             device.id() as sys::CUdevice,
-            &mut support,
+            &raw mut support,
         ))?;
     }
     Ok(support != 0)
@@ -47,10 +49,11 @@ pub fn supports_device(device: Device) -> Result<bool> {
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
 pub fn device_virtualization_mode(device: Device) -> Result<DeviceVirtualizationMode> {
     let mut mode = sys::CUpti_DeviceVirtualizationMode::CUPTI_DEVICE_VIRTUALIZATION_MODE_NONE;
+    // SAFETY: `cuptiDeviceVirtualizationMode` receives valid output locations.
     unsafe {
         try_ffi!(sys::cuptiDeviceVirtualizationMode(
             device.id() as sys::CUdevice,
-            &mut mode,
+            &raw mut mode,
         ))?;
     }
     Ok(DeviceVirtualizationMode::from(mode))

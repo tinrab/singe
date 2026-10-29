@@ -82,7 +82,6 @@ generate:
         --blocklist-item "^CUDA.*" \
         --blocklist-item "^libraryPropertyType.*" \
         --allowlist-file ".*[^\w]cudnn.h" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -92,7 +91,7 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
-            -x c++ \
+            -x c++ -fparse-all-comments -fretain-comments-from-system-headers \
             -I {{cuda_path}}/include \
         > bindings.rs
 

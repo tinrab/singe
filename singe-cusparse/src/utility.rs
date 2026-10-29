@@ -1,14 +1,9 @@
-use crate::error::{Error, Result};
-use singe_core::checked_int;
+use singe_core::checked_conversions;
 
-pub fn to_i64(value: impl TryInto<i64>, name: &str) -> Result<i64> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
+use crate::error::Error;
 
-pub fn to_usize(value: impl TryInto<usize>, name: &str) -> Result<usize> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
-
-pub fn to_i32(value: impl TryInto<i32>, name: &str) -> Result<i32> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
+checked_conversions!(Error {
+    to_i64 -> i64,
+    to_usize -> usize,
+    to_i32 -> i32,
+});

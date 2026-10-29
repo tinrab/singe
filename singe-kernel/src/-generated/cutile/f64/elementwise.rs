@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     pub fn binary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f64, { [B] }>,
@@ -20,9 +25,35 @@ mod kernels {
         } else if OP == 3 {
             lhs_tile / rhs_tile
         } else if OP == 4 {
-            maxf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::LessThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 5 {
-            minf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::GreaterThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 6 {
             atan2(lhs_tile, rhs_tile)
         } else if OP == 7 {
@@ -380,7 +411,41 @@ mod kernels {
         let x: Tile<f64, { [B] }> = load_tile_like(input, out);
         let min_value = broadcast_scalar(min_value, out.shape());
         let max_value = broadcast_scalar(max_value, out.shape());
-        out.store(min_tile(max_tile(x, min_value), max_value));
+        let lower = select(
+            cmpf(x, min_value, predicate::LessThan, cmp_ordering::Ordered),
+            min_value,
+            x,
+        );
+        let lower = select(
+            cmpf(
+                min_value,
+                min_value,
+                predicate::NotEqual,
+                cmp_ordering::Unordered,
+            ),
+            min_value,
+            lower,
+        );
+        let upper = select(
+            cmpf(
+                lower,
+                max_value,
+                predicate::GreaterThan,
+                cmp_ordering::Ordered,
+            ),
+            max_value,
+            lower,
+        );
+        out.store(select(
+            cmpf(
+                max_value,
+                max_value,
+                predicate::NotEqual,
+                cmp_ordering::Unordered,
+            ),
+            max_value,
+            upper,
+        ));
     }
     #[cutile::entry()]
     pub fn lerp_f64<const B: i32>(
@@ -404,7 +469,7 @@ mod kernels {
         let condition_tile: Tile<f64, { [B] }> = load_tile_like(condition, out);
         let x_tile: Tile<f64, { [B] }> = load_tile_like(x, out);
         let y_tile: Tile<f64, { [B] }> = load_tile_like(y, out);
-        let zero = constant(0.0f64, out.shape());
+        let zero: Tile<f64, { [B] }> = constant(0.0f64, out.shape());
         let mask = cmpf(
             condition_tile,
             zero,

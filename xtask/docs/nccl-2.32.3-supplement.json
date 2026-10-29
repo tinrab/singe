@@ -1,0 +1,602 @@
+{
+  "CTAPolicy": {
+    "doc": "Set the policy for the communicator. The full list of supported policies can be found in [NCCL Communicator CTA Policy Flags](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/flags.html#cta-policy-flags).\nThe default value is NCCL_CTA_POLICY_DEFAULT.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "NCCL_COLLCONFIG_INITIALIZER": {
+    "doc": "(since 2.31)\n\nInitializes a new [`ncclCollConfig_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t \"ncclCollConfig_t\") with default values.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t"
+  },
+  "NCCL_CONFIG_INITIALIZER": {
+    "doc": "A configuration macro initializer which must be assigned to a newly created configuration.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "NCCL_ENCRYPTION_CONFIG_INITIALIZER": {
+    "doc": "A configuration macro initializer which must be assigned to a newly created encryption configuration.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclencryptionconfig-t"
+  },
+  "NCCL_ENCRYPTION_MODE_PSK": {
+    "doc": "Request TLS encryption for NCCL-owned TCP sockets using a pre-shared key.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclencryptionconfig-t"
+  },
+  "NCCL_SIM_INFO_INITIALIZER": {
+    "doc": "[`ncclSimInfo_t::NCCL_SIM_INFO_INITIALIZER`] is a configuration macro initializer which must be assigned\nto a newly created ncclSimInfo_t struct.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclsiminfo-t"
+  },
+  "algSelection": {
+    "doc": "(since 2.31)\n\nA case-insensitive expression that filters the algorithms and kernels NCCL may\nuse for this call. `NULL` or an empty string requests automatic selection.\n\nEach name is matched as a prefix from the start of a known name. For example,\n`ring` selects `RING_LL`, `RING_LL128`, and `RING_SIMPLE`, but does not\nselect `SYMK_RailRing_LsaSTMC`; similarly, `nvls` selects both `NVLS_SIMPLE`\nand `NVLSTREE_SIMPLE`. The supported operators are `+` (AND), `,`\n(OR), and `^` (NOT); parentheses are not supported. For example,\n`tree,ring` permits either family, `ring + ^RING_LL128` permits Ring except\nLL128, and `^symk` excludes symmetric kernels.\n\nThe selectable built-in names and the collectives for which they are valid are:\n\n* AllReduce: `TREE_LL`, `TREE_LL128`, `TREE_SIMPLE`, `RING_LL`,\n  `RING_LL128`, `RING_SIMPLE`, `COLLNET_DIRECT_SIMPLE`,\n  `COLLNET_CHAIN_SIMPLE`, `NVLS_SIMPLE`, `NVLSTREE_SIMPLE`,\n  `SYMK_AGxLL_R`, `SYMK_AGxLLMC_R`, `SYMK_RSxTmaLD_AGxTmaST`,\n  `SYMK_RSxLD_AGxST`, and `SYMK_RSxLDMC_AGxSTMC`.\n* AllGather: `RING_LL`, `RING_LL128`, `RING_SIMPLE`,\n  `COLLNET_DIRECT_SIMPLE`, `NVLS_SIMPLE`, `PAT_SIMPLE`, `SYMK_LL`,\n  `SYMK_LLMC`, `SYMK_TmaST`, `SYMK_ST`, `SYMK_TmaSTMC`,\n  `SYMK_STMC`, and `SYMK_RailRing_LsaSTMC`.\n* ReduceScatter: `RING_LL`, `RING_LL128`, `RING_SIMPLE`,\n  `COLLNET_DIRECT_SIMPLE`, `NVLS_SIMPLE`, `PAT_SIMPLE`, `SYMK_LL`,\n  `SYMK_TmaLD`, `SYMK_LD`, `SYMK_LDMC`, `SYMK_RailA2A_LsaLD`, and\n  `SYMK_RailA2A_LsaLDMC`.\n* Broadcast and Reduce: `RING_LL`, `RING_LL128`, and `RING_SIMPLE`.\n\nThe `SYMK_*` names refer to symmetric-memory kernels built on the NCCL\nDevice API. `LL` is a low-latency protocol that tags data with an inline\nflag instead of a separate synchronization step; `LD`/`ST` are ordinary\nload/store data movement and `TmaLD`/`TmaST` use the Tensor Memory\nAccelerator for bulk asynchronous copies; the `MC` suffix (as in\n`LLMC`, `LDMC`, `STMC`) means the load, store, or reduction is done\nthrough NVLink SHARP multimem (multicast) instead of per-peer accesses; and\n`Rail`/`Lsa` names are multi-node kernels that combine a local\nNVLink-domain (`Lsa`) step with a network exchange between same-rail ranks\nacross nodes.\n\nAlgorithm names are implementation details and may evolve. AllToAll,\nGather, and Scatter lower to point-to-point sends and receives and expose\nno selectable names; Copy Engine paths are likewise not selectable here.\nRequest a Copy Engine path with `CTAPolicy` instead.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t"
+  },
+  "arrive": {
+    "doc": "Signals the arrival of the thread at the barrier session.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_memory.html#nccllsabarriersession"
+  },
+  "barrierCount": {
+    "doc": "Specifies the number of network/rail hybrid barriers to allocate (see [`ncclBarrierSession`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv4I0E18ncclBarrierSession \"ncclBarrierSession\"); available since NCCL 2.28.7).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "blocking": {
+    "doc": "This attribute can be set as integer 0 or 1 to indicate nonblocking or blocking\ncommunicator behavior correspondingly. Blocking is the default behavior.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "cftBarrierCount": {
+    "doc": "Specifies the number of CFT barriers to allocate (see [`ncclCftBarrierSession`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_cft.html#_CPPv4I0E21ncclCftBarrierSession \"ncclCftBarrierSession\")).\nAvailable since NCCL 2.31.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "cftCaps": {
+    "doc": "Bitmask of CFT capabilities requested for the device communicator (see [Device API - CFT](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_cft.html#device-api-cft)).\nSet [`NCCL_CFT`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_cft.html#c.NCCL_CFT \"NCCL_CFT\") for unicast CFT logical endpoint support, [`NCCL_CFT_MULTIMEM`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_cft.html#c.NCCL_CFT_MULTIMEM \"NCCL_CFT_MULTIMEM\")\nfor multicast CFT support, [`NCCL_CFT_NONE`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_cft.html#c.NCCL_CFT_NONE \"NCCL_CFT_NONE\") for no CFT support (default).\nAvailable since NCCL 2.31.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "cgaClusterSize": {
+    "doc": "Set Cooperative Group Array (CGA) size of kernels launched by NCCL.\nThis attribute can be set between 0 and 8, and the default value is 4 since sm90 architecture\nand 0 for older architectures.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "collnetEnable": {
+    "doc": "Set 1/0 to enable/disable IB SHARP on the communicator. The default value is 0 (disabled).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "commHash": {
+    "doc": "Communicator hash identifier shared across all ranks in the communicator. Available since NCCL 2.31.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "commName": {
+    "doc": "Specify the user defined name for the communicator.\nThe communicator name can be used by NCCL to enrich logging and profiling.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "ctx": {
+    "doc": "Communication context. Prior to NCCL 2.31, it must be set to 0.\nSince NCCL 2.31, it may be set in the range `[0, numRmaCtx)` (see `numRmaCtx`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclWaitSignalDesc_t"
+  },
+  "cudaDev": {
+    "doc": "CUDA device index.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "deviceApiSupport": {
+    "doc": "Whether the device API is supported. If false, a [`ncclDevComm`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevComm \"ncclDevComm\") cannot be created.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "estimatedTime": {
+    "doc": "Estimated time for the operation(s) in the group call will be returned in this attribute.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclsiminfo-t"
+  },
+  "ext": {
+    "doc": "(since 2.31)\n\nHead of a linked list of vendor-specific [`ncclConfigExt_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfigExt_t \"ncclConfigExt_t\") options,\nor `NULL`. The official NCCL library does not read this member; it exists\nfor vendor libraries layered on top of NCCL to forward their own\nvendor-defined options through the same call.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t"
+  },
+  "flush": {
+    "doc": "Ensures that all the pending transfer operations scheduled by any threads of *coop* are locally consumed. For put\noperations, this means that the source buffers are safe to reuse; this makes no claims regarding the completion\nstatus on the remote peer(s). For get operations, this means that the data is visible to the local rank.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#ncclgin"
+  },
+  "flushAsync": {
+    "doc": "Initiates a non-blocking flush operation for one peer (see [`ncclGin::flush()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv4N7ncclGin5flushE4CoopN4cuda12memory_orderE \"ncclGin::flush\")). *peer* is a rank within *team*\n(see [Teams](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#devapi-teams)). *request* is supplied by the caller and initialized by `flushAsync`.\nThe caller may use *request* to determine when the flush is complete (see [`ncclGin::wait()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv4N7ncclGin4waitER16ncclGinRequest_t4Coop14DescriptorSmemN4cuda12memory_orderE \"ncclGin::wait\")).\nAvailable since NCCL 2.30.3.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#ncclgin"
+  },
+  "forceAlgSelection": {
+    "doc": "(since 2.31)\n\nControls what happens when `algSelection` is invalid or cannot be honored.\nWith the default value, `1`, NCCL returns an error. Set it to `0` to\nfall back to automatic selection instead.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t"
+  },
+  "get": {
+    "doc": "Schedules a device-initiated, one-sided data transfer operation from a remote buffer to a local buffer\n(available since NCCL 2.30.3).\n\n*peer* is a rank within *team* (see [Teams](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#devapi-teams)); it may refer to the local rank (a loopback). The remote\nand local buffers are each specified using the window (*remoteWnd*, *localWnd*) and a byte-based offset (*remoteOffset*,\n*localOffset*). *bytes* specifies the data transfer count in bytes. If GIN is initialized with connection\ntype [`NCCL_GIN_CONNECTION_RAIL`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinConnectionType_t.NCCL_GIN_CONNECTION_RAIL \"ncclGinConnectionType_t.NCCL_GIN_CONNECTION_RAIL\"), *peer* must be within the same rail team as the local rank.\n*bufType* specifies the physical memory composition of the source and destination buffers (see\n[Segment Types](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#devapi-segment-types)); it defaults to `ncclGin_SegmentDevice`.\n*optFlags* is a bitwise OR of optional flags to the backend (see [GIN Optimization Flags](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/flags.html#gin-opt-flags)); it defaults to\n`ncclGinOptFlagsDefault`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#ncclgin"
+  },
+  "ginBarrier": {
+    "doc": "Returns the reference to the memory barrier or the rail network barrier underlying this hybrid session, so that it can be\ndriven individually.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#ncclbarriersession"
+  },
+  "ginConnectionType": {
+    "doc": "Specifies the type of GIN connection to establish (see [`ncclGinConnectionType_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinConnectionType_t \"ncclGinConnectionType_t\")).\nIf GIN resources are requested (e.g., `ginSignalCount`, `ginCounterCount`, `barrierCount`, or\n`railGinBarrierCount`) while this field is [`NCCL_GIN_CONNECTION_NONE`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinConnectionType_t.NCCL_GIN_CONNECTION_NONE \"ncclGinConnectionType_t.NCCL_GIN_CONNECTION_NONE\"), device communicator\ncreation fails with `ncclInvalidArgument`. Available since NCCL 2.29.7.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "ginContextCount": {
+    "doc": "The number of supported GIN contexts (see [`ncclGin`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv47ncclGin \"ncclGin\"); available\nsince NCCL 2.28.7).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcomm"
+  },
+  "ginCounterCount": {
+    "doc": "Specifies the number of network counters to allocate (see [`ncclGinCounter_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv416ncclGinCounter_t \"ncclGinCounter_t\"); available since NCCL 2.28.7).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "ginCustomStride": {
+    "doc": "Specifies the rank stride when [`ginConnectionType`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevCommRequirements.ginConnectionType \"ginConnectionType\") is [`NCCL_GIN_CONNECTION_CUSTOM_STRIDE`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinConnectionType_t.NCCL_GIN_CONNECTION_CUSTOM_STRIDE \"ncclGinConnectionType_t.NCCL_GIN_CONNECTION_CUSTOM_STRIDE\").\nAvailable since NCCL 2.31.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "ginForceEnable": {
+    "doc": "Forces GIN (GPU-Initiated Networking) support to be enabled by automatically setting\n`ginConnectionType` to [`NCCL_GIN_CONNECTION_FULL`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinConnectionType_t.NCCL_GIN_CONNECTION_FULL \"ncclGinConnectionType_t.NCCL_GIN_CONNECTION_FULL\"). This field is deprecated in favor of explicitly\nsetting [`ginConnectionType`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevCommRequirements.ginConnectionType \"ginConnectionType\") to the desired value. When set to `true`, it overrides the\n`ginConnectionType` field. New code should use [`ginConnectionType`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevCommRequirements.ginConnectionType \"ginConnectionType\") directly instead of this field.\nAvailable since NCCL 2.28.7, deprecated since NCCL 2.29.7.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "ginMinStride": {
+    "doc": "The minimum value allowed for `ginCustomStride`. This value is based\non the network connectivity. For example, when [NCCL_CROSS_NIC](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#env-nccl-cross-nic) is `0`, `ginMinStride` is increased so\nthat strides spanning rail boundaries are not possible. `ginMinStride` is `INT_MAX` if GIN connectivity\ndoes not follow a uniform stride pattern, in which case [`NCCL_GIN_CONNECTION_CUSTOM_STRIDE`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinConnectionType_t.NCCL_GIN_CONNECTION_CUSTOM_STRIDE \"ncclGinConnectionType_t.NCCL_GIN_CONNECTION_CUSTOM_STRIDE\") cannot\nbe used. Available since NCCL 2.31.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "ginSignalCount": {
+    "doc": "Specifies the number of network signals to allocate (see [`ncclGinSignal_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv415ncclGinSignal_t \"ncclGinSignal_t\"); available since NCCL 2.28.7).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "ginStrongSignalsRequired": {
+    "doc": "Specifies whether GIN strong signals are required.\nSet to false if kernels using this communicator will not use strong signal operations\n(such as [`ncclGin_StrongSignalInc`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv423ncclGin_StrongSignalInc \"ncclGin_StrongSignalInc\") and [`ncclGin_StrongVASignalAdd`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv425ncclGin_StrongVASignalAdd \"ncclGin_StrongVASignalAdd\")).\nDefault is true. Available since NCCL 2.30.5.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "ginSupport": {
+    "doc": "Determines which GIN backends are supported.\nIf `ginSupport[gin_type]` is `true`, then `gin_type` is supported by every rank of the communicator.\nThe value `gin_type` is one of the values from [`ncclGinType_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinType_t \"ncclGinType_t\").\nSee [Multiple GIN Backends](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#deviceapi-gin-multi-backend). Available since NCCL 2.31.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "ginTrafficClass": {
+    "doc": "Specifies the GIN traffic class. See [Quality of Service](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/communicators.html#communicators-qos) for more details. Available since NCCL 2.30.3.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "ginType": {
+    "doc": "Requests that the device communicator be connected using a specific GIN backend (see\n[`ncclGinType_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinType_t \"ncclGinType_t\")).\n[`ncclDevCommCreate()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevCommCreate \"ncclDevCommCreate\") fails if set to a specific backend that is not supported.\nThe default value is [`NCCL_GIN_TYPE_NONE`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinType_t.NCCL_GIN_TYPE_NONE \"ncclGinType_t.NCCL_GIN_TYPE_NONE\"),\nwhich automatically selects a backend that is supported by the communicator.\n\nMultiple GIN backends can be used at once by creating two device communicators, each with a different ginType.\nSee [Multiple GIN Backends](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#deviceapi-gin-multi-backend) for a worked example. Available since NCCL 2.31.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "ginVaSignalsRequired": {
+    "doc": "Specifies whether GIN VA signals are required. Set to false if kernels using this communicator\ndo not use GIN VA signals (such as [`ncclGin_WeakVASignalInc`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv423ncclGin_WeakVASignalInc \"ncclGin_WeakVASignalInc\") and [`ncclGin_StrongVASignalAdd`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv425ncclGin_StrongVASignalAdd \"ncclGin_StrongVASignalAdd\")).\nDefault is true. Available since NCCL 2.30.5.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "graphStreamOrdering": {
+    "doc": "(since 2.30)\n\nPer-communicator override of [NCCL_GRAPH_STREAM_ORDERING](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-graph-stream-ordering). `1` keeps\nNCCL’s default capture-time serialization of communication kernels. `0`\ndisables it for this communicator—kernels are placed on the capture stream\nand the application must guarantee correct ordering (see\n[NCCL_GRAPH_STREAM_ORDERING](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-graph-stream-ordering)).\n\nDefaults to `NCCL_CONFIG_UNDEF_INT` (inherits\n[NCCL_GRAPH_STREAM_ORDERING](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-graph-stream-ordering)). `0` or `1` overrides the env var\nfor this communicator.\n\n`graphStreamOrdering=0` requires `graphUsageMode` `0` or `1`\n(mixing **off**). Combining it with `graphUsageMode=2` is **not\nsupported**; see [NCCL_GRAPH_STREAM_ORDERING](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-graph-stream-ordering).\n\n**Mixed values on one GPU:** A communicator set to `1` still receives\nNCCL’s internal serialization for its own kernels, but NCCL does **not**\ninsert cross-communicator ordering with a peer set to `0`—its kernels may\noverlap in situations NCCL would have serialized. Use `0` only when the\napplication guarantees ordering of **all** NCCL communication kernels that\nmay run concurrently on the GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "graphUsageMode": {
+    "doc": "Set the graph usage mode for the communicator. It support three possible values: 0 (no graphs), 1 (one graph) and 2 (either multiple graphs or mix of graph and non-graph). The default value is 2. If [NCCL_GRAPH_STREAM_ORDERING](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-graph-stream-ordering) or [`graphStreamOrdering`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t.graphStreamOrdering \"graphStreamOrdering\") disables capture-time stream ordering (`0`), **graph mixing must be off**—use `graphUsageMode` `0` or `1` only; `graphUsageMode=2` must not be combined with ordering `0` (see [NCCL_GRAPH_STREAM_ORDERING](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-graph-stream-ordering)).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "hostCftMode": {
+    "doc": "(since 2.31)\n\nControls support for host-side Compute Fabric Transport (CFT) queries.\n`ncclHostCftEnable` creates the communicator’s unicast and multicast\nlogical endpoints during the first [`ncclCommWindowRegister()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/comms.html#c.ncclCommWindowRegister \"ncclCommWindowRegister\") call on a\nCFT-capable communicator. `ncclHostCftDisable` disables support, and\n`ncclHostCftFallback` tries to create logical endpoints and disables\nhost-side CFT in case of error.\n`ncclHostCftDefault` selects the library-defined default behavior.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "launchCompletionEvent": {
+    "doc": "(since 2.32)\n\nA caller-owned CUDA event that NCCL records at the collective kernel-launch completion\nboundary. Create the event with [cudaEventCreateWithFlags and cudaEventDisableTiming](https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EVENT.html). It must\nnot be an interprocess or interop event.\n\nA NULL event requests no update. Event presence must match across ranks: every rank in the\ncorresponding collective must provide a rank-local non-NULL event, or every rank must provide\nNULL. A group supports at most one non-NULL event per communicator.\n\nKeep the event alive through all queued waits and graph executions that use it. For a grouped\ncollective, enqueue a dependent `cudaStreamWaitEvent` only after `ncclGroupEnd` returns\n`ncclSuccess`. With a nonblocking communicator, first poll `ncclCommGetAsyncError` until it\nreturns `ncclSuccess`; do not enqueue the wait after an error.\n\nNCCL records the event only for kernel launches; Copy Engine and RMA work do not record it.\n\nCUDA 12.3 or newer provides launch-completion semantics. On older CUDA platforms, NCCL\nemits a warning and records the event before the kernel launch; this fallback does not\nprovide a launch-completion guarantee. CUDA launch completion is best effort and does not\nguarantee that dependent work overlaps the collective. Graph capture is supported with a\ncapture-compatible event; sharing a recorded event across graphs is not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t"
+  },
+  "launchOrderImplicit": {
+    "doc": "(since 2.31)\n\nPer-communicator request for [NCCL_LAUNCH_ORDER_IMPLICIT](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-launch-order-implicit).\n`1` enables implicit launch ordering for this communicator; `0` disables\nit. `NCCL_CONFIG_UNDEF_INT` is the default and has the same effective\nbehavior as `0`.\n\nCommunicators with different effective values can coexist. Overlap safety is\nabout communication operations that may run concurrently on the same GPU:\n\n* Operations on disabled/default communicators retain the existing\n  multiple-communicator ordering guarantees.\n* Operations on enabled communicators may overlap with operations on other\n  enabled communicators if the application follows the host-side ordering\n  requirements described for [NCCL_LAUNCH_ORDER_IMPLICIT](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-launch-order-implicit).\n* Operations on enabled communicators must not overlap with operations on\n  disabled/default communicators. The application must order or synchronize\n  those operations so they do not overlap, or configure the communicators\n  consistently.\n\nNCCL logs an `INFO` message if a CUDA context has used both enabled and\ndisabled/default effective values, but it still initializes the communicator.\n\nIf [NCCL_LAUNCH_ORDER_IMPLICIT](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-launch-order-implicit) is set in the environment, it overrides\nthis field before initialization.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "lsaBarrierCount": {
+    "doc": "Specifies the number of memory barriers to allocate (see [`ncclLsaBarrierSession`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_memory.html#_CPPv4I0E21ncclLsaBarrierSession \"ncclLsaBarrierSession\")). These barriers are\nnecessary to write fused kernel and may be required by building blocks such as those in [Device API – Remote Reduce and Copy: Building Blocks for Custom Communication Kernels](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_reducecopy.html#device-api-reducecopy).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "lsaMultimem": {
+    "doc": "Specifies whether multimem support is required for all [LSA](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#device-api-lsa) ranks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "lsaSize": {
+    "doc": "Rank within the local [LSA](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#device-api-lsa) team and its size (see [Teams](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#devapi-teams)).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcomm"
+  },
+  "maxCTAs": {
+    "doc": "Set the maximal number of CTAs NCCL should use for each kernel.\nSet to a positive integer value, up to 32. The default value is 32.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "maxP2pPeers": {
+    "doc": "Set the maximum number of peers any rank will concurrently communicate with using P2P communication. Setting this value will influence all send/recv and send/recv-based collectives (all-to-all, scatter, gather). Values less than one or greater than the number of ranks will default to the number of ranks in the communicator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "minCTAs": {
+    "doc": "Set the minimal number of CTAs NCCL should use for each kernel.\nSet to a positive integer value, up to 32. The default value is 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "mode": {
+    "doc": "The encryption mode. Use [`NCCL_ENCRYPTION_MODE_PSK`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclEncryptionConfig_t.NCCL_ENCRYPTION_MODE_PSK \"NCCL_ENCRYPTION_MODE_PSK\") to request TLS encryption for NCCL-owned TCP sockets.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclencryptionconfig-t"
+  },
+  "multimemSupport": {
+    "doc": "Whether ranks in the same [LSA](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#device-api-lsa) team can communicate using multimem. If false,\na [`ncclDevComm`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevComm \"ncclDevComm\") cannot be created with multimem resources.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "nChannelsPerNetPeer": {
+    "doc": "Set the number of network channels to be used for pairwise communication. The value must be a positive integer and will be round up to the next power of 2. The default value is optimized for the AlltoAll communication pattern. Consider increasing the value to increase the bandwidth for send/recv communication.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "nLsaTeams": {
+    "doc": "The number of [LSA](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#device-api-lsa) teams across the entire communicator. Available since NCCL 2.29.7.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "nRanks": {
+    "doc": "The size of the communicator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcomm"
+  },
+  "ncclAvg": {
+    "doc": "Perform an average operation, i.e. a sum across all ranks, divided by the number of ranks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclredop-t"
+  },
+  "ncclBfloat16": {
+    "doc": "16-bits floating point number (truncated precision in bfloat16 format, CUDA 11 or later).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclChar": {
+    "doc": "Signed 8-bits integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclDouble": {
+    "doc": "64-bits floating point number (double precision).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclFloat": {
+    "doc": "32-bits floating point number (single precision).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclFloat16": {
+    "doc": "16-bits floating point number (half precision).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclFloat32": {
+    "doc": "32-bits floating point number (single precision).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclFloat64": {
+    "doc": "64-bits floating point number (double precision).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclFloat8e4m3": {
+    "doc": "8-bits floating point number, 4 exponent bits, 3 mantissa bits (CUDA >= 11.8 and SM >= 90).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclFloat8e5m2": {
+    "doc": "8-bits floating point number, 5 exponent bits, 2 mantissa bits (CUDA >= 11.8 and SM >= 90).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclGin": {
+    "doc": "Initializes a new `ncclGin` object. *comm* is the device communicator created using [`ncclDevCommCreate()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevCommCreate \"ncclDevCommCreate\").\n*contextIndex* is the index of the GIN context – a network communication channel. Using multiple GIN contexts allows\nthe implementation to spread traffic onto multiple connections, avoiding locking and bottlenecks. Therefore,\nperformance-oriented kernels should cycle among the available contexts to improve resource utilization (the number of\navailable contexts is available via `ginContextCount`).\n\n`ncclGin` always represents one specific context. To run a barrier whose fence covers every GIN context on the comm\n(useful when operations have been sharded across multiple contexts – e.g. multi-NIC), pass\n`ncclGinAllContexts(comm)` to `ncclGinBarrier()` in place of an `ncclGin`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#ncclgin"
+  },
+  "ncclHalf": {
+    "doc": "16-bits floating point number (half precision).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclHostCftDefault": {
+    "doc": "Use the version-specific default.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclHostCftMode_t"
+  },
+  "ncclHostCftDisable": {
+    "doc": "Disable host-side CFT support.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclHostCftMode_t"
+  },
+  "ncclHostCftEnable": {
+    "doc": "Enable host-side CFT support.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclHostCftMode_t"
+  },
+  "ncclHostCftFallback": {
+    "doc": "Try to create CFT logical endpoints. In case of an error, host-side CFT will be\ndisabled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclHostCftMode_t"
+  },
+  "ncclInProgress": {
+    "doc": "(`7`)\nA NCCL operation on the communicator is being enqueued and is being progressed in the background.\n\nWhenever a function returns an error (neither ncclSuccess nor ncclInProgress), NCCL should print a more detailed message when the environment variable [NCCL_DEBUG](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-debug) is set to “WARN”.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclresult-t"
+  },
+  "ncclInt": {
+    "doc": "Signed 32-bits integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclInt32": {
+    "doc": "Signed 32-bits integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclInt64": {
+    "doc": "Signed 64-bits integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclInt8": {
+    "doc": "Signed 8-bits integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclInternalError": {
+    "doc": "(`3`)\nAn internal check failed. This is due to either a bug in NCCL or a memory corruption.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclresult-t"
+  },
+  "ncclInvalidArgument": {
+    "doc": "(`4`)\nAn argument has an invalid value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclresult-t"
+  },
+  "ncclInvalidUsage": {
+    "doc": "(`5`)\nThe call to NCCL is incorrect. This is usually reflecting a programming error.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclresult-t"
+  },
+  "ncclLsaBarrierSession": {
+    "doc": "Initializes a new memory barrier session. *coop* represents a cooperative group (see [Thread Groups](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#devapi-coops)).\n*comm* is the device communicator created using [`ncclDevCommCreate()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevCommCreate \"ncclDevCommCreate\").\n*ncclTeamTagLsa* is here to indicate which subset of ranks the barrier will apply to. The identifier of the underlying\nbarrier to use is provided by *index* (it should be different for each *coop*; typically set to `blockIdx.x` to\nensure uniqueness between CTAs). *multimem* requests a hardware-accelerated implementation using memory multicast.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_memory.html#nccllsabarriersession"
+  },
+  "ncclMax": {
+    "doc": "Perform a max operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclredop-t"
+  },
+  "ncclMin": {
+    "doc": "Perform a min operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclredop-t"
+  },
+  "ncclProd": {
+    "doc": "Perform a product (\\*) operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclredop-t"
+  },
+  "ncclRemoteError": {
+    "doc": "(`6`)\nA call failed possibly due to a network error or a remote process exiting prematurely.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclresult-t"
+  },
+  "ncclScalarDevice": {
+    "doc": "The scalar resides on device visible memory and should be dereferenced once\nneeded.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclscalarresidence-t"
+  },
+  "ncclScalarHostImmediate": {
+    "doc": "The scalar resides in host memory and should be dereferenced in the most immediate\nway.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclscalarresidence-t"
+  },
+  "ncclStatGpuMemPersist": {
+    "doc": "Communicator allocated GPU memory that cannot be suspended (bytes).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclcommmemstat-t"
+  },
+  "ncclStatGpuMemSuspend": {
+    "doc": "Communicator allocated GPU memory that can be released via suspend (bytes).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclcommmemstat-t"
+  },
+  "ncclStatGpuMemSuspended": {
+    "doc": "Whether communicator allocated GPU memory is currently suspended (`0` = active, `1` = suspended).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclcommmemstat-t"
+  },
+  "ncclStatGpuMemTotal": {
+    "doc": "Total communicator allocated GPU memory that is tracked by NCCL (bytes).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclcommmemstat-t"
+  },
+  "ncclSuccess": {
+    "doc": "(`0`)\nFunction succeeded.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclresult-t"
+  },
+  "ncclSum": {
+    "doc": "Perform a sum (+) operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclredop-t"
+  },
+  "ncclSystemError": {
+    "doc": "(`2`)\nA call to the system failed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclresult-t"
+  },
+  "ncclUint32": {
+    "doc": "Unsigned 32-bits integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclUint64": {
+    "doc": "Unsigned 64-bits integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclUint8": {
+    "doc": "Unsigned 8-bits integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#nccldatatype-t"
+  },
+  "ncclUnhandledCudaError": {
+    "doc": "(`1`)\nA call to a CUDA function failed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclresult-t"
+  },
+  "netName": {
+    "doc": "Specify the network module name NCCL should use for network communication. The value of netName must match\nexactly the name of the network module (case-insensitive). NCCL internal network module names are “IB”\n(generic IB verbs) and “Socket” (TCP/IP sockets). External network plugins define their own names.\nThe default value is undefined, and NCCL will choose the network module automatically.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "numRmaCtx": {
+    "doc": "(since 2.31)\n\nNumber of one-sided RMA communication contexts to provision on the communicator. The `ctx` argument of\n[`ncclPutSignal()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclPutSignal \"ncclPutSignal\"), [`ncclSignal()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclSignal \"ncclSignal\"), and [`ncclWaitSignal()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclWaitSignal \"ncclWaitSignal\") must lie in `[0, numRmaCtx)`.\nThe default value is 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "numRmaSig": {
+    "doc": "(since 2.31)\n\nSet the number of one-sided RMA signal indexes available per context. The default\nvalue is `1`.\nHost one-sided RMA operations such as [`ncclPutSignal()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclPutSignal \"ncclPutSignal\"), [`ncclSignal()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclSignal \"ncclSignal\"),\nand [`ncclWaitSignal()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclWaitSignal \"ncclWaitSignal\") use `sigIdx` values in the range `[0, numRmaSig)`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "nvlsCTAs": {
+    "doc": "Set the total number of CTAs NCCL should use for NVLS kernels.\nSet to a positive integer value. By default, NCCL will automatically determine the best number of CTAs based on\nthe system configuration.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "nvlsHostMode": {
+    "doc": "(since 2.31)\n\nControls host-side use of NVLink SHARP (NVLS) for a single communicator.\nThe value is a bitmask that can independently disable the NVLS collective\ntransport and multimem use by NCCL’s internal symmetric kernels and Copy\nEngine (CE) collectives. Explicit Device API multimem requests remain\navailable. Selectively disabling host NVLS components on small or infrequently\nused communicators can preserve limited hardware multicast resources for other\ncommunicators that can utilize them more effectively.\n\nSupported values (`ncclNvlsHostMode_t`):\n\n* `ncclNvlsHostModeDefault` — Library-defined default. Currently equivalent\n  to `ncclNvlsHostModeEnable`.\n* `ncclNvlsHostModeEnable` — Enable all host NVLS components.\n* `ncclNvlsHostModeDisableTransport` — Disable the NVLS collective transport\n  and its registered-buffer optimization. The NVLS, NVLS_TREE, and multi-RPN\n  PAT algorithms will be disabled.\n* `ncclNvlsHostModeDisableSymmetricMultimem` — Disable multimem use by NCCL’s\n  internal symmetric kernels and CE collectives. UC symmetric kernels and CE\n  fallbacks remain available.\n* `ncclNvlsHostModeDisable` — Disable all present and future host NVLS\n  components. This value sets all non-reserved bits for forward compatibility.\n\nThe component flags can be combined with the bitwise OR operator. These flags\ndo not affect the communicator’s reported Device API multimem capability and\ndo not prevent explicit Device API calls from allocating multimem resources.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "nvmlDev": {
+    "doc": "NVML device index.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "opCnt": {
+    "doc": "Number of signal operations to wait for.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclWaitSignalDesc_t"
+  },
+  "peer": {
+    "doc": "Target peer to wait for signals from.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclWaitSignalDesc_t"
+  },
+  "psk": {
+    "doc": "Null-terminated pre-shared key string used when `mode` is [`NCCL_ENCRYPTION_MODE_PSK`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclEncryptionConfig_t.NCCL_ENCRYPTION_MODE_PSK \"NCCL_ENCRYPTION_MODE_PSK\"). The key must\ncontain at least 32 bytes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclencryptionconfig-t"
+  },
+  "put": {
+    "doc": "Schedules a device-initiated, one-sided data transfer operation from a local buffer to a remote buffer on a peer.\n\n*peer* is a rank within *team* (see [Teams](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#devapi-teams)); it may refer to the local rank (a loopback). The destination\nand source buffers are each specified using the window (*dstWnd*, *srcWnd*) and a byte-based offset (*dstOffset*,\n*srcOffset*). *bytes* specifies the data transfer count in bytes. If GIN is initialized with connection\ntype [`NCCL_GIN_CONNECTION_RAIL`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinConnectionType_t.NCCL_GIN_CONNECTION_RAIL \"ncclGinConnectionType_t.NCCL_GIN_CONNECTION_RAIL\"), *peer* must be within the same rail team as the local rank.\n\nArguments beyond the first seven are optional. *remoteAction* and *localAction* specify actions\nto undertake on the destination peer and on the local rank when the payload has been settled and the input has been\nconsumed (respectively). They default to `ncclGin_None` (no action); other options include\n`ncclGin_Signal{Inc|Add}` (for *remoteAction*) and `ncclGin_CounterInc` (for *localAction*); see\n[Signals and Counters](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#devapi-signals) below for more details. *coop* indicates the set of threads participating in this operation (see\n[Thread Groups](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#devapi-coops)); it defaults to `ncclCoopThread` (a single device thread), which is the recommended model.\n*bufType* specifies the physical memory composition of the source and destination buffers (see\n[Segment Types](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/deviceapi.html#devapi-segment-types)); it defaults to `ncclGin_SegmentDevice`.\n\nThe visibility of the signal on the destination peer implies the visibility of the put data it is\nattached to. Depending on the signal type, the visibility of the signal may also imply the visibility\nof all the preceding puts to the same peer on the same context.\n\nThe API also defines an alternative, “convenience” variant of this method that uses `ncclSymPtr` types to specify the\nbuffers and expects size to be conveyed in terms of the number of elements instead of the byte count. There are also\ntwo `putValue` variants that take a single element at a time (no greater than eight bytes), passed by value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#ncclgin"
+  },
+  "railGinBarrierCount": {
+    "doc": "Specifies the number of railed network barriers to allocate (see [`ncclGinBarrierSession`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#_CPPv4I0E21ncclGinBarrierSession \"ncclGinBarrierSession\");\navailable since NCCL 2.28.7).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "railedGinType": {
+    "doc": "The railed GIN type supported by the communicator. If equal to [`NCCL_GIN_TYPE_NONE`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinType_t.NCCL_GIN_TYPE_NONE \"ncclGinType_t.NCCL_GIN_TYPE_NONE\"), a\n[`ncclDevComm`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclDevComm \"ncclDevComm\") cannot be created with GIN connection type [`NCCL_GIN_CONNECTION_RAIL`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclGinConnectionType_t.NCCL_GIN_CONNECTION_RAIL \"ncclGinConnectionType_t.NCCL_GIN_CONNECTION_RAIL\").\nAvailable since NCCL 2.29.7, deprecated since NCCL 2.31.\nThis field only reports a single GIN type and predates multi-backend GIN support. New code should use\n[`ginConnectionType`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclCommProperties_t.ginConnectionType \"ginConnectionType\") together with [`ginSupport`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#c.ncclCommProperties_t.ginSupport \"ginSupport\") instead.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#ncclcommproperties-t"
+  },
+  "rank": {
+    "doc": "The rank within the communicator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcomm"
+  },
+  "resourceRequirementsList": {
+    "doc": "Specifies a list of resource requirements. This is best set to NULL for now.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "rmaEagerInit": {
+    "doc": "(since 2.31)\n\nControls when the collective one-sided RMA signal setup is initialized. With\n`0` (default), it is initialized during the first window registration\n([`ncclCommWindowRegister()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/comms.html#c.ncclCommWindowRegister \"ncclCommWindowRegister\")), a collective point. Use `1` to initialize\nit at communicator-init time instead; this is required if a communicator issues\n[`ncclSignal()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclSignal \"ncclSignal\") or [`ncclWaitSignal()`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclWaitSignal \"ncclWaitSignal\") without first registering a\nwindow, which otherwise returns `ncclInvalidUsage`.\n\nIf [NCCL_RMA_EAGER_INIT](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/env.html#nccl-rma-eager-init) is set in the environment, it overrides this field\nbefore initialization.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "shrinkShare": {
+    "doc": "Specify whether to share resources with child communicator during communicator shrink.\nSet the value of shrinkShare to 0 or 1. The default value is 0.\nNote: when shrink is used with NCCL_SHRINK_ABORT, the value of shrinkShare is ignored and no resources are shared. When the parent communicator has been revoked, resource sharing is also disabled.\nThe behavior of this flag is similar to splitShare, see above.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "sigIdx": {
+    "doc": "Signal index identifier. Prior to NCCL 2.31, it must be set to 0.\nSince NCCL 2.31, it may be set in the range `[0, numRmaSig)` (see `numRmaSig`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/p2p.html#c.ncclWaitSignalDesc_t"
+  },
+  "splitShare": {
+    "doc": "Specify whether to share resources with child communicator during communicator split.\nSet the value of splitShare to 0 or 1. The default value is 0.\nWhen the parent communicator is created with splitShare=1 during ncclCommInitRankConfig, the child\ncommunicator can share internal resources of the parent during communicator split. Split communicators\nare in the same family. When resources are shared, aborting any communicator can result in\nother communicators in the same family becoming unusable. Irrespective of whether sharing resources or not, users should\nalways abort/destroy all no longer needed communicators to free up resources.\nNote: when the parent communicator has been revoked, resource sharing during split is disabled regardless of this flag.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "sync": {
+    "doc": "Synchronizes all threads of all team members that participate in the barrier session (combines `arrive` and\n`wait`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_memory.html#nccllsabarriersession"
+  },
+  "teamRequirementsList": {
+    "doc": "Specifies a list of requirements for particular teams. This is best set to NULL for now.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  },
+  "trafficClass": {
+    "doc": "Set the traffic class (TC) to use for network operations on the communicator.\nThe meaning of TC is specific to the network plugin in use by the\ncommunicator (e.g. IB networks use service level, RoCE networks use type of service).\nAssigning different TCs to each communicator can benefit workloads which\noverlap communication. TCs are defined by the system configuration and should be greater\nthan or equal to 0. Note that environment variables, such as NCCL_IB_SL and NCCL_IB_TC,\ntake precedence over user-specified TC values. To utilize user-defined TCs, ensure that\nthese environment variables are unset.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclConfig_t"
+  },
+  "userProfilerTag": {
+    "doc": "(since 2.31)\n\nAn opaque value delivered with the call’s events to profiler plugins that\nsupport profiler interface v7. Zero denotes an untagged call; older profiler\ninterfaces ignore the tag.\n\nThe tag does not affect execution. NCCL reserves values with the\nmost-significant bit set for possible future use; applications should use\nvalues with that bit clear.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t"
+  },
+  "wait": {
+    "doc": "Blocks until all threads of all team members arrive at the barrier session.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_memory.html#nccllsabarriersession"
+  },
+  "worldGinBarrierCount": {
+    "doc": "Specifies the number of world network barriers to allocate. Available since NCCL 2.30.3.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_setup.html#nccldevcommrequirements"
+  }
+}

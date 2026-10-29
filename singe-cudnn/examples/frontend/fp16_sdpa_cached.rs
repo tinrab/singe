@@ -1,21 +1,24 @@
 mod common;
 
-use std::collections::HashMap;
+use std::{
+    env::args,
+    sync::{Arc, Mutex},
+};
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
     backend::tensor::{Shape, TensorId, TensorSpec},
-    context::Context,
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
-        composite::sdpa::SdpaInputs,
-        graph::{DataTypePolicy, Graph, GraphConfig},
+        composite::sdpa::{SdpaForwardOutputTensors, SdpaInputs},
+        error::Error as FrontendError,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
-            AttentionConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
-            SdpaAuxOutputRequest,
+            AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand, AttentionMaskMode,
+            AttentionScoreConfig, AttentionSequenceInputs,
         },
-        plan::CompiledGraph,
+        plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode, PlanCache},
     },
 };
 
@@ -26,16 +29,19 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
         .collect()
 }
 
-fn create_sdpa_forward_graph() -> Result<(
-    Graph,
-    TensorId,
-    TensorId,
-    TensorId,
-    TensorId,
-    TensorId,
-    TensorId,
-    TensorId,
-)> {
+struct SdpaGraph {
+    graph: Graph,
+    q: TensorId,
+    k: TensorId,
+    v: TensorId,
+    scale: TensorId,
+    sequence_length_query: TensorId,
+    sequence_length_key_value: TensorId,
+    o: TensorId,
+    stats: TensorId,
+}
+
+fn create_sdpa_forward_graph() -> Result<SdpaGraph> {
     let b = 3_i64;
     let h = 4_i64;
     let s_q = 1024_i64;
@@ -54,129 +60,215 @@ fn create_sdpa_forward_graph() -> Result<(
             ),
     );
 
-    let q = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_q, d_qk])?).with_id(1001),
-    );
-    let k = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_kv, d_qk])?).with_id(1002),
-    );
-    let v = graph.tensor(
-        TensorSpec::new(DataType::BF16, Shape::contiguous([b, h, s_kv, d_v])?).with_id(1003),
-    );
-    let scale = graph.tensor(TensorSpec::scalar_f32(0.123)?);
-    let sequence_length_query = graph
-        .tensor(TensorSpec::new(DataType::I32, Shape::contiguous([b, 1, 1, 1])?).with_id(1007));
-    let sequence_length_key_value = graph
-        .tensor(TensorSpec::new(DataType::I32, Shape::contiguous([b, 1, 1, 1])?).with_id(1008));
+    let q = graph.tensor(TensorSpec::new(
+        DataType::BF16,
+        Shape::contiguous([b, h, s_q, d_qk])?,
+    ));
+    let k = graph.tensor(TensorSpec::new(
+        DataType::BF16,
+        Shape::contiguous([b, h, s_kv, d_qk])?,
+    ));
+    let v = graph.tensor(TensorSpec::new(
+        DataType::BF16,
+        Shape::contiguous([b, h, s_kv, d_v])?,
+    ));
+    let scale = graph.tensor(TensorSpec::scalar_f32(0.123));
+    let sequence_length_query = graph.tensor(TensorSpec::new(
+        DataType::I32,
+        Shape::contiguous([b, 1, 1, 1])?,
+    ));
+    let sequence_length_key_value = graph.tensor(TensorSpec::new(
+        DataType::I32,
+        Shape::contiguous([b, 1, 1, 1])?,
+    ));
 
-    let outputs = graph.sdpa_auto_infer(
+    let outputs = graph.sdpa_auto(
         SdpaInputs {
             query: q,
             key: k,
             value: v,
-            scale: scale,
+            scale,
         },
-        AttentionConfig::new(DataType::F32)
-            .with_aux_outputs(SdpaAuxOutputRequest::stats_only())
-            .with_score_config(AttentionScoreConfig::new().with_mask_mode(
-                AttentionMaskMode::CausalTopLeftWithPadding {
-                    sequence_length_query: sequence_length_query,
-                    sequence_length_key_value: sequence_length_key_value,
-                },
-            )),
+        AttentionConfig::new().with_score_config(
+            AttentionScoreConfig::new()
+                .with_sequence_inputs(AttentionSequenceInputs::per_batch(
+                    sequence_length_query,
+                    sequence_length_key_value,
+                ))
+                .with_mask_mode(AttentionMaskMode::DiagonalBand(
+                    AttentionDiagonalBand::causal(AttentionDiagonalAlignment::TopLeft)
+                        .with_padding(true),
+                )),
+        ),
+        SdpaForwardOutputTensors::new(TensorOutputConfig::new().output_tensor())
+            .with_stats(TensorOutputConfig::new().output_tensor()),
     )?;
-    let o = outputs.output();
-    let stats = outputs.stats();
-
+    let o = outputs.output;
+    let sequence_major = Shape::contiguous([s_q, b, h, d_v])?;
+    let strides = sequence_major.strides();
     graph.replace_tensor(
         o,
         TensorSpec::new(
             DataType::BF16,
-            Shape::contiguous([b, h, s_q, d_v])?.with_strides(vec![
-                h * d_v,
-                d_v,
-                b * h * d_v,
-                1,
-            ])?,
+            Shape::with_strides(
+                [b, h, s_q, d_v],
+                [strides[1], strides[2], strides[0], strides[3]],
+            )?,
         )
-        .output_tensor()
-        .with_id(1004),
+        .output_tensor(),
     )?;
-    let stats = stats.expect("stats requested");
-    let stats_tensor = graph
-        .tensor_config(stats)?
-        .clone()
-        .output_tensor()
-        .with_id(1005);
-    graph.replace_tensor(stats, stats_tensor)?;
+    let stats = outputs.stats.ok_or(FrontendError::OperationMissingOutput)?;
 
-    Ok((
+    Ok(SdpaGraph {
         graph,
         q,
         k,
         v,
+        scale,
         sequence_length_query,
         sequence_length_key_value,
         o,
         stats,
-    ))
-}
-
-fn cache_lookup_prebuilt_graph(
-    cache: &mut HashMap<u64, CompiledGraph>,
-    context: &Context,
-    graph: &Graph,
-) -> Result<(u64, bool)> {
-    let key = graph.key()?;
-    if cache.contains_key(&key) {
-        return Ok((key, true));
-    }
-
-    cache.insert(
-        key,
-        graph.compile(context, &[HeuristicMode::A, HeuristicMode::Fallback])?,
-    );
-    Ok((key, false))
+    })
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-    let mut cache = HashMap::<u64, CompiledGraph>::new();
+    let example = common::ExampleContext::create()?;
+    let cache_last_plan = args().any(|argument| argument == "--cache-last-plan");
+    let cache = Arc::new(Mutex::new(PlanCache::new()));
+    let config = CompileConfig::new()
+        .with_heuristic_modes(vec![HeuristicMode::A, HeuristicMode::Fallback])
+        .with_build_policy(if cache_last_plan {
+            BuildPlanPolicy::AllSupported
+        } else {
+            BuildPlanPolicy::FirstSupported
+        });
+    let mut first_graph = create_sdpa_forward_graph()?;
+    first_graph.graph.attach_plan_cache(Arc::clone(&cache));
+    let first_key = first_graph
+        .graph
+        .plan_cache_key(&config, Some(&example.cudnn))?;
+    let mut first = first_graph.graph.compile(Some(&example.cudnn), &config)?;
+    if cache_last_plan {
+        if let Some(plan) = first.plan_ids().pop() {
+            first.set_default_plan(&plan)?;
+        }
+        cache
+            .lock()
+            .map_err(|_| FrontendError::PlanCacheLockPoisoned)?
+            .insert(first_key.clone(), first.cached_plan_choices());
+    }
+    println!(
+        "preferred engine: {:?}",
+        first.engine_metadata().engine_index
+    );
 
-    let (graph, q, k, v, sequence_length_query, sequence_length_key_value, o, stats) =
-        create_sdpa_forward_graph()?;
+    // A fresh graph has different tensor IDs. Only its ordered topology and compilation attributes matter.
+    let SdpaGraph {
+        mut graph,
+        q,
+        k,
+        v,
+        scale,
+        sequence_length_query,
+        sequence_length_key_value,
+        o,
+        stats,
+    } = create_sdpa_forward_graph()?;
+    graph.attach_plan_cache(Arc::clone(&cache));
 
-    let (key, hit0) = cache_lookup_prebuilt_graph(&mut cache, &ctx.cudnn, &graph)?;
-    assert!(!hit0);
-
-    let (key2, hit1) = cache_lookup_prebuilt_graph(&mut cache, &ctx.cudnn, &graph)?;
-    assert_eq!(key, key2);
-    assert!(hit1);
-
-    let compiled = cache.get(&key).expect("cached forward graph");
+    // Diagnostic names and runtime defaults do not change the engine-choice cache key.
+    // Fresh descriptors and bindings still use this graph's current scalar default.
+    graph.set_name("renamed-cached-sdpa-forward");
+    let query_spec = graph.tensor_spec(q)?.clone().with_name("query-buffer");
+    graph.replace_tensor(q, query_spec)?;
+    graph.replace_tensor(scale, TensorSpec::scalar_f32(0.25))?;
+    let second_key = graph.plan_cache_key(&config, Some(&example.cudnn))?;
+    let compiled = graph.compile(Some(&example.cudnn), &config)?;
+    println!(
+        "rebuilt engine: {:?}",
+        compiled.engine_metadata().engine_index
+    );
+    drop(first);
+    let cached_graphs = cache
+        .lock()
+        .map_err(|_| FrontendError::PlanCacheLockPoisoned)?
+        .len();
+    println!("first key={first_key}, second key={second_key}, cached graphs={cached_graphs}");
 
     let mut seed = 123_456_789_u32;
-    let mut q_dev = DeviceMemory::from_slice(&init_bf16_image(3 * 4 * 1024 * 128, &mut seed))?;
-    let mut k_dev = DeviceMemory::from_slice(&init_bf16_image(3 * 4 * 1024 * 128, &mut seed))?;
-    let mut v_dev = DeviceMemory::from_slice(&init_bf16_image(3 * 4 * 1024 * 128, &mut seed))?;
-    let mut seq_len_q_dev = DeviceMemory::from_slice(&vec![20_i32; 3])?;
-    let mut seq_len_kv_dev = DeviceMemory::from_slice(&vec![20_i32; 3])?;
-    let mut o_dev = DeviceMemory::<bf16>::zeroes(3 * 4 * 1024 * 128)?;
-    let mut stats_dev = DeviceMemory::<f32>::zeroes(3 * 4 * 1024)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
+    let q_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(
+            compiled.tensor_info(q)?.spec.shape.storage_span()?,
+            &mut seed,
+        ),
+    )?;
+    let k_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(
+            compiled.tensor_info(k)?.spec.shape.storage_span()?,
+            &mut seed,
+        ),
+    )?;
+    let v_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(
+            compiled.tensor_info(v)?.spec.shape.storage_span()?,
+            &mut seed,
+        ),
+    )?;
+    let seq_len_q_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &vec![
+            20_i32;
+            compiled
+                .tensor_info(sequence_length_query)?
+                .spec
+                .shape
+                .storage_span()?
+        ],
+    )?;
+    let seq_len_kv_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &vec![
+            20_i32;
+            compiled
+                .tensor_info(sequence_length_key_value)?
+                .spec
+                .shape
+                .storage_span()?
+        ],
+    )?;
+    let mut o_dev = DeviceMemory::<bf16>::zeroed(
+        example.cudnn.cuda_context(),
+        compiled.tensor_info(o)?.spec.shape.storage_span()?,
+    )?;
+    let mut stats_dev = DeviceMemory::<f32>::zeroed(
+        example.cudnn.cuda_context(),
+        compiled.tensor_info(stats)?.spec.shape.storage_span()?,
+    )?;
+    let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
 
-    let mut bindings = compiled.bindings();
-    bindings.set(q, &mut q_dev)?;
-    bindings.set(k, &mut k_dev)?;
-    bindings.set(v, &mut v_dev)?;
-    bindings.set(sequence_length_query, &mut seq_len_q_dev)?;
-    bindings.set(sequence_length_key_value, &mut seq_len_kv_dev)?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(q, &q_dev)?;
+    bindings.set_input(k, &k_dev)?;
+    bindings.set_input(v, &v_dev)?;
+    bindings.set_input(sequence_length_query, &seq_len_q_dev)?;
+    bindings.set_input(sequence_length_key_value, &seq_len_kv_dev)?;
     bindings.set(o, &mut o_dev)?;
     bindings.set(stats, &mut stats_dev)?;
 
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-    assert_eq!(cache.len(), 1);
+    for _ in 0..2 {
+        // SAFETY: inputs and sequence metadata are initialized, and all bindings cover the retained layouts.
+        // Plans, scalars, outputs and workspace remain live through completion, including enqueue failure.
+        example.execute_and_wait(|context| unsafe {
+            compiled.execute(
+                context,
+                ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            )
+        })?;
+    }
 
     Ok(())
 }

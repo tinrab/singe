@@ -1,3 +1,5 @@
+//! Discovers cuFile libraries and emits Cargo linker metadata.
+
 use singe_cuda_find::{
     emit_dependency_metadata, emit_library_path_metadata, emit_link_libraries,
     emit_rerun_if_env_changed, find_cuda_driver_path, find_cufile,

@@ -4,9 +4,9 @@ description = "Procedural macros for working with CUDA."
 version = "0.1.0-alpha.9"
 edition.workspace = true
 repository.workspace = true
-keywords = ["singe", "cuda", "ptx", "macros", "nvidia"]
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
+keywords = ["singe", "cuda", "ptx", "macros", "nvidia"]
 include.workspace = true
 
 [lib]

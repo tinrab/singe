@@ -1,3 +1,4 @@
+cuda_path := "$CUDA_PATH"
 cusparse_include_path := "$CUSPARSE_INCLUDE_PATH"
 
 generate:
@@ -29,6 +30,7 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -I {{cuda_path}}/include \
             -I {{cusparse_include_path}} \
         > bindings.rs
 

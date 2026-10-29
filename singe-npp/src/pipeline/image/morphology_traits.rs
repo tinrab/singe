@@ -1,45 +1,46 @@
-use crate::{
-    context::StreamContext,
-    error::Result,
-    image::view::{C1, ImageView, ImageViewMut},
-    types::{BorderType, Point, Size},
-};
-
 pub use self::composite_traits::{
     CompositeMorphologyBorderImage, CompositeMorphologyBorderScratchImage,
 };
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::view::{C1, ImageOutputView, ImageView, ImageWindow},
+    types::{BorderType, Point, Size},
+};
 
-#[path = "morphology_composite_traits.rs"]
 mod composite_traits;
 
-pub(super) type GrayMaskMorphologyBorderOperation<T, M> =
-    for<'source, 'destination> fn(
-        &StreamContext,
-        &ImageView<'source, T, C1>,
-        Point,
-        &mut ImageViewMut<'destination, T, C1>,
-        &[M],
-        Size,
-        Point,
-        BorderType,
-    ) -> Result<()>;
+pub type GrayMaskMorphologyBorderOperation<T, M> = for<'source, 'destination> fn(
+    &StreamContext,
+    &ImageView<'source, T, C1>,
+    Point,
+    &mut ImageOutputView<'destination, T, C1>,
+    &[M],
+    Size,
+    Point,
+    BorderType,
+) -> Result<()>;
 
-pub(super) type MaskMorphologyBorderOperation<T, L> = for<'source, 'destination> fn(
+pub type MaskMorphologyBorderOperation<T, L> = for<'source, 'destination> fn(
     &StreamContext,
     &ImageView<'source, T, L>,
     Point,
-    &mut ImageViewMut<'destination, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
     &[u8],
     Size,
     Point,
     BorderType,
 ) -> Result<()>;
 
-pub trait MaskMorphologyImage<T, L> {
+/// # Safety
+/// Preserve the native ABI and validate the full initialized source footprint.
+/// Complete borrowed native work on every path.
+/// Successful dispatch writes every active ROI channel with valid values; ignored alpha stays unchanged.
+pub unsafe trait MaskMorphologyImage<T, L> {
     fn dilate_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask: &[u8],
         mask_size: Size,
         anchor: Point,
@@ -47,34 +48,42 @@ pub trait MaskMorphologyImage<T, L> {
 
     fn erode_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask: &[u8],
         mask_size: Size,
         anchor: Point,
     ) -> Result<()>;
 }
 
-pub trait Morphology3x3Image<T, L> {
+/// # Safety
+/// Preserve the native ABI and validate the full initialized source footprint.
+/// Complete borrowed native work on every path.
+/// Successful dispatch writes every active ROI channel with valid values; ignored alpha stays unchanged.
+pub unsafe trait Morphology3x3Image<T, L> {
     fn dilate_3x3_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()>;
 
     fn erode_3x3_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()>;
 }
 
-pub trait MaskMorphologyBorderImage<T, L> {
+/// # Safety
+/// Preserve the native ABI and validate the full initialized source footprint.
+/// Complete borrowed native work on every path.
+/// Successful dispatch writes every active ROI channel with valid values; ignored alpha stays unchanged.
+pub unsafe trait MaskMorphologyBorderImage<T, L> {
     fn dilate_border_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask: &[u8],
         mask_size: Size,
         anchor: Point,
@@ -85,7 +94,7 @@ pub trait MaskMorphologyBorderImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask: &[u8],
         mask_size: Size,
         anchor: Point,
@@ -93,12 +102,16 @@ pub trait MaskMorphologyBorderImage<T, L> {
     ) -> Result<()>;
 }
 
-pub trait Morphology3x3BorderImage<T, L> {
+/// # Safety
+/// Preserve the native ABI and validate the full initialized source footprint.
+/// Complete borrowed native work on every path.
+/// Successful dispatch writes every active ROI channel with valid values; ignored alpha stays unchanged.
+pub unsafe trait Morphology3x3BorderImage<T, L> {
     fn dilate_3x3_border_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         border_type: BorderType,
     ) -> Result<()>;
 
@@ -106,17 +119,19 @@ pub trait Morphology3x3BorderImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         border_type: BorderType,
     ) -> Result<()>;
 }
 
-pub trait GrayMaskMorphologyBorderImage<T, M> {
+/// # Safety
+/// Complete borrowed native work on every path and uphold the declared operation coverage and ABI.
+pub unsafe trait GrayMaskMorphologyBorderImage<T, M> {
     fn gray_dilate_border_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, C1>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, C1>,
+        destination: &mut ImageOutputView<'_, T, C1>,
         mask: &[M],
         mask_size: Size,
         anchor: Point,
@@ -127,7 +142,7 @@ pub trait GrayMaskMorphologyBorderImage<T, M> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, C1>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, C1>,
+        destination: &mut ImageOutputView<'_, T, C1>,
         mask: &[M],
         mask_size: Size,
         anchor: Point,

@@ -1,18 +1,11 @@
 use std::path::Path;
 
-use singe_onnx::{AttributeValue, TensorData, TensorDataType};
+use singe_onnx::{AttributeValue, TensorDataType, TensorElements};
 
 #[test]
-fn parses_generated_image_classifier_export() {
+#[ignore = "optional external classifier export; generate it with just test-prepare"]
+fn test_parses_generated_image_classifier_export() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/image_classifier_model.onnx");
-    if !path.exists() {
-        eprintln!(
-            "warning: skipping ONNX export parser test because {} is missing; run `just prepare` to generate it",
-            path.display()
-        );
-        return;
-    }
-
     let model = singe_onnx::read_path(path).expect("parse generated ONNX model");
 
     assert_eq!(model.producer_name, "pytorch");
@@ -44,7 +37,7 @@ fn parses_generated_image_classifier_export() {
         .expect("conv1.weight initializer");
     assert_eq!(conv_weight.data_type, TensorDataType::Float);
     assert_eq!(conv_weight.dimensions, [6, 1, 5, 5]);
-    assert!(matches!(conv_weight.data, Some(TensorData::Raw(_))));
+    assert!(matches!(conv_weight.data, Some(TensorElements::Raw(_))));
 
     let conv = model
         .graph

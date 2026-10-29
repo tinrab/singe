@@ -1,9 +1,36 @@
-use super::*;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+use std::sync::Arc;
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(feature = "dtype_bf16")]
+use cutile::half::bf16;
+#[cfg(feature = "dtype_f16")]
+use cutile::half::f16;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
+
+#[cfg(feature = "dtype_f32")]
+use crate::cuda::cutile::attention::PagedSlidingWindowAttention;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16"))]
+use crate::{cuda::cutile::attention::SlidingWindowAttention, utility::checked_element_count};
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+use crate::{
+    cuda::cutile::{
+        DeviceOpExt,
+        attention::{PagedKvDecodeAttention, PagedKvPrefillAttention, RaggedKvPrefillAttention},
+        kernel::attention as kernel_attention,
+        runtime::tile_kernel::TileKernel,
+        utility::checked_device_pointer,
+    },
+    error::{Error, Result},
+};
+
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! sliding_window_attention_half_fn {
     ($name:ident, $ty:ty, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             query: DevicePointer<$ty>,
@@ -33,10 +60,10 @@ macro_rules! sliding_window_attention_half_fn {
             scale: f32,
             output_scale: f32,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             let params = SlidingWindowAttention::create(
                 batch,
@@ -90,6 +117,7 @@ macro_rules! sliding_window_attention_half_fn {
             } = params;
 
             match head_dim {
+                // SAFETY: the caller upholds this function's safety contract.
                 4 => unsafe {
                     kernel_attention::$hd4(
                         out,
@@ -124,6 +152,7 @@ macro_rules! sliding_window_attention_half_fn {
                 }
                 .grid(grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 8 => unsafe {
                     kernel_attention::$hd8(
                         out,
@@ -158,6 +187,7 @@ macro_rules! sliding_window_attention_half_fn {
                 }
                 .grid(grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 16 => unsafe {
                     kernel_attention::$hd16(
                         out,
@@ -192,6 +222,7 @@ macro_rules! sliding_window_attention_half_fn {
                 }
                 .grid(grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 32 => unsafe {
                     kernel_attention::$hd32(
                         out,
@@ -226,6 +257,7 @@ macro_rules! sliding_window_attention_half_fn {
                 }
                 .grid(grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 64 => unsafe {
                     kernel_attention::$hd64(
                         out,
@@ -272,7 +304,7 @@ macro_rules! sliding_window_attention_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 sliding_window_attention_half_fn!(
     sliding_window_attention_f16,
     f16,
@@ -282,7 +314,8 @@ sliding_window_attention_half_fn!(
     sliding_window_attention_f16_hd32,
     sliding_window_attention_f16_hd64
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 sliding_window_attention_half_fn!(
     sliding_window_attention_bf16,
     bf16,
@@ -293,8 +326,11 @@ sliding_window_attention_half_fn!(
     sliding_window_attention_bf16_hd64
 );
 
-#[cfg(feature = "dtype-f16")]
-pub fn swa_attention_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn swa_attention_f16(
     stream: &Arc<Stream>,
     out: DevicePointer<f16>,
     query: DevicePointer<f16>,
@@ -318,40 +354,46 @@ pub fn swa_attention_f16(
     } else {
         window_size
     };
-    sliding_window_attention_f16(
-        stream,
-        out,
-        query,
-        key,
-        value,
-        batch,
-        query_len,
-        key_len,
-        heads,
-        heads,
-        head_dim,
-        0,
-        0,
-        window,
-        checked_element_count(query_len, features)?,
-        checked_element_count(key_len, features)?,
-        checked_element_count(key_len, features)?,
-        checked_element_count(query_len, features)?,
-        features,
-        features,
-        features,
-        features,
-        head_dim,
-        head_dim,
-        head_dim,
-        head_dim,
-        scale,
-        1.0,
-    )
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        sliding_window_attention_f16(
+            stream,
+            out,
+            query,
+            key,
+            value,
+            batch,
+            query_len,
+            key_len,
+            heads,
+            heads,
+            head_dim,
+            0,
+            0,
+            window,
+            checked_element_count(query_len, features)?,
+            checked_element_count(key_len, features)?,
+            checked_element_count(key_len, features)?,
+            checked_element_count(query_len, features)?,
+            features,
+            features,
+            features,
+            features,
+            head_dim,
+            head_dim,
+            head_dim,
+            head_dim,
+            scale,
+            1.0,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn swa_attention_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn swa_attention_bf16(
     stream: &Arc<Stream>,
     out: DevicePointer<bf16>,
     query: DevicePointer<bf16>,
@@ -375,43 +417,49 @@ pub fn swa_attention_bf16(
     } else {
         window_size
     };
-    sliding_window_attention_bf16(
-        stream,
-        out,
-        query,
-        key,
-        value,
-        batch,
-        query_len,
-        key_len,
-        heads,
-        heads,
-        head_dim,
-        0,
-        0,
-        window,
-        checked_element_count(query_len, features)?,
-        checked_element_count(key_len, features)?,
-        checked_element_count(key_len, features)?,
-        checked_element_count(query_len, features)?,
-        features,
-        features,
-        features,
-        features,
-        head_dim,
-        head_dim,
-        head_dim,
-        head_dim,
-        scale,
-        1.0,
-    )
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        sliding_window_attention_bf16(
+            stream,
+            out,
+            query,
+            key,
+            value,
+            batch,
+            query_len,
+            key_len,
+            heads,
+            heads,
+            head_dim,
+            0,
+            0,
+            window,
+            checked_element_count(query_len, features)?,
+            checked_element_count(key_len, features)?,
+            checked_element_count(key_len, features)?,
+            checked_element_count(query_len, features)?,
+            features,
+            features,
+            features,
+            features,
+            head_dim,
+            head_dim,
+            head_dim,
+            head_dim,
+            scale,
+            1.0,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 /// Causal left-window attention over a paged KV cache.
 ///
 /// The dense and paged variants use the same left-window mask semantics.
-pub fn sliding_window_attention_paged_kv_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn sliding_window_attention_paged_kv_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -445,11 +493,11 @@ pub fn sliding_window_attention_paged_kv_f32(
     scale: f32,
     output_scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key_cache)?;
-    checked_device_pointer(value_cache)?;
-    checked_device_pointer(block_table)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key_cache)?;
+    checked_device_pointer(&value_cache)?;
+    checked_device_pointer(&block_table)?;
 
     let params = PagedSlidingWindowAttention::create(
         batch,
@@ -509,6 +557,7 @@ pub fn sliding_window_attention_paged_kv_f32(
     } = params;
 
     match head_dim {
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_attention::sliding_window_attention_paged_kv_f32_hd8(
                 out,
@@ -547,6 +596,7 @@ pub fn sliding_window_attention_paged_kv_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_attention::sliding_window_attention_paged_kv_f32_hd16(
                 out,
@@ -585,6 +635,7 @@ pub fn sliding_window_attention_paged_kv_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_attention::sliding_window_attention_paged_kv_f32_hd32(
                 out,
@@ -623,6 +674,7 @@ pub fn sliding_window_attention_paged_kv_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         64 => unsafe {
             kernel_attention::sliding_window_attention_paged_kv_f32_hd64(
                 out,
@@ -671,8 +723,11 @@ pub fn sliding_window_attention_paged_kv_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn paged_kv_decode_attention_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn paged_kv_decode_attention_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -689,12 +744,12 @@ pub fn paged_kv_decode_attention_f32(
     block_table_batch_stride: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key_cache)?;
-    checked_device_pointer(value_cache)?;
-    checked_device_pointer(actual_seq_lens)?;
-    checked_device_pointer(block_table)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key_cache)?;
+    checked_device_pointer(&value_cache)?;
+    checked_device_pointer(&actual_seq_lens)?;
+    checked_device_pointer(&block_table)?;
 
     let params = PagedKvDecodeAttention::create(
         batch,
@@ -708,6 +763,7 @@ pub fn paged_kv_decode_attention_f32(
     )?;
     macro_rules! launch {
         ($kernel:ident) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -746,9 +802,13 @@ pub fn paged_kv_decode_attention_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! paged_kv_decode_attention_half_fn {
     ($name:ident, $dtype:ty, $op:literal, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$dtype>,
             query: DevicePointer<$dtype>,
@@ -765,12 +825,12 @@ macro_rules! paged_kv_decode_attention_half_fn {
             block_table_batch_stride: usize,
             scale: f32,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key_cache)?;
-            checked_device_pointer(value_cache)?;
-            checked_device_pointer(actual_seq_lens)?;
-            checked_device_pointer(block_table)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key_cache)?;
+            checked_device_pointer(&value_cache)?;
+            checked_device_pointer(&actual_seq_lens)?;
+            checked_device_pointer(&block_table)?;
 
             let params = PagedKvDecodeAttention::create(
                 batch,
@@ -784,6 +844,7 @@ macro_rules! paged_kv_decode_attention_half_fn {
             )?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -824,7 +885,7 @@ macro_rules! paged_kv_decode_attention_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 paged_kv_decode_attention_half_fn!(
     paged_kv_decode_attention_f16,
     f16,
@@ -836,7 +897,7 @@ paged_kv_decode_attention_half_fn!(
     paged_kv_decode_attention_f16_hd64
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 paged_kv_decode_attention_half_fn!(
     paged_kv_decode_attention_bf16,
     bf16,
@@ -848,8 +909,11 @@ paged_kv_decode_attention_half_fn!(
     paged_kv_decode_attention_bf16_hd64
 );
 
-#[cfg(feature = "dtype-f32")]
-pub fn paged_kv_prefill_attention_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn paged_kv_prefill_attention_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -871,15 +935,15 @@ pub fn paged_kv_prefill_attention_f32(
     causal: bool,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key_cache)?;
-    checked_device_pointer(value_cache)?;
-    checked_device_pointer(actual_seq_lens_q)?;
-    checked_device_pointer(actual_seq_lens_kv)?;
-    checked_device_pointer(actual_seq_offsets)?;
-    checked_device_pointer(block_table)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key_cache)?;
+    checked_device_pointer(&value_cache)?;
+    checked_device_pointer(&actual_seq_lens_q)?;
+    checked_device_pointer(&actual_seq_lens_kv)?;
+    checked_device_pointer(&actual_seq_offsets)?;
+    checked_device_pointer(&block_table)?;
 
     let params = PagedKvPrefillAttention::create(
         batch,
@@ -895,6 +959,7 @@ pub fn paged_kv_prefill_attention_f32(
     )?;
     macro_rules! launch {
         ($kernel:ident) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -938,9 +1003,13 @@ pub fn paged_kv_prefill_attention_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! paged_kv_prefill_attention_half_fn {
     ($name:ident, $ty:ty, $op:literal, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             lse: DevicePointer<f32>,
@@ -962,15 +1031,15 @@ macro_rules! paged_kv_prefill_attention_half_fn {
             causal: bool,
             scale: f32,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(lse)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key_cache)?;
-            checked_device_pointer(value_cache)?;
-            checked_device_pointer(actual_seq_lens_q)?;
-            checked_device_pointer(actual_seq_lens_kv)?;
-            checked_device_pointer(actual_seq_offsets)?;
-            checked_device_pointer(block_table)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&lse)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key_cache)?;
+            checked_device_pointer(&value_cache)?;
+            checked_device_pointer(&actual_seq_lens_q)?;
+            checked_device_pointer(&actual_seq_lens_kv)?;
+            checked_device_pointer(&actual_seq_offsets)?;
+            checked_device_pointer(&block_table)?;
 
             let params = PagedKvPrefillAttention::create(
                 batch,
@@ -986,6 +1055,7 @@ macro_rules! paged_kv_prefill_attention_half_fn {
             )?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -1031,7 +1101,7 @@ macro_rules! paged_kv_prefill_attention_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 paged_kv_prefill_attention_half_fn!(
     paged_kv_prefill_attention_f16,
     f16,
@@ -1043,7 +1113,7 @@ paged_kv_prefill_attention_half_fn!(
     paged_kv_prefill_attention_f16_hd64
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 paged_kv_prefill_attention_half_fn!(
     paged_kv_prefill_attention_bf16,
     bf16,
@@ -1055,8 +1125,11 @@ paged_kv_prefill_attention_half_fn!(
     paged_kv_prefill_attention_bf16_hd64
 );
 
-#[cfg(feature = "dtype-f32")]
-pub fn ragged_kv_prefill_attention_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn ragged_kv_prefill_attention_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -1075,14 +1148,14 @@ pub fn ragged_kv_prefill_attention_f32(
     causal: bool,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
-    checked_device_pointer(actual_seq_lens_q)?;
-    checked_device_pointer(actual_seq_lens_kv)?;
-    checked_device_pointer(actual_seq_offsets)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
+    checked_device_pointer(&actual_seq_lens_q)?;
+    checked_device_pointer(&actual_seq_lens_kv)?;
+    checked_device_pointer(&actual_seq_offsets)?;
 
     let params = RaggedKvPrefillAttention::create(
         batch,
@@ -1096,6 +1169,7 @@ pub fn ragged_kv_prefill_attention_f32(
     )?;
     macro_rules! launch {
         ($kernel:ident) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -1136,9 +1210,13 @@ pub fn ragged_kv_prefill_attention_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! ragged_kv_prefill_attention_half_fn {
     ($name:ident, $ty:ty, $op:literal, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             lse: DevicePointer<f32>,
@@ -1157,14 +1235,14 @@ macro_rules! ragged_kv_prefill_attention_half_fn {
             causal: bool,
             scale: f32,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(lse)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
-            checked_device_pointer(actual_seq_lens_q)?;
-            checked_device_pointer(actual_seq_lens_kv)?;
-            checked_device_pointer(actual_seq_offsets)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&lse)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
+            checked_device_pointer(&actual_seq_lens_q)?;
+            checked_device_pointer(&actual_seq_lens_kv)?;
+            checked_device_pointer(&actual_seq_offsets)?;
 
             let params = RaggedKvPrefillAttention::create(
                 batch,
@@ -1178,6 +1256,7 @@ macro_rules! ragged_kv_prefill_attention_half_fn {
             )?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -1220,7 +1299,7 @@ macro_rules! ragged_kv_prefill_attention_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 ragged_kv_prefill_attention_half_fn!(
     ragged_kv_prefill_attention_f16,
     f16,
@@ -1232,7 +1311,7 @@ ragged_kv_prefill_attention_half_fn!(
     ragged_kv_prefill_attention_f16_hd64
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 ragged_kv_prefill_attention_half_fn!(
     ragged_kv_prefill_attention_bf16,
     bf16,

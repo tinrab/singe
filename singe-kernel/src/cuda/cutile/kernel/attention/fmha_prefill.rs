@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     const VECTOR_TILE_SIZE: i32 = 128;
 
     #[cutile::entry(
@@ -129,7 +131,7 @@ mod kernels {
                     + output_query_offsets
                         * broadcast_scalar(output_sequence_stride, const_shape![16])
                     + broadcast_scalar(head * output_head_stride + dim, const_shape![16]);
-            store_vector_16(out, output_offsets, column, query_valid);
+            unsafe { store_vector_16(out, output_offsets, column, query_valid) };
         }
 
         // Save log-sum-exp in natural-log units for callers.
@@ -137,6 +139,186 @@ mod kernels {
         // `row_sum` is the unlogged sum of exp2(score - row_max) terms.
         let lse_values = row_max * broadcast_scalar(log2, const_shape![16, 1]) + log(row_sum);
         lse.store(lse_values.reshape(const_shape![1, 16]));
+    }
+
+    #[cutile::entry(
+        unchecked_accesses = false,
+        optimization_hints = (
+            sm_120 = (num_cta_in_cga = 1, max_divisibility = 16,),
+        )
+    )]
+
+    /// Computes tiled half-precision GQA with f32 accumulation and optional natural-log LSE.
+    ///
+    /// # Safety
+    /// `T` must be f16 or bf16, and the tile dimensions must support half-precision MMA.
+    /// Launch one x block per batch/query head and one y block per 16 query rows.
+    /// Output strides and allocations must cover every output element.
+    /// When `SAVE_LSE` is nonzero, `lse` must cover `[batch, heads, query_len]`.
+    /// Keep all buffers alive and order conflicting accesses until completion and throughout graph replay.
+    pub unsafe fn fmha_prefill_mma<
+        T: ElementType,
+        const BN: i32,
+        const D: i32,
+        const SAVE_LSE: i32,
+    >(
+        out: *mut T,
+        lse: *mut f32,
+        query: &Tensor<T, { [-1, -1, -1, -1] }>,
+        key: &Tensor<T, { [-1, -1, -1, -1] }>,
+        value: &Tensor<T, { [-1, -1, -1, -1] }>,
+        output_batch_stride: i32,
+        output_sequence_stride: i32,
+        output_head_stride: i32,
+        scale: f32,
+        causal: i32,
+        query_group_size: i32,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+
+        // Grid x packs batch and query head.
+        // Grid y selects a 16-query tile.
+        // Grouped-query attention maps multiple Q heads to one KV head.
+        let heads = query.shape()[2];
+        let batch_index = pid.0 / heads;
+        let head = pid.0 - batch_index * heads;
+        let query_tile = pid.1;
+        let kv_head = head / query_group_size;
+        let key_len = key.shape()[1];
+        let key_tiles = ceil_div(key_len, BN);
+
+        let two: Tile<f32, { [] }> = constant(2.0f32, const_shape![]);
+        let log2: f32 = tile_to_scalar(log(two));
+        let scale_log2: Tile<f32, { [16, BN] }> =
+            broadcast_scalar(scale / log2, const_shape![16, BN]);
+
+        // Online softmax state.
+        // `row_max` and `row_sum` track the stable normalization over all visited K tiles.
+        // `acc` keeps the unnormalized weighted sum of V.
+        let mut row_max: Tile<f32, { [16, 1] }> = constant(f32::NEG_INFINITY, const_shape![16, 1]);
+        let mut row_sum: Tile<f32, { [16, 1] }> = constant(0.0f32, const_shape![16, 1]);
+        let mut acc: Tile<f32, { [16, D] }> = constant(0.0f32, const_shape![16, D]);
+
+        // Load the resident Q tile once.
+        // K/V are streamed one BN-column tile at a time below.
+        let query_part = query.partition(const_shape![1, 16, 1, D]);
+        let query_tile_values: Tile<T, { [16, D] }> = query_part
+            .load([batch_index, query_tile, head, 0i32])
+            .reshape(const_shape![16, D]);
+
+        let key_part = key.partition(const_shape![1, BN, 1, D]);
+        let value_part = value.partition(const_shape![1, BN, 1, D]);
+
+        let query_offsets: Tile<i32, { [16] }> =
+            iota(const_shape![16]) + broadcast_scalar(query_tile * 16, const_shape![16]);
+        let query_offsets = query_offsets.reshape(const_shape![16, 1]);
+        let query_offsets: Tile<i32, { [16, BN] }> = query_offsets.broadcast(const_shape![16, BN]);
+        let key_offsets_base: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let key_offsets_base: Tile<i32, { [16, BN] }> = key_offsets_base
+            .reshape(const_shape![1, BN])
+            .broadcast(const_shape![16, BN]);
+        let key_len_tile: Tile<i32, { [16, BN] }> = broadcast_scalar(key_len, const_shape![16, BN]);
+        let mask_false: Tile<f32, { [16, BN] }> = constant(f32::NEG_INFINITY, const_shape![16, BN]);
+
+        for key_tile in 0i32..key_tiles {
+            // Compute QK^T for this K tile.
+            // Padded keys and future keys are masked before converting to exp2 scale.
+            let key_values: Tile<T, { [BN, D] }> = key_part
+                .load([batch_index, key_tile, kv_head, 0i32])
+                .reshape(const_shape![BN, D]);
+            let key_values_t: Tile<T, { [D, BN] }> = key_values.transpose();
+            let mut scores: Tile<f32, { [16, BN] }> = constant(0.0f32, const_shape![16, BN]);
+            scores = mma(query_tile_values, key_values_t, scores);
+
+            let key_offsets: Tile<i32, { [16, BN] }> =
+                broadcast_scalar(key_tile * BN, const_shape![16, BN]) + key_offsets_base;
+            let mut valid = lt_tile(key_offsets, key_len_tile);
+            if causal != 0i32 {
+                valid = valid & ge_tile(query_offsets, key_offsets);
+            }
+            scores = select(valid, scores * scale_log2, mask_false);
+
+            // Merge the current tile into the running online softmax.
+            // When the row max increases, rescale the existing row sum and accumulator.
+            let tile_max: Tile<f32, { [16] }> = reduce_max(scores, 1);
+            let tile_max: Tile<f32, { [16, 1] }> = tile_max.reshape(const_shape![16, 1]);
+            let next_max = max_tile(row_max, tile_max);
+            let centered = scores - next_max.broadcast(const_shape![16, BN]);
+            let probabilities: Tile<f32, { [16, BN] }> = exp2(centered, ftz::Disabled);
+            let tile_sum: Tile<f32, { [16] }> = reduce_sum(probabilities, 1);
+            let tile_sum: Tile<f32, { [16, 1] }> = tile_sum.reshape(const_shape![16, 1]);
+            let alpha: Tile<f32, { [16, 1] }> = exp2(row_max - next_max, ftz::Disabled);
+            row_sum = row_sum * alpha + tile_sum;
+            acc = acc * alpha.broadcast(const_shape![16, D]);
+
+            let value_values: Tile<T, { [BN, D] }> = value_part
+                .load([batch_index, key_tile, kv_head, 0i32])
+                .reshape(const_shape![BN, D]);
+            let probabilities_half: Tile<T, { [16, BN] }> = convert_tile(probabilities);
+            acc = mma(probabilities_half, value_values, acc);
+            row_max = next_max;
+        }
+
+        // Finish softmax normalization.
+        // Store the output tile using the supplied layout strides.
+        let normalized = true_div(acc, row_sum.broadcast(const_shape![16, D]));
+        let output_query_offsets: Tile<i32, { [16] }> =
+            iota(const_shape![16]) + broadcast_scalar(query_tile * 16, const_shape![16]);
+        let query_valid = lt_tile(
+            output_query_offsets,
+            broadcast_scalar(query.shape()[1], const_shape![16]),
+        );
+        let store_shape = const_shape![16, D];
+        let rows: Tile<i32, { [16, D] }> = output_query_offsets
+            .reshape(const_shape![16, 1])
+            .broadcast(store_shape);
+        let dims: Tile<i32, { [D] }> = iota(const_shape![D]);
+        let dims: Tile<i32, { [1, D] }> = dims.reshape(const_shape![1, D]);
+        let dims: Tile<i32, { [16, D] }> = dims.broadcast(store_shape);
+        let offsets: Tile<i32, { [16, D] }> = broadcast_scalar(
+            batch_index * output_batch_stride + head * output_head_stride,
+            store_shape,
+        ) + rows
+            * broadcast_scalar(output_sequence_stride, store_shape)
+            + dims;
+        let valid: Tile<bool, { [16, D] }> = query_valid
+            .reshape(const_shape![16, 1])
+            .broadcast(store_shape);
+        let values: Tile<T, { [16, D] }> = convert_tile(normalized);
+        let ptrs: PointerTile<*mut T, { [] }> = pointer_to_tile(out);
+        let ptrs: PointerTile<*mut T, { [1, 1] }> = ptrs.reshape(const_shape![1, 1]);
+        let ptrs: PointerTile<*mut T, { [16, D] }> = ptrs.broadcast(store_shape);
+        let ptrs: PointerTile<*mut T, { [16, D] }> = ptrs.offset_tile(offsets);
+        unsafe {
+            store_ptr_tko(
+                ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(valid),
+                None,
+                Latency::<0>,
+            )
+        };
+
+        // Save log-sum-exp in natural-log units for callers.
+        // `row_max` is tracked in log2 units.
+        // `row_sum` is the unlogged sum of exp2(score - row_max) terms.
+        let lse_values = row_max * broadcast_scalar(log2, const_shape![16, 1]) + log(row_sum);
+        if SAVE_LSE != 0 {
+            let offsets = broadcast_scalar(
+                (batch_index * heads + head) * query.shape()[1],
+                const_shape![16],
+            ) + output_query_offsets;
+            unsafe {
+                store_vector_16(
+                    lse,
+                    offsets,
+                    lse_values.reshape(const_shape![16]),
+                    query_valid,
+                )
+            };
+        }
     }
 
     #[cutile::entry()]
@@ -168,34 +350,36 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_lse_f32::<4>(
-            out,
-            lse,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_lse_f32::<4>(
+                out,
+                lse,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -227,34 +411,36 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_lse_f32::<8>(
-            out,
-            lse,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_lse_f32::<8>(
+                out,
+                lse,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -286,34 +472,36 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_lse_f32::<16>(
-            out,
-            lse,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_lse_f32::<16>(
+                out,
+                lse,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -345,34 +533,36 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_lse_f32::<32>(
-            out,
-            lse,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_lse_f32::<32>(
+                out,
+                lse,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -404,34 +594,36 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_lse_f32::<64>(
-            out,
-            lse,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_lse_f32::<64>(
+                out,
+                lse,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -463,34 +655,36 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_lse_f32::<128>(
-            out,
-            lse,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_lse_f32::<128>(
+                out,
+                lse,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -522,34 +716,36 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_lse_f32::<256>(
-            out,
-            lse,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_lse_f32::<256>(
+                out,
+                lse,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -580,33 +776,35 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_f32::<4>(
-            out,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_f32::<4>(
+                out,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -637,33 +835,35 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_f32::<8>(
-            out,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_f32::<8>(
+                out,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -694,33 +894,35 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_f32::<16>(
-            out,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_f32::<16>(
+                out,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -751,33 +953,35 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_f32::<32>(
-            out,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_f32::<32>(
+                out,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -808,33 +1012,35 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_f32::<64>(
-            out,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_f32::<64>(
+                out,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -865,33 +1071,35 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_f32::<128>(
-            out,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_f32::<128>(
+                out,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -922,36 +1130,38 @@ mod kernels {
         output_len: i32,
         output_values_per_batch: i32,
     ) {
-        fmha_prefill_f32::<256>(
-            out,
-            query,
-            key,
-            value,
-            batch,
-            query_len,
-            key_len,
-            heads,
-            kv_heads,
-            query_batch_stride,
-            key_batch_stride,
-            value_batch_stride,
-            output_batch_stride,
-            query_sequence_stride,
-            key_sequence_stride,
-            value_sequence_stride,
-            output_sequence_stride,
-            query_head_stride,
-            key_head_stride,
-            value_head_stride,
-            output_head_stride,
-            scale,
-            causal,
-            output_len,
-            output_values_per_batch,
-        );
+        unsafe {
+            fmha_prefill_f32::<256>(
+                out,
+                query,
+                key,
+                value,
+                batch,
+                query_len,
+                key_len,
+                heads,
+                kv_heads,
+                query_batch_stride,
+                key_batch_stride,
+                value_batch_stride,
+                output_batch_stride,
+                query_sequence_stride,
+                key_sequence_stride,
+                value_sequence_stride,
+                output_sequence_stride,
+                query_head_stride,
+                key_head_stride,
+                value_head_stride,
+                output_head_stride,
+                scale,
+                causal,
+                output_len,
+                output_values_per_batch,
+            )
+        };
     }
 
-    fn sliding_window_attention_f32<const HEAD_DIM: i32, const WINDOW: i32>(
+    unsafe fn sliding_window_attention_f32<const HEAD_DIM: i32, const WINDOW: i32>(
         out: *mut f32,
         query: *mut f32,
         key: *mut f32,
@@ -1096,7 +1306,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
@@ -1106,10 +1316,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn fmha_prefill_lse_f32<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_lse_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -1247,7 +1457,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -1258,17 +1468,17 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         // LSE is shared by all dimensions of the same query/head row.
         // Only the first head-dimension lane writes it to avoid duplicate stores.
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let lse_offsets = lse_offsets * broadcast_scalar(_query_len, tile_shape) + query_index;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn mla_score_f32(
+    unsafe fn mla_score_f32(
         query: *mut f32,
         query_pe: *mut f32,
         key: *mut f32,
@@ -1301,8 +1511,8 @@ mod kernels {
                 + broadcast_scalar(key_index * kv_features, tile_shape)
                 + kv_head * broadcast_scalar(head_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         for dim_index in 0i32..pe_dim {
@@ -1314,14 +1524,14 @@ mod kernels {
                 + broadcast_scalar(key_index * kpe_features, tile_shape)
                 + kv_head * broadcast_scalar(pe_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query_pe, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key_pe, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn sparse_mla_score_f32(
+    unsafe fn sparse_mla_score_f32(
         query: *mut f32,
         query_pe: *mut f32,
         key: *mut f32,
@@ -1353,8 +1563,8 @@ mod kernels {
                 + key_index * broadcast_scalar(kv_features, tile_shape)
                 + kv_head * broadcast_scalar(head_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         for dim_index in 0i32..pe_dim {
@@ -1365,14 +1575,14 @@ mod kernels {
             let key_offsets = key_pe_batch_base
                 + key_index * broadcast_scalar(pe_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query_pe, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key_pe, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn mla_decode_split_score_f32(
+    unsafe fn mla_decode_split_score_f32(
         query: *mut f32,
         query_pe: *mut f32,
         key_value: *mut f32,
@@ -1397,8 +1607,8 @@ mod kernels {
             let key_offsets = key_batch_base
                 + key_index * broadcast_scalar(head_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_value, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key_value, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         for dim_index in 0i32..pe_dim {
@@ -1408,14 +1618,14 @@ mod kernels {
             let key_offsets = key_pe_batch_base
                 + key_index * broadcast_scalar(pe_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query_pe, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key_pe, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn mla_decode_score_f32(
+    unsafe fn mla_decode_score_f32(
         query: *mut f32,
         query_pe: *mut f32,
         key_value: *mut f32,
@@ -1441,8 +1651,8 @@ mod kernels {
                 + broadcast_scalar(dim_index, tile_shape);
             let key_offsets =
                 key_batch_base + broadcast_scalar(key_index * head_dim + dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_value, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key_value, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         for dim_index in 0i32..pe_dim {
@@ -1451,8 +1661,8 @@ mod kernels {
                 + broadcast_scalar(dim_index, tile_shape);
             let key_offsets =
                 key_pe_batch_base + broadcast_scalar(key_index * pe_dim + dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query_pe, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key_pe, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         let _ = q_features;
@@ -1460,7 +1670,7 @@ mod kernels {
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn mla_decode_score_paged_f32(
+    unsafe fn mla_decode_score_paged_f32(
         query: *mut f32,
         query_pe: *mut f32,
         key_value_cache: *mut f32,
@@ -1489,8 +1699,8 @@ mod kernels {
                 * broadcast_scalar(key_value_cache_block_stride, tile_shape)
                 + block_token * broadcast_scalar(head_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_value_cache, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key_value_cache, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         for dim_index in 0i32..pe_dim {
@@ -1501,8 +1711,8 @@ mod kernels {
                 * broadcast_scalar(key_pe_cache_block_stride, tile_shape)
                 + block_token * broadcast_scalar(pe_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe_cache, key_offsets, valid, 0.0f32);
+            let query_values = unsafe { load_vector(query_pe, query_offsets, valid, 0.0f32) };
+            let key_values = unsafe { load_vector(key_pe_cache, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
         let _ = q_features;
@@ -1510,7 +1720,7 @@ mod kernels {
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn mla_decode_score_paged_f16(
+    unsafe fn mla_decode_score_paged_f16(
         query: *mut f16,
         query_pe: *mut f16,
         key_value_cache: *mut f16,
@@ -1539,8 +1749,8 @@ mod kernels {
                 * broadcast_scalar(key_value_cache_block_stride, tile_shape)
                 + block_token * broadcast_scalar(head_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector_f16_as_f32(query, query_offsets, valid);
-            let key_values = load_vector_f16_as_f32(key_value_cache, key_offsets, valid);
+            let query_values = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+            let key_values = unsafe { load_vector_f16_as_f32(key_value_cache, key_offsets, valid) };
             score = score + query_values * key_values;
         }
         for dim_index in 0i32..pe_dim {
@@ -1551,8 +1761,8 @@ mod kernels {
                 * broadcast_scalar(key_pe_cache_block_stride, tile_shape)
                 + block_token * broadcast_scalar(pe_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector_f16_as_f32(query_pe, query_offsets, valid);
-            let key_values = load_vector_f16_as_f32(key_pe_cache, key_offsets, valid);
+            let query_values = unsafe { load_vector_f16_as_f32(query_pe, query_offsets, valid) };
+            let key_values = unsafe { load_vector_f16_as_f32(key_pe_cache, key_offsets, valid) };
             score = score + query_values * key_values;
         }
         let _ = q_features;
@@ -1560,7 +1770,7 @@ mod kernels {
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn mla_decode_score_paged_bf16(
+    unsafe fn mla_decode_score_paged_bf16(
         query: *mut bf16,
         query_pe: *mut bf16,
         key_value_cache: *mut bf16,
@@ -1589,8 +1799,9 @@ mod kernels {
                 * broadcast_scalar(key_value_cache_block_stride, tile_shape)
                 + block_token * broadcast_scalar(head_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector_bf16_as_f32(query, query_offsets, valid);
-            let key_values = load_vector_bf16_as_f32(key_value_cache, key_offsets, valid);
+            let query_values = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+            let key_values =
+                unsafe { load_vector_bf16_as_f32(key_value_cache, key_offsets, valid) };
             score = score + query_values * key_values;
         }
         for dim_index in 0i32..pe_dim {
@@ -1601,8 +1812,8 @@ mod kernels {
                 * broadcast_scalar(key_pe_cache_block_stride, tile_shape)
                 + block_token * broadcast_scalar(pe_dim, tile_shape)
                 + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector_bf16_as_f32(query_pe, query_offsets, valid);
-            let key_values = load_vector_bf16_as_f32(key_pe_cache, key_offsets, valid);
+            let query_values = unsafe { load_vector_bf16_as_f32(query_pe, query_offsets, valid) };
+            let key_values = unsafe { load_vector_bf16_as_f32(key_pe_cache, key_offsets, valid) };
             score = score + query_values * key_values;
         }
         let _ = q_features;
@@ -1610,7 +1821,7 @@ mod kernels {
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn fmha_prefill_f32<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         query: *mut f32,
         key: *mut f32,
@@ -1742,7 +1953,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -1753,10 +1964,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn attention_sink_prefill_f32<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_prefill_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         query: *mut f32,
         key: *mut f32,
@@ -1820,7 +2031,7 @@ mod kernels {
                 zero_i32,
             )
         };
-        let sink = load_vector(sinks, head, valid, 0.0f32);
+        let sink = unsafe { load_vector(sinks, head, valid, 0.0f32) };
 
         let mut max_score = sink;
         for key_index in 0i32..key_len {
@@ -1920,7 +2131,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -1931,10 +2142,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn softcapped_window_attention_f32<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_attention_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         query: *mut f32,
         key: *mut f32,
@@ -2055,7 +2266,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -2066,10 +2277,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn softcapped_window_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key: *mut f16,
@@ -2186,7 +2397,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -2197,10 +2408,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn softcapped_window_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key: *mut bf16,
@@ -2317,7 +2528,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -2328,7 +2539,7 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
     }
 
     fn softcapped_window_key_valid(
@@ -2376,7 +2587,7 @@ mod kernels {
         }
     }
 
-    fn fmha_decode_lse_f32<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_lse_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -2431,8 +2642,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -2461,8 +2672,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -2474,7 +2685,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -2484,14 +2695,14 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn softcapped_window_decode_lse_f32<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_lse_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -2552,8 +2763,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -2588,8 +2799,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -2605,7 +2816,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -2615,19 +2826,21 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(
-            lse,
-            lse_offsets,
-            max_score + log(denom),
-            valid & has_values & first_dim,
-        );
+        unsafe {
+            store_vector(
+                lse,
+                lse_offsets,
+                max_score + log(denom),
+                valid & has_values & first_dim,
+            )
+        };
     }
 
-    fn softcapped_window_decode_lse_f16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_lse_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -2688,8 +2901,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -2724,8 +2937,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -2741,7 +2954,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -2751,19 +2964,21 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(
-            lse,
-            lse_offsets,
-            max_score + log(denom),
-            valid & has_values & first_dim,
-        );
+        unsafe {
+            store_vector(
+                lse,
+                lse_offsets,
+                max_score + log(denom),
+                valid & has_values & first_dim,
+            )
+        };
     }
 
-    fn softcapped_window_decode_lse_bf16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_lse_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -2824,8 +3039,9 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -2860,8 +3076,9 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -2877,7 +3094,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -2887,16 +3104,18 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(
-            lse,
-            lse_offsets,
-            max_score + log(denom),
-            valid & has_values & first_dim,
-        );
+        unsafe {
+            store_vector(
+                lse,
+                lse_offsets,
+                max_score + log(denom),
+                valid & has_values & first_dim,
+            )
+        };
     }
 
     fn softcapped_window_decode_key_valid(
@@ -2918,7 +3137,7 @@ mod kernels {
         key_valid
     }
 
-    fn fmha_decode_splitk_f32<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_splitk_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -2990,8 +3209,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -3027,8 +3246,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -3040,7 +3259,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -3052,7 +3271,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -3060,10 +3279,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn softcapped_window_decode_splitk_f32<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_splitk_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -3140,8 +3359,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3182,8 +3401,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3199,7 +3418,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -3210,7 +3429,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -3218,10 +3437,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn softcapped_window_decode_splitk_f16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_splitk_f16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f16,
@@ -3298,8 +3517,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3340,8 +3559,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3357,7 +3576,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -3368,7 +3587,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -3376,10 +3595,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn softcapped_window_decode_splitk_bf16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_splitk_bf16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut bf16,
@@ -3456,8 +3675,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3498,8 +3718,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3515,7 +3736,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -3526,7 +3747,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -3534,7 +3755,7 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
     fn softcapped_window_decode_split_key_valid(
@@ -3562,7 +3783,7 @@ mod kernels {
         key_valid
     }
 
-    fn attention_sink_decode_splitk_f32<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_decode_splitk_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -3645,8 +3866,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -3664,7 +3885,7 @@ mod kernels {
         }
 
         let first_split = cmpi(split, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let sink = load_vector(sinks, head, valid & first_split, -1.0e20f32);
+        let sink = unsafe { load_vector(sinks, head, valid & first_split, -1.0e20f32) };
         max_score = select(
             valid
                 & first_split
@@ -3699,8 +3920,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -3712,7 +3933,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -3728,7 +3949,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -3736,10 +3957,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_terms, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn attention_sink_decode_splitk_f16<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_decode_splitk_f16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f16,
@@ -3822,8 +4043,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -3841,7 +4062,7 @@ mod kernels {
         }
 
         let first_split = cmpi(split, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let sink = load_vector(sinks, head, valid & first_split, -1.0e20f32);
+        let sink = unsafe { load_vector(sinks, head, valid & first_split, -1.0e20f32) };
         max_score = select(
             valid
                 & first_split
@@ -3876,8 +4097,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -3889,7 +4110,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -3905,7 +4126,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -3913,10 +4134,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_terms, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn attention_sink_decode_splitk_bf16<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_decode_splitk_bf16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut bf16,
@@ -3999,8 +4220,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -4018,7 +4240,7 @@ mod kernels {
         }
 
         let first_split = cmpi(split, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let sink = load_vector(sinks, head, valid & first_split, -1.0e20f32);
+        let sink = unsafe { load_vector(sinks, head, valid & first_split, -1.0e20f32) };
         max_score = select(
             valid
                 & first_split
@@ -4053,8 +4275,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -4066,7 +4289,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4082,7 +4305,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -4090,10 +4313,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_terms, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn fmha_prefill_lse_f16<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_lse_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -4222,7 +4445,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4233,15 +4456,15 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let lse_offsets = lse_offsets * broadcast_scalar(_query_len, tile_shape) + query_index;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn fmha_prefill_lse_bf16<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_lse_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -4370,7 +4593,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4381,15 +4604,15 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let lse_offsets = lse_offsets * broadcast_scalar(_query_len, tile_shape) + query_index;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn fmha_prefill_f16<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key: *mut f16,
@@ -4517,7 +4740,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4528,10 +4751,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn fmha_prefill_bf16<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key: *mut bf16,
@@ -4659,7 +4882,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4670,10 +4893,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn attention_sink_prefill_f16<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_prefill_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key: *mut f16,
@@ -4737,7 +4960,7 @@ mod kernels {
                 zero_i32,
             )
         };
-        let sink = load_vector(sinks, head, valid, 0.0f32);
+        let sink = unsafe { load_vector(sinks, head, valid, 0.0f32) };
 
         let mut max_score = sink;
         for key_index in 0i32..key_len {
@@ -4833,7 +5056,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4844,10 +5067,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn attention_sink_prefill_bf16<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_prefill_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key: *mut bf16,
@@ -4911,7 +5134,7 @@ mod kernels {
                 zero_i32,
             )
         };
-        let sink = load_vector(sinks, head, valid, 0.0f32);
+        let sink = unsafe { load_vector(sinks, head, valid, 0.0f32) };
 
         let mut max_score = sink;
         for key_index in 0i32..key_len {
@@ -5007,7 +5230,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5018,10 +5241,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn fmha_decode_lse_f16<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_lse_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -5076,8 +5299,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5106,8 +5329,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5119,7 +5342,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5129,14 +5352,14 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn fmha_decode_lse_bf16<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_lse_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -5191,8 +5414,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, valid);
+                let query_tile = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5221,8 +5444,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, valid);
+                let query_tile = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5234,7 +5457,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5244,14 +5467,14 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn fmha_decode_splitk_f16<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_splitk_f16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f16,
@@ -5323,8 +5546,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5360,8 +5583,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5373,7 +5596,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5385,7 +5608,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -5393,10 +5616,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn fmha_decode_splitk_bf16<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_splitk_bf16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut bf16,
@@ -5468,8 +5691,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5505,8 +5729,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5518,7 +5743,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5530,7 +5755,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -5538,10 +5763,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn sliding_window_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn sliding_window_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key: *mut f16,
@@ -5677,7 +5902,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
@@ -5687,10 +5912,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn sliding_window_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn sliding_window_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key: *mut bf16,
@@ -5826,7 +6051,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
@@ -5836,10 +6061,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn attention_score_f16<const HEAD_DIM: i32>(
+    unsafe fn attention_score_f16<const HEAD_DIM: i32>(
         query: *mut f16,
         key: *mut f16,
         query_batch_base: Tile<i32, { [128] }>,
@@ -5866,14 +6091,14 @@ mod kernels {
                 + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector_f16_as_f32(query, query_offsets, valid);
-            let k = load_vector_f16_as_f32(key, key_offsets, valid);
+            let q = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+            let k = unsafe { load_vector_f16_as_f32(key, key_offsets, valid) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn attention_score_bf16<const HEAD_DIM: i32>(
+    unsafe fn attention_score_bf16<const HEAD_DIM: i32>(
         query: *mut bf16,
         key: *mut bf16,
         query_batch_base: Tile<i32, { [128] }>,
@@ -5900,14 +6125,14 @@ mod kernels {
                 + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector_bf16_as_f32(query, query_offsets, valid);
-            let k = load_vector_bf16_as_f32(key, key_offsets, valid);
+            let q = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+            let k = unsafe { load_vector_bf16_as_f32(key, key_offsets, valid) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn sliding_window_attention_paged_kv_f32<const HEAD_DIM: i32, const WINDOW: i32>(
+    unsafe fn sliding_window_attention_paged_kv_f32<const HEAD_DIM: i32, const WINDOW: i32>(
         out: *mut f32,
         query: *mut f32,
         key_cache: *mut f32,
@@ -5978,14 +6203,16 @@ mod kernels {
                     query_abs,
                     predicate::GreaterThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6042,14 +6269,16 @@ mod kernels {
                     query_abs,
                     predicate::GreaterThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6087,7 +6316,8 @@ mod kernels {
                 + block_token * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value_cache, value_offsets, block_valid, 0.0f32);
+            let value_tile =
+                unsafe { load_vector(value_cache, value_offsets, block_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
@@ -6097,10 +6327,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn paged_kv_decode_attention_f32<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_decode_attention_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         query: *mut f32,
         key_cache: *mut f32,
@@ -6132,7 +6362,7 @@ mod kernels {
         let dim = batch_output_offset - head * broadcast_scalar(HEAD_DIM, tile_shape);
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
+        let seq_len = unsafe { load_i32_vector(actual_seq_lens, batch_index, valid, 0i32) };
         let key_sequence_stride = kv_heads * HEAD_DIM;
         let key_head_stride = HEAD_DIM;
         let key_cache_block_stride = block_size * key_sequence_stride;
@@ -6146,14 +6376,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6204,14 +6436,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6248,7 +6482,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value_cache, value_offsets, block_valid, 0.0f32);
+            let value_tile =
+                unsafe { load_vector(value_cache, value_offsets, block_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -6259,10 +6494,10 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector(out, offsets, output, valid);
+        unsafe { store_vector(out, offsets, output, valid) };
     }
 
-    fn paged_kv_decode_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_decode_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key_cache: *mut f16,
@@ -6294,7 +6529,7 @@ mod kernels {
         let dim = batch_output_offset - head * broadcast_scalar(HEAD_DIM, tile_shape);
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
+        let seq_len = unsafe { load_i32_vector(actual_seq_lens, batch_index, valid, 0i32) };
         let key_sequence_stride = kv_heads * HEAD_DIM;
         let key_head_stride = HEAD_DIM;
         let key_cache_block_stride = block_size * key_sequence_stride;
@@ -6308,14 +6543,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6366,14 +6603,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6410,7 +6649,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value_cache, value_offsets, block_valid);
+            let value_tile =
+                unsafe { load_vector_f16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -6421,10 +6661,10 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_f16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, offsets, output, valid) };
     }
 
-    fn paged_kv_decode_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_decode_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key_cache: *mut bf16,
@@ -6456,7 +6696,7 @@ mod kernels {
         let dim = batch_output_offset - head * broadcast_scalar(HEAD_DIM, tile_shape);
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
+        let seq_len = unsafe { load_i32_vector(actual_seq_lens, batch_index, valid, 0i32) };
         let key_sequence_stride = kv_heads * HEAD_DIM;
         let key_head_stride = HEAD_DIM;
         let key_cache_block_stride = block_size * key_sequence_stride;
@@ -6470,14 +6710,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6528,14 +6770,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6572,7 +6816,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value_cache, value_offsets, block_valid);
+            let value_tile =
+                unsafe { load_vector_bf16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -6583,10 +6828,10 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_bf16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, offsets, output, valid) };
     }
 
-    fn paged_kv_prefill_attention_f32<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_prefill_attention_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -6627,8 +6872,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let seq_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let seq_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(global_token, seq_offset, predicate::GreaterThanOrEqual)
                 & cmpi(
@@ -6647,7 +6894,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let key_sequence_stride = kv_heads * HEAD_DIM;
@@ -6672,14 +6920,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6739,14 +6989,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6782,7 +7034,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value_cache, value_offsets, block_valid, 0.0f32);
+            let value_tile =
+                unsafe { load_vector(value_cache, value_offsets, block_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -6793,16 +7046,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector(out, offsets, output, valid);
+        unsafe { store_vector(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn paged_kv_prefill_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_prefill_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -6843,8 +7096,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let seq_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let seq_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(global_token, seq_offset, predicate::GreaterThanOrEqual)
                 & cmpi(
@@ -6863,7 +7118,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let key_sequence_stride = kv_heads * HEAD_DIM;
@@ -6888,14 +7144,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6955,14 +7213,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -6998,7 +7258,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value_cache, value_offsets, block_valid);
+            let value_tile =
+                unsafe { load_vector_f16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -7009,16 +7270,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_f16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn paged_kv_prefill_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_prefill_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -7059,8 +7320,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let seq_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let seq_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(global_token, seq_offset, predicate::GreaterThanOrEqual)
                 & cmpi(
@@ -7079,7 +7342,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let key_sequence_stride = kv_heads * HEAD_DIM;
@@ -7104,14 +7368,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7171,14 +7437,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7214,7 +7482,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value_cache, value_offsets, block_valid);
+            let value_tile =
+                unsafe { load_vector_bf16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -7225,16 +7494,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_bf16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn ragged_kv_prefill_attention_f32<const HEAD_DIM: i32>(
+    unsafe fn ragged_kv_prefill_attention_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -7274,8 +7543,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let candidate_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let candidate_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(
                     global_token,
@@ -7299,7 +7570,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let query_batch_base = global_token * broadcast_scalar(features, tile_shape);
@@ -7393,7 +7665,7 @@ mod kernels {
                 * broadcast_scalar(kv_features, tile_shape)
                 + kv_head * broadcast_scalar(HEAD_DIM, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -7404,16 +7676,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector(out, offsets, output, valid);
+        unsafe { store_vector(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn ragged_kv_prefill_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn ragged_kv_prefill_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -7453,8 +7725,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let candidate_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let candidate_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(
                     global_token,
@@ -7478,7 +7752,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let query_batch_base = global_token * broadcast_scalar(features, tile_shape);
@@ -7568,7 +7843,7 @@ mod kernels {
                 * broadcast_scalar(kv_features, tile_shape)
                 + kv_head * broadcast_scalar(HEAD_DIM, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -7579,16 +7854,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_f16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn ragged_kv_prefill_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn ragged_kv_prefill_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -7628,8 +7903,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let candidate_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let candidate_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(
                     global_token,
@@ -7653,7 +7930,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let query_batch_base = global_token * broadcast_scalar(features, tile_shape);
@@ -7743,7 +8021,7 @@ mod kernels {
                 * broadcast_scalar(kv_features, tile_shape)
                 + kv_head * broadcast_scalar(HEAD_DIM, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -7754,16 +8032,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_bf16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn attention_score<const HEAD_DIM: i32>(
+    unsafe fn attention_score<const HEAD_DIM: i32>(
         query: *mut f32,
         key: *mut f32,
         query_batch_base: Tile<i32, { [128] }>,
@@ -7792,14 +8070,14 @@ mod kernels {
                 + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector(query, query_offsets, valid, 0.0f32);
-            let k = load_vector(key, key_offsets, valid, 0.0f32);
+            let q = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let k = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn attention_score_paged<const HEAD_DIM: i32>(
+    unsafe fn attention_score_paged<const HEAD_DIM: i32>(
         query: *mut f32,
         key_cache: *mut f32,
         query_batch_base: Tile<i32, { [128] }>,
@@ -7827,14 +8105,14 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector(query, query_offsets, valid, 0.0f32);
-            let k = load_vector(key_cache, key_offsets, valid, 0.0f32);
+            let q = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let k = unsafe { load_vector(key_cache, key_offsets, valid, 0.0f32) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn attention_score_paged_f16<const HEAD_DIM: i32>(
+    unsafe fn attention_score_paged_f16<const HEAD_DIM: i32>(
         query: *mut f16,
         key_cache: *mut f16,
         query_batch_base: Tile<i32, { [128] }>,
@@ -7862,14 +8140,14 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector_f16_as_f32(query, query_offsets, valid);
-            let k = load_vector_f16_as_f32(key_cache, key_offsets, valid);
+            let q = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+            let k = unsafe { load_vector_f16_as_f32(key_cache, key_offsets, valid) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn attention_score_paged_bf16<const HEAD_DIM: i32>(
+    unsafe fn attention_score_paged_bf16<const HEAD_DIM: i32>(
         query: *mut bf16,
         key_cache: *mut bf16,
         query_batch_base: Tile<i32, { [128] }>,
@@ -7897,14 +8175,14 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector_bf16_as_f32(query, query_offsets, valid);
-            let k = load_vector_bf16_as_f32(key_cache, key_offsets, valid);
+            let q = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+            let k = unsafe { load_vector_bf16_as_f32(key_cache, key_offsets, valid) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn paged_block_lookup(
+    unsafe fn paged_block_lookup(
         block_table: *mut u32,
         batch_index: Tile<i32, { [128] }>,
         key_index: i32,
@@ -7918,12 +8196,13 @@ mod kernels {
         let block_table_offsets = batch_index
             * broadcast_scalar(block_table_batch_stride, tile_shape)
             + broadcast_scalar(logical_block, tile_shape);
-        let physical_block_u32 = load_u32_vector(block_table, block_table_offsets, valid, 0u32);
+        let physical_block_u32 =
+            unsafe { load_u32_vector(block_table, block_table_offsets, valid, 0u32) };
         let physical_block: Tile<i32, { [128] }> = bitcast(physical_block_u32);
         (physical_block, broadcast_scalar(block_token, tile_shape))
     }
 
-    fn softmax_probability_f32(
+    unsafe fn softmax_probability_f32(
         scores: *mut f32,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -7939,7 +8218,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32);
+            let score =
+                unsafe { load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32) };
             max_score = select(
                 valid_score
                     & cmpf(
@@ -7958,7 +8238,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32);
+            let score =
+                unsafe { load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32) };
             denom = denom + select(valid_score, exp(score - max_score), zero_values);
         }
         select(
@@ -7968,7 +8249,7 @@ mod kernels {
         )
     }
 
-    fn softmax_probability_f16(
+    unsafe fn softmax_probability_f16(
         scores: *mut f16,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -7984,7 +8265,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score =
+                unsafe { load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score) };
             max_score = select(
                 valid_score
                     & cmpf(
@@ -8003,7 +8285,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score =
+                unsafe { load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score) };
             denom = denom + select(valid_score, exp(score - max_score), zero_values);
         }
         select(
@@ -8013,7 +8296,7 @@ mod kernels {
         )
     }
 
-    fn softmax_probability_bf16(
+    unsafe fn softmax_probability_bf16(
         scores: *mut bf16,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -8029,7 +8312,9 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score = unsafe {
+                load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score)
+            };
             max_score = select(
                 valid_score
                     & cmpf(
@@ -8048,7 +8333,9 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score = unsafe {
+                load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score)
+            };
             denom = denom + select(valid_score, exp(score - max_score), zero_values);
         }
         select(
@@ -8058,7 +8345,7 @@ mod kernels {
         )
     }
 
-    fn sparsemax_probability_f32(
+    unsafe fn sparsemax_probability_f32(
         scores: *mut f32,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -8078,7 +8365,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32);
+            let score =
+                unsafe { load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32) };
             x_sum = x_sum + select(valid_score, score, zero_values);
             support_count = support_count + select(valid_score, one_values, zero_values);
             x_max = select(
@@ -8097,7 +8385,9 @@ mod kernels {
                 let score_col_tile = broadcast_scalar(score_col, tile_shape);
                 let valid_score =
                     valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-                let score = load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32);
+                let score = unsafe {
+                    load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32)
+                };
                 let active = valid_score
                     & cmpf(
                         score,
@@ -8132,7 +8422,7 @@ mod kernels {
         )
     }
 
-    fn sparsemax_probability_f16(
+    unsafe fn sparsemax_probability_f16(
         scores: *mut f16,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -8152,7 +8442,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score =
+                unsafe { load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score) };
             x_sum = x_sum + select(valid_score, score, zero_values);
             support_count = support_count + select(valid_score, one_values, zero_values);
             x_max = select(
@@ -8171,8 +8462,9 @@ mod kernels {
                 let score_col_tile = broadcast_scalar(score_col, tile_shape);
                 let valid_score =
                     valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-                let score =
-                    load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score);
+                let score = unsafe {
+                    load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score)
+                };
                 let active = valid_score
                     & cmpf(
                         score,
@@ -8207,7 +8499,7 @@ mod kernels {
         )
     }
 
-    fn sparsemax_probability_bf16(
+    unsafe fn sparsemax_probability_bf16(
         scores: *mut bf16,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -8227,7 +8519,9 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score = unsafe {
+                load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score)
+            };
             x_sum = x_sum + select(valid_score, score, zero_values);
             support_count = support_count + select(valid_score, one_values, zero_values);
             x_max = select(
@@ -8246,8 +8540,9 @@ mod kernels {
                 let score_col_tile = broadcast_scalar(score_col, tile_shape);
                 let valid_score =
                     valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-                let score =
-                    load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score);
+                let score = unsafe {
+                    load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score)
+                };
                 let active = valid_score
                     & cmpf(
                         score,
@@ -8282,7 +8577,7 @@ mod kernels {
         )
     }
 
-    fn load_vector(
+    unsafe fn load_vector(
         input: *mut f32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -8294,19 +8589,21 @@ mod kernels {
         let input_base: PointerTile<*mut f32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    fn load_u32_vector(
+    unsafe fn load_u32_vector(
         input: *mut u32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -8318,19 +8615,21 @@ mod kernels {
         let input_base: PointerTile<*mut u32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut u32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut u32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<u32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<u32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    fn load_i32_vector(
+    unsafe fn load_i32_vector(
         input: *mut i32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -8342,19 +8641,21 @@ mod kernels {
         let input_base: PointerTile<*mut i32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut i32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut i32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<i32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<i32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    fn load_vector_f16_as_f32(
+    unsafe fn load_vector_f16_as_f32(
         input: *mut f16,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -8365,21 +8666,23 @@ mod kernels {
         let input_base: PointerTile<*mut f16, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f16, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [128] }> = convert_tile(result.0);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, const_shape![128]);
         select(mask, values, zero)
     }
 
-    fn load_vector_bf16_as_f32(
+    unsafe fn load_vector_bf16_as_f32(
         input: *mut bf16,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -8390,21 +8693,23 @@ mod kernels {
         let input_base: PointerTile<*mut bf16, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut bf16, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut bf16, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<bf16, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<bf16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [128] }> = convert_tile(result.0);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, const_shape![128]);
         select(mask, values, zero)
     }
 
-    fn store_vector(
+    unsafe fn store_vector(
         out: *mut f32,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -8416,18 +8721,20 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn store_vector_16(
+    unsafe fn store_vector_16(
         out: *mut f32,
         offsets: Tile<i32, { [16] }>,
         values: Tile<f32, { [16] }>,
@@ -8439,18 +8746,20 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [16] }> = out_base.broadcast(const_shape![16]);
         let out_ptrs: PointerTile<*mut f32, { [16] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn store_vector_f16_from_f32(
+    unsafe fn store_vector_f16_from_f32(
         out: *mut f16,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -8463,18 +8772,20 @@ mod kernels {
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
         let output: Tile<f16, { [128] }> = convert_tile(values);
-        store_ptr_tko(
-            out_ptrs,
-            output,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                output,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn store_vector_bf16_from_f32(
+    unsafe fn store_vector_bf16_from_f32(
         out: *mut bf16,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -8487,18 +8798,20 @@ mod kernels {
         let out_ptrs: PointerTile<*mut bf16, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut bf16, { [128] }> = out_ptrs.offset_tile(offsets);
         let output: Tile<bf16, { [128] }> = convert_tile(values);
-        store_ptr_tko(
-            out_ptrs,
-            output,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                output,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn store_i32_vector(
+    unsafe fn store_i32_vector(
         out: *mut i32,
         offsets: Tile<i32, { [128] }>,
         values: Tile<i32, { [128] }>,
@@ -8510,15 +8823,17 @@ mod kernels {
         let out_base: PointerTile<*mut i32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut i32, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut i32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 

@@ -1,0 +1,1789 @@
+{
+  "nvjpeg2kGetCudartProperty": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv425nvjpeg2kGetCudartProperty19libraryPropertyTypePi",
+    "doc": "Get the CUDA Toolkit version used to build the library.\n\nReturns the numeric value for the major version, minor version, or the patch level of the CUDA toolkit that was used to build the nvJPEG2000 library.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvjpeg2kGetCudartProperty19libraryPropertyTypePi",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kGetCudartProperty(libraryPropertyType type, int * value)",
+    "parameters": {
+      "type": {
+        "doc": "Version type: `MAJOR_VERSION`, `MINOR_VERSION`, or `PATCH_LEVEL`."
+      },
+      "value": {
+        "doc": "The numeric value corresponding to the requested property.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kGetProperty": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kGetProperty19libraryPropertyTypePi",
+    "doc": "Get the nvJPEG2000 library version.\n\nReturns the numeric value for the major version, minor version, or the patch level of the nvJPEG2000 library.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvjpeg2kGetProperty19libraryPropertyTypePi",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kGetProperty(libraryPropertyType type, int * value)",
+    "parameters": {
+      "type": {
+        "doc": "Version type: `MAJOR_VERSION`, `MINOR_VERSION`, or `PATCH_LEVEL`."
+      },
+      "value": {
+        "doc": "The numeric value corresponding to the requested property.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kCreateSimple": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kCreateSimpleP16nvjpeg2kHandle_t",
+    "doc": "Create an nvJPEG2000 library handle with default settings.\n\nCreates an instance of the library handle with default backend and memory allocators.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvjpeg2kCreateSimpleP16nvjpeg2kHandle_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kCreateSimple(nvjpeg2kHandle_t * handle)",
+    "parameters": {
+      "handle": {
+        "doc": "Pointer to the library handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv414nvjpeg2kCreate17nvjpeg2kBackend_tP25nvjpeg2kDeviceAllocator_tP25nvjpeg2kPinnedAllocator_tP16nvjpeg2kHandle_t",
+    "doc": "Create an nvJPEG2000 library handle with custom allocators.\n\nCreates an instance of the library using the input arguments. The user has flexibility to choose the backend implementation and provide allocators.",
+    "page": "apireference.md",
+    "anchor": "_CPPv414nvjpeg2kCreate17nvjpeg2kBackend_tP25nvjpeg2kDeviceAllocator_tP25nvjpeg2kPinnedAllocator_tP16nvjpeg2kHandle_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kCreate(nvjpeg2kBackend_t backend, nvjpeg2kDeviceAllocator_t * device_allocator, nvjpeg2kPinnedAllocator_t * pinned_allocator, nvjpeg2kHandle_t * handle)",
+    "parameters": {
+      "backend": {
+        "doc": "Backend to use. Currently [`nvjpeg2kBackend_t::NVJPEG2K_BACKEND_DEFAULT`] is supported."
+      },
+      "device_allocator": {
+        "doc": "See `nvjpeg2kDeviceAllocator_t`. If `NULL`, default `cudaMalloc()` / `cudaFree()` are used."
+      },
+      "pinned_allocator": {
+        "doc": "See `nvjpeg2kPinnedAllocator_t`. If `NULL`, default `cudaHostAlloc()` / `cudaFreeHost()` are used."
+      },
+      "handle": {
+        "doc": "Pointer to the library handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kCreateV2": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kCreateV217nvjpeg2kBackend_tP27nvjpeg2kDeviceAllocatorV2_tP27nvjpeg2kPinnedAllocatorV2_tP16nvjpeg2kHandle_t",
+    "doc": "Create an nvJPEG2000 library handle with extended custom allocators.\n\nCreates an instance of the library using extended allocators that accept CUDA streams and user context.",
+    "page": "apireference.md",
+    "anchor": "_CPPv416nvjpeg2kCreateV217nvjpeg2kBackend_tP27nvjpeg2kDeviceAllocatorV2_tP27nvjpeg2kPinnedAllocatorV2_tP16nvjpeg2kHandle_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kCreateV2(nvjpeg2kBackend_t backend, nvjpeg2kDeviceAllocatorV2_t * dev_allocator, nvjpeg2kPinnedAllocatorV2_t * pinned_allocator, nvjpeg2kHandle_t * handle)",
+    "parameters": {
+      "backend": {
+        "doc": "Backend to use. Currently [`nvjpeg2kBackend_t::NVJPEG2K_BACKEND_DEFAULT`] is supported."
+      },
+      "dev_allocator": {
+        "doc": "See `nvjpeg2kDeviceAllocatorV2_t`. Cannot be `NULL`."
+      },
+      "pinned_allocator": {
+        "doc": "See `nvjpeg2kPinnedAllocatorV2_t`. Cannot be `NULL`."
+      },
+      "handle": {
+        "doc": "Pointer to the library handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv415nvjpeg2kDestroy16nvjpeg2kHandle_t",
+    "doc": "Release the nvJPEG2000 library handle and resources.",
+    "page": "apireference.md",
+    "anchor": "_CPPv415nvjpeg2kDestroy16nvjpeg2kHandle_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDestroy(nvjpeg2kHandle_t handle)",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle to release."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kSetDeviceMemoryPadding": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv430nvjpeg2kSetDeviceMemoryPadding6size_t16nvjpeg2kHandle_t",
+    "doc": "Set padding for device memory allocations.\n\nAfter success on this call, any device memory allocation would be padded to the multiple of specified number of bytes. This helps minimize the number of device memory reallocations.",
+    "page": "apireference.md",
+    "anchor": "_CPPv430nvjpeg2kSetDeviceMemoryPadding6size_t16nvjpeg2kHandle_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kSetDeviceMemoryPadding(size_t padding, nvjpeg2kHandle_t handle)",
+    "parameters": {
+      "padding": {
+        "doc": "Padding size in bytes."
+      },
+      "handle": {
+        "doc": "Library handle.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kGetDeviceMemoryPadding": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv430nvjpeg2kGetDeviceMemoryPaddingP6size_t16nvjpeg2kHandle_t",
+    "doc": "Retrieve padding for device memory allocations.",
+    "page": "apireference.md",
+    "anchor": "_CPPv430nvjpeg2kGetDeviceMemoryPaddingP6size_t16nvjpeg2kHandle_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kGetDeviceMemoryPadding(size_t * padding, nvjpeg2kHandle_t handle)",
+    "parameters": {
+      "padding": {
+        "doc": "Current device memory padding size in bytes.",
+        "output": true
+      },
+      "handle": {
+        "doc": "Library handle."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kSetPinnedMemoryPadding": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv430nvjpeg2kSetPinnedMemoryPadding6size_t16nvjpeg2kHandle_t",
+    "doc": "Set padding for pinned host memory allocations.\n\nAfter success on this call, any pinned host memory allocation would be padded to the multiple of specified number of bytes. This helps minimize the number of pinned memory reallocations.",
+    "page": "apireference.md",
+    "anchor": "_CPPv430nvjpeg2kSetPinnedMemoryPadding6size_t16nvjpeg2kHandle_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kSetPinnedMemoryPadding(size_t padding, nvjpeg2kHandle_t handle)",
+    "parameters": {
+      "padding": {
+        "doc": "Padding size in bytes."
+      },
+      "handle": {
+        "doc": "Library handle.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kGetPinnedMemoryPadding": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv430nvjpeg2kGetPinnedMemoryPaddingP6size_t16nvjpeg2kHandle_t",
+    "doc": "Retrieve padding for pinned host memory allocations.",
+    "page": "apireference.md",
+    "anchor": "_CPPv430nvjpeg2kGetPinnedMemoryPaddingP6size_t16nvjpeg2kHandle_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kGetPinnedMemoryPadding(size_t * padding, nvjpeg2kHandle_t handle)",
+    "parameters": {
+      "padding": {
+        "doc": "Current pinned memory padding size in bytes.",
+        "output": true
+      },
+      "handle": {
+        "doc": "Library handle."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeStateCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv425nvjpeg2kDecodeStateCreate16nvjpeg2kHandle_tP21nvjpeg2kDecodeState_t",
+    "doc": "Create an instance of the decode state.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvjpeg2kDecodeStateCreate16nvjpeg2kHandle_tP21nvjpeg2kDecodeState_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeStateCreate(nvjpeg2kHandle_t handle, nvjpeg2kDecodeState_t * decode_state)",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "decode_state": {
+        "doc": "Pointer to the decode state handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeStateDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv426nvjpeg2kDecodeStateDestroy21nvjpeg2kDecodeState_t",
+    "doc": "Release the decode state handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv426nvjpeg2kDecodeStateDestroy21nvjpeg2kDecodeState_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeStateDestroy(nvjpeg2kDecodeState_t decode_state)",
+    "parameters": {
+      "decode_state": {
+        "doc": "Decode state handle to release."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kStreamCreateP16nvjpeg2kStream_t",
+    "doc": "Create an instance of the bitstream handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvjpeg2kStreamCreateP16nvjpeg2kStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamCreate(nvjpeg2kStream_t * stream_handle)",
+    "parameters": {
+      "stream_handle": {
+        "doc": "Pointer to the bitstream handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kStreamDestroy16nvjpeg2kStream_t",
+    "doc": "Release the bitstream handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvjpeg2kStreamDestroy16nvjpeg2kStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamDestroy(nvjpeg2kStream_t stream_handle)",
+    "parameters": {
+      "stream_handle": {
+        "doc": "Bitstream handle to release."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeParamsCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv426nvjpeg2kDecodeParamsCreateP22nvjpeg2kDecodeParams_t",
+    "doc": "Create an instance of the decode output parameters handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv426nvjpeg2kDecodeParamsCreateP22nvjpeg2kDecodeParams_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeParamsCreate(nvjpeg2kDecodeParams_t * decode_params)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Pointer to the decode parameters handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeParamsDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv427nvjpeg2kDecodeParamsDestroy22nvjpeg2kDecodeParams_t",
+    "doc": "Release the decode output parameters handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvjpeg2kDecodeParamsDestroy22nvjpeg2kDecodeParams_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeParamsDestroy(nvjpeg2kDecodeParams_t decode_params)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode parameters handle to release."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncoderCreateSimple": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv427nvjpeg2kEncoderCreateSimpleP17nvjpeg2kEncoder_t",
+    "doc": "Create an nvJPEG2000 encoder handle with default settings.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvjpeg2kEncoderCreateSimpleP17nvjpeg2kEncoder_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncoderCreateSimple(nvjpeg2kEncoder_t * enc_handle)",
+    "parameters": {
+      "enc_handle": {
+        "doc": "Pointer to the encoder handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncoderDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv422nvjpeg2kEncoderDestroy17nvjpeg2kEncoder_t",
+    "doc": "Release the nvJPEG2000 encoder handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvjpeg2kEncoderDestroy17nvjpeg2kEncoder_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncoderDestroy(nvjpeg2kEncoder_t enc_handle)",
+    "parameters": {
+      "enc_handle": {
+        "doc": "Encoder handle to release."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeStateCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv425nvjpeg2kEncodeStateCreate17nvjpeg2kEncoder_tP21nvjpeg2kEncodeState_t",
+    "doc": "Create an instance of the encode state.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvjpeg2kEncodeStateCreate17nvjpeg2kEncoder_tP21nvjpeg2kEncodeState_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncodeStateCreate(nvjpeg2kEncoder_t enc_handle, nvjpeg2kEncodeState_t * encode_state)",
+    "parameters": {
+      "enc_handle": {
+        "doc": "Encoder handle."
+      },
+      "encode_state": {
+        "doc": "Pointer to the encode state handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeStateDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv426nvjpeg2kEncodeStateDestroy21nvjpeg2kEncodeState_t",
+    "doc": "Release the encode state handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv426nvjpeg2kEncodeStateDestroy21nvjpeg2kEncodeState_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncodeStateDestroy(nvjpeg2kEncodeState_t encode_state)",
+    "parameters": {
+      "encode_state": {
+        "doc": "Encode state handle to release."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeParamsCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv426nvjpeg2kEncodeParamsCreateP22nvjpeg2kEncodeParams_t",
+    "doc": "Create an instance of the encode parameters handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv426nvjpeg2kEncodeParamsCreateP22nvjpeg2kEncodeParams_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncodeParamsCreate(nvjpeg2kEncodeParams_t * encode_params)",
+    "parameters": {
+      "encode_params": {
+        "doc": "Pointer to the encode parameters handle to initialize.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeParamsDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv427nvjpeg2kEncodeParamsDestroy22nvjpeg2kEncodeParams_t",
+    "doc": "Release the encode parameters handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvjpeg2kEncodeParamsDestroy22nvjpeg2kEncodeParams_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncodeParamsDestroy(nvjpeg2kEncodeParams_t encode_params)",
+    "parameters": {
+      "encode_params": {
+        "doc": "Encode parameters handle to release."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamParse": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kStreamParse16nvjpeg2kHandle_tPKh6size_tii16nvjpeg2kStream_t",
+    "doc": "Parse a JPEG2000 bitstream from a host memory buffer.\n\nThis function is the first step in decoding a JPEG2000 bitstream. It accepts the bitstream buffer on host memory as input and parses the JPEG2000 header information. The parsed information is stored in the stream handle and can be retrieved by the stream query APIs.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvjpeg2kStreamParse16nvjpeg2kHandle_tPKh6size_tii16nvjpeg2kStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamParse(nvjpeg2kHandle_t handle, const unsigned char * data, size_t length, int save_metadata, int save_stream, nvjpeg2kStream_t stream_handle)",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "data": {
+        "doc": "Pointer to the JPEG2000 bitstream buffer in host memory."
+      },
+      "length": {
+        "doc": "Size of the bitstream in bytes."
+      },
+      "save_metadata": {
+        "doc": "Reserved for future use. Set to 0."
+      },
+      "save_stream": {
+        "doc": "Reserved for future use. Set to 0."
+      },
+      "stream_handle": {
+        "doc": "Bitstream handle to store parsed information."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamParseFile": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv423nvjpeg2kStreamParseFile16nvjpeg2kHandle_tPKc16nvjpeg2kStream_t",
+    "doc": "Parse a JPEG2000 file from disk.\n\nAccepts a JPEG2000 file on disk as input and parses the JPEG2000 header information. The parsed information is stored in the stream handle and can be retrieved by the stream query APIs.",
+    "page": "apireference.md",
+    "anchor": "_CPPv423nvjpeg2kStreamParseFile16nvjpeg2kHandle_tPKc16nvjpeg2kStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamParseFile(nvjpeg2kHandle_t handle, const char * filename, nvjpeg2kStream_t stream_handle)",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "filename": {
+        "doc": "Path to the JPEG2000 file on disk."
+      },
+      "stream_handle": {
+        "doc": "Bitstream handle to store parsed information."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamGetImageInfo": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv426nvjpeg2kStreamGetImageInfo16nvjpeg2kStream_tP19nvjpeg2kImageInfo_t",
+    "doc": "Retrieve image-level information from a parsed bitstream.\n\nRetrieves the image information defined in `nvjpeg2kImageInfo_t`. This information is useful in allocating output buffers on device memory.",
+    "page": "apireference.md",
+    "anchor": "_CPPv426nvjpeg2kStreamGetImageInfo16nvjpeg2kStream_tP19nvjpeg2kImageInfo_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamGetImageInfo(nvjpeg2kStream_t stream_handle, nvjpeg2kImageInfo_t * image_info)",
+    "parameters": {
+      "stream_handle": {
+        "doc": "Bitstream handle."
+      },
+      "image_info": {
+        "doc": "Pointer to `nvjpeg2kImageInfo_t` to store the image information.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamGetImageComponentInfo": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv435nvjpeg2kStreamGetImageComponentInfo16nvjpeg2kStream_tP28nvjpeg2kImageComponentInfo_t8uint32_t",
+    "doc": "Retrieve component-level information from a parsed bitstream.\n\nRetrieves the component level information defined in `nvjpeg2kImageComponentInfo_t`. This information can be used in allocating output buffers on device memory. Component level information is useful when the dimensions vary across components.",
+    "page": "apireference.md",
+    "anchor": "_CPPv435nvjpeg2kStreamGetImageComponentInfo16nvjpeg2kStream_tP28nvjpeg2kImageComponentInfo_t8uint32_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamGetImageComponentInfo(nvjpeg2kStream_t stream_handle, nvjpeg2kImageComponentInfo_t * component_info, uint32_t component_id)",
+    "parameters": {
+      "stream_handle": {
+        "doc": "Bitstream handle."
+      },
+      "component_info": {
+        "doc": "Pointer to `nvjpeg2kImageComponentInfo_t` to store the component information.",
+        "output": true
+      },
+      "component_id": {
+        "doc": "Component index."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamGetResolutionsInTile": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv434nvjpeg2kStreamGetResolutionsInTile16nvjpeg2kStream_t8uint32_tP8uint32_t",
+    "doc": "Retrieve the number of resolutions present in a tile.\n\nThe number of resolutions is defined as: `numResolutions = numWaveletDecompositionLevels + 1`. Tiles in JPEG2000 are indexed in raster scan order. `nvjpeg2kStreamGetImageInfo()` retrieves the number of tiles present along both the x and y directions. For tile coordinates tile_x, tile_y: `tile_id = tile_y * num_tiles_x + tile_x`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv434nvjpeg2kStreamGetResolutionsInTile16nvjpeg2kStream_t8uint32_tP8uint32_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamGetResolutionsInTile(nvjpeg2kStream_t stream_handle, uint32_t tile_id, uint32_t * num_res)",
+    "parameters": {
+      "stream_handle": {
+        "doc": "Bitstream handle."
+      },
+      "tile_id": {
+        "doc": "Raster scan based tile index."
+      },
+      "num_res": {
+        "doc": "Number of resolutions present in the tile.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamGetTileComponentDim": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv433nvjpeg2kStreamGetTileComponentDim16nvjpeg2kStream_t8uint32_t8uint32_tP8uint32_tP8uint32_t",
+    "doc": "Retrieve tile dimensions for a tile component.\n\nThis function is useful when the tile dimensions in `nvjpeg2kImageInfo_t` are not a multiple of the image dimensions.",
+    "page": "apireference.md",
+    "anchor": "_CPPv433nvjpeg2kStreamGetTileComponentDim16nvjpeg2kStream_t8uint32_t8uint32_tP8uint32_tP8uint32_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamGetTileComponentDim(nvjpeg2kStream_t stream_handle, uint32_t component_id, uint32_t tile_id, uint32_t * tile_width, uint32_t * tile_height)",
+    "parameters": {
+      "stream_handle": {
+        "doc": "Bitstream handle."
+      },
+      "component_id": {
+        "doc": "Component index."
+      },
+      "tile_id": {
+        "doc": "Raster scan based tile index."
+      },
+      "tile_width": {
+        "doc": "Tile width for the specified tile component.",
+        "output": true
+      },
+      "tile_height": {
+        "doc": "Tile height for the specified tile component.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamGetResolutionComponentDim": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv439nvjpeg2kStreamGetResolutionComponentDim16nvjpeg2kStream_t8uint32_t8uint32_t8uint32_tP8uint32_tP8uint32_t",
+    "doc": "Retrieve dimensions at a resolution level for a tile component.\n\nThe resolution dimensions are computed as follows:\n\n* `res_scale = 1 &lt;&lt; (num_resolutions - res_level - 1)`\n* `res_width = (tile_width + res_scale - 1) >> res_scale`\n* `res_height = (tile_height + res_scale - 1) >> res_scale`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv439nvjpeg2kStreamGetResolutionComponentDim16nvjpeg2kStream_t8uint32_t8uint32_t8uint32_tP8uint32_tP8uint32_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamGetResolutionComponentDim(nvjpeg2kStream_t stream_handle, uint32_t component_id, uint32_t tile_id, uint32_t res_level, uint32_t * res_width, uint32_t * res_height)",
+    "parameters": {
+      "stream_handle": {
+        "doc": "Bitstream handle."
+      },
+      "component_id": {
+        "doc": "Component index."
+      },
+      "tile_id": {
+        "doc": "Raster scan based tile index."
+      },
+      "res_level": {
+        "doc": "Resolution level."
+      },
+      "res_width": {
+        "doc": "Resolution width for the specified tile component and resolution level.",
+        "output": true
+      },
+      "res_height": {
+        "doc": "Resolution height for the specified tile component and resolution level.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStreamGetColorSpace": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv427nvjpeg2kStreamGetColorSpace16nvjpeg2kStream_tP20nvjpeg2kColorSpace_t",
+    "doc": "Retrieve color space information from a parsed JP2 file.\n\nFor a JPEG2000 codestream (.j2k file), this function will retrieve [`nvjpeg2kColorSpace_t::NVJPEG2K_COLORSPACE_UNKNOWN`] since color space information is not available.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvjpeg2kStreamGetColorSpace16nvjpeg2kStream_tP20nvjpeg2kColorSpace_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kStreamGetColorSpace(nvjpeg2kStream_t stream_handle, nvjpeg2kColorSpace_t * color_space)",
+    "parameters": {
+      "stream_handle": {
+        "doc": "Bitstream handle."
+      },
+      "color_space": {
+        "doc": "Color space of the parsed image.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecode": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv414nvjpeg2kDecode16nvjpeg2kHandle_t21nvjpeg2kDecodeState_t16nvjpeg2kStream_tP15nvjpeg2kImage_t12cudaStream_t",
+    "doc": "Decode a single JPEG2000 image.\n\nDecodes a single image and writes it to the output device buffers. The function is asynchronous with respect to the host. All GPU tasks will be submitted to the provided `stream`. Prior to calling this function, the user must parse the bitstream using `nvjpeg2kStreamParse()` such that the bitstream information is stored in `jpeg2k_stream`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv414nvjpeg2kDecode16nvjpeg2kHandle_t21nvjpeg2kDecodeState_t16nvjpeg2kStream_tP15nvjpeg2kImage_t12cudaStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecode(nvjpeg2kHandle_t handle, nvjpeg2kDecodeState_t decode_state, nvjpeg2kStream_t jpeg2k_stream, nvjpeg2kImage_t * decode_output, cudaStream_t stream)",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "decode_state": {
+        "doc": "Decode state handle."
+      },
+      "jpeg2k_stream": {
+        "doc": "Bitstream handle with parsed information."
+      },
+      "decode_output": {
+        "doc": "Decode output struct. The struct should be on host memory. The image component pointers should point to device memory. See `nvjpeg2kImage_t`.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream. Can be set to 0."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeImage": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kDecodeImage16nvjpeg2kHandle_t21nvjpeg2kDecodeState_t16nvjpeg2kStream_t22nvjpeg2kDecodeParams_tP15nvjpeg2kImage_t12cudaStream_t",
+    "doc": "Decode a single JPEG2000 image with decode parameters.\n\nDecodes a single image and writes it to the output device buffers. The function is asynchronous with respect to the host. All GPU tasks will be submitted to the provided `stream`. Prior to calling this function, the user must parse the bitstream using `nvjpeg2kStreamParse()` such that the bitstream information is stored in `jpeg2k_stream`. It is possible to control the decode output using an instance of `nvjpeg2kDecodeParams_t`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvjpeg2kDecodeImage16nvjpeg2kHandle_t21nvjpeg2kDecodeState_t16nvjpeg2kStream_t22nvjpeg2kDecodeParams_tP15nvjpeg2kImage_t12cudaStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeImage(nvjpeg2kHandle_t handle, nvjpeg2kDecodeState_t decode_state, nvjpeg2kStream_t jpeg2k_stream, nvjpeg2kDecodeParams_t decode_params, nvjpeg2kImage_t * decode_output, cudaStream_t stream)",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "decode_state": {
+        "doc": "Decode state handle."
+      },
+      "jpeg2k_stream": {
+        "doc": "Bitstream handle with parsed information."
+      },
+      "decode_params": {
+        "doc": "Decode parameters to control output (e.g. area of interest, RGB output). Can be set to `NULL`."
+      },
+      "decode_output": {
+        "doc": "Decode output struct. The struct should be on host memory. The image component pointers should point to device memory. See `nvjpeg2kImage_t`.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream. Can be set to 0."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeTile": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv418nvjpeg2kDecodeTile16nvjpeg2kHandle_t21nvjpeg2kDecodeState_t16nvjpeg2kStream_t22nvjpeg2kDecodeParams_t8uint32_t8uint32_tP15nvjpeg2kImage_t12cudaStream_t",
+    "doc": "Decode a single tile within a JPEG2000 image.\n\nDecodes a tile within an image and writes it to the output device buffers. The function is asynchronous with respect to the host. All GPU tasks will be submitted to the provided `stream`. Prior to calling this function, the user must parse the bitstream using `nvjpeg2kStreamParse()` such that the bitstream information is stored in `jpeg2k_stream`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv418nvjpeg2kDecodeTile16nvjpeg2kHandle_t21nvjpeg2kDecodeState_t16nvjpeg2kStream_t22nvjpeg2kDecodeParams_t8uint32_t8uint32_tP15nvjpeg2kImage_t12cudaStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeTile(nvjpeg2kHandle_t handle, nvjpeg2kDecodeState_t decode_state, nvjpeg2kStream_t jpeg2k_stream, nvjpeg2kDecodeParams_t decode_params, uint32_t tile_id, uint32_t num_res_levels, nvjpeg2kImage_t * decode_output, cudaStream_t stream)",
+    "parameters": {
+      "handle": {
+        "doc": "Library handle."
+      },
+      "decode_state": {
+        "doc": "Decode state handle."
+      },
+      "jpeg2k_stream": {
+        "doc": "Bitstream handle with parsed information."
+      },
+      "decode_params": {
+        "doc": "Decode parameters to control output. Can be set to `NULL`."
+      },
+      "tile_id": {
+        "doc": "Raster scan based tile index."
+      },
+      "num_res_levels": {
+        "doc": "Number of resolutions to decode within the tile. When set to 0, the image is decoded at full resolution. Maximum allowed resolutions in a tile can be determined using `nvjpeg2kStreamGetResolutionsInTile()`."
+      },
+      "decode_output": {
+        "doc": "Decode output struct. The struct should be on host memory. The image component pointers should point to device memory. See `nvjpeg2kImage_t`.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream. Can be set to 0."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeParamsSetDecodeArea": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv433nvjpeg2kDecodeParamsSetDecodeArea22nvjpeg2kDecodeParams_t8uint32_t8uint32_t8uint32_t8uint32_t",
+    "doc": "Set the decode area of interest.\n\nThe coordinates are relative to the image origin and should be within the tile of interest. If the coordinates are set to 0, the entire tile will be decoded.",
+    "page": "apireference.md",
+    "anchor": "_CPPv433nvjpeg2kDecodeParamsSetDecodeArea22nvjpeg2kDecodeParams_t8uint32_t8uint32_t8uint32_t8uint32_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeParamsSetDecodeArea(nvjpeg2kDecodeParams_t decode_params, uint32_t start_x, uint32_t end_x, uint32_t start_y, uint32_t end_y)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode parameters handle.",
+        "output": true
+      },
+      "start_x": {
+        "doc": "Left coordinate of the decode area."
+      },
+      "end_x": {
+        "doc": "Right coordinate of the decode area."
+      },
+      "start_y": {
+        "doc": "Top coordinate of the decode area."
+      },
+      "end_y": {
+        "doc": "Bottom coordinate of the decode area."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeParamsSetRGBOutput": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv432nvjpeg2kDecodeParamsSetRGBOutput22nvjpeg2kDecodeParams_t7int32_t",
+    "doc": "Enable RGB decode output for chroma-subsampled images.\n\nEnables RGB decode output for images with 422/420 chroma subsampling. It is ignored for other chroma subsampling values. YCC to RGB conversion is based on sYCC, Amendment 1 to IEC 61966-2-1. The color conversion is applied at a tile granularity due to which the chroma reconstruction may not be accurate for tiles with odd dimensions.",
+    "page": "apireference.md",
+    "anchor": "_CPPv432nvjpeg2kDecodeParamsSetRGBOutput22nvjpeg2kDecodeParams_t7int32_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeParamsSetRGBOutput(nvjpeg2kDecodeParams_t decode_params, int32_t force_rgb)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode parameters handle.",
+        "output": true
+      },
+      "force_rgb": {
+        "doc": "Set to 1 to enable RGB output."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeParamsSetOutputFormat": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv435nvjpeg2kDecodeParamsSetOutputFormat22nvjpeg2kDecodeParams_t21nvjpeg2kImageFormat_t",
+    "doc": "Set the decode output format.\n\nSets the decode output format. When using [`nvjpeg2kImageFormat_t::NVJPEG2K_FORMAT_INTERLEAVED`] with 420/422 chroma subsampling, RGB output (`nvjpeg2kDecodeParamsSetRGBOutput()`) must also be enabled.\n\nThe decode output buffer should be allocated in the following manner to support `NVJPEG2K_FORMAT_INTERLEAVED:`\n\n```text\nnvjpeg2kImage_t decode_output;\n\n// When decode_output.pixel_type is NVJPEG2K_UINT8:  bytes_per_sample = 1\n// When decode_output.pixel_type is NVJPEG2K_UINT16 or NVJPEG2K_INT16: bytes_per_sample = 2\n\ndecode_output.pitch_in_bytes[0] = image_width * num_components * bytes_per_sample;\ndecode_output.pixel_data[0]     = decode_output.pitch_in_bytes[0] * info.image_height;\ndecode_output.num_components    = num_components;\n```",
+    "page": "apireference.md",
+    "anchor": "_CPPv435nvjpeg2kDecodeParamsSetOutputFormat22nvjpeg2kDecodeParams_t21nvjpeg2kImageFormat_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kDecodeParamsSetOutputFormat(nvjpeg2kDecodeParams_t decode_params, nvjpeg2kImageFormat_t format)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode parameters handle.",
+        "output": true
+      },
+      "format": {
+        "doc": "Output format. Defaults to [`nvjpeg2kImageFormat_t::NVJPEG2K_FORMAT_PLANAR`]."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncode": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv414nvjpeg2kEncode17nvjpeg2kEncoder_t21nvjpeg2kEncodeState_tK22nvjpeg2kEncodeParams_tPK15nvjpeg2kImage_t12cudaStream_t",
+    "doc": "Compress an image in JPEG2000 format.\n\nCompresses the input image in JPEG2000 format and stores it within `encode_state`. All GPU tasks will be submitted to the provided `stream`. The function is asynchronous with respect to the host.",
+    "page": "apireference.md",
+    "anchor": "_CPPv414nvjpeg2kEncode17nvjpeg2kEncoder_t21nvjpeg2kEncodeState_tK22nvjpeg2kEncodeParams_tPK15nvjpeg2kImage_t12cudaStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncode(nvjpeg2kEncoder_t enc_handle, nvjpeg2kEncodeState_t encode_state, const nvjpeg2kEncodeParams_t encode_params, const nvjpeg2kImage_t * input_image, cudaStream_t stream)",
+    "parameters": {
+      "enc_handle": {
+        "doc": "Encoder handle."
+      },
+      "encode_state": {
+        "doc": "Encode state handle containing intermediate buffers."
+      },
+      "encode_params": {
+        "doc": "Encode parameters handle."
+      },
+      "input_image": {
+        "doc": "Input image. The struct should be on host memory. The image component pointers should point to device memory. See `nvjpeg2kImage_t`."
+      },
+      "stream": {
+        "doc": "CUDA stream for all device operations."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeRetrieveBitstream": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv431nvjpeg2kEncodeRetrieveBitstream17nvjpeg2kEncoder_t21nvjpeg2kEncodeState_tPhP6size_t12cudaStream_t",
+    "doc": "Retrieve the compressed JPEG2000 bitstream.\n\nRetrieves the compressed stream from the encoder state that was previously used by the encoder function.\n\n* If `compressed_data` is `NULL`, the encoder will return the compressed JPEG2000 bitstream size in the `length` parameter.\n* If `compressed_data` is not `NULL`, the `length` parameter should contain the data buffer size. If the length is less than the compressed stream size, an error will be returned. Otherwise the compressed stream will be stored in the data buffer and the actual compressed buffer size will be stored in `length`.\n* When `compressed_data` is `NULL`, the API is synchronous with the host.\n* When `compressed_data` is not `NULL`, the application should call `cudaStreamSynchronize()` to ensure the bitstream copy is successful.",
+    "page": "apireference.md",
+    "anchor": "_CPPv431nvjpeg2kEncodeRetrieveBitstream17nvjpeg2kEncoder_t21nvjpeg2kEncodeState_tPhP6size_t12cudaStream_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncodeRetrieveBitstream(nvjpeg2kEncoder_t enc_handle, nvjpeg2kEncodeState_t encode_state, unsigned char * compressed_data, size_t * length, cudaStream_t stream)",
+    "parameters": {
+      "enc_handle": {
+        "doc": "Encoder handle."
+      },
+      "encode_state": {
+        "doc": "Encode state handle."
+      },
+      "compressed_data": {
+        "doc": "Pointer to the host buffer for the compressed stream. Can be `NULL` (see description).",
+        "output": true
+      },
+      "length": {
+        "doc": "Pointer to the buffer size. The library will update the actual compressed stream size.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream for device operations."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeParamsSetEncodeConfig": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv435nvjpeg2kEncodeParamsSetEncodeConfig22nvjpeg2kEncodeParams_tP22nvjpeg2kEncodeConfig_t",
+    "doc": "Set the JPEG2000 encode configuration.\n\nSets the JPEG2000 header parameters defined in `nvjpeg2kEncodeConfig_t`. This function should always be called during the encode process.",
+    "page": "apireference.md",
+    "anchor": "_CPPv435nvjpeg2kEncodeParamsSetEncodeConfig22nvjpeg2kEncodeParams_tP22nvjpeg2kEncodeConfig_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncodeParamsSetEncodeConfig(nvjpeg2kEncodeParams_t encode_params, nvjpeg2kEncodeConfig_t * encoder_config)",
+    "parameters": {
+      "encode_params": {
+        "doc": "Encode parameters handle.",
+        "output": true
+      },
+      "encoder_config": {
+        "doc": "Pointer to `nvjpeg2kEncodeConfig_t`."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeParamsSpecifyQuality": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv434nvjpeg2kEncodeParamsSpecifyQuality22nvjpeg2kEncodeParams_t21nvjpeg2kQualityType_td",
+    "doc": "Set quality type and value for lossy encoding.\n\nAllows the application to set quality type (algorithm) and quality value, which controls how good the encoded image should look. Refer to [nvjpeg2kQualityType_t](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kQualityType_t) for the allowed values for each quality type. Will overwrite any existing quality setting.\n\n`nvjpeg2kEncodeParamsSetEncodeConfig()` should be called before this function.\n\nWill return [`nvjpeg2kStatus_t::NVJPEG2K_STATUS_INVALID_PARAMETER`] if:\n\n* `nvjpeg2kEncodeParamsSetEncodeConfig()` was not yet called\n* `quality_value` is negative\n* Encoding mode is set to reversible\n* Quality type is [`nvjpeg2kQualityType_t::NVJPEG2K_QUALITY_TYPE_TARGET_PSNR`] and HT encoder is enabled\n* Quality type is [`nvjpeg2kQualityType_t::NVJPEG2K_QUALITY_TYPE_Q_FACTOR`] and `quality_value` is larger than 100\n* Quality type is [`nvjpeg2kQualityType_t::NVJPEG2K_QUALITY_TYPE_Q_FACTOR`] and `mct` = 0 and input color space is sRGB.",
+    "page": "apireference.md",
+    "anchor": "_CPPv434nvjpeg2kEncodeParamsSpecifyQuality22nvjpeg2kEncodeParams_t21nvjpeg2kQualityType_td",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncodeParamsSpecifyQuality(nvjpeg2kEncodeParams_t encode_params, nvjpeg2kQualityType_t quality_type, double quality_value)",
+    "parameters": {
+      "encode_params": {
+        "doc": "Encode parameters handle.",
+        "output": true
+      },
+      "quality_type": {
+        "doc": "Quality type (algorithm) to use. See [nvjpeg2kQualityType_t](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kQualityType_t)."
+      },
+      "quality_value": {
+        "doc": "Quality value. Interpretation depends on `quality_type`."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeParamsSetInputFormat": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv434nvjpeg2kEncodeParamsSetInputFormat22nvjpeg2kEncodeParams_t21nvjpeg2kImageFormat_t",
+    "doc": "Set the encode input format.\n\nSets the encode input format. [`nvjpeg2kImageFormat_t::NVJPEG2K_FORMAT_INTERLEAVED`] is supported by the encoder only when all component dimensions are the same.\n\nThe encode input buffer should be allocated in the following manner to support `NVJPEG2K_FORMAT_INTERLEAVED:`\n\n```text\nnvjpeg2kImage_t encode_input;\n\n// When encode_input.pixel_type is NVJPEG2K_UINT8:  bytes_per_sample = 1\n// When encode_input.pixel_type is NVJPEG2K_UINT16 or NVJPEG2K_INT16: bytes_per_sample = 2\n\nencode_input.pitch_in_bytes[0] = image_width * num_components * bytes_per_sample;\nencode_input.pixel_data[0]     = encode_input.pitch_in_bytes[0] * info.image_height;\nencode_input.num_components    = num_components;\n```",
+    "page": "apireference.md",
+    "anchor": "_CPPv434nvjpeg2kEncodeParamsSetInputFormat22nvjpeg2kEncodeParams_t21nvjpeg2kImageFormat_t",
+    "signature": "nvjpeg2kStatus_t nvjpeg2kEncodeParamsSetInputFormat(nvjpeg2kEncodeParams_t encode_params, nvjpeg2kImageFormat_t format)",
+    "parameters": {
+      "encode_params": {
+        "doc": "Encode parameters handle.",
+        "output": true
+      },
+      "format": {
+        "doc": "Input format. Defaults to [`nvjpeg2kImageFormat_t::NVJPEG2K_FORMAT_PLANAR`]."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kStatus_t)."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kStatus_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t",
+    "doc": "Return status codes for nvJPEG2000 APIs.",
+    "page": "apireference.md",
+    "anchor": "_CPPv416nvjpeg2kStatus_t",
+    "signature": "enum nvjpeg2kStatus_t",
+    "members": {
+      "NVJPEG2K_STATUS_SUCCESS": {
+        "doc": "The API call finished successfully. Note that many calls are asynchronous and some errors may only appear after synchronization."
+      },
+      "NVJPEG2K_STATUS_NOT_INITIALIZED": {
+        "doc": "The library handle was not initialized."
+      },
+      "NVJPEG2K_STATUS_INVALID_PARAMETER": {
+        "doc": "Wrong parameter was passed. For example, a null pointer as input data, or an invalid enum value."
+      },
+      "NVJPEG2K_STATUS_BAD_JPEG": {
+        "doc": "Cannot parse the JPEG2000 stream. Likely due to a corruption that cannot be handled."
+      },
+      "NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED": {
+        "doc": "Attempting to decode a JPEG2000 stream that is not supported by the nvJPEG2000 library."
+      },
+      "NVJPEG2K_STATUS_ALLOCATOR_FAILURE": {
+        "doc": "The user-provided allocator functions, for either memory allocation or for releasing the memory, returned a non-zero code."
+      },
+      "NVJPEG2K_STATUS_EXECUTION_FAILED": {
+        "doc": "Error during the execution of the device tasks."
+      },
+      "NVJPEG2K_STATUS_ARCH_MISMATCH": {
+        "doc": "The device capabilities are not enough for the set of input parameters provided."
+      },
+      "NVJPEG2K_STATUS_INTERNAL_ERROR": {
+        "doc": "Unknown error occurred in the library."
+      },
+      "NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED": {
+        "doc": "API is not supported by the backend."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDeviceMalloc": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kDeviceMalloc",
+    "doc": "Prototype for device memory allocation, modelled after `cudaMalloc()`.\n\nParameters: pointer to allocated memory (out), size in bytes to allocate (in).",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvjpeg2kDeviceMalloc",
+    "signature": "typedef int(*nvjpeg2kDeviceMalloc)(void * *, size_t)",
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDeviceFree": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv418nvjpeg2kDeviceFree",
+    "doc": "Prototype for device memory release, modelled after `cudaFree()`.\n\nParameters: pointer to memory to free (in).",
+    "page": "apireference.md",
+    "anchor": "_CPPv418nvjpeg2kDeviceFree",
+    "signature": "typedef int(*nvjpeg2kDeviceFree)(void *)",
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDeviceAllocator_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv425nvjpeg2kDeviceAllocator_t",
+    "doc": "Device memory allocator interface.\n\nWhen passed to `nvjpeg2kCreate()`, this structure is used for allocating and releasing device memory. If `NULL` is passed instead, the default `cudaMalloc()` / `cudaFree()` functions are used. When using `nvjpeg2kCreateSimple()` to create the library handle, the default device memory allocator will be used.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvjpeg2kDeviceAllocator_t",
+    "signature": "struct nvjpeg2kDeviceAllocator_t",
+    "fields": {
+      "device_malloc": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N25nvjpeg2kDeviceAllocator_t13device_mallocE",
+        "doc": "Device memory allocation callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "device_free": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N25nvjpeg2kDeviceAllocator_t11device_freeE",
+        "doc": "Device memory free callback.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kPinnedMalloc": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kPinnedMalloc",
+    "doc": "Prototype for pinned memory allocation, modelled after `cudaHostAlloc()`.\n\nParameters: pointer to allocated memory (out), size in bytes to allocate (in), allocation flags (in).",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvjpeg2kPinnedMalloc",
+    "signature": "typedef int(*nvjpeg2kPinnedMalloc)(void * *, size_t, unsigned int flags)",
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kPinnedFree": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv418nvjpeg2kPinnedFree",
+    "doc": "Prototype for pinned memory release, modelled after `cudaFreeHost()`.\n\nParameters: pointer to memory to free (in).",
+    "page": "apireference.md",
+    "anchor": "_CPPv418nvjpeg2kPinnedFree",
+    "signature": "typedef int(*nvjpeg2kPinnedFree)(void *)",
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kPinnedAllocator_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv425nvjpeg2kPinnedAllocator_t",
+    "doc": "Pinned memory allocator interface.\n\nWhen passed to `nvjpeg2kCreate()`, this structure is used for allocating and releasing host pinned memory for copying data to/from device. If `NULL` is passed instead, the default `cudaHostAlloc()` / `cudaFreeHost()` functions are used. When using `nvjpeg2kCreateSimple()` to create the library handle, the default host pinned memory allocator will be used.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvjpeg2kPinnedAllocator_t",
+    "signature": "struct nvjpeg2kPinnedAllocator_t",
+    "fields": {
+      "pinned_malloc": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N25nvjpeg2kPinnedAllocator_t13pinned_mallocE",
+        "doc": "Pinned memory allocation callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "pinned_free": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N25nvjpeg2kPinnedAllocator_t11pinned_freeE",
+        "doc": "Pinned memory free callback.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDeviceMallocV2": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv422nvjpeg2kDeviceMallocV2",
+    "doc": "Prototype for extended device memory allocation with stream and context.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvjpeg2kDeviceMallocV2",
+    "signature": "typedef int(*nvjpeg2kDeviceMallocV2)(void * ctx, void * * ptr, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "ptr": {
+        "doc": "Pointer to allocated memory.",
+        "output": true
+      },
+      "size": {
+        "doc": "Size in bytes to allocate."
+      },
+      "stream": {
+        "doc": "CUDA stream for ordered allocation."
+      }
+    },
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDeviceFreeV2": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kDeviceFreeV2",
+    "doc": "Prototype for extended device memory release with stream and context.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvjpeg2kDeviceFreeV2",
+    "signature": "typedef int(*nvjpeg2kDeviceFreeV2)(void * ctx, void * ptr, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "ptr": {
+        "doc": "Pointer to memory to free."
+      },
+      "size": {
+        "doc": "Size in bytes of the allocation."
+      },
+      "stream": {
+        "doc": "CUDA stream for ordered deallocation."
+      }
+    },
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kDeviceAllocatorV2_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv427nvjpeg2kDeviceAllocatorV2_t",
+    "doc": "Extended device memory allocator interface with stream and context support.\n\nAllows the user to provide device allocators which accept CUDA streams and user context. Extended device allocators can be passed as input to the library using `nvjpeg2kCreateV2()`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvjpeg2kDeviceAllocatorV2_t",
+    "signature": "struct nvjpeg2kDeviceAllocatorV2_t",
+    "fields": {
+      "device_malloc": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N27nvjpeg2kDeviceAllocatorV2_t13device_mallocE",
+        "doc": "Extended device memory allocation callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "device_free": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N27nvjpeg2kDeviceAllocatorV2_t11device_freeE",
+        "doc": "Extended device memory free callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "device_ctx": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N27nvjpeg2kDeviceAllocatorV2_t10device_ctxE",
+        "doc": "User-defined context pointer.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kPinnedMallocV2": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv422nvjpeg2kPinnedMallocV2",
+    "doc": "Prototype for extended pinned memory allocation with stream and context.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvjpeg2kPinnedMallocV2",
+    "signature": "typedef int(*nvjpeg2kPinnedMallocV2)(void * ctx, void * * ptr, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "ptr": {
+        "doc": "Pointer to allocated memory.",
+        "output": true
+      },
+      "size": {
+        "doc": "Size in bytes to allocate."
+      },
+      "stream": {
+        "doc": "CUDA stream for ordered allocation."
+      }
+    },
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kPinnedFreeV2": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kPinnedFreeV2",
+    "doc": "Prototype for extended pinned memory release with stream and context.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvjpeg2kPinnedFreeV2",
+    "signature": "typedef int(*nvjpeg2kPinnedFreeV2)(void * ctx, void * ptr, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "ptr": {
+        "doc": "Pointer to memory to free."
+      },
+      "size": {
+        "doc": "Size in bytes of the allocation."
+      },
+      "stream": {
+        "doc": "CUDA stream for ordered deallocation."
+      }
+    },
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kPinnedAllocatorV2_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv427nvjpeg2kPinnedAllocatorV2_t",
+    "doc": "Extended pinned memory allocator interface with stream and context support.\n\nAllows the user to provide pinned allocators which accept CUDA streams and user context. Extended pinned allocators can be passed as input to the library using `nvjpeg2kCreateV2()`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvjpeg2kPinnedAllocatorV2_t",
+    "signature": "struct nvjpeg2kPinnedAllocatorV2_t",
+    "fields": {
+      "pinned_malloc": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N27nvjpeg2kPinnedAllocatorV2_t13pinned_mallocE",
+        "doc": "Extended pinned memory allocation callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "pinned_free": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N27nvjpeg2kPinnedAllocatorV2_t11pinned_freeE",
+        "doc": "Extended pinned memory free callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "pinned_ctx": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N27nvjpeg2kPinnedAllocatorV2_t10pinned_ctxE",
+        "doc": "User-defined context pointer.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kColorSpace_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kColorSpace_t",
+    "doc": "Color space values for JP2 files.\n\nCorresponds to the colorspace values which are part of the JP2 file format specification.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvjpeg2kColorSpace_t",
+    "signature": "enum nvjpeg2kColorSpace_t",
+    "members": {
+      "NVJPEG2K_COLORSPACE_NOT_SUPPORTED": {
+        "doc": "Color space is not supported."
+      },
+      "NVJPEG2K_COLORSPACE_UNKNOWN": {
+        "doc": "Color space is unknown."
+      },
+      "NVJPEG2K_COLORSPACE_SRGB": {
+        "doc": "sRGB color space."
+      },
+      "NVJPEG2K_COLORSPACE_GRAY": {
+        "doc": "Grayscale."
+      },
+      "NVJPEG2K_COLORSPACE_SYCC": {
+        "doc": "sYCC color space."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kBackend_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv417nvjpeg2kBackend_t",
+    "doc": "Backend selection for the nvJPEG2000 library.\n\nAllows the user to select a different internal implementation. A single implementation is currently supported. Additional implementations may be added in the future.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvjpeg2kBackend_t",
+    "signature": "enum nvjpeg2kBackend_t",
+    "members": {
+      "NVJPEG2K_BACKEND_DEFAULT": {
+        "doc": "Default backend implementation."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kImageComponentInfo_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv428nvjpeg2kImageComponentInfo_t",
+    "doc": "Per-component image information.\n\nUsed to retrieve component level information. This information can be used for allocating output buffers.",
+    "page": "apireference.md",
+    "anchor": "_CPPv428nvjpeg2kImageComponentInfo_t",
+    "signature": "struct nvjpeg2kImageComponentInfo_t",
+    "fields": {
+      "component_width": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N28nvjpeg2kImageComponentInfo_t15component_widthE",
+        "doc": "Width of the component in pixels.",
+        "signature": "",
+        "deprecated": false
+      },
+      "component_height": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N28nvjpeg2kImageComponentInfo_t16component_heightE",
+        "doc": "Height of the component in pixels.",
+        "signature": "",
+        "deprecated": false
+      },
+      "precision": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N28nvjpeg2kImageComponentInfo_t9precisionE",
+        "doc": "Bit depth of the component.",
+        "signature": "",
+        "deprecated": false
+      },
+      "sgn": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N28nvjpeg2kImageComponentInfo_t3sgnE",
+        "doc": "1 if the component samples are signed, 0 otherwise.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kImageInfo_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kImageInfo_t",
+    "doc": "Image-level information.\n\nUsed to retrieve image information which can be used to allocate output buffers.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvjpeg2kImageInfo_t",
+    "signature": "struct nvjpeg2kImageInfo_t",
+    "fields": {
+      "image_width": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N19nvjpeg2kImageInfo_t11image_widthE",
+        "doc": "Width of the image in pixels.",
+        "signature": "",
+        "deprecated": false
+      },
+      "image_height": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N19nvjpeg2kImageInfo_t12image_heightE",
+        "doc": "Height of the image in pixels.",
+        "signature": "",
+        "deprecated": false
+      },
+      "tile_width": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N19nvjpeg2kImageInfo_t10tile_widthE",
+        "doc": "Width of a tile in pixels.",
+        "signature": "",
+        "deprecated": false
+      },
+      "tile_height": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N19nvjpeg2kImageInfo_t11tile_heightE",
+        "doc": "Height of a tile in pixels.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_tiles_x": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N19nvjpeg2kImageInfo_t11num_tiles_xE",
+        "doc": "Number of tiles in the horizontal direction.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_tiles_y": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N19nvjpeg2kImageInfo_t11num_tiles_yE",
+        "doc": "Number of tiles in the vertical direction.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_components": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N19nvjpeg2kImageInfo_t14num_componentsE",
+        "doc": "Number of image components.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kImageType_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kImageType_t",
+    "doc": "Pixel data types supported by nvJPEG2000.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvjpeg2kImageType_t",
+    "signature": "enum nvjpeg2kImageType_t",
+    "members": {
+      "NVJPEG2K_UINT8": {
+        "doc": "Unsigned 8-bit integer."
+      },
+      "NVJPEG2K_UINT16": {
+        "doc": "Unsigned 16-bit integer."
+      },
+      "NVJPEG2K_INT16": {
+        "doc": "Signed 16-bit integer."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kImage_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv415nvjpeg2kImage_t",
+    "doc": "Image container for decode/encode operations.\n\nContains an array of pointers, one per component, and a corresponding array of pitch values. `pixel_type` determines the data type of `pixel_data`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv415nvjpeg2kImage_t",
+    "signature": "struct nvjpeg2kImage_t",
+    "fields": {
+      "pixel_data": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N15nvjpeg2kImage_t10pixel_dataE",
+        "doc": "Array of pointers to component data in device memory.",
+        "signature": "",
+        "deprecated": false
+      },
+      "pitch_in_bytes": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N15nvjpeg2kImage_t14pitch_in_bytesE",
+        "doc": "Array of pitch values (in bytes) for each component.",
+        "signature": "",
+        "deprecated": false
+      },
+      "pixel_type": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N15nvjpeg2kImage_t10pixel_typeE",
+        "doc": "Pixel data type. See [Image Type](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1nvjpeg2kImageType_t) for supported types.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_components": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N15nvjpeg2kImage_t14num_componentsE",
+        "doc": "Number of image components.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kImageFormat_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kImageFormat_t",
+    "doc": "Image memory layout format.\n\nDescribes how an image is stored in memory.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvjpeg2kImageFormat_t",
+    "signature": "enum nvjpeg2kImageFormat_t",
+    "members": {
+      "NVJPEG2K_FORMAT_PLANAR": {
+        "doc": "All components are stored in separate planes."
+      },
+      "NVJPEG2K_FORMAT_INTERLEAVED": {
+        "doc": "All components are stored in interleaved order. Not supported when component dimensions differ."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kHandle_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kHandle_t",
+    "doc": "Handle to the nvJPEG2000 library instance.\n\nThis handle should be instantiated prior to using any of the decode APIs. It is thread safe and can be used by multiple threads simultaneously.",
+    "page": "apireference.md",
+    "anchor": "_CPPv416nvjpeg2kHandle_t",
+    "signature": "typedef struct nvjpeg2kHandle * nvjpeg2kHandle_t",
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeState_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kDecodeState_t",
+    "doc": "Handle to the nvJPEG2000 decode state.\n\nStores intermediate decode information. This handle can be reused when decoding multiple images. The user must ensure that a stream or device synchronize CUDA call is made between the decoding of two images.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvjpeg2kDecodeState_t",
+    "signature": "typedef struct nvjpeg2kDecodeState * nvjpeg2kDecodeState_t",
+    "deprecated": false
+  },
+  "nvjpeg2kStream_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStream_t",
+    "doc": "Handle to the nvJPEG2000 bitstream.\n\nUsed for parsing the bitstream. Bitstream metadata can be extracted by using the APIs defined in [Parser API Reference](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1ParserAPIReference).",
+    "page": "apireference.md",
+    "anchor": "_CPPv416nvjpeg2kStream_t",
+    "signature": "typedef struct nvjpeg2kStream * nvjpeg2kStream_t",
+    "deprecated": false
+  },
+  "nvjpeg2kDecodeParams_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv422nvjpeg2kDecodeParams_t",
+    "doc": "Handle to the nvJPEG2000 decode output parameters.\n\nUsed to store the decode output parameters like the decode area of interest coordinates.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvjpeg2kDecodeParams_t",
+    "signature": "typedef struct nvjpeg2kDecodeParams * nvjpeg2kDecodeParams_t",
+    "deprecated": false
+  },
+  "nvjpeg2kEncoder_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv417nvjpeg2kEncoder_t",
+    "doc": "Handle to the nvJPEG2000 encoder instance.\n\nThis handle should be instantiated prior to using any of the encode APIs. It is thread safe and can be used across host threads.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvjpeg2kEncoder_t",
+    "signature": "typedef struct nvjpeg2kEncoder * nvjpeg2kEncoder_t",
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeState_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kEncodeState_t",
+    "doc": "Handle to the nvJPEG2000 encode state.\n\nContains intermediate buffers required by the encoding process.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvjpeg2kEncodeState_t",
+    "signature": "typedef struct nvjpeg2kEncodeState * nvjpeg2kEncodeState_t",
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeParams_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv422nvjpeg2kEncodeParams_t",
+    "doc": "Handle to the nvJPEG2000 encode parameters.\n\nStores user provided parameters that control the encoding process.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvjpeg2kEncodeParams_t",
+    "signature": "typedef struct nvjpeg2kEncodeParams * nvjpeg2kEncodeParams_t",
+    "deprecated": false
+  },
+  "NVJPEG2K_MAXRES": {
+    "kind": "define",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#c.NVJPEG2K_MAXRES",
+    "doc": "Maximum number of JPEG2000 resolutions.",
+    "page": "apireference.md",
+    "anchor": "c.NVJPEG2K_MAXRES",
+    "deprecated": false
+  },
+  "NVJPEG2K_RSIZ_HT": {
+    "kind": "define",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#c.NVJPEG2K_RSIZ_HT",
+    "doc": "To enable High throughput JPEG2000 Encode, set `rsiz` in `nvjpeg2kEncodeConfig_t` to `NVJPEG2K_RSIZ_HT`.",
+    "page": "apireference.md",
+    "anchor": "c.NVJPEG2K_RSIZ_HT",
+    "deprecated": false
+  },
+  "NVJPEG2K_MODE_HT": {
+    "kind": "define",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#c.NVJPEG2K_MODE_HT",
+    "doc": "To enable High throughput JPEG2000 Encode, set `encode_modes` in `nvjpeg2kEncodeConfig_t` to `NVJPEG2K_MODE_HT`.",
+    "page": "apireference.md",
+    "anchor": "c.NVJPEG2K_MODE_HT",
+    "deprecated": false
+  },
+  "nvjpeg2kProgOrder_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kProgOrder_t",
+    "doc": "Progression orders defined in the JPEG2000 standard.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvjpeg2kProgOrder_t",
+    "signature": "enum nvjpeg2kProgOrder_t",
+    "members": {
+      "NVJPEG2K_LRCP": {
+        "doc": "Layer-Resolution-Component-Position."
+      },
+      "NVJPEG2K_RLCP": {
+        "doc": "Resolution-Layer-Component-Position."
+      },
+      "NVJPEG2K_RPCL": {
+        "doc": "Resolution-Position-Component-Layer."
+      },
+      "NVJPEG2K_PCRL": {
+        "doc": "Position-Component-Resolution-Layer."
+      },
+      "NVJPEG2K_CPRL": {
+        "doc": "Component-Position-Resolution-Layer."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kBitstreamType_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv423nvjpeg2kBitstreamType_t",
+    "doc": "JPEG2000 bitstream type.\n\n[`nvjpeg2kBitstreamType_t::NVJPEG2K_STREAM_J2K`] corresponds to the JPEG2000 codestream. [`nvjpeg2kBitstreamType_t::NVJPEG2K_STREAM_JP2`] corresponds to the .jp2 container.",
+    "page": "apireference.md",
+    "anchor": "_CPPv423nvjpeg2kBitstreamType_t",
+    "signature": "enum nvjpeg2kBitstreamType_t",
+    "members": {
+      "NVJPEG2K_STREAM_J2K": {
+        "doc": "JPEG2000 codestream (.j2k)."
+      },
+      "NVJPEG2K_STREAM_JP2": {
+        "doc": "JP2 container (.jp2)."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kQualityType_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kQualityType_t",
+    "doc": "Quality type selection for lossy encoding.\n\nCan be used with `nvjpeg2kEncodeParamsSpecifyQuality()`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvjpeg2kQualityType_t",
+    "signature": "enum nvjpeg2kQualityType_t",
+    "members": {
+      "NVJPEG2K_QUALITY_TYPE_TARGET_PSNR": {
+        "doc": "Quality value is interpreted as desired Peak Signal-to-Noise Ratio (PSNR) target. The higher the value, the better quality image is produced. Quality value should be positive floating point. Cannot be used with HT encoder."
+      },
+      "NVJPEG2K_QUALITY_TYPE_QUANTIZATION_STEP": {
+        "doc": "Quality value is interpreted as quantization step (by how much pixel data will be divided). The higher the value, the worse quality image is produced. Quality value should be positive floating point."
+      },
+      "NVJPEG2K_QUALITY_TYPE_Q_FACTOR": {
+        "doc": "Quality value is interpreted as JPEG-like quality factor (1.0 worst to 100.0 best). Can only be used when the input colorspace is YCC, Grayscale, or RGB with MCT enabled."
+      }
+    },
+    "deprecated": false
+  },
+  "nvjpeg2kEncodeConfig_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv422nvjpeg2kEncodeConfig_t",
+    "doc": "JPEG2000 encode configuration.\n\nContains parameters present in the COD and SIZ headers of the JPEG2000 bitstream. Not all parameters are supported and some must be set to 0.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvjpeg2kEncodeConfig_t",
+    "signature": "struct nvjpeg2kEncodeConfig_t",
+    "fields": {
+      "stream_type": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t11stream_typeE",
+        "doc": "Bitstream type (J2K or JP2).",
+        "signature": "",
+        "deprecated": false
+      },
+      "color_space": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t11color_spaceE",
+        "doc": "Color space of the image.",
+        "signature": "",
+        "deprecated": false
+      },
+      "rsiz": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t4rsizE",
+        "doc": "Should be set to 0 for J2K or [NVJPEG2K_RSIZ_HT](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1a664c3ff512b626037b47e964fcee1663) for HTJ2K.",
+        "signature": "",
+        "deprecated": false
+      },
+      "image_width": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t11image_widthE",
+        "doc": "Image width in pixels. Minimum value 1.",
+        "signature": "",
+        "deprecated": false
+      },
+      "image_height": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t12image_heightE",
+        "doc": "Image height in pixels. Minimum value 1.",
+        "signature": "",
+        "deprecated": false
+      },
+      "enable_tiling": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t13enable_tilingE",
+        "doc": "Set to 1 to enable tiling, 0 to disable.",
+        "signature": "",
+        "deprecated": false
+      },
+      "tile_width": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t10tile_widthE",
+        "doc": "Tile width. Valid only when `enable_tiling` is 1. Should be less than `image_width`.",
+        "signature": "",
+        "deprecated": false
+      },
+      "tile_height": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t11tile_heightE",
+        "doc": "Tile height. Valid only when `enable_tiling` is 1. Should be less than `image_height`.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_components": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t14num_componentsE",
+        "doc": "Number of image components (1-4).",
+        "signature": "",
+        "deprecated": false
+      },
+      "image_comp_info": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t15image_comp_infoE",
+        "doc": "Pointer to per-component information. Must be a valid pointer.",
+        "signature": "",
+        "deprecated": false
+      },
+      "enable_SOP_marker": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t17enable_SOP_markerE",
+        "doc": "Should be set to 0.",
+        "signature": "",
+        "deprecated": false
+      },
+      "enable_EPH_marker": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t17enable_EPH_markerE",
+        "doc": "Should be set to 0.",
+        "signature": "",
+        "deprecated": false
+      },
+      "prog_order": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t10prog_orderE",
+        "doc": "Progression order.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_layers": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t10num_layersE",
+        "doc": "Number of quality layers. Should be set to 1.",
+        "signature": "",
+        "deprecated": false
+      },
+      "mct_mode": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t8mct_modeE",
+        "doc": "Multi-component transform mode. 0 for YCC/Grayscale, 1 for RGB.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_resolutions": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t15num_resolutionsE",
+        "doc": "Number of resolutions. Cannot be greater than image/tile dimensions.",
+        "signature": "",
+        "deprecated": false
+      },
+      "code_block_w": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t12code_block_wE",
+        "doc": "Code block width. Valid values: 32, 64.",
+        "signature": "",
+        "deprecated": false
+      },
+      "code_block_h": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t12code_block_hE",
+        "doc": "Code block height. Valid values: 32, 64.",
+        "signature": "",
+        "deprecated": false
+      },
+      "encode_modes": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t12encode_modesE",
+        "doc": "Should be set to 0 for J2K or [NVJPEG2K_MODE_HT](https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#nvjpeg2k_8h_1a66d1e4ca0abd12a0cde4806ab09d8246) for HTJ2K.",
+        "signature": "",
+        "deprecated": false
+      },
+      "irreversible": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t12irreversibleE",
+        "doc": "Set to 1 for irreversible (lossy) transform, 0 for reversible (lossless).",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_precincts_init": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t18num_precincts_initE",
+        "doc": "Number of valid precinct entries. Set to 0 to disable custom precincts.",
+        "signature": "",
+        "deprecated": false
+      },
+      "precinct_width": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t14precinct_widthE",
+        "doc": "Precinct widths per resolution. Should be a power of 2. Valid only when `num_precincts_init` is non-zero.",
+        "signature": "",
+        "deprecated": false
+      },
+      "precinct_height": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv4N22nvjpeg2kEncodeConfig_t15precinct_heightE",
+        "doc": "Precinct heights per resolution. Should be a power of 2. Valid only when `num_precincts_init` is non-zero.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  }
+}

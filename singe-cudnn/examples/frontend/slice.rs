@@ -1,14 +1,19 @@
 mod common;
 
+use std::env::args;
+
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::pointwise::PointwiseMode,
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorId, TensorSpec},
+    },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{HeuristicMode, PointwiseOperation},
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{MatmulConfig, PointwiseOperation, SliceConfig},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
 };
@@ -24,7 +29,11 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
-fn build_graph() -> Result<Graph> {
+fn build_graph(
+    save_slice: bool,
+    compact_slice: bool,
+    slice_strides: Vec<i64>,
+) -> Result<(Graph, TensorId)> {
     let b_start = 1_i64;
     let b = 8_i64;
     let b_end = 2_i64;
@@ -48,62 +57,132 @@ fn build_graph() -> Result<Graph> {
             ),
     );
 
-    let a = graph.tensor(
+    let a = graph.insert_tensor(
+        A_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([b_actual, m_actual, k])?.with_strides(vec![m_actual * k, k, 1])?,
-        )
-        .with_id(A_ID),
-    );
-    let a_slice = graph.slice_infer(a, &[b_start..(b_start + b), m_start..(m_start + m), 0..k])?;
-    let b_tensor = graph.tensor(
+            Shape::with_strides([b_actual, m_actual, k], vec![m_actual * k, k, 1])?,
+        ),
+    )?;
+    let slice_output = if save_slice {
+        TensorOutputConfig::new().output_tensor()
+    } else {
+        TensorOutputConfig::new()
+    };
+    let ranges = [b_start..(b_start + b), m_start..(m_start + m), 0..k];
+    let slice_config = SliceConfig::new(ranges)
+        .with_strides(slice_strides)
+        .with_name("matrix_window");
+    let slice_dimensions = slice_config.infer_output_dimensions(graph.shape(a)?)?;
+    let output_rows = slice_dimensions[1];
+    let a_slice = if compact_slice {
+        let output = TensorSpec::new(DataType::F16, Shape::contiguous(slice_dimensions)?);
+        let output = if save_slice {
+            output
+        } else {
+            output.virtual_tensor()
+        };
+        let output = graph.tensor(output);
+        graph.slice_into(a, output, slice_config)?;
+        output
+    } else {
+        graph.slice(a, slice_config, slice_output)?
+    };
+    let b_tensor = graph.insert_tensor(
+        B_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([b, k, n])?.with_strides([k * n, n, 1])?,
-        )
-        .with_id(B_ID),
+            Shape::with_strides([b, k, n], [k * n, n, 1])?,
+        ),
+    )?;
+    let c0 = graph.tensor(
+        TensorSpec::new(DataType::F32, Shape::contiguous([b, output_rows, n])?).virtual_tensor(),
     );
-    let c0 = graph
-        .tensor(TensorSpec::new(DataType::F32, Shape::contiguous([b, m, n])?).virtual_tensor());
-    graph.matmul(a_slice, b_tensor, c0, DataType::F32)?;
+    graph.matmul_into(
+        a_slice,
+        b_tensor,
+        c0,
+        MatmulConfig::new().with_compute_type(DataType::F32),
+    )?;
 
-    let c =
-        graph.tensor(TensorSpec::new(DataType::F32, Shape::contiguous([b, m, n])?).with_id(C_ID));
-    graph.pointwise(PointwiseOperation::Unary {
+    let c = graph.insert_tensor(
+        C_ID,
+        TensorSpec::new(DataType::F32, Shape::contiguous([b, output_rows, n])?),
+    )?;
+    graph.pointwise_into(PointwiseOperation::Unary {
+        name: None,
         mode: PointwiseMode::ReluFwd,
         input: c0,
         output: c,
-        compute_type: DataType::F32,
+        compute_type: Some(DataType::F32),
         nan_propagation: NanPropagation::NotPropagate,
         alpha1: 1.0,
         axis: None,
-    });
+    })?;
     graph.mark_as_output(c)?;
 
-    Ok(graph)
+    Ok((graph, a_slice))
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-    let graph = build_graph()?;
+    let example = common::ExampleContext::create()?;
+    let save_slice = args().any(|argument| argument == "--save-slice");
+    let compact_slice = args().any(|argument| argument == "--compact-slice");
+    let strided_slice = args().any(|argument| argument == "--strided-slice");
+    // Leave the last dimension's stride omitted, as allowed by the C++ slice attributes.
+    let mut slice_strides = if strided_slice {
+        vec![1, 2]
+    } else {
+        Vec::new()
+    };
+    if args().any(|argument| argument == "--extra-strides") {
+        slice_strides.resize(3, 1);
+        slice_strides.push(7);
+    }
+    let (graph, a_slice) = build_graph(save_slice, compact_slice, slice_strides)?;
 
     let serialized = serde_json::to_vec(&graph)?;
     let restored = serde_json::from_slice::<Graph>(&serialized)?;
-    assert_eq!(restored.key()?, graph.key()?);
 
-    let compiled = restored.compile(&ctx.cudnn, &[HeuristicMode::A])?;
+    let compiled = restored.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+    )?;
 
     let mut seed = 123_456_789_u32;
-    let mut a_dev = DeviceMemory::from_slice(&init_f16_image((11 * 23 * 64) as usize, &mut seed))?;
-    let mut b_dev = DeviceMemory::from_slice(&init_f16_image((8 * 64 * 32) as usize, &mut seed))?;
-    let mut c_dev = DeviceMemory::<f32>::zeroes((8 * 16 * 32) as usize)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
+    let a_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f16_image(restored.shape(A_ID)?.storage_span()?, &mut seed),
+    )?;
+    let b_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f16_image(restored.shape(B_ID)?.storage_span()?, &mut seed),
+    )?;
+    let mut c_dev = DeviceMemory::<f32>::zeroed(
+        example.cudnn.cuda_context(),
+        restored.shape(C_ID)?.storage_span()?,
+    )?;
+    let slice_elements = restored.shape(a_slice)?.storage_span()?;
+    let mut slice_dev = save_slice
+        .then(|| DeviceMemory::<f16>::zeroed(example.cudnn.cuda_context(), slice_elements))
+        .transpose()?;
+    let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
 
-    let mut bindings = compiled.bindings();
-    bindings.set(A_ID, &mut a_dev)?;
-    bindings.set(B_ID, &mut b_dev)?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(A_ID, &a_dev)?;
+    bindings.set_input(B_ID, &b_dev)?;
     bindings.set(C_ID, &mut c_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    if let Some(memory) = &mut slice_dev {
+        bindings.set(a_slice, memory)?;
+    }
+    // SAFETY: the plan, inputs, output and workspace remain live until stream completion,
+    // including when native execution returns an enqueue error.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
     let c_host = c_dev.copy_to_host_vec()?;
     println!(

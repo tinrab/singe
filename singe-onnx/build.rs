@@ -1,9 +1,12 @@
-use std::{error::Error, path::PathBuf};
+//! Compiles the ONNX protocol definitions and generates descriptor-based helpers.
 
-use bomboni_prost::{ApiConfig, config::CompileConfig};
+use std::{env, error::Error, path::PathBuf};
+
+use bomboni_prost::{ApiConfig, config::CompileConfig, path_map::PathMap};
+use prost_build::Config as ProstConfig;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let out_dir = PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR is set by cargo"));
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set by cargo"));
     let descriptor_path = out_dir.join("onnx.bin");
     let proto_root = PathBuf::from("proto");
     let proto_paths = [
@@ -11,7 +14,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         proto_root.join("onnx_structure.proto"),
     ];
 
-    let mut prost_config = prost_build::Config::default();
+    let mut prost_config = ProstConfig::default();
     prost_config
         .file_descriptor_set_path(&descriptor_path)
         .enable_type_names()
@@ -27,7 +30,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             serde: false,
             ..Default::default()
         },
-        external_paths: Default::default(),
+        external_paths: PathMap::default(),
     })?;
 
     for proto_path in proto_paths {

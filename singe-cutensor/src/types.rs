@@ -1,8 +1,8 @@
 use std::fmt::{self, Display, Formatter};
 
-use singe_core::{impl_enum_conversion, impl_enum_display};
-
+use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use singe_core::{impl_enum_conversion, impl_enum_display};
 use singe_cutensor_sys as sys;
 
 /// Algorithm used to perform a tensor operation.
@@ -10,7 +10,7 @@ use singe_cutensor_sys as sys;
 #[repr(i32)]
 #[non_exhaustive]
 pub enum Algorithm {
-    /// More time-consuming than CUTENSOR_DEFAULT, but typically provides a more accurate kernel selection.
+    /// More time-consuming than `CUTENSOR_DEFAULT`, but typically provides a more accurate kernel selection.
     DefaultPatient = sys::cutensorAlgo_t::CUTENSOR_ALGO_DEFAULT_PATIENT as _,
     /// Choose the GETT algorithm (only applicable to contractions).
     Gett = sys::cutensorAlgo_t::CUTENSOR_ALGO_GETT as _,
@@ -37,15 +37,25 @@ impl_enum_display!(Algorithm, {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum ComputeType {
+    ///< floating-point: 5-bit exponent and 10-bit mantissa (aka half)
     F16 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_16F as _,
+    ///< floating-point: 8-bit exponent and 7-bit mantissa (aka bfloat)
     Bf16 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_16BF as _,
+    ///< floating-point: 8-bit exponent and 10-bit mantissa (aka tensor-float-32)
     Tf32 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_TF32 as _,
+    ///< floating-point: More precise than TF32, but less precise than float
     Tf32x3 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_3XTF32 as _,
+    ///< floating-point: 8-bit exponent and 23-bit mantissa (aka float)
     F32 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_32F as _,
+    ///< floating-point: 11-bit exponent and 52-bit mantissa (aka double)
     F64 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_64F as _,
+    ///< 8-bit unsigned integer
     U8 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_8U as _,
+    ///< 8-bit signed integer
     I8 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_8I as _,
+    ///< 32-bit unsigned integer
     U32 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_32U as _,
+    ///< 32-bit signed integer
     I32 = sys::cutensorComputeType_t::CUTENSOR_COMPUTE_32I as _,
 }
 
@@ -356,49 +366,78 @@ impl_enum_display!(PlanAttribute, {
     PlanAttribute::RequiredWorkspace => "CUTENSOR_PLAN_REQUIRED_WORKSPACE",
 });
 
+/// Native logging level, from disabled through API tracing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(i32)]
 #[non_exhaustive]
 pub enum LoggerLevel {
+    /// Disables native logging.
     Off = 0,
+    /// Enables error logging.
     Error = 1,
+    /// Includes performance tracing.
     PerformanceTrace = 2,
+    /// Includes performance hints.
     PerformanceHints = 3,
+    /// Includes kernel-selection heuristic tracing.
     HeuristicsTrace = 4,
+    /// Includes native API-call tracing.
     ApiTrace = 5,
 }
 
 impl LoggerLevel {
+    /// Returns the native integer logging level.
+    #[must_use]
     pub const fn as_raw(self) -> i32 {
         self as i32
     }
 }
 
 bitflags::bitflags! {
+    /// Independently selectable native logging categories.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct LoggerMask: i32 {
+        /// Disables all logging categories.
         const OFF = 0;
+        /// Enables error messages.
         const ERROR = 1;
+        /// Enables performance trace messages.
         const PERFORMANCE_TRACE = 2;
+        /// Enables performance hint messages.
         const PERFORMANCE_HINTS = 4;
+        /// Enables heuristic-selection trace messages.
         const HEURISTICS_TRACE = 8;
+        /// Enables native API-call trace messages.
         const API_TRACE = 16;
     }
 }
 
+impl Display for LoggerMask {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        parser::to_writer(self, f)
+    }
+}
+
+/// An integer mode label identifying the same logical index across tensors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Mode(i32);
 
 impl Mode {
+    /// Creates a symbolic tensor mode from its native integer label.
+    #[must_use]
     pub const fn new(raw: i32) -> Self {
         Self(raw)
     }
 
+    /// Creates a mode whose label is the Unicode scalar value of `mode`.
+    #[must_use]
     pub const fn from_char(mode: char) -> Self {
         Self(mode as i32)
     }
 
+    /// Returns the native integer mode label.
+    #[must_use]
     pub const fn as_raw(self) -> i32 {
         self.0
     }

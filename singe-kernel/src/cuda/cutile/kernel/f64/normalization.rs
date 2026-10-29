@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     #[cutile::entry()]
     pub fn layer_norm_f64<const BN: i32>(
         out: &mut Tensor<f64, { [1, BN] }>,
@@ -159,35 +161,37 @@ mod kernels {
         let input_base: PointerTile<*mut f64, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f64, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut f64, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<f64, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0.0f64),
-            None,
-            Latency::<0>,
-        );
+        let input_result: (Tile<f64, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0.0f64),
+                None,
+                Latency::<0>,
+            )
+        };
 
         let zero = constant(0.0f64, tile_shape);
         let one = constant(1.0f64, tile_shape);
         let mean = if has_running_mean != 0 {
-            load_f64_parameter(running_mean, feature_index, mask, 0.0f64)
+            unsafe { load_f64_parameter(running_mean, feature_index, mask, 0.0f64) }
         } else {
             zero
         };
         let var = if has_running_var != 0 {
-            load_f64_parameter(running_var, feature_index, mask, 1.0f64)
+            unsafe { load_f64_parameter(running_var, feature_index, mask, 1.0f64) }
         } else {
             one
         };
         let scale = if has_weight != 0 {
-            load_f64_parameter(weight, feature_index, mask, 1.0f64)
+            unsafe { load_f64_parameter(weight, feature_index, mask, 1.0f64) }
         } else {
             one
         };
         let shift = if has_bias != 0 {
-            load_f64_parameter(bias, feature_index, mask, 0.0f64)
+            unsafe { load_f64_parameter(bias, feature_index, mask, 0.0f64) }
         } else {
             zero
         };
@@ -203,18 +207,20 @@ mod kernels {
         let out_base: PointerTile<*mut f64, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn load_f64_parameter(
+    unsafe fn load_f64_parameter(
         input: *mut f64,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -224,16 +230,134 @@ mod kernels {
         let base: PointerTile<*mut f64, { [1] }> = base.reshape(const_shape![1]);
         let ptrs: PointerTile<*mut f64, { [128] }> = base.broadcast(const_shape![128]);
         let ptrs: PointerTile<*mut f64, { [128] }> = ptrs.offset_tile(offsets);
-        let result: (Tile<f64, { [128] }>, Token) = load_ptr_tko(
-            ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f64, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
+    }
+
+    #[cfg(feature = "dtype_f64")]
+    #[cutile::entry()]
+    pub unsafe fn normalization_wide_f64<const OP: i32>(
+        out: *mut f64,
+        input: *mut f64,
+        weight: *mut f64,
+        bias: *mut f64,
+        cols: i32,
+        has_weight: i32,
+        has_bias: i32,
+        eps: f64,
+        weight_offset: f64,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let shape = const_shape![128];
+        let zero: Tile<f64, { [128] }> = constant(0.0f64, shape);
+        let zero_offsets: Tile<i32, { [128] }> = constant(0i32, shape);
+        let chunks = (cols - 1i32) / 128i32 + 1i32;
+        let mut sum = zero;
+        for chunk in 0i32..chunks {
+            let col = iota(shape) + broadcast_scalar(chunk * 128i32, shape);
+            let valid = lt_tile(col, broadcast_scalar(cols, shape));
+            let offset = broadcast_scalar(pid.0 * cols, shape) + select(valid, col, zero_offsets);
+            let values: Tile<f64, { [128] }> =
+                unsafe { load_f64_parameter(input, offset, valid, 0.0f64) };
+            let values = select(valid, values, zero);
+            sum = sum + if OP == 0 { values } else { values * values };
+        }
+        let n: f64 = convert_scalar(cols);
+        let total: Tile<f64, { [] }> = reduce_sum(sum, 0i32);
+        let statistic = total / broadcast_scalar(n, const_shape![]);
+        let mut mean: Tile<f64, { [] }> = constant(0.0f64, const_shape![]);
+        let mut variance = statistic;
+        if OP == 0 {
+            mean = statistic;
+            let mut centered_sum = zero;
+            for chunk in 0i32..chunks {
+                let col = iota(shape) + broadcast_scalar(chunk * 128i32, shape);
+                let valid = lt_tile(col, broadcast_scalar(cols, shape));
+                let offset =
+                    broadcast_scalar(pid.0 * cols, shape) + select(valid, col, zero_offsets);
+                let values: Tile<f64, { [128] }> =
+                    unsafe { load_f64_parameter(input, offset, valid, 0.0f64) };
+                let centered = select(
+                    valid,
+                    values - mean.reshape(const_shape![1]).broadcast(shape),
+                    zero,
+                );
+                centered_sum = centered_sum + centered * centered;
+            }
+            let total: Tile<f64, { [] }> = reduce_sum(centered_sum, 0i32);
+            variance = total / broadcast_scalar(n, const_shape![]);
+        }
+        let inv = constant(1.0f64, const_shape![])
+            / sqrt(
+                variance + scalar_to_tile(eps),
+                rounding::NearestEven,
+                ftz::Disabled,
+            );
+        for chunk in 0i32..chunks {
+            let col = iota(shape) + broadcast_scalar(chunk * 128i32, shape);
+            let valid = lt_tile(col, broadcast_scalar(cols, shape));
+            let safe_col = select(valid, col, zero_offsets);
+            let offset = broadcast_scalar(pid.0 * cols, shape) + safe_col;
+            let values: Tile<f64, { [128] }> =
+                unsafe { load_f64_parameter(input, offset, valid, 0.0f64) };
+            let scale: Tile<f64, { [128] }> = if has_weight != 0 {
+                let w: Tile<f64, { [128] }> =
+                    unsafe { load_f64_parameter(weight, safe_col, valid, 0.0f64) };
+                w + if OP == 1 {
+                    broadcast_scalar(weight_offset, shape)
+                } else {
+                    zero
+                }
+            } else {
+                constant(1.0f64, shape)
+            };
+            let shift: Tile<f64, { [128] }> = if has_bias != 0 {
+                unsafe { load_f64_parameter(bias, safe_col, valid, 0.0f64) }
+            } else {
+                zero
+            };
+            let values = (values - mean.reshape(const_shape![1]).broadcast(shape))
+                * inv.reshape(const_shape![1]).broadcast(shape)
+                * scale
+                + shift;
+            let output: Tile<f64, { [128] }> = convert_tile(values);
+            unsafe { store_f64_vector(out, offset, output, valid) };
+        }
+    }
+
+    unsafe fn store_f64_vector(
+        out: *mut f64,
+        offsets: Tile<i32, { [128] }>,
+        values: Tile<f64, { [128] }>,
+        mask: Tile<bool, { [128] }>,
+    ) {
+        let zero_offsets: Tile<i32, { [128] }> = constant(0i32, const_shape![128]);
+        let offsets = select(mask, offsets, zero_offsets);
+        let out_base: PointerTile<*mut f64, { [] }> = pointer_to_tile(out);
+        let out_base: PointerTile<*mut f64, { [1] }> = out_base.reshape(const_shape![1]);
+        let out_ptrs: PointerTile<*mut f64, { [128] }> = out_base.broadcast(const_shape![128]);
+        let out_ptrs: PointerTile<*mut f64, { [128] }> = out_ptrs.offset_tile(offsets);
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 

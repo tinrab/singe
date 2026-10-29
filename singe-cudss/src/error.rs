@@ -1,39 +1,39 @@
-use std::{ffi::NulError, fmt};
+use std::{borrow::Cow, ffi::NulError, result::Result as StdResult};
 
+use singe_core::status_enum;
 use singe_cuda::error::Error as CudaError;
 use singe_cudss_sys as sys;
 use thiserror::Error;
 
-/// Host-side cuDSS status code.
-///
-/// Device-side asynchronous failures are reported through [`DataParameter::Info`](crate::types::DataParameter::Info) rather than this status type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum Status {
-    /// Operation completed successfully.
-    Success,
-    /// A required cuDSS object was not initialized.
-    NotInitialized,
-    /// Resource allocation failed.
-    AllocFailed,
-    /// An invalid value was passed to cuDSS.
-    InvalidValue,
-    /// The requested operation or parameter is not supported.
-    NotSupported,
-    /// GPU program execution failed.
-    ExecutionFailed,
-    /// An internal cuDSS operation failed.
-    InternalError,
-    /// Iterative refinement did not reach the requested tolerance.
+status_enum! {
+    /// Host-side cuDSS status code.
     ///
-    /// The refined solution remains available.
-    IrFailed,
-    /// A status code not known to this wrapper.
-    Unknown(u32),
+    /// Device-side asynchronous failures are reported through [`DataParameter::Info`](crate::types::DataParameter::Info) rather than this status type.
+    pub enum Status: u32 => sys::cudssStatus_t, unknown = "UNKNOWN_CUDSS_STATUS" {
+        /// Operation completed successfully.
+        Success = CUDSS_STATUS_SUCCESS,
+        /// A required cuDSS object was not initialized.
+        NotInitialized = CUDSS_STATUS_NOT_INITIALIZED,
+        /// Resource allocation failed.
+        AllocFailed = CUDSS_STATUS_ALLOC_FAILED,
+        /// An invalid value was passed to cuDSS.
+        InvalidValue = CUDSS_STATUS_INVALID_VALUE,
+        /// The requested operation or parameter is not supported.
+        NotSupported = CUDSS_STATUS_NOT_SUPPORTED,
+        /// GPU program execution failed.
+        ExecutionFailed = CUDSS_STATUS_EXECUTION_FAILED,
+        /// An internal cuDSS operation failed.
+        InternalError = CUDSS_STATUS_INTERNAL_ERROR,
+        /// Iterative refinement did not reach the requested tolerance.
+        ///
+        /// The refined solution remains available.
+        IrFailed = CUDSS_STATUS_IR_FAILED,
+    }
 }
 
 impl Status {
     /// Returns a short lowercase description of the status.
+    #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
             Self::Success => "success",
@@ -45,73 +45,6 @@ impl Status {
             Self::InternalError => "internal error",
             Self::IrFailed => "iterative refinement failed",
             Self::Unknown(_) => "unknown cudss error",
-        }
-    }
-
-    /// Returns the raw cuDSS status code.
-    pub const fn raw(self) -> u32 {
-        match self {
-            Self::Success => sys::cudssStatus_t::CUDSS_STATUS_SUCCESS as _,
-            Self::NotInitialized => sys::cudssStatus_t::CUDSS_STATUS_NOT_INITIALIZED as _,
-            Self::AllocFailed => sys::cudssStatus_t::CUDSS_STATUS_ALLOC_FAILED as _,
-            Self::InvalidValue => sys::cudssStatus_t::CUDSS_STATUS_INVALID_VALUE as _,
-            Self::NotSupported => sys::cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED as _,
-            Self::ExecutionFailed => sys::cudssStatus_t::CUDSS_STATUS_EXECUTION_FAILED as _,
-            Self::InternalError => sys::cudssStatus_t::CUDSS_STATUS_INTERNAL_ERROR as _,
-            Self::IrFailed => sys::cudssStatus_t::CUDSS_STATUS_IR_FAILED as _,
-            Self::Unknown(code) => code,
-        }
-    }
-}
-
-impl TryFrom<u32> for Status {
-    type Error = u32;
-
-    fn try_from(code: u32) -> std::result::Result<Self, Self::Error> {
-        match code {
-            code if code == sys::cudssStatus_t::CUDSS_STATUS_SUCCESS as u32 => Ok(Self::Success),
-            code if code == sys::cudssStatus_t::CUDSS_STATUS_NOT_INITIALIZED as u32 => {
-                Ok(Self::NotInitialized)
-            }
-            code if code == sys::cudssStatus_t::CUDSS_STATUS_ALLOC_FAILED as u32 => {
-                Ok(Self::AllocFailed)
-            }
-            code if code == sys::cudssStatus_t::CUDSS_STATUS_INVALID_VALUE as u32 => {
-                Ok(Self::InvalidValue)
-            }
-            code if code == sys::cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED as u32 => {
-                Ok(Self::NotSupported)
-            }
-            code if code == sys::cudssStatus_t::CUDSS_STATUS_EXECUTION_FAILED as u32 => {
-                Ok(Self::ExecutionFailed)
-            }
-            code if code == sys::cudssStatus_t::CUDSS_STATUS_INTERNAL_ERROR as u32 => {
-                Ok(Self::InternalError)
-            }
-            code if code == sys::cudssStatus_t::CUDSS_STATUS_IR_FAILED as u32 => Ok(Self::IrFailed),
-            code => Err(code),
-        }
-    }
-}
-
-impl From<sys::cudssStatus_t> for Status {
-    fn from(status: sys::cudssStatus_t) -> Self {
-        Self::try_from(status as u32).unwrap_or_else(Self::Unknown)
-    }
-}
-
-impl fmt::Display for Status {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Success => f.write_str("CUDSS_STATUS_SUCCESS"),
-            Self::NotInitialized => f.write_str("CUDSS_STATUS_NOT_INITIALIZED"),
-            Self::AllocFailed => f.write_str("CUDSS_STATUS_ALLOC_FAILED"),
-            Self::InvalidValue => f.write_str("CUDSS_STATUS_INVALID_VALUE"),
-            Self::NotSupported => f.write_str("CUDSS_STATUS_NOT_SUPPORTED"),
-            Self::ExecutionFailed => f.write_str("CUDSS_STATUS_EXECUTION_FAILED"),
-            Self::InternalError => f.write_str("CUDSS_STATUS_INTERNAL_ERROR"),
-            Self::IrFailed => f.write_str("CUDSS_STATUS_IR_FAILED"),
-            Self::Unknown(code) => write!(f, "UNKNOWN_CUDSS_STATUS({code})"),
         }
     }
 }
@@ -145,7 +78,7 @@ pub enum Error {
     #[error("`{name}` length mismatch (expected {expected}, got {actual})")]
     LengthMismatch {
         /// Name of the argument or field with the mismatch.
-        name: String,
+        name: Cow<'static, str>,
         /// Expected length.
         expected: usize,
         /// Actual length.
@@ -156,14 +89,14 @@ pub enum Error {
     #[error("`{name}` is out of range")]
     OutOfRange {
         /// Name of the argument or field with the invalid value.
-        name: String,
+        name: Cow<'static, str>,
     },
 
     /// A byte count returned by cuDSS did not match the destination size.
     #[error("`{name}` size mismatch (expected {expected}, got {actual})")]
     SizeMismatch {
         /// Name of the queried value.
-        name: String,
+        name: Cow<'static, str>,
         /// Expected byte count.
         expected: usize,
         /// Actual byte count.
@@ -174,14 +107,14 @@ pub enum Error {
     #[error("invalid matrix dimension `{name}`")]
     InvalidMatrixDimension {
         /// Name of the invalid dimension.
-        name: String,
+        name: Cow<'static, str>,
     },
 
     /// A data type is not valid for the requested operation.
     #[error("unsupported data type for `{name}`")]
     UnsupportedDataType {
         /// Name of the operation or field with the unsupported type.
-        name: String,
+        name: Cow<'static, str>,
     },
 
     /// A dense matrix leading dimension is invalid for its shape and layout.
@@ -202,17 +135,39 @@ pub enum Error {
     #[error("integer conversion failed for `{0}`")]
     IntegerConversion(String),
 
-    /// A raw handle cannot be extracted because wrapper objects still share it.
-    #[error("handle is shared")]
-    HandleShared,
+    /// A native enum parameter value is not recognized by this version.
+    #[error("unknown value {value} for `{name}`")]
+    UnknownParameterValue {
+        /// Name of the parameter whose enum value was not recognized.
+        name: Cow<'static, str>,
+        /// Unrecognized native enum discriminant.
+        value: u32,
+    },
 
-    /// A CUDA stream belongs to a different CUDA context than the cuDSS handle.
-    #[error("stream belongs to a different cuda context")]
-    StreamContextMismatch,
+    /// A raw handle cannot be extracted because wrapper objects still share it.
+    #[error("resource is shared and cannot be consumed")]
+    OwnershipShared,
+
+    /// A buffer, matrix, or stream belongs to another CUDA context.
+    #[error("resource belongs to a different cuda context")]
+    ContextMismatch,
+
+    /// A completed numeric solver phase reported a matrix failure.
+    #[error("numerical solver failure (info {info})")]
+    NumericalFailure {
+        /// Nonzero cuDSS `Info` value reported after the numerical phase.
+        info: i32,
+    },
 }
 
 /// Result type used by `singe-cudss`.
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = StdResult<T, Error>;
+
+impl Error {
+    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::OutOfRange { name: name.into() }
+    }
+}
 
 impl From<sys::cudssStatus_t> for Error {
     fn from(status: sys::cudssStatus_t) -> Self {
@@ -230,8 +185,8 @@ impl From<NulError> for Error {
     }
 }
 
+/// Converts a raw cuDSS status-returning expression into a crate [`Result`](crate::error::Result).
 #[macro_export]
-/// Converts a raw cuDSS status-returning expression into a wrapper result.
 macro_rules! try_ffi {
     ($expr:expr) => {{
         let status = { $expr };
@@ -241,4 +196,34 @@ macro_rules! try_ffi {
             Ok(())
         }
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_status_converts_from_raw_code() {
+        let status = Status::from(sys::cudssStatus_t::CUDSS_STATUS_INVALID_VALUE);
+        assert_eq!(status, Status::InvalidValue);
+        assert_eq!(
+            status.raw(),
+            sys::cudssStatus_t::CUDSS_STATUS_INVALID_VALUE as u32
+        );
+    }
+
+    #[test]
+    fn test_status_display_uses_c_name() {
+        assert_eq!(
+            Status::InvalidValue.to_string(),
+            "CUDSS_STATUS_INVALID_VALUE"
+        );
+    }
+
+    #[test]
+    fn test_unknown_status_keeps_raw_code() {
+        let status = Status::Unknown(9999);
+        assert_eq!(status.raw(), 9999);
+        assert_eq!(status.to_string(), "UNKNOWN_CUDSS_STATUS(9999)");
+    }
 }

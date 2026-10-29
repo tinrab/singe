@@ -1,23 +1,21 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use cutile::half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
-use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
-};
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use crate::cuda::cutile::kernel::f16::positional as kernel_f16;
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 use crate::cuda::cutile::kernel::f32::positional as kernel_f32;
-#[cfg(feature = "dtype-f64")]
+#[cfg(feature = "dtype_f64")]
 use crate::cuda::cutile::kernel::f64::positional as kernel_f64;
 use crate::{
     cuda::{
         cutile::{
-            DeviceOpExt,
+            DeviceOpExt, TileKernel,
             kernel::{
                 common as kernel_common, positional_structured as kernel_positional_structured,
             },
@@ -37,6 +35,7 @@ use crate::{
 };
 
 type RotaryConfig = ([i32; 4], [i32; 4], [i32; 2], [i32; 2], i32);
+
 type BatchedRotaryConfig = ([i32; 4], [i32; 4], [i32; 3], [i32; 3], i32, i32);
 
 #[derive(Clone, Copy, Debug)]
@@ -407,7 +406,10 @@ impl InterleavedComplexRopeLaunch {
 
 macro_rules! rotary_embedding_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -419,15 +421,16 @@ macro_rules! rotary_embedding_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             if config.rotary_pairs > 0 {
-                checked_device_pointer(cos)?;
-                checked_device_pointer(sin)?;
+                checked_device_pointer(&cos)?;
+                checked_device_pointer(&sin)?;
             }
             let (output_dimensions, input_strides, cos_strides, sin_strides, rotary_pairs) =
                 checked_rotary_config(config)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -459,7 +462,10 @@ macro_rules! rotary_embedding_fn {
 
 macro_rules! rotary_embedding_positioned_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -472,16 +478,17 @@ macro_rules! rotary_embedding_positioned_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             if config.rotary_pairs > 0 {
-                checked_device_pointer(cos)?;
-                checked_device_pointer(sin)?;
+                checked_device_pointer(&cos)?;
+                checked_device_pointer(&sin)?;
             }
             let (output_dimensions, input_strides, cos_strides, sin_strides, rotary_pairs) =
                 checked_rotary_config(config)?;
             let position_start = checked_i32_value(position_start)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -514,7 +521,10 @@ macro_rules! rotary_embedding_positioned_fn {
 
 macro_rules! rotary_embedding_dynpos_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -527,16 +537,17 @@ macro_rules! rotary_embedding_dynpos_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
-            checked_device_pointer(position_start)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            checked_device_pointer(&position_start)?;
             if config.rotary_pairs > 0 {
-                checked_device_pointer(cos)?;
-                checked_device_pointer(sin)?;
+                checked_device_pointer(&cos)?;
+                checked_device_pointer(&sin)?;
             }
             let (output_dimensions, input_strides, cos_strides, sin_strides, rotary_pairs) =
                 checked_rotary_config(config)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -569,7 +580,10 @@ macro_rules! rotary_embedding_dynpos_fn {
 
 macro_rules! rotary_embedding_batched_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -581,11 +595,11 @@ macro_rules! rotary_embedding_batched_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             if config.rotary_pairs > 0 {
-                checked_device_pointer(cos)?;
-                checked_device_pointer(sin)?;
+                checked_device_pointer(&cos)?;
+                checked_device_pointer(&sin)?;
             }
             let (
                 output_dimensions,
@@ -596,6 +610,7 @@ macro_rules! rotary_embedding_batched_fn {
                 rotary_pairs,
             ) = checked_batched_rotary_config(config)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -630,7 +645,10 @@ macro_rules! rotary_embedding_batched_fn {
 
 macro_rules! rotary_embedding_qk_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             q_out: DevicePointer<$ty>,
             k_out: DevicePointer<$ty>,
@@ -646,18 +664,19 @@ macro_rules! rotary_embedding_qk_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(q_out)?;
-            checked_device_pointer(k_out)?;
-            checked_device_pointer(q_input)?;
-            checked_device_pointer(k_input)?;
+            checked_device_pointer(&q_out)?;
+            checked_device_pointer(&k_out)?;
+            checked_device_pointer(&q_input)?;
+            checked_device_pointer(&k_input)?;
             if config.rotary_pairs > 0 {
-                checked_device_pointer(cos)?;
-                checked_device_pointer(sin)?;
+                checked_device_pointer(&cos)?;
+                checked_device_pointer(&sin)?;
             }
             let checked = checked_qk_rotary_config(config)?;
             let q_len = checked_i32_value(q_len)?;
             let k_len = checked_i32_value(k_len)?;
             let grid = raw_vector_grid(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     q_out,
@@ -700,7 +719,10 @@ macro_rules! rotary_embedding_qk_fn {
 
 macro_rules! rotary_embedding_qk_batched_fn {
     ($name:ident, $ty:ty, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             q_out: DevicePointer<$ty>,
             k_out: DevicePointer<$ty>,
@@ -711,15 +733,20 @@ macro_rules! rotary_embedding_qk_batched_fn {
             config: QkBatchedRotaryEmbeddingConfig,
         ) -> Result<()> {
             let checked = checked_qk_batched_rotary_config(config)?;
-            $kernel_fn(stream, q_out, q_input, cos, sin, checked.q)?;
-            $kernel_fn(stream, k_out, k_input, cos, sin, checked.k)
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { $kernel_fn(stream, q_out, q_input, cos, sin, checked.q) }?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { $kernel_fn(stream, k_out, k_input, cos, sin, checked.k) }
         }
     };
 }
 
 macro_rules! rotary_embedding_qk_batched_in_place_fn {
     ($name:ident, $kernel_fn:ident, $ty:ty) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             q: DevicePointer<$ty>,
             k: DevicePointer<$ty>,
@@ -728,15 +755,20 @@ macro_rules! rotary_embedding_qk_batched_in_place_fn {
             config: QkBatchedRotaryEmbeddingConfig,
         ) -> Result<()> {
             let checked = checked_qk_batched_rotary_config(config)?;
-            $kernel_fn(stream, q, q, cos, sin, checked.q)?;
-            $kernel_fn(stream, k, k, cos, sin, checked.k)
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { $kernel_fn(stream, q, q, cos, sin, checked.q) }?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { $kernel_fn(stream, k, k, cos, sin, checked.k) }
         }
     };
 }
 
 macro_rules! rotary_embedding_qk_in_place_fn {
     ($name:ident, $kernel_fn:ident, $ty:ty) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             q: DevicePointer<$ty>,
             k: DevicePointer<$ty>,
@@ -744,33 +776,38 @@ macro_rules! rotary_embedding_qk_in_place_fn {
             sin: DevicePointer<$ty>,
             config: QkRotaryEmbeddingConfig,
         ) -> Result<()> {
-            $kernel_fn(stream, q, k, q, k, cos, sin, config)
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { $kernel_fn(stream, q, k, q, k, cos, sin, config) }
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_fn!(rotary_embedding_f32, f32, kernel_f32, rotary_embedding_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_fn!(rotary_embedding_f16, f16, kernel_f16, rotary_embedding_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_fn!(rotary_embedding_f64, f64, kernel_f64, rotary_embedding_f64);
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_positioned_fn!(
     rotary_embedding_positioned_f32,
     f32,
     kernel_common,
     rotary_embedding_positioned_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_positioned_fn!(
     rotary_embedding_positioned_f16,
     f16,
     kernel_common,
     rotary_embedding_positioned_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_positioned_fn!(
     rotary_embedding_positioned_f64,
     f64,
@@ -778,21 +815,23 @@ rotary_embedding_positioned_fn!(
     rotary_embedding_positioned_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_dynpos_fn!(
     rotary_embedding_dynpos_f32,
     f32,
     kernel_common,
     rotary_embedding_dynpos_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_dynpos_fn!(
     rotary_embedding_dynpos_f16,
     f16,
     kernel_common,
     rotary_embedding_dynpos_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_dynpos_fn!(
     rotary_embedding_dynpos_f64,
     f64,
@@ -800,21 +839,23 @@ rotary_embedding_dynpos_fn!(
     rotary_embedding_dynpos_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_batched_fn!(
     rotary_embedding_batched_f32,
     f32,
     kernel_common,
     rotary_embedding_batched_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_batched_fn!(
     rotary_embedding_batched_f16,
     f16,
     kernel_common,
     rotary_embedding_batched_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_batched_fn!(
     rotary_embedding_batched_f64,
     f64,
@@ -822,21 +863,23 @@ rotary_embedding_batched_fn!(
     rotary_embedding_batched_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_fn!(
     rotary_embedding_chunked_f32,
     f32,
     kernel_common,
     rotary_embedding_chunked_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_fn!(
     rotary_embedding_chunked_f16,
     f16,
     kernel_common,
     rotary_embedding_chunked_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_fn!(
     rotary_embedding_chunked_f64,
     f64,
@@ -844,21 +887,23 @@ rotary_embedding_fn!(
     rotary_embedding_chunked_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_positioned_fn!(
     rotary_embedding_chunked_positioned_f32,
     f32,
     kernel_common,
     rotary_embedding_chunked_positioned_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_positioned_fn!(
     rotary_embedding_chunked_positioned_f16,
     f16,
     kernel_common,
     rotary_embedding_chunked_positioned_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_positioned_fn!(
     rotary_embedding_chunked_positioned_f64,
     f64,
@@ -866,21 +911,23 @@ rotary_embedding_positioned_fn!(
     rotary_embedding_chunked_positioned_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_dynpos_fn!(
     rotary_embedding_chunked_dynpos_f32,
     f32,
     kernel_common,
     rotary_embedding_chunked_dynpos_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_dynpos_fn!(
     rotary_embedding_chunked_dynpos_f16,
     f16,
     kernel_common,
     rotary_embedding_chunked_dynpos_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_dynpos_fn!(
     rotary_embedding_chunked_dynpos_f64,
     f64,
@@ -888,21 +935,23 @@ rotary_embedding_dynpos_fn!(
     rotary_embedding_chunked_dynpos_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_batched_fn!(
     rotary_embedding_chunked_batched_f32,
     f32,
     kernel_common,
     rotary_embedding_chunked_batched_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_batched_fn!(
     rotary_embedding_chunked_batched_f16,
     f16,
     kernel_common,
     rotary_embedding_chunked_batched_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_batched_fn!(
     rotary_embedding_chunked_batched_f64,
     f64,
@@ -910,21 +959,23 @@ rotary_embedding_batched_fn!(
     rotary_embedding_chunked_batched_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_qk_fn!(
     rotary_embedding_qk_f32,
     f32,
     kernel_common,
     rotary_embedding_qk_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_qk_fn!(
     rotary_embedding_qk_f16,
     f16,
     kernel_common,
     rotary_embedding_qk_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_qk_fn!(
     rotary_embedding_qk_f64,
     f64,
@@ -932,65 +983,74 @@ rotary_embedding_qk_fn!(
     rotary_embedding_qk_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_qk_batched_fn!(
     rotary_embedding_qk_batched_f32,
     f32,
     rotary_embedding_batched_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_qk_batched_fn!(
     rotary_embedding_qk_batched_f16,
     f16,
     rotary_embedding_batched_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_qk_batched_fn!(
     rotary_embedding_qk_batched_f64,
     f64,
     rotary_embedding_batched_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_qk_in_place_fn!(
     rotary_embedding_qk_in_place_f32,
     rotary_embedding_qk_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_qk_in_place_fn!(
     rotary_embedding_qk_in_place_f16,
     rotary_embedding_qk_f16,
     f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_qk_in_place_fn!(
     rotary_embedding_qk_in_place_f64,
     rotary_embedding_qk_f64,
     f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_qk_batched_in_place_fn!(
     rotary_embedding_qk_batched_in_place_f32,
     rotary_embedding_batched_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_qk_batched_in_place_fn!(
     rotary_embedding_qk_batched_in_place_f16,
     rotary_embedding_batched_f16,
     f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_qk_batched_in_place_fn!(
     rotary_embedding_qk_batched_in_place_f64,
     rotary_embedding_batched_f64,
     f64
 );
 
-#[cfg(feature = "dtype-f32")]
-pub fn rope_bshd_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rope_bshd_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -1002,10 +1062,11 @@ pub fn rope_bshd_f32(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rope_bshd_f32(
             input,
@@ -1024,8 +1085,11 @@ pub fn rope_bshd_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn rope_bshd_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rope_bshd_f16(
     stream: &Arc<Stream>,
     out: DevicePointer<f16>,
     input: DevicePointer<f16>,
@@ -1037,10 +1101,11 @@ pub fn rope_bshd_f16(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rope_bshd_f16(
             input,
@@ -1059,8 +1124,11 @@ pub fn rope_bshd_f16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn rope_bshd_dynpos_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rope_bshd_dynpos_f16(
     stream: &Arc<Stream>,
     out: DevicePointer<f16>,
     input: DevicePointer<f16>,
@@ -1073,11 +1141,12 @@ pub fn rope_bshd_dynpos_f16(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
-    checked_device_pointer(position_start)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    checked_device_pointer(&position_start)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rope_bshd_dynpos_f16(
             input,
@@ -1097,8 +1166,11 @@ pub fn rope_bshd_dynpos_f16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn rope_bshd_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rope_bshd_bf16(
     stream: &Arc<Stream>,
     out: DevicePointer<bf16>,
     input: DevicePointer<bf16>,
@@ -1110,10 +1182,11 @@ pub fn rope_bshd_bf16(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rope_bshd_bf16(
             input,
@@ -1132,9 +1205,11 @@ pub fn rope_bshd_bf16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-bf16")]
-
-pub fn rotary_embedding_qk_bnsd_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rotary_embedding_qk_bnsd_bf16(
     stream: &Arc<Stream>,
     q_out: DevicePointer<bf16>,
     k_out: DevicePointer<bf16>,
@@ -1148,12 +1223,13 @@ pub fn rotary_embedding_qk_bnsd_bf16(
     if launch.total_len == 0 {
         return Ok(());
     }
-    checked_device_pointer(q_out)?;
-    checked_device_pointer(k_out)?;
-    checked_device_pointer(q_input)?;
-    checked_device_pointer(k_input)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&q_out)?;
+    checked_device_pointer(&k_out)?;
+    checked_device_pointer(&q_input)?;
+    checked_device_pointer(&k_input)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rotary_embedding_qk_bnsd_bf16(
             q_out,
@@ -1179,9 +1255,11 @@ pub fn rotary_embedding_qk_bnsd_bf16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-
-pub fn rotary_embedding_qk_bnsd_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rotary_embedding_qk_bnsd_f32(
     stream: &Arc<Stream>,
     q_out: DevicePointer<f32>,
     k_out: DevicePointer<f32>,
@@ -1195,12 +1273,13 @@ pub fn rotary_embedding_qk_bnsd_f32(
     if launch.total_len == 0 {
         return Ok(());
     }
-    checked_device_pointer(q_out)?;
-    checked_device_pointer(k_out)?;
-    checked_device_pointer(q_input)?;
-    checked_device_pointer(k_input)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&q_out)?;
+    checked_device_pointer(&k_out)?;
+    checked_device_pointer(&q_input)?;
+    checked_device_pointer(&k_input)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rotary_embedding_qk_bnsd_f32(
             q_out,
@@ -1226,9 +1305,11 @@ pub fn rotary_embedding_qk_bnsd_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f16")]
-
-pub fn rotary_embedding_qk_bnsd_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rotary_embedding_qk_bnsd_f16(
     stream: &Arc<Stream>,
     q_out: DevicePointer<f16>,
     k_out: DevicePointer<f16>,
@@ -1242,12 +1323,13 @@ pub fn rotary_embedding_qk_bnsd_f16(
     if launch.total_len == 0 {
         return Ok(());
     }
-    checked_device_pointer(q_out)?;
-    checked_device_pointer(k_out)?;
-    checked_device_pointer(q_input)?;
-    checked_device_pointer(k_input)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&q_out)?;
+    checked_device_pointer(&k_out)?;
+    checked_device_pointer(&q_input)?;
+    checked_device_pointer(&k_input)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rotary_embedding_qk_bnsd_f16(
             q_out,
@@ -1273,8 +1355,11 @@ pub fn rotary_embedding_qk_bnsd_f16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn rotary_embedding_qk_bnsd_in_place_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rotary_embedding_qk_bnsd_in_place_f32(
     stream: &Arc<Stream>,
     q: DevicePointer<f32>,
     k: DevicePointer<f32>,
@@ -1286,10 +1371,11 @@ pub fn rotary_embedding_qk_bnsd_in_place_f32(
     if launch.total_pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(q)?;
-    checked_device_pointer(k)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&q)?;
+    checked_device_pointer(&k)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rotary_embedding_qk_bnsd_in_place_f32(
             q,
@@ -1312,8 +1398,11 @@ pub fn rotary_embedding_qk_bnsd_in_place_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn rotary_embedding_qk_bnsd_in_place_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rotary_embedding_qk_bnsd_in_place_f16(
     stream: &Arc<Stream>,
     q: DevicePointer<f16>,
     k: DevicePointer<f16>,
@@ -1325,10 +1414,11 @@ pub fn rotary_embedding_qk_bnsd_in_place_f16(
     if launch.total_pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(q)?;
-    checked_device_pointer(k)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&q)?;
+    checked_device_pointer(&k)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rotary_embedding_qk_bnsd_in_place_f16(
             q,
@@ -1351,8 +1441,11 @@ pub fn rotary_embedding_qk_bnsd_in_place_f16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn rotary_embedding_qk_bnsd_in_place_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rotary_embedding_qk_bnsd_in_place_bf16(
     stream: &Arc<Stream>,
     q: DevicePointer<bf16>,
     k: DevicePointer<bf16>,
@@ -1364,10 +1457,11 @@ pub fn rotary_embedding_qk_bnsd_in_place_bf16(
     if launch.total_pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(q)?;
-    checked_device_pointer(k)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&q)?;
+    checked_device_pointer(&k)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::rotary_embedding_qk_bnsd_in_place_bf16(
             q,
@@ -1390,8 +1484,11 @@ pub fn rotary_embedding_qk_bnsd_in_place_bf16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn multiaxis_rope_qk_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn multiaxis_rope_qk_f32(
     stream: &Arc<Stream>,
     query: DevicePointer<f32>,
     key: DevicePointer<f32>,
@@ -1403,10 +1500,11 @@ pub fn multiaxis_rope_qk_f32(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::multiaxis_rope_qk_f32(
             query,
@@ -1428,8 +1526,11 @@ pub fn multiaxis_rope_qk_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn interleaved_complex_rope_qk_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn interleaved_complex_rope_qk_f32(
     stream: &Arc<Stream>,
     query: DevicePointer<f32>,
     key: DevicePointer<f32>,
@@ -1440,9 +1541,10 @@ pub fn interleaved_complex_rope_qk_f32(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(freqs)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&freqs)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::interleaved_complex_rope_qk_f32(
             query,
@@ -1461,8 +1563,11 @@ pub fn interleaved_complex_rope_qk_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn interleaved_complex_rope_qk_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn interleaved_complex_rope_qk_f16(
     stream: &Arc<Stream>,
     query: DevicePointer<f16>,
     key: DevicePointer<f16>,
@@ -1473,9 +1578,10 @@ pub fn interleaved_complex_rope_qk_f16(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(freqs)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&freqs)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::interleaved_complex_rope_qk_f16(
             query,
@@ -1494,8 +1600,11 @@ pub fn interleaved_complex_rope_qk_f16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn interleaved_complex_rope_qk_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn interleaved_complex_rope_qk_bf16(
     stream: &Arc<Stream>,
     query: DevicePointer<bf16>,
     key: DevicePointer<bf16>,
@@ -1506,9 +1615,10 @@ pub fn interleaved_complex_rope_qk_bf16(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(freqs)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&freqs)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::interleaved_complex_rope_qk_bf16(
             query,
@@ -1534,15 +1644,17 @@ mod tests {
     use cutile::prelude::*;
 
     use super::*;
+    #[cfg(feature = "dtype_bf16")]
+    use crate::cpu::positional::{bfloat_to_f32, bfloat_vec};
+    #[cfg(feature = "dtype_f16")]
+    use crate::cpu::positional::{half_to_f32, half_vec};
     use crate::{
-        cpu::positional::{
-            self as cpu_positional, bfloat_to_f32, bfloat_vec, half_to_f32, half_vec,
-        },
+        cpu::positional::{self as cpu_positional},
         error::Result,
     };
 
     #[test]
-    fn rotary_embedding_qk_batched_f32_matches_single_tensor_launches() -> Result<()> {
+    fn test_rotary_embedding_qk_batched_f32_matches_single_tensor_launches() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1582,46 +1694,55 @@ mod tests {
         let q_out = api::zeros::<f32>(&[q_len]).sync_on(&stream)?;
         let k_out = api::zeros::<f32>(&[k_len]).sync_on(&stream)?;
 
-        rotary_embedding_batched_f32(
-            &stream,
-            q_expected.device_pointer(),
-            q_input.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            BatchedRotaryEmbeddingConfig {
-                output_dimensions: config.q_output_dimensions,
-                input_strides: config.q_input_strides,
-                cos_strides: config.cos_strides,
-                sin_strides: config.sin_strides,
-                trig_batch: config.trig_batch,
-                rotary_pairs: config.rotary_pairs,
-            },
-        )?;
-        rotary_embedding_batched_f32(
-            &stream,
-            k_expected.device_pointer(),
-            k_input.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            BatchedRotaryEmbeddingConfig {
-                output_dimensions: config.k_output_dimensions,
-                input_strides: config.k_input_strides,
-                cos_strides: config.cos_strides,
-                sin_strides: config.sin_strides,
-                trig_batch: config.trig_batch,
-                rotary_pairs: config.rotary_pairs,
-            },
-        )?;
-        rotary_embedding_qk_batched_f32(
-            &stream,
-            q_out.device_pointer(),
-            k_out.device_pointer(),
-            q_input.device_pointer(),
-            k_input.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_batched_f32(
+                &stream,
+                q_expected.device_pointer(),
+                q_input.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                BatchedRotaryEmbeddingConfig {
+                    output_dimensions: config.q_output_dimensions,
+                    input_strides: config.q_input_strides,
+                    cos_strides: config.cos_strides,
+                    sin_strides: config.sin_strides,
+                    trig_batch: config.trig_batch,
+                    rotary_pairs: config.rotary_pairs,
+                },
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_batched_f32(
+                &stream,
+                k_expected.device_pointer(),
+                k_input.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                BatchedRotaryEmbeddingConfig {
+                    output_dimensions: config.k_output_dimensions,
+                    input_strides: config.k_input_strides,
+                    cos_strides: config.cos_strides,
+                    sin_strides: config.sin_strides,
+                    trig_batch: config.trig_batch,
+                    rotary_pairs: config.rotary_pairs,
+                },
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_qk_batched_f32(
+                &stream,
+                q_out.device_pointer(),
+                k_out.device_pointer(),
+                q_input.device_pointer(),
+                k_input.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &q_out.to_host_vec().sync_on(&stream)?,
@@ -1637,7 +1758,7 @@ mod tests {
     }
 
     #[test]
-    fn rope_bshd_f32() -> Result<()> {
+    fn test_rope_bshd_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1683,22 +1804,25 @@ mod tests {
         let sin = api::copy_host_vec_to_device(&Arc::new(sin_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[expected.len()]).sync_on(&stream)?;
 
-        rope_bshd_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::rope_bshd_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn rope_bshd_dynpos_f16_matches_host_position_f16() -> Result<()> {
+    fn test_rope_bshd_dynpos_f16_matches_host_position_f16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1742,23 +1866,29 @@ mod tests {
         let expected = api::zeros::<f16>(&[input_len]).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[input_len]).sync_on(&stream)?;
 
-        rope_bshd_f16(
-            &stream,
-            expected.device_pointer(),
-            input.device_pointer(),
-            cos_slice.device_pointer(),
-            sin_slice.device_pointer(),
-            config,
-        )?;
-        rope_bshd_dynpos_f16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            cos_full.device_pointer(),
-            sin_full.device_pointer(),
-            position.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_bshd_f16(
+                &stream,
+                expected.device_pointer(),
+                input.device_pointer(),
+                cos_slice.device_pointer(),
+                sin_slice.device_pointer(),
+                config,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_bshd_dynpos_f16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                cos_full.device_pointer(),
+                sin_full.device_pointer(),
+                position.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -1769,7 +1899,7 @@ mod tests {
     }
 
     #[test]
-    fn rotary_embedding_qk_bnsd_f32_partial_rope() -> Result<()> {
+    fn test_rotary_embedding_qk_bnsd_f32_partial_rope() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1812,16 +1942,19 @@ mod tests {
         let q_out = api::zeros::<f32>(&[q_expected.len()]).sync_on(&stream)?;
         let k_out = api::zeros::<f32>(&[k_expected.len()]).sync_on(&stream)?;
 
-        rotary_embedding_qk_bnsd_f32(
-            &stream,
-            q_out.device_pointer(),
-            k_out.device_pointer(),
-            q_input.device_pointer(),
-            k_input.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_qk_bnsd_f32(
+                &stream,
+                q_out.device_pointer(),
+                k_out.device_pointer(),
+                q_input.device_pointer(),
+                k_input.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(&q_out.to_host_vec().sync_on(&stream)?, &q_expected, 1e-5);
         singe_core::assert_close!(&k_out.to_host_vec().sync_on(&stream)?, &k_expected, 1e-5);
@@ -1829,7 +1962,7 @@ mod tests {
     }
 
     #[test]
-    fn rotary_embedding_qk_bnsd_in_place_f32_partial_rope() -> Result<()> {
+    fn test_rotary_embedding_qk_bnsd_in_place_f32_partial_rope() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1870,23 +2003,26 @@ mod tests {
         let cos = api::copy_host_vec_to_device(&Arc::new(cos_host)).sync_on(&stream)?;
         let sin = api::copy_host_vec_to_device(&Arc::new(sin_host)).sync_on(&stream)?;
 
-        rotary_embedding_qk_bnsd_in_place_f32(
-            &stream,
-            q.device_pointer(),
-            k.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_qk_bnsd_in_place_f32(
+                &stream,
+                q.device_pointer(),
+                k.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(&q.to_host_vec().sync_on(&stream)?, &q_expected, 1e-5);
         singe_core::assert_close!(&k.to_host_vec().sync_on(&stream)?, &k_expected, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn rotary_embedding_qk_bnsd_f16_partial_rope() -> Result<()> {
+    fn test_rotary_embedding_qk_bnsd_f16_partial_rope() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1931,16 +2067,19 @@ mod tests {
         let q_out = api::zeros::<f16>(&[q_expected.len()]).sync_on(&stream)?;
         let k_out = api::zeros::<f16>(&[k_expected.len()]).sync_on(&stream)?;
 
-        rotary_embedding_qk_bnsd_f16(
-            &stream,
-            q_out.device_pointer(),
-            k_out.device_pointer(),
-            q_input.device_pointer(),
-            k_input.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_qk_bnsd_f16(
+                &stream,
+                q_out.device_pointer(),
+                k_out.device_pointer(),
+                q_input.device_pointer(),
+                k_input.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&q_out.to_host_vec().sync_on(&stream)?),
@@ -1955,9 +2094,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn rotary_embedding_qk_bnsd_in_place_f16_partial_rope() -> Result<()> {
+    fn test_rotary_embedding_qk_bnsd_in_place_f16_partial_rope() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2000,14 +2139,17 @@ mod tests {
         let cos = api::copy_host_vec_to_device(&Arc::new(cos_host)).sync_on(&stream)?;
         let sin = api::copy_host_vec_to_device(&Arc::new(sin_host)).sync_on(&stream)?;
 
-        rotary_embedding_qk_bnsd_in_place_f16(
-            &stream,
-            q.device_pointer(),
-            k.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_qk_bnsd_in_place_f16(
+                &stream,
+                q.device_pointer(),
+                k.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&q.to_host_vec().sync_on(&stream)?),
@@ -2022,9 +2164,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn rotary_embedding_qk_bnsd_bf16_partial_rope() -> Result<()> {
+    fn test_rotary_embedding_qk_bnsd_bf16_partial_rope() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2071,16 +2213,19 @@ mod tests {
         let q_out = api::zeros::<bf16>(&[q_expected.len()]).sync_on(&stream)?;
         let k_out = api::zeros::<bf16>(&[k_expected.len()]).sync_on(&stream)?;
 
-        rotary_embedding_qk_bnsd_bf16(
-            &stream,
-            q_out.device_pointer(),
-            k_out.device_pointer(),
-            q_input.device_pointer(),
-            k_input.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_qk_bnsd_bf16(
+                &stream,
+                q_out.device_pointer(),
+                k_out.device_pointer(),
+                q_input.device_pointer(),
+                k_input.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&q_out.to_host_vec().sync_on(&stream)?),
@@ -2095,9 +2240,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn rotary_embedding_qk_bnsd_in_place_bf16_partial_rope() -> Result<()> {
+    fn test_rotary_embedding_qk_bnsd_in_place_bf16_partial_rope() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2140,14 +2285,17 @@ mod tests {
         let cos = api::copy_host_vec_to_device(&Arc::new(cos_host)).sync_on(&stream)?;
         let sin = api::copy_host_vec_to_device(&Arc::new(sin_host)).sync_on(&stream)?;
 
-        rotary_embedding_qk_bnsd_in_place_bf16(
-            &stream,
-            q.device_pointer(),
-            k.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rotary_embedding_qk_bnsd_in_place_bf16(
+                &stream,
+                q.device_pointer(),
+                k.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&q.to_host_vec().sync_on(&stream)?),
@@ -2163,7 +2311,7 @@ mod tests {
     }
 
     #[test]
-    fn interleaved_complex_rope_qk_f32() -> Result<()> {
+    fn test_interleaved_complex_rope_qk_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2207,13 +2355,16 @@ mod tests {
             api::copy_host_vec_to_device(&Arc::new(key_host.split_off(0))).sync_on(&stream)?;
         let freqs = api::copy_host_vec_to_device(&Arc::new(freqs_host)).sync_on(&stream)?;
 
-        interleaved_complex_rope_qk_f32(
-            &stream,
-            query.device_pointer(),
-            key.device_pointer(),
-            freqs.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::interleaved_complex_rope_qk_f32(
+                &stream,
+                query.device_pointer(),
+                key.device_pointer(),
+                freqs.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &query.to_host_vec().sync_on(&stream)?,
@@ -2224,9 +2375,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn interleaved_complex_rope_qk_f16() -> Result<()> {
+    fn test_interleaved_complex_rope_qk_f16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2261,13 +2412,16 @@ mod tests {
         let key = api::copy_host_vec_to_device(&Arc::new(half_vec(&key_f32))).sync_on(&stream)?;
         let freqs = api::copy_host_vec_to_device(&Arc::new(freqs_host)).sync_on(&stream)?;
 
-        interleaved_complex_rope_qk_f16(
-            &stream,
-            query.device_pointer(),
-            key.device_pointer(),
-            freqs.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::interleaved_complex_rope_qk_f16(
+                &stream,
+                query.device_pointer(),
+                key.device_pointer(),
+                freqs.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&query.to_host_vec().sync_on(&stream)?),
@@ -2282,9 +2436,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn interleaved_complex_rope_qk_bf16() -> Result<()> {
+    fn test_interleaved_complex_rope_qk_bf16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2319,13 +2473,16 @@ mod tests {
         let key = api::copy_host_vec_to_device(&Arc::new(bfloat_vec(&key_f32))).sync_on(&stream)?;
         let freqs = api::copy_host_vec_to_device(&Arc::new(freqs_host)).sync_on(&stream)?;
 
-        interleaved_complex_rope_qk_bf16(
-            &stream,
-            query.device_pointer(),
-            key.device_pointer(),
-            freqs.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::interleaved_complex_rope_qk_bf16(
+                &stream,
+                query.device_pointer(),
+                key.device_pointer(),
+                freqs.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&query.to_host_vec().sync_on(&stream)?),
@@ -2341,7 +2498,7 @@ mod tests {
     }
 
     #[test]
-    fn multiaxis_rope_qk_f32() -> Result<()> {
+    fn test_multiaxis_rope_qk_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2381,14 +2538,17 @@ mod tests {
         let cos = api::copy_host_vec_to_device(&Arc::new(cos_host)).sync_on(&stream)?;
         let sin = api::copy_host_vec_to_device(&Arc::new(sin_host)).sync_on(&stream)?;
 
-        multiaxis_rope_qk_f32(
-            &stream,
-            query.device_pointer(),
-            key.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::multiaxis_rope_qk_f32(
+                &stream,
+                query.device_pointer(),
+                key.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &query.to_host_vec().sync_on(&stream)?,
@@ -2399,9 +2559,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn multiaxis_rope_qk_f16() -> Result<()> {
+    fn test_multiaxis_rope_qk_f16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2441,14 +2601,17 @@ mod tests {
         let cos = api::copy_host_vec_to_device(&Arc::new(cos_host)).sync_on(&stream)?;
         let sin = api::copy_host_vec_to_device(&Arc::new(sin_host)).sync_on(&stream)?;
 
-        multiaxis_rope_qk_f16(
-            &stream,
-            query.device_pointer(),
-            key.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::multiaxis_rope_qk_f16(
+                &stream,
+                query.device_pointer(),
+                key.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&query.to_host_vec().sync_on(&stream)?),
@@ -2463,9 +2626,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn multiaxis_rope_qk_bf16() -> Result<()> {
+    fn test_multiaxis_rope_qk_bf16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2505,14 +2668,17 @@ mod tests {
         let cos = api::copy_host_vec_to_device(&Arc::new(cos_host)).sync_on(&stream)?;
         let sin = api::copy_host_vec_to_device(&Arc::new(sin_host)).sync_on(&stream)?;
 
-        multiaxis_rope_qk_bf16(
-            &stream,
-            query.device_pointer(),
-            key.device_pointer(),
-            cos.device_pointer(),
-            sin.device_pointer(),
-            config,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::multiaxis_rope_qk_bf16(
+                &stream,
+                query.device_pointer(),
+                key.device_pointer(),
+                cos.device_pointer(),
+                sin.device_pointer(),
+                config,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&query.to_host_vec().sync_on(&stream)?),
@@ -2539,7 +2705,10 @@ mod tests {
         (cos, sin)
     }
 
-    #[allow(dead_code)]
+    #[allow(
+        dead_code,
+        reason = "retained for layout, ownership or API completeness"
+    )]
     fn interleaved_complex_freqs(config: InterleavedComplexRopeConfig) -> Vec<f32> {
         (0..config.seq_len * config.head_dim)
             .map(|index| {
@@ -2554,8 +2723,11 @@ mod tests {
     }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn multiaxis_rope_qk_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn multiaxis_rope_qk_f16(
     stream: &Arc<Stream>,
     query: DevicePointer<f16>,
     key: DevicePointer<f16>,
@@ -2567,10 +2739,11 @@ pub fn multiaxis_rope_qk_f16(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::multiaxis_rope_qk_f16(
             query,
@@ -2592,8 +2765,11 @@ pub fn multiaxis_rope_qk_f16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn multiaxis_rope_qk_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn multiaxis_rope_qk_bf16(
     stream: &Arc<Stream>,
     query: DevicePointer<bf16>,
     key: DevicePointer<bf16>,
@@ -2605,10 +2781,11 @@ pub fn multiaxis_rope_qk_bf16(
     if launch.pair_count == 0 {
         return Ok(());
     }
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(cos)?;
-    checked_device_pointer(sin)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_positional_structured::multiaxis_rope_qk_bf16(
             query,

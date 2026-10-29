@@ -1,7 +1,12 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+
 use serde::{Deserialize, Serialize};
+
 use singe_core::{impl_enum_conversion, impl_enum_display};
+
 use singe_cudnn_sys as sys;
+
+use crate::{error::Result, utility::check_range};
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive, Serialize, Deserialize,
@@ -36,13 +41,16 @@ impl_enum_display!(MathType, {
     Self::Fma => "CUDNN_FMA_MATH",
 });
 
+/// Whether a native operation propagates NaN values.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive, Serialize, Deserialize,
 )]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum NanPropagation {
+    /// Requests that NaN values are not propagated.
     NotPropagate = 0,
+    /// Requests propagation of NaN values.
     Propagate = 1,
 }
 
@@ -70,3 +78,75 @@ impl_enum_display!(Determinism, {
     Self::NonDeterministic => "CUDNN_NON_DETERMINISTIC",
     Self::Deterministic => "CUDNN_DETERMINISTIC",
 });
+
+/// An exact native fraction with its supplied numerator and denominator preserved.
+/// Construction does not normalize the value; operation geometry validates denominators before use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Fraction {
+    numerator: i64,
+    denominator: i64,
+}
+
+impl Fraction {
+    /// Preserves the supplied numerator and denominator without validation or normalization.
+    #[must_use]
+    pub const fn new(numerator: i64, denominator: i64) -> Self {
+        Self {
+            numerator,
+            denominator,
+        }
+    }
+
+    /// Represents an integer exactly with denominator one.
+    #[must_use]
+    pub const fn whole(value: i64) -> Self {
+        Self::new(value, 1)
+    }
+
+    /// Returns the stored numerator without normalization.
+    #[must_use]
+    pub const fn numerator(self) -> i64 {
+        self.numerator
+    }
+
+    /// Returns the stored denominator, which has not necessarily been validated.
+    #[must_use]
+    pub const fn denominator(self) -> i64 {
+        self.denominator
+    }
+
+    pub(crate) fn validate(self, name: &str) -> Result<()> {
+        check_range!(name, self.denominator > 0)
+    }
+
+    pub(crate) fn raw(self) -> sys::cudnnFraction_t {
+        sys::cudnnFraction_t {
+            numerator: self.numerator,
+            denominator: self.denominator,
+        }
+    }
+}
+
+impl From<i32> for Fraction {
+    fn from(value: i32) -> Self {
+        Self::whole(i64::from(value))
+    }
+}
+
+impl From<i64> for Fraction {
+    fn from(value: i64) -> Self {
+        Self::whole(value)
+    }
+}
+
+impl From<(i32, i32)> for Fraction {
+    fn from((numerator, denominator): (i32, i32)) -> Self {
+        Self::new(i64::from(numerator), i64::from(denominator))
+    }
+}
+
+impl From<(i64, i64)> for Fraction {
+    fn from((numerator, denominator): (i64, i64)) -> Self {
+        Self::new(numerator, denominator)
+    }
+}

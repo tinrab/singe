@@ -1,11 +1,14 @@
 mod common;
 
+use std::slice;
+
 use singe_cuda::memory::DeviceMemory;
 use singe_cudss::{config::Config, error::Result};
 
-use crate::common::*;
+use crate::common::{create_context, dense_matrix, dense_output, solve, spd_csr_matrix};
 
 fn main() -> Result<()> {
+    let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solving and computing a relative residual");
 
     let n = 5i64;
@@ -17,23 +20,36 @@ fn main() -> Result<()> {
     let a_values_h = [4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0];
     let b_values_h = [7.0f64, 12.0, 25.0, 4.0, 13.0];
 
-    let row_offsets = DeviceMemory::from_slice(&row_offsets_h)?;
-    let col_indices = DeviceMemory::from_slice(&col_indices_h)?;
-    let a_values = DeviceMemory::from_slice(&a_values_h)?;
-    let b_values = DeviceMemory::from_slice(&b_values_h)?;
-    let x_values = DeviceMemory::<f64>::zeroes((n * nrhs) as usize)?;
+    let row_offsets = DeviceMemory::from_slice(&cuda, &row_offsets_h)?;
+    let col_indices = DeviceMemory::from_slice(&cuda, &col_indices_h)?;
+    let a_values = DeviceMemory::from_slice(&cuda, &a_values_h)?;
+    let b_values = DeviceMemory::from_slice(&cuda, &b_values_h)?;
+    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, (n * nrhs) as usize)?;
 
-    let (cuda, _stream, context) = create_context()?;
     let config = Config::create()?;
     let mut data = context.create_data()?;
 
     let b = dense_matrix(n, nrhs, n, &b_values)?;
-    let mut x = dense_matrix(n, nrhs, n, &x_values)?;
+    let mut x = dense_output(n, nrhs, n, x_values.output())?;
     let a = spd_csr_matrix(n, n, nnz, &row_offsets, &col_indices, &a_values)?;
 
-    solve(&context, &config, &mut data, &a, &mut x, &b)?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        solve(
+            slice::from_ref(&stream),
+            &context,
+            &config,
+            &mut data,
+            &a,
+            &mut x,
+            &b,
+        )
+    }?;
     cuda.synchronize()?;
 
+    drop(x);
+    // SAFETY: checked completed production initialized this compact output.
+    let x_values = unsafe { x_values.assume_init() };
     let x_h = x_values.copy_to_host_vec()?;
     let residual = relative_residual(
         &row_offsets_h,

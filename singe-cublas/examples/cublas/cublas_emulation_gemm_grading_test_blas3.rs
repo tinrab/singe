@@ -43,15 +43,10 @@ fn complementary_sparse_cols(n: usize) -> Vec<f64> {
     b
 }
 
-fn run_dgemm(
-    cublas: &singe_cublas::context::Context,
-    n: usize,
-    a: &[f64],
-    b: &[f64],
-) -> Result<Vec<f64>> {
-    let a = DeviceMemory::from_slice(a)?;
-    let b = DeviceMemory::from_slice(b)?;
-    let mut c = DeviceMemory::<f64>::zeroes(n * n)?;
+fn run_dgemm(cublas: &Context, n: usize, a: &[f64], b: &[f64]) -> Result<Vec<f64>> {
+    let a = DeviceMemory::from_slice(cublas.cuda_context(), a)?;
+    let b = DeviceMemory::from_slice(cublas.cuda_context(), b)?;
+    let mut c = DeviceMemory::<f64>::zeroed(cublas.cuda_context(), n * n)?;
     dgemm(
         cublas,
         Operation::NonTranspose,

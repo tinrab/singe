@@ -1,3 +1,7 @@
+//! Discovers cuBLAS libraries and emits Cargo linker metadata.
+
+use std::env;
+
 use singe_cuda_find::{
     emit_dependency_metadata, emit_link_libraries, emit_rerun_if_env_changed,
     emit_static_link_libraries, find_cublas, find_cuda_runtime,
@@ -18,7 +22,7 @@ fn link_libraries() {
     if emit_dependency_metadata(find_cublas()).is_some() {
         emit_link_libraries(&["cublas"]);
 
-        if std::env::var_os("CARGO_FEATURE_LT").is_some() {
+        if env::var_os("CARGO_FEATURE_LT").is_some() {
             emit_link_libraries(&["cublasLt"]);
         }
     }

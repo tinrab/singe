@@ -1,0 +1,492 @@
+{
+  "CUDA_C_32F": {
+    "doc": "32-bit complex single precision floating-point type (represented as pair of real and imaginary part).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cudadatatype-t"
+  },
+  "CUDA_C_64F": {
+    "doc": "64-bit complex double precision floating-point type (represented as pair of real and imaginary part).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cudadatatype-t"
+  },
+  "CUDA_R_16BF": {
+    "doc": "16-bit real BF16 floating-point type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cudadatatype-t"
+  },
+  "CUDA_R_16F": {
+    "doc": "16-bit real half precision floating-point type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cudadatatype-t"
+  },
+  "CUDA_R_32F": {
+    "doc": "32-bit real single precision floating-point type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cudadatatype-t"
+  },
+  "CUDA_R_64F": {
+    "doc": "64-bit real double precision floating-point type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cudadatatype-t"
+  },
+  "CUTENSORMG_ALGO_DEFAULT": {
+    "doc": "Lets the internal heuristic choose.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/cutensorMg.html#cutensormgalgo-t"
+  },
+  "CUTENSORMP_ALGO_DEFAULT": {
+    "doc": "Default algorithm.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/cutensorMp.html#cutensormpalgo-t"
+  },
+  "CUTENSORMP_PLAN_REQUIRED_WORKSPACE_DEVICE": {
+    "doc": "uint64_t: exact required workspace in bytes that is needed to execute the plan.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/cutensorMp.html#cutensormpplanattribute-t"
+  },
+  "CUTENSORMP_PLAN_REQUIRED_WORKSPACE_HOST": {
+    "doc": "uint64_t: exact required workspace in bytes that is needed to execute the plan.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/cutensorMp.html#cutensormpplanattribute-t"
+  },
+  "CUTENSOR_ALGO_DEFAULT": {
+    "doc": "A performance model chooses the appropriate algorithm and kernel.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoralgo-t"
+  },
+  "CUTENSOR_ALGO_DEFAULT_PATIENT": {
+    "doc": "More time-consuming than CUTENSOR_DEFAULT, but typically provides a more accurate kernel selection.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoralgo-t"
+  },
+  "CUTENSOR_ALGO_GETT": {
+    "doc": "Choose the GETT algorithm (only applicable to contractions).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoralgo-t"
+  },
+  "CUTENSOR_ALGO_TGETT": {
+    "doc": "Transpose (A or B) + GETT (only applicable to contractions).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoralgo-t"
+  },
+  "CUTENSOR_ALGO_TTGT": {
+    "doc": "Transpose-Transpose-GEMM-Transpose (requires additional memory) (only applicable to contractions).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoralgo-t"
+  },
+  "CUTENSOR_AUTOTUNE_MODE_INCREMENTAL": {
+    "doc": "Indicates an incremental autotuning (i.e., each invocation of corresponding [cutensorCreatePlan()](https://docs.nvidia.com/cuda/cutensor/2.8.1/api/cutensor.html#cutensorcreateplan) will create a plan based on a different algorithm/kernel; the maximum number of kernels that will be tested is defined by the [`cutensorPlanPreferenceAttribute_t::CUTENSOR_PLAN_PREFERENCE_INCREMENTAL_COUNT`] of [cutensorPlanPreferenceAttribute_t](https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanpreferenceattribute-t)). WARNING: If this autotuning mode is selected, then we cannot guarantee bit-wise identical results (since different algorithms could be executed).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorautotunemode-t"
+  },
+  "CUTENSOR_AUTOTUNE_MODE_NONE": {
+    "doc": "Indicates no autotuning (default); in this case the cache will help to reduce the plan-creation overhead. In the case of a cachehit: the cached plan will be reused, otherwise the plancache will be neglected.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorautotunemode-t"
+  },
+  "CUTENSOR_CACHE_MODE_NONE": {
+    "doc": "Plan will not be cached.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcachemode-t"
+  },
+  "CUTENSOR_CACHE_MODE_PEDANTIC": {
+    "doc": "All parameters of the corresponding descriptor must be identical to the cached plan (default).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcachemode-t"
+  },
+  "CUTENSOR_COMPUTE_DESC_16BF": {
+    "doc": "floating-point: 8-bit exponent and 7-bit mantissa (aka bfloat).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcomputedescriptor-t"
+  },
+  "CUTENSOR_COMPUTE_DESC_16F": {
+    "doc": "floating-point: 5-bit exponent and 10-bit mantissa (aka half).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcomputedescriptor-t"
+  },
+  "CUTENSOR_COMPUTE_DESC_32F": {
+    "doc": "floating-point: 8-bit exponent and 23-bit mantissa (aka float).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcomputedescriptor-t"
+  },
+  "CUTENSOR_COMPUTE_DESC_3XTF32": {
+    "doc": "floating-point: More precise than TF32, but less precise than float.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcomputedescriptor-t"
+  },
+  "CUTENSOR_COMPUTE_DESC_64F": {
+    "doc": "floating-point: 11-bit exponent and 52-bit mantissa (aka double).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcomputedescriptor-t"
+  },
+  "CUTENSOR_COMPUTE_DESC_8XINT8": {
+    "doc": "floating-point based on multiple int8_t values. The number of retained mantissa bits is computed at runtime to ensure the same or better accuracy than the native floating point representation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcomputedescriptor-t"
+  },
+  "CUTENSOR_COMPUTE_DESC_9X16BF": {
+    "doc": "floating-point composed of 3 bf16 values for a total of 23 mantissa bits.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcomputedescriptor-t"
+  },
+  "CUTENSOR_COMPUTE_DESC_TF32": {
+    "doc": "floating-point: 8-bit exponent and 10-bit mantissa (aka tensor-float-32).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorcomputedescriptor-t"
+  },
+  "CUTENSOR_JIT_MODE_DEFAULT": {
+    "doc": "Indicates that the corresponding plan will try to compile a dedicated kernel for the given operation. Only supported for GPUs with compute capability >= 8.0 (Ampere or newer).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorjitmode-t"
+  },
+  "CUTENSOR_JIT_MODE_NONE": {
+    "doc": "Indicates that no kernel will be just-in-time compiled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorjitmode-t"
+  },
+  "CUTENSOR_MG_DEVICE_HOST": {
+    "doc": "The memory is located on the host in regular memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/cutensorMg.html#cutensormghostdevice-t"
+  },
+  "CUTENSOR_MG_DEVICE_HOST_PINNED": {
+    "doc": "The memory is located on the host in pinned memory.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/cutensorMg.html#cutensormghostdevice-t"
+  },
+  "CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE": {
+    "doc": "int32_t: if non-zero, request bitwise-reproducible results from a block-sparse contraction at a performance cost. See [cutensorCreateBlockSparseContraction](https://docs.nvidia.com/cuda/cutensor/2.8.1/api/cutensor.html#cutensorcreateblocksparsecontractiondescriptor) for details. (default: 0).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperationdescriptorattribute-t"
+  },
+  "CUTENSOR_OPERATION_DESCRIPTOR_FLOPS": {
+    "doc": "float: number of floating-point operations necessary to perform this operation (assuming all scalar are not equal to zero, unless otherwise specified).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperationdescriptorattribute-t"
+  },
+  "CUTENSOR_OPERATION_DESCRIPTOR_MOVED_BYTES": {
+    "doc": "float: minimal number of bytes transferred from/to global-memory (assuming all scalar are not equal to zero, unless otherwise specified).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperationdescriptorattribute-t"
+  },
+  "CUTENSOR_OPERATION_DESCRIPTOR_PADDING_LEFT": {
+    "doc": "uint32_t[] (of size descOut->numModes): Each entry i holds the number of padded values that should be padded to the left of the ith dimension.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperationdescriptorattribute-t"
+  },
+  "CUTENSOR_OPERATION_DESCRIPTOR_PADDING_RIGHT": {
+    "doc": "uint32_t[] (of size descOut->numModes): Each entry i holds the number of padded values that should be padded to the right of the ith dimension.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperationdescriptorattribute-t"
+  },
+  "CUTENSOR_OPERATION_DESCRIPTOR_PADDING_VALUE": {
+    "doc": "host-side pointer to element of the same type as the output tensor: Constant padding value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperationdescriptorattribute-t"
+  },
+  "CUTENSOR_OPERATION_DESCRIPTOR_SCALAR_TYPE": {
+    "doc": "cudaDataType_t: data type of the scaling factors.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperationdescriptorattribute-t"
+  },
+  "CUTENSOR_OPERATION_DESCRIPTOR_TAG": {
+    "doc": "int32_t: enables users to distinguish two identical problems with respect to the sw-managed plan-cache. (default value: 0).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperationdescriptorattribute-t"
+  },
+  "CUTENSOR_OP_ABS": {
+    "doc": "Absolute value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_ACOS": {
+    "doc": "Inverse cosine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_ACOSH": {
+    "doc": "Inverse hyperbolic cosine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_ADD": {
+    "doc": "Addition of two elements.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_ASIN": {
+    "doc": "Inverse sine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_ASINH": {
+    "doc": "Inverse hyperbolic sine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_ATAN": {
+    "doc": "Inverse tangent.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_ATANH": {
+    "doc": "Inverse hyperbolic tangent.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_CEIL": {
+    "doc": "Ceiling.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_CONJ": {
+    "doc": "Complex conjugate.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_COS": {
+    "doc": "Cosine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_COSH": {
+    "doc": "Hyperbolic cosine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_EXP": {
+    "doc": "Exponentiation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_FLOOR": {
+    "doc": "Floor.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_IDENTITY": {
+    "doc": "Identity operator (i.e., elements are not changed).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_LOG": {
+    "doc": "Log (base e).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_MAX": {
+    "doc": "Maximum of two elements.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_MIN": {
+    "doc": "Minimum of two elements.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_MISH": {
+    "doc": "Mish y=x\\*tanh(softplus(x)).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_MUL": {
+    "doc": "Multiplication of two elements.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_NEG": {
+    "doc": "Negation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_RCP": {
+    "doc": "Reciprocal.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_RELU": {
+    "doc": "Rectified linear unit.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_SIGMOID": {
+    "doc": "y=1/(1+exp(-x)).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_SIN": {
+    "doc": "Sine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_SINH": {
+    "doc": "Hyperbolic sine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_SOFT_PLUS": {
+    "doc": "Softplus y=log(exp(x)+1).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_SOFT_SIGN": {
+    "doc": "Softsign y=x/(abs(x)+1).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_SQRT": {
+    "doc": "Square root.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_SWISH": {
+    "doc": "Swish y=x\\*sigmoid(x).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_TAN": {
+    "doc": "Tangent.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_TANH": {
+    "doc": "y=tanh(x).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_OP_UNKNOWN": {
+    "doc": "reserved for internal use only.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoroperator-t"
+  },
+  "CUTENSOR_PLAN_PREFERENCE_ALGO": {
+    "doc": "cutensorAlgo_t: Fixes a certain [cutensorAlgo_t](https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensoralgo-t).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanpreferenceattribute-t"
+  },
+  "CUTENSOR_PLAN_PREFERENCE_AUTOTUNE_MODE": {
+    "doc": "cutensorAutotuneMode_t: Determines if recurrent executions of the plan (e.g., via cutensorContract, cutensorPermute) should autotune (i.e., try different kernels); see section “Plan Cache” for details.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanpreferenceattribute-t"
+  },
+  "CUTENSOR_PLAN_PREFERENCE_CACHE_MODE": {
+    "doc": "cutensorCacheMode_t: Determines if the corresponding algorithm/kernel for this plan should be cached and it gives fine control over what is considered a cachehit.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanpreferenceattribute-t"
+  },
+  "CUTENSOR_PLAN_PREFERENCE_GPU_ARCH": {
+    "doc": "int32_t: Plan for a specific GPU architecture and not one associated with the context. Value should encode SM version via `10 * SM.major + SM.minor`. Currently only SM versions 80, 90 and 100 are supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanpreferenceattribute-t"
+  },
+  "CUTENSOR_PLAN_PREFERENCE_INCREMENTAL_COUNT": {
+    "doc": "int32_t: Only applicable if [`cutensorPlanPreferenceAttribute_t::CUTENSOR_PLAN_PREFERENCE_CACHE_MODE`] is set to [`cutensorAutotuneMode_t::CUTENSOR_AUTOTUNE_MODE_INCREMENTAL`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanpreferenceattribute-t"
+  },
+  "CUTENSOR_PLAN_PREFERENCE_JIT": {
+    "doc": "cutensorJitMode_t: determines if just-in-time compilation is enabled or disabled (default: [`cutensorJitMode_t::CUTENSOR_JIT_MODE_NONE`]).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanpreferenceattribute-t"
+  },
+  "CUTENSOR_PLAN_PREFERENCE_KERNEL_RANK": {
+    "doc": "int32_t: Fixes a kernel (a sub variant of an algo; e.g., kernel_rank==1 while algo == [`cutensorAlgo_t::CUTENSOR_ALGO_TGETT`] would select the second-best GETT kernel/variant according to cuTENSOR’s performance model; kernel_rank==2 would select the third-best).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanpreferenceattribute-t"
+  },
+  "CUTENSOR_PLAN_REQUIRED_WORKSPACE": {
+    "doc": "uint64_t: exact required workspace in bytes that is needed to execute the plan.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorplanattribute-t"
+  },
+  "CUTENSOR_STATUS_ALLOC_FAILED": {
+    "doc": "Resource allocation failed inside the cuTENSOR library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_ARCH_MISMATCH": {
+    "doc": "Indicates that the device is either not ready, or the target architecture is not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_CUBLAS_ERROR": {
+    "doc": "A call to CUBLAS did not succeed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_CUDA_ERROR": {
+    "doc": "Some unknown CUDA error has occurred.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_EXECUTION_FAILED": {
+    "doc": "The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_INSUFFICIENT_DRIVER": {
+    "doc": "Indicates that the driver version is insufficient.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE": {
+    "doc": "The provided workspace was insufficient.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_INTERNAL_ERROR": {
+    "doc": "An internal cuTENSOR error has occurred.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_INVALID_VALUE": {
+    "doc": "An unsupported value or parameter was passed to the function (indicates an user error).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_IO_ERROR": {
+    "doc": "Indicates an error related to file I/O.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_LICENSE_ERROR": {
+    "doc": "The functionality requested requires some license and an error was detected when trying to check the current licensing.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_MAPPING_ERROR": {
+    "doc": "An access to GPU memory space failed, which is usually caused by a failure to bind a texture.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_NOT_INITIALIZED": {
+    "doc": "The opaque data structure was not initialized.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_NOT_SUPPORTED": {
+    "doc": "The requested operation is not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_STATUS_SUCCESS": {
+    "doc": "The operation completed successfully.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorstatus-t"
+  },
+  "CUTENSOR_WORKSPACE_DEFAULT": {
+    "doc": "Aims to attain high performance while also reducing the workspace requirement.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorworksizepreference-t"
+  },
+  "CUTENSOR_WORKSPACE_MAX": {
+    "doc": "Highest memory requirement; all algorithms will be available (choose this option if memory footprint is not a concern).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorworksizepreference-t"
+  },
+  "CUTENSOR_WORKSPACE_MIN": {
+    "doc": "Least memory requirement; at least one algorithm will be available.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cutensor/2.8.1/api/types.html#cutensorworksizepreference-t"
+  }
+}

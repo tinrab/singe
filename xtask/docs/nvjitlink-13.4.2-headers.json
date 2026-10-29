@@ -1,0 +1,390 @@
+{
+  "CUDART_VERSION": {
+    "doc": "Compile-time CUDA runtime API version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.",
+    "kind": "constant",
+    "source": "cuda_runtime_api.h"
+  },
+  "NVJITLINK_ERROR_ARCH_MISMATCH": {
+    "doc": "Arch Mismatch",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_FINALIZE": {
+    "doc": "Finalizer Error",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_INCOMPATIBLE_OPTIONS": {
+    "doc": "Incompatible Options",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_INCORRECT_INPUT_TYPE": {
+    "doc": "Incorrect Input Type",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_INTERNAL": {
+    "doc": "Internal Error",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_INVALID_INPUT": {
+    "doc": "Invalid Input",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_LTO_NOT_ENABLED": {
+    "doc": "Requires -lto",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_MISSING_ARCH": {
+    "doc": "Option `-arch=sm_NN` not specified",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_MISSING_FATBIN": {
+    "doc": "Missing Fatbin",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_NULL_INPUT": {
+    "doc": "Null Input",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_NVVM_COMPILE": {
+    "doc": "Issue during NVVM Compilation",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_OUTDATED_LIBRARY": {
+    "doc": "Outdated Library",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_PTX_COMPILE": {
+    "doc": "Issue during PTX Compilation",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_THREADPOOL": {
+    "doc": "Issue with Thread Pool",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_UNRECOGNIZED_ARCH": {
+    "doc": "Unrecognized -arch value",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_UNRECOGNIZED_INPUT": {
+    "doc": "Unrecognized Input",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_UNRECOGNIZED_OPTION": {
+    "doc": "Unrecognized Option",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_ERROR_UNSUPPORTED_ARCH": {
+    "doc": "Unsupported -arch value",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_ANY": {
+    "doc": "Dynamically chooses from the valid types",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_CUBIN": {
+    "doc": "For CUDA Binaries",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_FATBIN": {
+    "doc": "For Fatbin",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_INDEX": {
+    "doc": "For Index File",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_LIBRARY": {
+    "doc": "For Host Library",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_LTOIR": {
+    "doc": "For LTO-IR",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_NONE": {
+    "doc": "Error Type",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_OBJECT": {
+    "doc": "For Host Object",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "NVJITLINK_INPUT_PTX": {
+    "doc": "For PTX",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkAddData": {
+    "doc": "nvJitLinkAddData adds data image to the link.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "data": {
+        "doc": "pointer to data image in memory."
+      },
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "inputType": {
+        "doc": "kind of input."
+      },
+      "name": {
+        "doc": "name of input object."
+      },
+      "size": {
+        "doc": "size of the data."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkAddFile": {
+    "doc": "nvJitLinkAddFile reads data from file and links it in.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "fileName": {
+        "doc": "name of file."
+      },
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "inputType": {
+        "doc": "kind of input."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkComplete": {
+    "doc": "nvJitLinkComplete does the actual link.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkCreate": {
+    "doc": "nvJitLinkCreate creates an instance of nvJitLinkHandle with the given input options, and sets the output parameter `handle`.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_UNRECOGNIZED_OPTION`\n- `NVJITLINK_ERROR_MISSING_ARCH`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\nIt supports options listed in `options`.\n\n\n\nSee also: nvJitLinkDestroy",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "Address of nvJitLink handle."
+      },
+      "numOptions": {
+        "doc": "Number of options passed."
+      },
+      "options": {
+        "doc": "Array of size `numOptions` of option strings."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkDestroy": {
+    "doc": "nvJitLinkDestroy frees the memory associated with the given handle and sets it to NULL.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\n\n\nSee also: nvJitLinkCreate",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "Address of nvJitLink handle."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetErrorLog": {
+    "doc": "nvJitLinkGetErrorLog puts any error messages in the log.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\nUser is responsible for allocating enough space to hold the `log`.\n\nSee also: nvJitLinkGetErrorLogSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "log": {
+        "doc": "The error log."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetErrorLogSize": {
+    "doc": "nvJitLinkGetErrorLogSize gets the size of the error log.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\n\n\nSee also: nvJitLinkGetErrorLog",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "size": {
+        "doc": "Size of the error log."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetInfoLog": {
+    "doc": "nvJitLinkGetInfoLog puts any info messages in the log.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\nUser is responsible for allocating enough space to hold the `log`.\n\nSee also: nvJitLinkGetInfoLogSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "log": {
+        "doc": "The info log."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetInfoLogSize": {
+    "doc": "nvJitLinkGetInfoLogSize gets the size of the info log.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\n\n\nSee also: nvJitLinkGetInfoLog",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "size": {
+        "doc": "Size of the info log."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetLinkedCubin": {
+    "doc": "nvJitLinkGetLinkedCubin gets the linked cubin.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\nUser is responsible for allocating enough space to hold the `cubin`.\n\nSee also: nvJitLinkGetLinkedCubinSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "cubin": {
+        "doc": "The linked cubin."
+      },
+      "handle": {
+        "doc": "nvJitLink handle."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetLinkedCubinSize": {
+    "doc": "nvJitLinkGetLinkedCubinSize gets the size of the linked cubin.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\n\n\nSee also: nvJitLinkGetLinkedCubin",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "size": {
+        "doc": "Size of the linked cubin."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetLinkedLTOIR": {
+    "doc": "nvJitLinkGetLinkedLTOIR gets the linked LTOIR.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\nLinked LTOIR is only available when using the `-lto` option. User is responsible for allocating enough space to hold the `ltoir`. The returned data is in LTOIR Container format (not raw bitcode).\n\nSee also: nvJitLinkGetLinkedLTOIRSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "ltoir": {
+        "doc": "The linked LTOIR in Container format."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetLinkedLTOIRSize": {
+    "doc": "nvJitLinkGetLinkedLTOIRSize gets the size of the linked LTOIR.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\nLinked LTOIR is only available when using the `-lto` option. The returned data is in LTOIR Container format (not raw bitcode).\n\nSee also: nvJitLinkGetLinkedLTOIR",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "size": {
+        "doc": "Size of the linked LTOIR."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetLinkedPtx": {
+    "doc": "nvJitLinkGetLinkedPtx gets the linked ptx.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\nLinked PTX is only available when using the `-lto` option. User is responsible for allocating enough space to hold the `ptx`.\n\nSee also: nvJitLinkGetLinkedPtxSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "ptx": {
+        "doc": "The linked PTX."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkGetLinkedPtxSize": {
+    "doc": "nvJitLinkGetLinkedPtxSize gets the size of the linked ptx.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`\n\nLinked PTX is only available when using the `-lto` option.\n\nSee also: nvJitLinkGetLinkedPtx",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "nvJitLink handle."
+      },
+      "size": {
+        "doc": "Size of the linked PTX."
+      }
+    },
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkHandle": {
+    "doc": "nvJitLinkHandle is the unit of linking, and an opaque handle for a program.\n\nTo link inputs, an instance of nvJitLinkHandle must be created first with nvJitLinkCreate().",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkInputType": {
+    "doc": "The enumerated type nvJitLinkInputType defines the kind of inputs that can be passed to nvJitLinkAdd* APIs.",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkResult": {
+    "doc": "The enumerated type nvJitLinkResult defines API call result codes. nvJitLink APIs return nvJitLinkResult codes to indicate the result.",
+    "members": {},
+    "source": "nvJitLink.h"
+  },
+  "nvJitLinkVersion": {
+    "doc": "nvJitLinkVersion returns the current version of nvJitLink.\n\n\n\n# Return value\n\n- `NVJITLINK_SUCCESS`\n- `NVJITLINK_ERROR_INVALID_INPUT`\n- `NVJITLINK_ERROR_INTERNAL`",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "major": {
+        "doc": "The major version."
+      },
+      "minor": {
+        "doc": "The minor version."
+      }
+    },
+    "source": "nvJitLink.h"
+  }
+}

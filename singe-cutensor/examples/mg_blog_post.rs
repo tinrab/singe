@@ -1,6 +1,12 @@
 use std::{collections::HashMap, env, time::Instant};
 
-use singe_cuda::{context::Context as CudaContext, data_type::DataType, device::Device};
+use singe_cuda::{
+    context::Context as CudaContext,
+    data_type::DataType,
+    device::Device,
+    error::Result as CudaResult,
+    stream::{Stream, StreamBinding},
+};
 use singe_cutensor::{
     error::Result,
     mg::{
@@ -23,12 +29,7 @@ fn mode_vec(modes: &[i32]) -> Vec<Mode> {
     modes.iter().copied().map(Mode::new).collect()
 }
 
-fn create_streams_for_devices(
-    devices: &[i32],
-) -> singe_cuda::error::Result<(
-    Vec<singe_cuda::stream::Stream>,
-    Vec<singe_cuda::stream::StreamBinding>,
-)> {
+fn create_streams_for_devices(devices: &[i32]) -> CudaResult<(Vec<Stream>, Vec<StreamBinding>)> {
     let mut streams = Vec::with_capacity(devices.len());
     for &device in devices {
         let cuda_context = CudaContext::retain_primary_for_device(Device::new(device))?;
@@ -37,7 +38,7 @@ fn create_streams_for_devices(
 
     let bindings = streams
         .iter()
-        .map(|stream| singe_cuda::stream::StreamBinding::Borrowed(stream.to_borrowed()))
+        .map(|stream| StreamBinding::Borrowed(stream.to_borrowed()))
         .collect();
     Ok((streams, bindings))
 }
@@ -110,7 +111,8 @@ fn create_tensor(
         },
     )?;
 
-    let memory = DistributedDeviceMemory::<f32>::create(&descriptor_devices, elements as usize)?;
+    let memory =
+        DistributedDeviceMemory::<f32>::zeroed(context, &descriptor_devices, elements as usize)?;
 
     Ok((descriptor, memory))
 }

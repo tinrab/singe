@@ -1,19 +1,26 @@
 mod common;
 
+use std::{
+    env::args,
+    sync::{Arc, Mutex},
+};
+
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::execution::KernelCache,
-    backend::pointwise::PointwiseMode,
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::{
+        execution::KernelCache,
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorId, TensorSpec},
+    },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{ConvolutionConfig, HeuristicMode, PointwiseOperation},
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{ConvolutionConfig, PointwiseOperation},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
 };
-use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Copy)]
 struct ConvShape {
@@ -26,10 +33,6 @@ struct ConvShape {
     s: i64,
 }
 
-fn nhwc_shape(n: i64, c: i64, h: i64, w: i64) -> Result<Shape> {
-    Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])
-}
-
 fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
     common::init_f32_image(size, seed)
         .into_iter()
@@ -37,26 +40,15 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .collect()
 }
 
-fn volume_nchw(shape: ConvShape) -> usize {
-    (shape.n * shape.c * shape.h * shape.w) as usize
-}
-
-fn volume_filter(shape: ConvShape) -> usize {
-    (shape.k * shape.c * shape.r * shape.s) as usize
-}
-
-fn volume_output(shape: ConvShape) -> usize {
-    (shape.n * shape.k * shape.h * shape.w) as usize
-}
-
 fn create_conv_relu_forward_graph(
     shape: ConvShape,
+    groups: i64,
     kernel_cache: Arc<Mutex<KernelCache>>,
 ) -> Result<(Graph, TensorId, TensorId, TensorId)> {
     let mut graph = Graph::with_config(
         GraphConfig::new()
-            .with_name("conv-dynamic-shape-benchmark")
-            .with_dynamic_shape()
+            .with_name("conv-dynamic-shape")
+            .with_dynamic_shape(true)
             .with_data_type_policy(
                 DataTypePolicy::new()
                     .with_io(DataType::F16)
@@ -68,61 +60,46 @@ fn create_conv_relu_forward_graph(
     let x = graph.tensor(
         TensorSpec::new(
             DataType::F16,
-            nhwc_shape(shape.n, shape.c, shape.h, shape.w)?,
+            Shape::channels_last([shape.n, shape.c, shape.h, shape.w])?,
         )
         .with_name("image"),
     );
-
     let w = graph.tensor(
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([shape.k, shape.c, shape.r, shape.s])?.with_strides(vec![
-                shape.c * shape.r * shape.s,
-                1,
-                shape.c * shape.s,
-                shape.c,
-            ])?,
+            Shape::channels_last([shape.k, shape.c / groups, shape.r, shape.s])?,
         )
         .with_name("filter"),
     );
-
-    let conv_output = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            nhwc_shape(shape.n, shape.k, shape.h, shape.w)?,
-        )
-        .virtual_tensor(),
-    );
-    graph.convolution_forward(
+    let conv_output = graph.convolution_forward(
         x,
         w,
-        conv_output,
-        ConvolutionConfig::new(DataType::F32, 2)
-            .with_padding(vec![1, 1])
-            .with_strides([1, 1])
-            .with_dilations(vec![1, 1]),
+        ConvolutionConfig::new(2)
+            .with_name("convolution")
+            .with_pre_paddings([1, 1])
+            .with_post_paddings([0, 0]),
+        TensorOutputConfig::new(),
     )?;
-
-    let y = graph.tensor(TensorSpec::new(
-        DataType::F16,
-        nhwc_shape(shape.n, shape.k, shape.h, shape.w)?,
-    ));
-    graph.pointwise(PointwiseOperation::Unary {
-        mode: PointwiseMode::ReluFwd,
-        input: conv_output,
-        output: y,
-        compute_type: DataType::F32,
-        nan_propagation: NanPropagation::NotPropagate,
-        alpha1: 1.0,
-        axis: None,
-    });
-    graph.mark_as_output(y)?;
+    let y = graph.pointwise(
+        PointwiseOperation::unary(
+            PointwiseMode::ReluFwd,
+            conv_output,
+            TensorOutputConfig::new().output_tensor(),
+        )
+        .with_name("response_activation")
+        .with_nan_propagation(NanPropagation::NotPropagate),
+    )?;
 
     Ok((graph, x, w, y))
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let example = common::ExampleContext::create()?;
+    let groups = if args().any(|argument| argument == "--grouped") {
+        4
+    } else {
+        1
+    };
     let shapes = [
         ConvShape {
             n: 16,
@@ -143,28 +120,48 @@ fn run() -> Result<()> {
             s: 3,
         },
     ];
-
     let kernel_cache = Arc::new(Mutex::new(KernelCache::create()?));
-    let max_x = shapes.iter().copied().map(volume_nchw).max().unwrap_or(0);
-    let max_w = shapes.iter().copied().map(volume_filter).max().unwrap_or(0);
-    let max_y = shapes.iter().copied().map(volume_output).max().unwrap_or(0);
-
-    let mut seed = 123_456_789_u32;
-    let mut x_dev = DeviceMemory::from_slice(&init_f16_image(max_x, &mut seed))?;
-    let mut w_dev = DeviceMemory::from_slice(&init_f16_image(max_w, &mut seed))?;
-    let mut y_dev = DeviceMemory::<f16>::zeroes(max_y)?;
-
-    for shape in shapes {
-        let (graph, x, w, y) = create_conv_relu_forward_graph(shape, Arc::clone(&kernel_cache))?;
-        let compiled = graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
-        let mut workspace = common::workspace(compiled.workspace_size()?)?;
-        let mut bindings = compiled.bindings();
-        bindings.set(x, &mut x_dev)?;
-        bindings.set(w, &mut w_dev)?;
-        bindings.set(y, &mut y_dev)?;
-        compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    let graphs = shapes
+        .into_iter()
+        .map(|shape| create_conv_relu_forward_graph(shape, groups, Arc::clone(&kernel_cache)))
+        .collect::<Result<Vec<_>>>()?;
+    let mut max_elements = [0_usize; 3];
+    for (graph, x, w, y) in &graphs {
+        for (elements, tensor) in max_elements.iter_mut().zip([*x, *w, *y]) {
+            *elements = (*elements).max(graph.shape(tensor)?.storage_span()?);
+        }
     }
+    let [max_x, max_w, max_y] = max_elements;
+    let cuda = example.cudnn.cuda_context();
+    let mut seed = 123_456_789_u32;
+    let x_dev = DeviceMemory::from_slice(cuda, &init_f16_image(max_x, &mut seed))?;
+    let w_dev = DeviceMemory::from_slice(cuda, &init_f16_image(max_w, &mut seed))?;
+    let mut y_dev = DeviceMemory::<f16>::zeroed(cuda, max_y)?;
 
+    for (graph, x, w, y) in graphs {
+        let compiled = graph.compile(
+            Some(&example.cudnn),
+            &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+        )?;
+        let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+        let mut bindings = compiled.bindings()?;
+        bindings.set_input(x, &x_dev)?;
+        bindings.set_input(w, &w_dev)?;
+        bindings.set(y, &mut y_dev)?;
+        // SAFETY: initialized inputs, destination and workspace cover the declared layouts.
+        // Plans, bindings and allocations remain live through completion, including enqueue failure.
+        example.execute_and_wait(|context| unsafe {
+            compiled.execute(
+                context,
+                ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            )
+        })?;
+        println!(
+            "convolution with {groups} groups: {:?} -> {:?}",
+            graph.shape(x)?.dimensions(),
+            graph.shape(y)?.dimensions(),
+        );
+    }
     Ok(())
 }
 

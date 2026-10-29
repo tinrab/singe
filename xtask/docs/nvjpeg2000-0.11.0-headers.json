@@ -1,0 +1,1328 @@
+{
+  "NVJPEG2K_BACKEND_DEFAULT": {
+    "doc": "Default backend implementation.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_COLORSPACE_GRAY": {
+    "doc": "Grayscale.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_COLORSPACE_NOT_SUPPORTED": {
+    "doc": "Color space is not supported.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_COLORSPACE_SRGB": {
+    "doc": "sRGB color space.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_COLORSPACE_SYCC": {
+    "doc": "sYCC color space.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_COLORSPACE_UNKNOWN": {
+    "doc": "Color space is unknown.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_CPRL": {
+    "doc": "Component-Position-Resolution-Layer.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_FORMAT_INTERLEAVED": {
+    "doc": "All components are stored in interleaved order. Not supported when component dimensions differ.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_FORMAT_PLANAR": {
+    "doc": "All components are stored in separate planes.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_FP16": {
+    "doc": "IEEE-754 binary16. Requires NLT type 3 on every component with `BDnlt` = 16.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_FP32": {
+    "doc": "IEEE-754 binary32. Requires NLT type 3 on every component with `BDnlt` ∈ {16, 32}. `BDnlt` = 16 components are promoted via `__half2float`; `BDnlt` = 32 components are bit-reinterpreted as `float`.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_INT16": {
+    "doc": "Signed 16-bit integer.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_LRCP": {
+    "doc": "Layer-Resolution-Component-Position.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_MAXRES": {
+    "doc": "Maximum number of JPEG2000 resolutions.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_MODE_HT": {
+    "doc": "To enable High throughput JPEG2000 Encode, set `encode_modes` in `nvjpeg2kEncodeConfig_t` to `::NVJPEG2K_MODE_HT`",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_NLT_NONE": {
+    "doc": "Component has no NLT marker (or marker with Tnlt=0).",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_NLT_TYPE3": {
+    "doc": "Signed-magnitude binary complement (Tnlt=3).",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_PCRL": {
+    "doc": "Position-Component-Resolution-Layer.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_QUALITY_TYPE_QUANTIZATION_STEP": {
+    "doc": "Quality value is interpreted as quantization step (by how much pixel data will be divided). The higher the value, the worse quality image is produced. Quality value should be positive floating point.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_QUALITY_TYPE_Q_FACTOR": {
+    "doc": "Quality value is interpreted as JPEG-like quality factor (1.0 worst to 100.0 best). Can only be used when the input colorspace is YCC, Grayscale, or RGB with MCT enabled.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_QUALITY_TYPE_TARGET_PSNR": {
+    "doc": "Quality value is interpreted as desired Peak Signal-to-Noise Ratio (PSNR) target. The higher the value, the better quality image is produced. Quality value should be positive floating point. Cannot be used with HT encoder.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_RLCP": {
+    "doc": "Resolution-Layer-Component-Position.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_RPCL": {
+    "doc": "Resolution-Position-Component-Layer.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_RSIZ_HT": {
+    "doc": "To enable High throughput JPEG2000 Encode, set `rsiz` in `nvjpeg2kEncodeConfig_t` to `::NVJPEG2K_RSIZ_HT`",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_ALLOCATOR_FAILURE": {
+    "doc": "The user-provided allocator functions, for either memory allocation or for releasing the memory, returned a non-zero code.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_ARCH_MISMATCH": {
+    "doc": "The device capabilities are not enough for the set of input parameters provided.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_BAD_JPEG": {
+    "doc": "Cannot parse the JPEG2000 stream. Likely due to a corruption that cannot be handled.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_EXECUTION_FAILED": {
+    "doc": "Error during the execution of the device tasks.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED": {
+    "doc": "API is not supported by the backend.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_INTERNAL_ERROR": {
+    "doc": "Unknown error occurred in the library.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_INVALID_PARAMETER": {
+    "doc": "Wrong parameter was passed. For example, a null pointer as input data, or an invalid enum value.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED": {
+    "doc": "Attempting to decode a JPEG2000 stream that is not supported by the nvJPEG2000 library.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_NOT_INITIALIZED": {
+    "doc": "The library handle was not initialized.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STATUS_SUCCESS": {
+    "doc": "The API call finished successfully. Note that many calls are asynchronous and some errors may only appear after synchronization.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STREAM_J2K": {
+    "doc": "JPEG2000 codestream (.j2k).",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_STREAM_JP2": {
+    "doc": "JP2 container (.jp2).",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_UINT16": {
+    "doc": "Unsigned 16-bit integer.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_UINT8": {
+    "doc": "Unsigned 8-bit integer.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "NVJPEG2K_VER_BUILD": {
+    "doc": "Build component of the nvJPEG2000 version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvjpeg2k_version.h"
+  },
+  "NVJPEG2K_VER_MAJOR": {
+    "doc": "Major component of the nvJPEG2000 version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvjpeg2k_version.h"
+  },
+  "NVJPEG2K_VER_MINOR": {
+    "doc": "Minor component of the nvJPEG2000 version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvjpeg2k_version.h"
+  },
+  "NVJPEG2K_VER_PATCH": {
+    "doc": "Patch component of the nvJPEG2000 version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvjpeg2k_version.h"
+  },
+  "nvjpeg2kBackend_t": {
+    "doc": "Backend selection for the nvJPEG2000 library.\n\nAllows the user to select a different internal implementation. A single implementation is currently supported. Additional implementations may be added in the future.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kBitstreamType": {
+    "doc": "JPEG2000 bitstream type.\n\n`::NVJPEG2K_STREAM_J2K` corresponds to the JPEG2000 codestream. `::NVJPEG2K_STREAM_JP2` corresponds to the .jp2 container.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kBitstreamType_t": {
+    "doc": "JPEG2000 bitstream type.\n\n`::NVJPEG2K_STREAM_J2K` corresponds to the JPEG2000 codestream. `::NVJPEG2K_STREAM_JP2` corresponds to the .jp2 container.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kColorSpace_t": {
+    "doc": "Color space values for JP2 files.\n\nCorresponds to the colorspace values which are part of the JP2 file format specification.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kCreate": {
+    "doc": "Create an nvJPEG2000 library handle with custom allocators.\n\nCreates an instance of the library using the input arguments. The user has flexibility to choose the backend implementation and provide allocators.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "backend": {
+        "doc": "[in] Backend to use. Currently `::NVJPEG2K_BACKEND_DEFAULT` is supported."
+      },
+      "device_allocator": {
+        "doc": "[in] See `nvjpeg2kDeviceAllocator_t`. If `NULL`, default `cudaMalloc()` / `cudaFree()` are used."
+      },
+      "handle": {
+        "doc": "[in/out] Pointer to the library handle to initialize."
+      },
+      "pinned_allocator": {
+        "doc": "[in] See `nvjpeg2kPinnedAllocator_t`. If `NULL`, default `cudaHostAlloc()` / `cudaFreeHost()` are used."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kCreateSimple": {
+    "doc": "Create an nvJPEG2000 library handle with default settings.\n\nCreates an instance of the library handle with default backend and memory allocators.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "[in/out] Pointer to the library handle to initialize."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kCreateV2": {
+    "doc": "Create an nvJPEG2000 library handle with extended custom allocators.\n\nCreates an instance of the library using extended allocators that accept CUDA streams and user context.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "backend": {
+        "doc": "[in] Backend to use. Currently `::NVJPEG2K_BACKEND_DEFAULT` is supported."
+      },
+      "dev_allocator": {
+        "doc": "[in] See `nvjpeg2kDeviceAllocatorV2_t`. Cannot be `NULL`."
+      },
+      "handle": {
+        "doc": "[in/out] Pointer to the library handle to initialize."
+      },
+      "pinned_allocator": {
+        "doc": "[in] See `nvjpeg2kPinnedAllocatorV2_t`. Cannot be `NULL`."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecode": {
+    "doc": "Decode a single JPEG2000 image.\n\nDecodes a single image and writes it to the output device buffers. The function is asynchronous with respect to the host. All GPU tasks will be submitted to the provided `stream`. Prior to calling this function, the user must parse the bitstream using `nvjpeg2kStreamParse()` such that the bitstream information is stored in `jpeg2k_stream`.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_output": {
+        "doc": "[in/out] Decode output struct. The struct should be on host memory. The image component pointers should point to device memory. See `nvjpeg2kImage_t`."
+      },
+      "decode_state": {
+        "doc": "[in] Decode state handle."
+      },
+      "handle": {
+        "doc": "[in] Library handle."
+      },
+      "jpeg2k_stream": {
+        "doc": "[in] Bitstream handle with parsed information."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream. Can be set to 0."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeImage": {
+    "doc": "Decode a single JPEG2000 image with decode parameters.\n\nDecodes a single image and writes it to the output device buffers. The function is asynchronous with respect to the host. All GPU tasks will be submitted to the provided `stream`. Prior to calling this function, the user must parse the bitstream using `nvjpeg2kStreamParse()` such that the bitstream information is stored in `jpeg2k_stream`. It is possible to control the decode output using an instance of `::nvjpeg2kDecodeParams_t`.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_output": {
+        "doc": "[in/out] Decode output struct. The struct should be on host memory. The image component pointers should point to device memory. See `nvjpeg2kImage_t`."
+      },
+      "decode_params": {
+        "doc": "[in] Decode parameters to control output (e.g. area of interest, RGB output). Can be set to `NULL`."
+      },
+      "decode_state": {
+        "doc": "[in] Decode state handle."
+      },
+      "handle": {
+        "doc": "[in] Library handle."
+      },
+      "jpeg2k_stream": {
+        "doc": "[in] Bitstream handle with parsed information."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream. Can be set to 0."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeParams": {
+    "doc": "Opaque nvJPEG2000 decode parameters.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeParamsCreate": {
+    "doc": "Create an instance of the decode output parameters handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_params": {
+        "doc": "[in/out] Pointer to the decode parameters handle to initialize."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeParamsDestroy": {
+    "doc": "Release the decode output parameters handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_params": {
+        "doc": "[in] Decode parameters handle to release."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeParamsSetDecodeArea": {
+    "doc": "Set the decode area of interest.\n\nThe coordinates are relative to the image origin and should be within the tile of interest. If the coordinates are set to 0, the entire tile will be decoded.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_params": {
+        "doc": "[in/out] Decode parameters handle."
+      },
+      "end_x": {
+        "doc": "[in] Right coordinate of the decode area."
+      },
+      "end_y": {
+        "doc": "[in] Bottom coordinate of the decode area."
+      },
+      "start_x": {
+        "doc": "[in] Left coordinate of the decode area."
+      },
+      "start_y": {
+        "doc": "[in] Top coordinate of the decode area."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeParamsSetOutputFormat": {
+    "doc": "Set the decode output format.\n\nSets the decode output format. When using `::NVJPEG2K_FORMAT_INTERLEAVED` with 420/422 chroma subsampling, RGB output (`nvjpeg2kDecodeParamsSetRGBOutput())` must also be enabled.\n\nThe decode output buffer should be allocated in the following manner to support `::NVJPEG2K_FORMAT_INTERLEAVED`:\n\n\n\n\n\n```text\n{.cpp}\n nvjpeg2kImage_t decode_output;\n\n // When decode_output.pixel_type is NVJPEG2K_UINT8:  bytes_per_sample = 1\n // When decode_output.pixel_type is NVJPEG2K_UINT16 or NVJPEG2K_INT16: bytes_per_sample = 2\n\n decode_output.pitch_in_bytes[0] = image_width * num_components * bytes_per_sample;\n decode_output.pixel_data[0]     = decode_output.pitch_in_bytes[0] * info.image_height;\n decode_output.num_components    = num_components;\n```\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_params": {
+        "doc": "[in/out] Decode parameters handle."
+      },
+      "format": {
+        "doc": "[in] Output format. Defaults to `::NVJPEG2K_FORMAT_PLANAR`."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeParamsSetRGBOutput": {
+    "doc": "Enable RGB decode output for chroma-subsampled images.\n\nEnables RGB decode output for images with 444/422/420 chroma subsampling when the stream's color space is sYCC. It is ignored for other color spaces (e.g. sRGB 444). YCC to RGB conversion is based on sYCC, Amendment 1 to IEC 61966-2-1. The color conversion is applied at a tile granularity due to which the chroma reconstruction may not be accurate for tiles with odd dimensions.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_params": {
+        "doc": "[in/out] Decode parameters handle."
+      },
+      "force_rgb": {
+        "doc": "[in] Set to 1 to enable RGB output."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeParams_t": {
+    "doc": "Handle to the nvJPEG2000 decode output parameters.\n\nUsed to store the decode output parameters like the decode area of interest coordinates.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeState": {
+    "doc": "Opaque nvJPEG2000 decode state.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeStateCreate": {
+    "doc": "Create an instance of the decode state.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_state": {
+        "doc": "[in/out] Pointer to the decode state handle to initialize."
+      },
+      "handle": {
+        "doc": "[in] Library handle."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeStateDestroy": {
+    "doc": "Release the decode state handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_state": {
+        "doc": "[in] Decode state handle to release."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeState_t": {
+    "doc": "Handle to the nvJPEG2000 decode state.\n\nStores intermediate decode information. This handle can be reused when decoding multiple images. The user must ensure that a stream or device synchronize CUDA call is made between the decoding of two images.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDecodeTile": {
+    "doc": "Decode a single tile within a JPEG2000 image.\n\nDecodes a tile within an image and writes it to the output device buffers. The function is asynchronous with respect to the host. All GPU tasks will be submitted to the provided `stream`. Prior to calling this function, the user must parse the bitstream using `nvjpeg2kStreamParse()` such that the bitstream information is stored in `jpeg2k_stream`.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_output": {
+        "doc": "[in/out] Decode output struct. The struct should be on host memory. The image component pointers should point to device memory. See `nvjpeg2kImage_t`."
+      },
+      "decode_params": {
+        "doc": "[in] Decode parameters to control output. Can be set to `NULL`."
+      },
+      "decode_state": {
+        "doc": "[in] Decode state handle."
+      },
+      "handle": {
+        "doc": "[in] Library handle."
+      },
+      "jpeg2k_stream": {
+        "doc": "[in] Bitstream handle with parsed information."
+      },
+      "num_res_levels": {
+        "doc": "[in] Number of resolutions to decode within the tile. When set to 0, the image is decoded at full resolution. Maximum allowed resolutions in a tile can be determined using `nvjpeg2kStreamGetResolutionsInTile()`."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream. Can be set to 0."
+      },
+      "tile_id": {
+        "doc": "[in] Raster scan based tile index."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDestroy": {
+    "doc": "Release the nvJPEG2000 library handle and resources.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "[in] Library handle to release."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDeviceAllocatorV2": {
+    "doc": "Extended device memory allocator interface with stream and context support.\n\nAllows the user to provide device allocators which accept CUDA streams and user context. Extended device allocators can be passed as input to the library using `nvjpeg2kCreateV2()`.",
+    "members": {
+      "device_ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "device_free": {
+        "doc": "Extended device memory free callback."
+      },
+      "device_malloc": {
+        "doc": "Extended device memory allocation callback."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDeviceAllocatorV2_t": {
+    "doc": "Extended device memory allocator interface with stream and context support.\n\nAllows the user to provide device allocators which accept CUDA streams and user context. Extended device allocators can be passed as input to the library using `nvjpeg2kCreateV2()`.",
+    "members": {
+      "device_ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "device_free": {
+        "doc": "Extended device memory free callback."
+      },
+      "device_malloc": {
+        "doc": "Extended device memory allocation callback."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDeviceAllocator_t": {
+    "doc": "Device memory allocator interface.\n\nWhen passed to `nvjpeg2kCreate()`, this structure is used for allocating and releasing device memory. If `NULL` is passed instead, the default `cudaMalloc()` / `cudaFree()` functions are used. When using `nvjpeg2kCreateSimple()` to create the library handle, the default device memory allocator will be used.",
+    "members": {
+      "device_free": {
+        "doc": "Device memory free callback."
+      },
+      "device_malloc": {
+        "doc": "Device memory allocation callback."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDeviceFree": {
+    "doc": "Prototype for device memory release, modelled after `cudaFree()`.\n\nParameters: pointer to memory to free (in).\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDeviceFreeV2": {
+    "doc": "Prototype for extended device memory release with stream and context.\n\n\n\n[in] User-defined context pointer.\n\n[in] Pointer to memory to free.\n\n[in] Size in bytes of the allocation.\n\n[in] CUDA stream for ordered deallocation.\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDeviceMalloc": {
+    "doc": "Prototype for device memory allocation, modelled after `cudaMalloc()`.\n\nParameters: pointer to allocated memory (out), size in bytes to allocate (in).\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kDeviceMallocV2": {
+    "doc": "Prototype for extended device memory allocation with stream and context.\n\n\n\n[in] User-defined context pointer.\n\n[out] Pointer to allocated memory.\n\n[in] Size in bytes to allocate.\n\n[in] CUDA stream for ordered allocation.\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncode": {
+    "doc": "Compress an image in JPEG2000 format.\n\nCompresses the input image in JPEG2000 format and stores it within `encode_state`. All GPU tasks will be submitted to the provided `stream`. The function is asynchronous with respect to the host.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "enc_handle": {
+        "doc": "[in] Encoder handle."
+      },
+      "encode_params": {
+        "doc": "[in] Encode parameters handle."
+      },
+      "encode_state": {
+        "doc": "[in] Encode state handle containing intermediate buffers."
+      },
+      "input_image": {
+        "doc": "[in] Input image. The struct should be on host memory. The image component pointers should point to device memory. See `nvjpeg2kImage_t`."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream for all device operations."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeConfig_t": {
+    "doc": "JPEG2000 encode configuration.\n\nContains parameters present in the COD and SIZ headers of the JPEG2000 bitstream. Not all parameters are supported and some must be set to 0.",
+    "members": {
+      "code_block_h": {
+        "doc": "Code block height. Valid values: 32, 64. Same area limit as `code_block_w` applies."
+      },
+      "code_block_w": {
+        "doc": "Code block width.  Valid values: 32, 64, 128. 128 requires HTJ2K (encode_modes = ::NVJPEG2K_MODE_HT) and is subject to the spec area limit `code_block_w` * `code_block_h` <= 4096."
+      },
+      "color_space": {
+        "doc": "Color space of the image."
+      },
+      "enable_EPH_marker": {
+        "doc": "Should be set to 0."
+      },
+      "enable_SOP_marker": {
+        "doc": "Should be set to 0."
+      },
+      "enable_tiling": {
+        "doc": "Set to 1 to enable tiling, 0 to disable."
+      },
+      "encode_modes": {
+        "doc": "Should be set to 0 for J2K or `::NVJPEG2K_MODE_HT` for HTJ2K."
+      },
+      "image_comp_info": {
+        "doc": "Pointer to per-component information. Must be a valid pointer."
+      },
+      "image_height": {
+        "doc": "Image height in pixels. Minimum value 1."
+      },
+      "image_width": {
+        "doc": "Image width in pixels. Minimum value 1."
+      },
+      "irreversible": {
+        "doc": "Set to 1 for irreversible (lossy) transform, 0 for reversible (lossless)."
+      },
+      "mct_mode": {
+        "doc": "Multi-component transform mode. 0 for YCC/Grayscale, 1 for RGB."
+      },
+      "num_components": {
+        "doc": "Number of image components (1-4)."
+      },
+      "num_layers": {
+        "doc": "Number of quality layers. Should be set to 1."
+      },
+      "num_precincts_init": {
+        "doc": "Number of valid precinct entries. Set to 0 to disable custom precincts."
+      },
+      "num_resolutions": {
+        "doc": "Number of resolutions. Cannot be greater than image/tile dimensions."
+      },
+      "precinct_height": {
+        "doc": "Precinct heights per resolution. Should be a power of 2. Valid only when `num_precincts_init` is non-zero."
+      },
+      "precinct_width": {
+        "doc": "Precinct widths per resolution. Should be a power of 2. Valid only when `num_precincts_init` is non-zero."
+      },
+      "prog_order": {
+        "doc": "Progression order."
+      },
+      "rsiz": {
+        "doc": "Should be set to 0 for J2K or `::NVJPEG2K_RSIZ_HT` for HTJ2K."
+      },
+      "stream_type": {
+        "doc": "Bitstream type (J2K or JP2)."
+      },
+      "tile_height": {
+        "doc": "Tile height. Valid only when `enable_tiling` is 1. Should be less than `image_height`."
+      },
+      "tile_width": {
+        "doc": "Tile width. Valid only when `enable_tiling` is 1. Should be less than `image_width`."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeParams": {
+    "doc": "Opaque nvJPEG2000 encode parameters.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeParamsCreate": {
+    "doc": "Create an instance of the encode parameters handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encode_params": {
+        "doc": "[in/out] Pointer to the encode parameters handle to initialize."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeParamsDestroy": {
+    "doc": "Release the encode parameters handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encode_params": {
+        "doc": "[in] Encode parameters handle to release."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeParamsSetEncodeConfig": {
+    "doc": "Set the JPEG2000 encode configuration.\n\nSets the JPEG2000 header parameters defined in `nvjpeg2kEncodeConfig_t`. This function should always be called during the encode process.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encode_params": {
+        "doc": "[in/out] Encode parameters handle."
+      },
+      "encoder_config": {
+        "doc": "[in] Pointer to `nvjpeg2kEncodeConfig_t`."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeParamsSetInputFormat": {
+    "doc": "Set the encode input format.\n\nSets the encode input format. `::NVJPEG2K_FORMAT_INTERLEAVED` is supported by the encoder only when all component dimensions are the same.\n\nThe encode input buffer should be allocated in the following manner to support `::NVJPEG2K_FORMAT_INTERLEAVED`:\n\n\n\n\n\n```text\n{.cpp}\n nvjpeg2kImage_t encode_input;\n\n // When encode_input.pixel_type is NVJPEG2K_UINT8:  bytes_per_sample = 1\n // When encode_input.pixel_type is NVJPEG2K_UINT16 or NVJPEG2K_INT16: bytes_per_sample = 2\n\n encode_input.pitch_in_bytes[0] = image_width * num_components * bytes_per_sample;\n encode_input.pixel_data[0]     = encode_input.pitch_in_bytes[0] * info.image_height;\n encode_input.num_components    = num_components;\n```\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encode_params": {
+        "doc": "[in/out] Encode parameters handle."
+      },
+      "format": {
+        "doc": "[in] Input format. Defaults to `::NVJPEG2K_FORMAT_PLANAR`."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeParamsSetNLTInfo": {
+    "doc": "Configure NLT type 3 encoding for the input data.\n\nWhen `num_components` is non-zero, the encoder applies the forward NLT type 3 transform (signed-magnitude binary complement, ISO/IEC 15444-2 Annex A.4.10) to each component `c` whose `nlt_info[c].type` is `::NVJPEG2K_NLT_TYPE3`, using `nlt_info[c].bit_depth` as `BDnlt`. Per the forward mapping, signed-magnitude integer `v` becomes `v` when `v` >= 0 and `-v` - (2^(BDnlt-1)+1) otherwise. Components with `::NVJPEG2K_NLT_NONE` are encoded with the standard level-shift path.\n\nThe encoder emits a single Cnlt = 65535 \"all components\" NLT marker carrying the shared `BDnlt` — per-component markers are not produced.\n\nOrdering: `nvjpeg2kEncodeParamsSetEncodeConfig()` must be called before this function so the NLT3 configuration can be validated against the encode config (HT mode, component count). Calling this function before `nvjpeg2kEncodeParamsSetEncodeConfig()` returns `::NVJPEG2K_STATUS_INVALID_PARAMETER`. This applies to disable calls (`num_components` = 0) as well.\n\nRestrictions:\n- **HTJ2K only.** NLT type 3 is rejected on Part 1 codestreams. Set `encode_modes` = `::NVJPEG2K_MODE_HT` (and `rsiz` = `::NVJPEG2K_RSIZ_HT)` on the `nvjpeg2kEncodeConfig_t` before calling this function. Otherwise the call returns `::NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED`.\n- Only the reversible (5/3) wavelet is supported with NLT3. Calling `nvjpeg2kEncode()` with the irreversible wavelet and any component set to NLT3 returns `::NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED`.\n- All components must use NLT3 or none.\n- **Uniform `BDnlt.**` All NLT3 components must share the same `bit_depth`. Mismatched BDnlts return `::NVJPEG2K_STATUS_INVALID_PARAMETER`.\n- Allowed input pixel types:\n- `::NVJPEG2K_FP16` with `BDnlt` = 16 — the half bit pattern is interpreted as the signed-magnitude int16 representation of the sample;\n- `::NVJPEG2K_FP32` with `BDnlt` ∈ {16, 32}.\n\nPass `num_components` = 0 to disable NLT3 encoding (default).\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encode_params": {
+        "doc": "[in/out] Encode parameters handle."
+      },
+      "nlt_info": {
+        "doc": "[in] Array of per-component NLT settings of length `num_components`. May be `NULL` when `num_components` is 0."
+      },
+      "num_components": {
+        "doc": "[in] Number of entries in `nlt_info`. Must be 0 or match the number of components passed at encode time. Maximum 16384 (per the JPEG 2000 spec); the encoder accepts up to 4 components."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeParamsSpecifyQuality": {
+    "doc": "Set quality type and value for lossy encoding.\n\nAllows the application to set quality type (algorithm) and quality value, which controls how good the encoded image should look. Refer to `nvjpeg2kQualityType_t` \"nvjpeg2kQualityType_t\" for the allowed values for each quality type. Will overwrite any existing quality setting.\n\n`nvjpeg2kEncodeParamsSetEncodeConfig()` should be called before this function.\n\nWill return `::NVJPEG2K_STATUS_INVALID_PARAMETER` if:\n- `nvjpeg2kEncodeParamsSetEncodeConfig()` was not yet called\n- `quality_value` is negative\n- Encoding mode is set to reversible\n- Quality type is `::NVJPEG2K_QUALITY_TYPE_TARGET_PSNR` and HT encoder is enabled\n- Quality type is `::NVJPEG2K_QUALITY_TYPE_Q_FACTOR` and `quality_value` is larger than 100\n- Quality type is `::NVJPEG2K_QUALITY_TYPE_Q_FACTOR` and `mct` = 0 and input color space is sRGB\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encode_params": {
+        "doc": "[in/out] Encode parameters handle."
+      },
+      "quality_type": {
+        "doc": "[in] Quality type (algorithm) to use. See `nvjpeg2kQualityType_t` \"nvjpeg2kQualityType_t\"."
+      },
+      "quality_value": {
+        "doc": "[in] Quality value. Interpretation depends on `quality_type`."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeParams_t": {
+    "doc": "Handle to the nvJPEG2000 encode parameters.\n\nStores user provided parameters that control the encoding process.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeRetrieveBitstream": {
+    "doc": "Retrieve the compressed JPEG2000 bitstream.\n\nRetrieves the compressed stream from the encoder state that was previously used by the encoder function.\n\n- If `compressed_data` is `NULL`, the encoder will return the compressed JPEG2000 bitstream size in the `length` parameter.\n- If `compressed_data` is not `NULL`, the `length` parameter should contain the data buffer size. If the length is less than the compressed stream size, an error will be returned. Otherwise the compressed stream will be stored in the data buffer and the actual compressed buffer size will be stored in `length`.\n- When `compressed_data` is `NULL`, the API is synchronous with the host.\n- When `compressed_data` is not `NULL`, the application should call `cudaStreamSynchronize()` to ensure the bitstream copy is successful.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "compressed_data": {
+        "doc": "[out] Pointer to the host buffer for the compressed stream. Can be `NULL` (see description)."
+      },
+      "enc_handle": {
+        "doc": "[in] Encoder handle."
+      },
+      "encode_state": {
+        "doc": "[in] Encode state handle."
+      },
+      "length": {
+        "doc": "[in/out] Pointer to the buffer size. The library will update the actual compressed stream size."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream for device operations."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeState": {
+    "doc": "Opaque nvJPEG2000 encode state.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeStateCreate": {
+    "doc": "Create an instance of the encode state.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "enc_handle": {
+        "doc": "[in] Encoder handle."
+      },
+      "encode_state": {
+        "doc": "[in/out] Pointer to the encode state handle to initialize."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeStateDestroy": {
+    "doc": "Release the encode state handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encode_state": {
+        "doc": "[in] Encode state handle to release."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncodeState_t": {
+    "doc": "Handle to the nvJPEG2000 encode state.\n\nContains intermediate buffers required by the encoding process.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncoder": {
+    "doc": "Opaque nvJPEG2000 encoder handle.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncoderCreateSimple": {
+    "doc": "Create an nvJPEG2000 encoder handle with default settings.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "enc_handle": {
+        "doc": "[in/out] Pointer to the encoder handle to initialize."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncoderDestroy": {
+    "doc": "Release the nvJPEG2000 encoder handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "enc_handle": {
+        "doc": "[in] Encoder handle to release."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kEncoder_t": {
+    "doc": "Handle to the nvJPEG2000 encoder instance.\n\nThis handle should be instantiated prior to using any of the encode APIs. It is thread safe and can be used across host threads.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kGetCudartProperty": {
+    "doc": "Get the CUDA Toolkit version used to build the library.\n\nReturns the numeric value for the major version, minor version, or the patch level of the CUDA toolkit that was used to build the nvJPEG2000 library.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "type": {
+        "doc": "[in] Version type: `MAJOR_VERSION`, `MINOR_VERSION`, or `PATCH_LEVEL`."
+      },
+      "value": {
+        "doc": "[out] The numeric value corresponding to the requested property."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kGetDeviceMemoryPadding": {
+    "doc": "Retrieve padding for device memory allocations.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "[in] Library handle."
+      },
+      "padding": {
+        "doc": "[out] Current device memory padding size in bytes."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kGetPinnedMemoryPadding": {
+    "doc": "Retrieve padding for pinned host memory allocations.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "[in] Library handle."
+      },
+      "padding": {
+        "doc": "[out] Current pinned memory padding size in bytes."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kGetProperty": {
+    "doc": "Get the nvJPEG2000 library version.\n\nReturns the numeric value for the major version, minor version, or the patch level of the nvJPEG2000 library.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "type": {
+        "doc": "[in] Version type: `MAJOR_VERSION`, `MINOR_VERSION`, or `PATCH_LEVEL`."
+      },
+      "value": {
+        "doc": "[out] The numeric value corresponding to the requested property."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kHandle": {
+    "doc": "Opaque nvJPEG2000 library handle.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kHandle_t": {
+    "doc": "Handle to the nvJPEG2000 library instance.\n\nThis handle should be instantiated prior to using any of the decode APIs. It is thread safe and can be used by multiple threads simultaneously.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kImageComponentInfo_t": {
+    "doc": "Per-component image information.\n\nUsed to retrieve component level information. This information can be used for allocating output buffers.",
+    "members": {
+      "component_height": {
+        "doc": "Height of the component in pixels."
+      },
+      "component_width": {
+        "doc": "Width of the component in pixels."
+      },
+      "precision": {
+        "doc": "Bit depth of the component."
+      },
+      "sgn": {
+        "doc": "1 if the component samples are signed, 0 otherwise."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kImageFormat_t": {
+    "doc": "Image memory layout format.\n\nDescribes how an image is stored in memory.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kImageInfo_t": {
+    "doc": "Image-level information.\n\nUsed to retrieve image information which can be used to allocate output buffers.",
+    "members": {
+      "image_height": {
+        "doc": "Height of the image in pixels."
+      },
+      "image_width": {
+        "doc": "Width of the image in pixels."
+      },
+      "num_components": {
+        "doc": "Number of image components."
+      },
+      "num_tiles_x": {
+        "doc": "Number of tiles in the horizontal direction."
+      },
+      "num_tiles_y": {
+        "doc": "Number of tiles in the vertical direction."
+      },
+      "tile_height": {
+        "doc": "Height of a tile in pixels."
+      },
+      "tile_width": {
+        "doc": "Width of a tile in pixels."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kImageType_t": {
+    "doc": "Pixel data types supported by nvJPEG2000.\n\nDecode destinations accept these types subject to per-stream constraints. `::NVJPEG2K_UINT8`, `::NVJPEG2K_UINT16`, and `::NVJPEG2K_INT16` are valid for non-NLT-type-3 streams so long as the destination width is at least the SIZ-marker per-component precision.\n\nStreams that carry an NLT type 3 marker (signed-magnitude binary complement, ISO/IEC 15444-2 Annex A.4.10) on every component used by the decode pipeline (which by upstream rules implies HTJ2K + reversible 5/3 wavelet) must use a floating-point destination:\n- `::NVJPEG2K_FP16` requires every component `BDnlt` = 16.\n- `::NVJPEG2K_FP32` requires every component `BDnlt` ∈ {16, 32}. `BDnlt` = 16 components are numerically widened with `__half2float`; `BDnlt` = 32 components are bit-reinterpreted as `float`.\n\nFor NLT type 3 streams the sample value is computed by the inverse signed-magnitude transform (`v` if `v≥0`, otherwise `-v` - (2^(B-1)+1) where B is the per-component bit depth from the NLT marker, falling back to the SIZ precision when the marker omits it). For floating-point destinations the resulting bit pattern is the IEEE-754 encoding of the decoded sample.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kImage_t": {
+    "doc": "Image container for decode/encode operations.\n\nContains an array of pointers, one per component, and a corresponding array of pitch values. `pixel_type` determines the data type of `pixel_data`.",
+    "members": {
+      "num_components": {
+        "doc": "Number of image components."
+      },
+      "pitch_in_bytes": {
+        "doc": "Array of pitch values (in bytes) for each component."
+      },
+      "pixel_data": {
+        "doc": "Array of pointers to component data in device memory."
+      },
+      "pixel_type": {
+        "doc": "Pixel data type. See `nvjpeg2kImageType_t` \"Image Type\" for supported types."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kNLTInfo": {
+    "doc": "Per-component NLT marker information.\n\nReports the nonlinear-transformation parameters that apply to a single component, as parsed from the bitstream's NLT marker (or markers).",
+    "members": {
+      "bit_depth": {
+        "doc": "Post-NLT bit-depth (BDnlt, 1..128). When `type` is `::NVJPEG2K_NLT_NONE` this falls back to the SIZ marker precision, so this field always reflects the effective output integer range."
+      },
+      "type": {
+        "doc": "Nonlinearity type for this component."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kNLTInfo_t": {
+    "doc": "Per-component NLT marker information.\n\nReports the nonlinear-transformation parameters that apply to a single component, as parsed from the bitstream's NLT marker (or markers).",
+    "members": {
+      "bit_depth": {
+        "doc": "Post-NLT bit-depth (BDnlt, 1..128). When `type` is `::NVJPEG2K_NLT_NONE` this falls back to the SIZ marker precision, so this field always reflects the effective output integer range."
+      },
+      "type": {
+        "doc": "Nonlinearity type for this component."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kNLTType": {
+    "doc": "Nonlinear transformation (NLT marker) type.\n\nIdentifies which NLT type, per ISO/IEC 15444-2 Annex A.4.10, applies to a component. Tnlt = 1 (BT.709) and Tnlt = 2 (LUT) are reserved for future support; encountering them in a bitstream produces an `::NVJPEG2K_STATUS_NOT_SUPPORTED` parse error today.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kNLTType_t": {
+    "doc": "Nonlinear transformation (NLT marker) type.\n\nIdentifies which NLT type, per ISO/IEC 15444-2 Annex A.4.10, applies to a component. Tnlt = 1 (BT.709) and Tnlt = 2 (LUT) are reserved for future support; encountering them in a bitstream produces an `::NVJPEG2K_STATUS_NOT_SUPPORTED` parse error today.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kPinnedAllocatorV2": {
+    "doc": "Extended pinned memory allocator interface with stream and context support.\n\nAllows the user to provide pinned allocators which accept CUDA streams and user context. Extended pinned allocators can be passed as input to the library using `nvjpeg2kCreateV2()`.",
+    "members": {
+      "pinned_ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "pinned_free": {
+        "doc": "Extended pinned memory free callback."
+      },
+      "pinned_malloc": {
+        "doc": "Extended pinned memory allocation callback."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kPinnedAllocatorV2_t": {
+    "doc": "Extended pinned memory allocator interface with stream and context support.\n\nAllows the user to provide pinned allocators which accept CUDA streams and user context. Extended pinned allocators can be passed as input to the library using `nvjpeg2kCreateV2()`.",
+    "members": {
+      "pinned_ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "pinned_free": {
+        "doc": "Extended pinned memory free callback."
+      },
+      "pinned_malloc": {
+        "doc": "Extended pinned memory allocation callback."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kPinnedAllocator_t": {
+    "doc": "Pinned memory allocator interface.\n\nWhen passed to `nvjpeg2kCreate()`, this structure is used for allocating and releasing host pinned memory for copying data to/from device. If `NULL` is passed instead, the default `cudaHostAlloc()` / `cudaFreeHost()` functions are used. When using `nvjpeg2kCreateSimple()` to create the library handle, the default host pinned memory allocator will be used.",
+    "members": {
+      "pinned_free": {
+        "doc": "Pinned memory free callback."
+      },
+      "pinned_malloc": {
+        "doc": "Pinned memory allocation callback."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kPinnedFree": {
+    "doc": "Prototype for pinned memory release, modelled after `cudaFreeHost()`.\n\nParameters: pointer to memory to free (in).\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kPinnedFreeV2": {
+    "doc": "Prototype for extended pinned memory release with stream and context.\n\n\n\n[in] User-defined context pointer.\n\n[in] Pointer to memory to free.\n\n[in] Size in bytes of the allocation.\n\n[in] CUDA stream for ordered deallocation.\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kPinnedMalloc": {
+    "doc": "Prototype for pinned memory allocation, modelled after `cudaHostAlloc()`.\n\nParameters: pointer to allocated memory (out), size in bytes to allocate (in), allocation flags (in).\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kPinnedMallocV2": {
+    "doc": "Prototype for extended pinned memory allocation with stream and context.\n\n\n\n[in] User-defined context pointer.\n\n[out] Pointer to allocated memory.\n\n[in] Size in bytes to allocate.\n\n[in] CUDA stream for ordered allocation.\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kProgOrder": {
+    "doc": "Progression orders defined in the JPEG2000 standard.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kProgOrder_t": {
+    "doc": "Progression orders defined in the JPEG2000 standard.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kQualityType": {
+    "doc": "Quality type selection for lossy encoding.\n\nCan be used with `nvjpeg2kEncodeParamsSpecifyQuality()`.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kQualityType_t": {
+    "doc": "Quality type selection for lossy encoding.\n\nCan be used with `nvjpeg2kEncodeParamsSpecifyQuality()`.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kSetDeviceMemoryPadding": {
+    "doc": "Set padding for device memory allocations.\n\nAfter success on this call, any device memory allocation would be padded to the multiple of specified number of bytes. This helps minimize the number of device memory reallocations.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "[in/out] Library handle."
+      },
+      "padding": {
+        "doc": "[in] Padding size in bytes."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kSetPinnedMemoryPadding": {
+    "doc": "Set padding for pinned host memory allocations.\n\nAfter success on this call, any pinned host memory allocation would be padded to the multiple of specified number of bytes. This helps minimize the number of pinned memory reallocations.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "[in/out] Library handle."
+      },
+      "padding": {
+        "doc": "[in] Padding size in bytes."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStatus_t": {
+    "doc": "Return status codes for nvJPEG2000 APIs.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStream": {
+    "doc": "Opaque nvJPEG2000 bitstream handle.",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamCreate": {
+    "doc": "Create an instance of the bitstream handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "stream_handle": {
+        "doc": "[in/out] Pointer to the bitstream handle to initialize."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamDestroy": {
+    "doc": "Release the bitstream handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "stream_handle": {
+        "doc": "[in] Bitstream handle to release."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamGetColorSpace": {
+    "doc": "Retrieve color space information from a parsed JP2 file.\n\nFor a JPEG2000 codestream (.j2k file), this function will retrieve `::NVJPEG2K_COLORSPACE_UNKNOWN` since color space information is not available.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "color_space": {
+        "doc": "[out] Color space of the parsed image."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamGetComponentNLTInfo": {
+    "doc": "Retrieve nonlinear-transformation (NLT marker) information for a single component.\n\nIf the parsed bitstream contains an NLT marker that applies to `component_id` (either `Cnlt` = `component_id` or `Cnlt` = 65535 for \"all components\"), `nlt_info->type` reports the marker's `Tnlt` and `nlt_info->bit_depth` reports `BDnlt`. Otherwise `nlt_info->type` is `::NVJPEG2K_NLT_NONE` and `nlt_info->bit_depth` falls back to the SIZ marker precision.\n\nUse this to choose the destination type for an NLT-type-3 stream:\n- `::NVJPEG2K_FP16` — when every component `BDnlt` = 16.\n- `::NVJPEG2K_FP32` — when every component `BDnlt` ∈ {16, 32} and at least one is ≥ 16. `BDnlt` = 16 components are widened via `__half2float` at decode time. See `::nvjpeg2kImageType_t` for the full destination-type restrictions.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "component_id": {
+        "doc": "[in] Component index (0..`num_components-1)`."
+      },
+      "nlt_info": {
+        "doc": "[out] Pointer to `nvjpeg2kNLTInfo_t` to populate."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamGetImageComponentInfo": {
+    "doc": "Retrieve component-level information from a parsed bitstream.\n\nRetrieves the component level information defined in `nvjpeg2kImageComponentInfo_t`. This information can be used in allocating output buffers on device memory. Component level information is useful when the dimensions vary across components.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "component_id": {
+        "doc": "[in] Component index."
+      },
+      "component_info": {
+        "doc": "[out] Pointer to `nvjpeg2kImageComponentInfo_t` to store the component information."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamGetImageInfo": {
+    "doc": "Retrieve image-level information from a parsed bitstream.\n\nRetrieves the image information defined in `nvjpeg2kImageInfo_t`. This information is useful in allocating output buffers on device memory.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "image_info": {
+        "doc": "[out] Pointer to `nvjpeg2kImageInfo_t` to store the image information."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamGetResolutionComponentDim": {
+    "doc": "Retrieve dimensions at a resolution level for a tile component.\n\nThe resolution dimensions are computed as follows:\n- <tt>res_scale = 1 << (num_resolutions - res_level - 1)</tt>\n- <tt>res_width = (tile_width + res_scale - 1) >> res_scale</tt>\n- <tt>res_height = (tile_height + res_scale - 1) >> res_scale</tt>\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "component_id": {
+        "doc": "[in] Component index."
+      },
+      "res_height": {
+        "doc": "[out] Resolution height for the specified tile component and resolution level."
+      },
+      "res_level": {
+        "doc": "[in] Resolution level."
+      },
+      "res_width": {
+        "doc": "[out] Resolution width for the specified tile component and resolution level."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle."
+      },
+      "tile_id": {
+        "doc": "[in] Raster scan based tile index."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamGetResolutionsInTile": {
+    "doc": "Retrieve the number of resolutions present in a tile.\n\nThe number of resolutions is defined as: <tt>numResolutions = numWaveletDecompositionLevels + 1</tt>. Tiles in JPEG2000 are indexed in raster scan order. `nvjpeg2kStreamGetImageInfo()` retrieves the number of tiles present along both the x and y directions. For tile coordinates tile_x, tile_y: <tt>tile_id = tile_y * num_tiles_x + tile_x</tt>.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "num_res": {
+        "doc": "[out] Number of resolutions present in the tile."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle."
+      },
+      "tile_id": {
+        "doc": "[in] Raster scan based tile index."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamGetTileComponentDim": {
+    "doc": "Retrieve tile dimensions for a tile component.\n\nThis function is useful when the tile dimensions in `nvjpeg2kImageInfo_t` are not a multiple of the image dimensions.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "component_id": {
+        "doc": "[in] Component index."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle."
+      },
+      "tile_height": {
+        "doc": "[out] Tile height for the specified tile component."
+      },
+      "tile_id": {
+        "doc": "[in] Raster scan based tile index."
+      },
+      "tile_width": {
+        "doc": "[out] Tile width for the specified tile component."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamParse": {
+    "doc": "Parse a JPEG2000 bitstream from a host memory buffer.\n\nThis function is the first step in decoding a JPEG2000 bitstream. It accepts the bitstream buffer on host memory as input and parses the JPEG2000 header information. The parsed information is stored in the stream handle and can be retrieved by the stream query APIs.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "data": {
+        "doc": "[in] Pointer to the JPEG2000 bitstream buffer in host memory."
+      },
+      "handle": {
+        "doc": "[in] Library handle."
+      },
+      "length": {
+        "doc": "[in] Size of the bitstream in bytes."
+      },
+      "save_metadata": {
+        "doc": "[in] Reserved for future use. Set to 0."
+      },
+      "save_stream": {
+        "doc": "[in] Reserved for future use. Set to 0."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle to store parsed information."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStreamParseFile": {
+    "doc": "Parse a JPEG2000 file from disk.\n\nAccepts a JPEG2000 file on disk as input and parses the JPEG2000 header information. The parsed information is stored in the stream handle and can be retrieved by the stream query APIs.\n\n\n\n# Return value\n\nAn error code as specified in `nvjpeg2kStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "filename": {
+        "doc": "[in] Path to the JPEG2000 file on disk."
+      },
+      "handle": {
+        "doc": "[in] Library handle."
+      },
+      "stream_handle": {
+        "doc": "[in] Bitstream handle to store parsed information."
+      }
+    },
+    "source": "nvjpeg2k.h"
+  },
+  "nvjpeg2kStream_t": {
+    "doc": "Handle to the nvJPEG2000 bitstream.\n\nUsed for parsing the bitstream. Bitstream metadata can be extracted by using the APIs defined in `ParserAPIReference` \"Parser API Reference\".",
+    "members": {},
+    "source": "nvjpeg2k.h"
+  }
+}

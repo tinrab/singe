@@ -1,4 +1,5 @@
 use singe_cublas::{blas::level2::dgbmv, context::Context, error::Result, types::Operation};
+
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
 fn main() -> Result<()> {
@@ -6,9 +7,9 @@ fn main() -> Result<()> {
     let cublas = Context::create(&cuda)?;
 
     // cuBLAS expects the matrix in banded storage with the upper diagonal in the first row.
-    let a = DeviceMemory::from_slice(&[1.0_f64, 3.0, 2.0, 4.0])?;
-    let x = DeviceMemory::from_slice(&[5.0_f64, 6.0])?;
-    let mut y = DeviceMemory::<f64>::zeroes(2)?;
+    let a = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 2.0, 4.0])?;
+    let x = DeviceMemory::from_slice(&cuda, &[5.0_f64, 6.0])?;
+    let mut y = DeviceMemory::<f64>::zeroed(&cuda, 2)?;
 
     dgbmv(
         &cublas,

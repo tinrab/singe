@@ -1,4 +1,4 @@
-use std::{mem::MaybeUninit, ptr};
+use std::ptr;
 
 use singe_nvml_sys as sys;
 
@@ -12,9 +12,19 @@ use crate::{
     },
 };
 
+/// Borrowed NVML multi-GPU unit handle.
+///
+/// Copies refer to the same native object.
+/// Queries require NVML to remain initialized.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct Unit(sys::nvmlUnit_t);
+
+// SAFETY: NVML is thread-safe, and a unit handle is an opaque identifier that the wrapper never
+// dereferences.
+unsafe impl Send for Unit {}
+
+unsafe impl Sync for Unit {}
 
 impl Unit {
     /// Wraps a borrowed NVML unit handle.
@@ -28,10 +38,14 @@ impl Unit {
         Self(handle)
     }
 
+    /// Returns the borrowed native handle.
+    #[must_use]
     pub const fn as_raw(self) -> sys::nvmlUnit_t {
         self.0
     }
 
+    /// Returns whether the stored native handle is null.
+    #[must_use]
     pub const fn is_null(self) -> bool {
         self.0.is_null()
     }
@@ -47,11 +61,12 @@ impl Unit {
     /// Returns an error if the unit handle or output argument is invalid, or if
     /// NVML has not been initialized.
     pub fn info(self) -> Result<UnitInfo> {
+        let mut info = sys::nvmlUnitInfo_t::default();
+        // SAFETY: `nvmlUnitGetUnitInfo` receives a live handle and writes only into the local `info`.
         unsafe {
-            let mut info = MaybeUninit::<sys::nvmlUnitInfo_t>::uninit();
-            try_ffi!(sys::nvmlUnitGetUnitInfo(self.0, info.as_mut_ptr()))?;
-            Ok(info.assume_init().into())
+            try_ffi!(sys::nvmlUnitGetUnitInfo(self.0, &raw mut info))?;
         }
+        Ok(info.into())
     }
 
     /// Returns the LED state associated with this unit.
@@ -66,11 +81,12 @@ impl Unit {
     /// is not an S-class product, if NVML has not been initialized, or if NVML
     /// reports an unexpected failure.
     pub fn led_state(self) -> Result<LedState> {
+        let mut state = sys::nvmlLedState_t::default();
+        // SAFETY: `nvmlUnitGetLedState` receives a live handle and writes only into the local `state`.
         unsafe {
-            let mut state = MaybeUninit::<sys::nvmlLedState_t>::uninit();
-            try_ffi!(sys::nvmlUnitGetLedState(self.0, state.as_mut_ptr()))?;
-            Ok(state.assume_init().into())
+            try_ffi!(sys::nvmlUnitGetLedState(self.0, &raw mut state))?;
         }
+        Ok(state.into())
     }
 
     /// Returns the PSU stats for the unit.
@@ -85,11 +101,12 @@ impl Unit {
     /// is not an S-class product, if NVML has not been initialized, or if NVML
     /// reports an unexpected failure.
     pub fn psu_info(self) -> Result<PsuInfo> {
+        let mut info = sys::nvmlPSUInfo_t::default();
+        // SAFETY: `nvmlUnitGetPsuInfo` receives a live handle and writes only into the local `info`.
         unsafe {
-            let mut info = MaybeUninit::<sys::nvmlPSUInfo_t>::uninit();
-            try_ffi!(sys::nvmlUnitGetPsuInfo(self.0, info.as_mut_ptr()))?;
-            Ok(info.assume_init().into())
+            try_ffi!(sys::nvmlUnitGetPsuInfo(self.0, &raw mut info))?;
         }
+        Ok(info.into())
     }
 
     /// Returns the temperature readings for the unit, in degrees C.
@@ -105,6 +122,7 @@ impl Unit {
     /// or if NVML reports an unexpected failure.
     pub fn temperature(self, kind: UnitTemperatureType) -> Result<UnitTemperature> {
         let mut temperature = 0;
+        // SAFETY: `nvmlUnitGetTemperature` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlUnitGetTemperature(
                 self.0,
@@ -128,6 +146,7 @@ impl Unit {
     /// reports an unexpected failure.
     pub fn fan_speeds(self) -> Result<UnitFanSpeeds> {
         let mut fan_speeds = sys::nvmlUnitFanSpeeds_t::default();
+        // SAFETY: `nvmlUnitGetFanSpeedInfo` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlUnitGetFanSpeedInfo(self.0, &raw mut fan_speeds))?;
         }
@@ -155,6 +174,7 @@ impl Unit {
     /// if NVML reports an unexpected failure.
     pub fn devices(self) -> Result<Vec<Device>> {
         let mut count = 0;
+        // SAFETY: `nvmlUnitGetDevices` receives valid output locations.
         let status = unsafe { sys::nvmlUnitGetDevices(self.0, &raw mut count, ptr::null_mut()) };
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
@@ -164,6 +184,7 @@ impl Unit {
         }
 
         let mut devices = vec![ptr::null_mut(); count as usize];
+        // SAFETY: `nvmlUnitGetDevices` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlUnitGetDevices(
                 self.0,
@@ -174,6 +195,7 @@ impl Unit {
         devices.truncate(count as usize);
         Ok(devices
             .into_iter()
+            // SAFETY: NVML returned this device handle, which stays valid until NVML shuts down.
             .map(|handle| unsafe { Device::from_raw(handle) })
             .collect())
     }

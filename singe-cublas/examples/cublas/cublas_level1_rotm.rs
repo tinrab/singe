@@ -1,11 +1,12 @@
 use singe_cublas::{blas::level1::drotm, context::Context, error::Result};
+
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
 fn main() -> Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
-    let mut x = DeviceMemory::from_slice(&[1.0_f64, 2.0, 3.0, 4.0])?;
-    let mut y = DeviceMemory::from_slice(&[5.0_f64, 6.0, 7.0, 8.0])?;
+    let mut x = DeviceMemory::from_slice(&cuda, &[1.0_f64, 2.0, 3.0, 4.0])?;
+    let mut y = DeviceMemory::from_slice(&cuda, &[5.0_f64, 6.0, 7.0, 8.0])?;
     let param = [1.0_f64, 5.0, 6.0, 7.0, 8.0];
 
     drotm(&cublas, &mut x, 1, &mut y, 1, &param)?;

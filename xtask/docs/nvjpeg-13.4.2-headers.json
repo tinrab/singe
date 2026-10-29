@@ -1,0 +1,452 @@
+{
+  "NVJPEG_INPUT_BGR": {
+    "doc": "Input is RGB - will be converted to YCbCr before encoding",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_INPUT_BGRI": {
+    "doc": "Input is interleaved RGB - will be converted to YCbCr before encoding",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_INPUT_NV12": {
+    "doc": "Input is 2 channels: Y and UV (at half horizontal + vertical resolution - 420)",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_INPUT_RGB": {
+    "doc": "Input is RGB - will be converted to YCbCr before encoding",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_INPUT_RGBI": {
+    "doc": "Input is interleaved RGB - will be converted to YCbCr before encoding",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_INPUT_YUV": {
+    "doc": "Input is YUV (or YCbCr)",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_BGR": {
+    "doc": "convert to planar BGR",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_BGRI": {
+    "doc": "convert to interleaved BGR and write to 1-st channel of nvjpegImage_t",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_FORMAT_MAX": {
+    "doc": "maximum allowed value",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_NV12": {
+    "doc": "2 channels: Y and UV (at half horizontal + vertical resolution - 420)",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_RGB": {
+    "doc": "convert to planar RGB",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_RGBI": {
+    "doc": "convert to interleaved RGB and write to 1-st channel of nvjpegImage_t",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_UNCHANGED": {
+    "doc": "return decompressed image as it is - write planar output",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_UNCHANGEDI": {
+    "doc": "return decompressed image as is in interleaved format",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_UNCHANGEDI_U16": {
+    "doc": "16 bit unsigned output in interleaved format",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_Y": {
+    "doc": "return luma component only, if YCbCr colorspace, or try to convert to grayscale, writes to 1-st channel of nvjpegImage_t",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_YUV": {
+    "doc": "return planar luma and chroma, assuming YCbCr colorspace",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_OUTPUT_YUY2": {
+    "doc": "One channel: YUYV YUYV ... (U and V are at half horizontal resolution - 422)",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_SCALE_1_BY_2": {
+    "doc": "decoded output width and height is scaled by a factor of 1/2",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_SCALE_1_BY_4": {
+    "doc": "decoded output width and height is scaled by a factor of 1/4",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_SCALE_1_BY_8": {
+    "doc": "decoded output width and height is scaled by a factor of 1/8",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_SCALE_NONE": {
+    "doc": "decoded output is not scaled",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_VER_BUILD": {
+    "doc": "Build component of the nvJPEG version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_VER_MAJOR": {
+    "doc": "Major component of the nvJPEG version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_VER_MINOR": {
+    "doc": "Minor component of the nvJPEG version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvjpeg.h"
+  },
+  "NVJPEG_VER_PATCH": {
+    "doc": "Patch component of the nvJPEG version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvjpeg.h"
+  },
+  "nvjpegBackend_t": {
+    "doc": "Implementation NVJPEG_BACKEND_DEFAULT    : default value NVJPEG_BACKEND_HYBRID     : uses CPU for Huffman decode NVJPEG_BACKEND_GPU_HYBRID : uses GPU assisted Huffman decode. nvjpegDecodeBatched will use GPU decoding for baseline JPEG bitstreams with interleaved scan when batch size is bigger than 50 NVJPEG_BACKEND_HARDWARE   : supports baseline JPEG bitstream with single scan. 410 and 411 sub-samplings are not supported NVJPEG_BACKEND_GPU_HYBRID_DEVICE : nvjpegDecodeBatched will support bitstream input on device memory NVJPEG_BACKEND_HARDWARE_DEVICE   : nvjpegDecodeBatched will support bitstream input on device memory",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegBufferPinned": {
+    "doc": "//////////////////////////////////////////////////////////////////////////////// NVJPEG buffers // ////////////////////////////////////////////////////////////////////////////////",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegBufferPinnedRetrieve": {
+    "doc": "retrieve buffer size and pointer - this allows reusing buffer when decode is not needed",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegChromaSubsampling_t": {
+    "doc": "Enum identifies image chroma subsampling values stored inside JPEG input stream In the case of NVJPEG_CSS_GRAY only 1 luminance channel is encoded in JPEG input stream Otherwise both chroma planes are present",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegCreate": {
+    "doc": "Initalization of nvjpeg handle. This handle is used for all consecutive calls IN         backend       : Backend to use. Currently Default or Hybrid (which is the same at the moment) is supported. IN         allocator     : Pointer to nvjpegDevAllocator. If NULL - use default cuda calls (cudaMalloc/cudaFree) INT/OUT    handle        : Codec instance, use for other calls",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegCreateEx": {
+    "doc": "Initalization of nvjpeg handle with additional parameters. This handle is used for all consecutive nvjpeg calls IN         backend       : Backend to use. Currently Default or Hybrid (which is the same at the moment) is supported. IN         dev_allocator : Pointer to nvjpegDevAllocator. If NULL - use default cuda calls (cudaMalloc/cudaFree) IN         pinned_allocator : Pointer to nvjpegPinnedAllocator. If NULL - use default cuda calls (cudaHostAlloc/cudaFreeHost) IN         flags         : Parameters for the operation. Must be 0. INT/OUT    handle        : Codec instance, use for other calls",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegCreateSimple": {
+    "doc": "Initalization of nvjpeg handle with default backend and default memory allocators. INT/OUT    handle        : Codec instance, use for other calls",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecode": {
+    "doc": "Decodes single image. The API is back-end agnostic. It will decide on which implementation to use internally Destination buffers should be large enough to be able to store  output of specified format. For each color plane sizes could be retrieved for image using nvjpegGetImageInfo() and minimum required memory buffer for each plane is nPlaneHeight*nPlanePitch where nPlanePitch >= nPlaneWidth for planar output formats and nPlanePitch >= nPlaneWidth*nOutputComponents for interleaved output format.\n\nIN/OUT     handle        : Library handle INT/OUT    jpeg_handle   : Decoded jpeg image state handle IN         data          : Pointer to the buffer containing the jpeg image to be decoded. IN         length        : Length of the jpeg image buffer. IN         output_format : Output data format. See nvjpegOutputFormat_t for description IN/OUT     destination   : Pointer to structure with information about output buffers. See nvjpegImage_t description. IN/OUT     stream        : CUDA stream where to submit all GPU work\n\n\n\n# Return value\n\nNVJPEG_STATUS_SUCCESS if successful",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeBatched": {
+    "doc": "Decodes batch of images. Output buffers should be large enough to be able to store outputs of specified format, see single image decoding description for details. Call to nvjpegDecodeBatchedInitialize() is required prior to this call, batch size is expected to be the same as parameter to this batch initialization function.\n\nIN/OUT     handle        : Library handle INT/OUT    jpeg_handle   : Decoded jpeg image state handle IN         data          : Array of size batch_size of pointers to the input buffers containing the jpeg images to be decoded. IN         lengths       : Array of size batch_size with lengths of the jpeg images' buffers in the batch. IN/OUT     destinations  : Array of size batch_size with pointers to structure with information about output buffers, IN/OUT     stream        : CUDA stream where to submit all GPU work\n\n\n\n# Return value\n\nNVJPEG_STATUS_SUCCESS if successful",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeBatchedInitialize": {
+    "doc": "Resets and initizlizes batch decoder for working on the batches of specified size Should be called once for decoding bathes of this specific size, also use to reset failed batches IN/OUT     handle          : Library handle INT/OUT    jpeg_handle     : Decoded jpeg image state handle IN         batch_size      : Size of the batch IN         max_cpu_threads : Maximum number of CPU threads that will be processing this batch IN         output_format   : Output data format. Will be the same for every image in batch\n\n\n\n# Return value\n\nNVJPEG_STATUS_SUCCESS if successful",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeBatchedParseJpegTables": {
+    "doc": "Allocates the internal buffers as a pre-allocation step IN    handle          : Library handle IN    jpeg_handle     : Decoded jpeg image state handle IN    data            : jpeg bitstream containing huffman and quantization tables IN    length          : bitstream size in bytes",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeBatchedPreAllocate": {
+    "doc": "Allocates the internal buffers as a pre-allocation step IN    handle          : Library handle IN    jpeg_handle     : Decoded jpeg image state handle IN    width   : frame width IN    height  : frame height IN    chroma_subsampling   : chroma subsampling of images to be decoded IN    output_format : out format",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeJpeg": {
+    "doc": "//////////////////////////////////////////////////////////////////////////////// Decode functions // //////////////////////////////////////////////////////////////////////////////// takes parsed jpeg as input and performs decoding",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeJpegDevice": {
+    "doc": "finishing async operations on the device",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeJpegHost": {
+    "doc": "starts decoding on host and save decode parameters to the state",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeJpegTransferToDevice": {
+    "doc": "hybrid stage of decoding image,  involves device async calls note that jpeg stream is a parameter here - because we still might need copy parts of bytestream to device",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeParams": {
+    "doc": "//////////////////////////////////////////////////////////////////////////////// Decode parameters // //////////////////////////////////////////////////////////////////////////////// decode parameters structure. Used to set decode-related tweaks",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeParamsSetAllowCMYK": {
+    "doc": "set to true to allow conversion from CMYK to RGB or YUV that follows simple subtractive scheme",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeParamsSetExifOrientation": {
+    "doc": "set the orientation flag to the decode parameters",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeParamsSetOutputFormat": {
+    "doc": "set output pixel format - same value as in nvjpegDecode()",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeParamsSetROI": {
+    "doc": "set to desired ROI. set to (0, 0, -1, -1) to disable ROI decode (decode whole image)",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecodeParamsSetScaleFactor": {
+    "doc": "works only with the hardware decoder backend",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecoderCreate": {
+    "doc": "creates decoder implementation",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecoderJpegSupported": {
+    "doc": "on return sets is_supported value to 0 if decoder is capable to handle jpeg_stream with specified decode parameters",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDecoderStateCreate": {
+    "doc": "creates decoder state",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDestroy": {
+    "doc": "Release the handle and resources. IN/OUT     handle: instance handle to release",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegDevAllocator_t": {
+    "doc": "Memory allocator using mentioned prototypes, provided to nvjpegCreateEx This allocator will be used for all device memory allocations inside library In any way library is doing smart allocations (reallocates memory only if needed)",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegEncoderParamsCopyMetadata": {
+    "doc": "copies metadata (JFIF, APP, EXT, COM markers) from parsed stream",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegEncoderParamsCopyQuantizationTables": {
+    "doc": "copies quantization tables from parsed stream",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegEncoderState": {
+    "doc": "******************************************************** Compression                      * ********************************************************",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegExifOrientation": {
+    "doc": "Enums for EXIF Orientation",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegExifOrientation_t": {
+    "doc": "Enums for EXIF Orientation",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegGetCudartProperty": {
+    "doc": "returns CUDA Toolkit property values that was used for building library, such as MAJOR_VERSION, MINOR_VERSION or PATCH_LEVEL",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegGetDeviceMemoryPadding": {
+    "doc": "Retrieves padding for device memory allocations IN/OUT     padding: padding size currently used in handle. IN/OUT     handle: instance handle to release",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegGetImageInfo": {
+    "doc": "Retrieve the image info, including channel, width and height of each component, and chroma subsampling. If less than NVJPEG_MAX_COMPONENT channels are encoded, then zeros would be set to absent channels information If the image is 3-channel, all three groups are valid. This function is thread safe. IN         handle      : Library handle IN         data        : Pointer to the buffer containing the jpeg stream data to be decoded. IN         length      : Length of the jpeg image buffer. OUT        nComponent  : Number of componenets of the image, currently only supports 1-channel (grayscale) or 3-channel. OUT        subsampling : Chroma subsampling used in this JPEG, see nvjpegChromaSubsampling_t OUT        widths      : pointer to NVJPEG_MAX_COMPONENT of ints, returns width of each channel. 0 if channel is not encoded OUT        heights     : pointer to NVJPEG_MAX_COMPONENT of ints, returns height of each channel. 0 if channel is not encoded",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegGetPinnedMemoryPadding": {
+    "doc": "Retrieves padding for pinned host memory allocations IN/OUT     padding: padding size currently used in handle. IN/OUT     handle: instance handle to release",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegGetProperty": {
+    "doc": "returns library's property values, such as MAJOR_VERSION, MINOR_VERSION or PATCH_LEVEL",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegHandle": {
+    "doc": "Opaque library handle identifier.",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegImage_t": {
+    "doc": "Output descriptor. Data that is written to planes depends on output format",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegInputFormat_t": {
+    "doc": "Parameter of this type specifies what type of input user provides for encoding",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegJpegDecoder": {
+    "doc": "//////////////////////////////////////////////////////////////////////////////// Decoder helper functions // ////////////////////////////////////////////////////////////////////////////////",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegJpegEncoding_t": {
+    "doc": "Currently parseable JPEG encodings (SOF markers)",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegJpegState": {
+    "doc": "Opaque jpeg decoding state handle identifier - used to store intermediate information between deccding phases",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegJpegStateCreate": {
+    "doc": "Initalization of decoding state IN         handle        : Library handle INT/OUT    jpeg_handle   : Decoded jpeg image state handle",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegJpegStateDestroy": {
+    "doc": "Release the jpeg image handle. INT/OUT    jpeg_handle   : Decoded jpeg image state handle",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegJpegStream": {
+    "doc": "handle that stores stream information - metadata, encoded image parameters, encoded stream parameters stores everything on CPU side. This allows us parse header separately from implementation and retrieve more information on the stream. Also can be used for transcoding and transfering metadata to encoder",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegJpegStreamGetChromaSubsampling": {
+    "doc": "if encoded is 1 color component then it assumes 4:0:0 (NVJPEG_CSS_GRAY, grayscale) if encoded is 3 color components it tries to assign one of the known subsamplings based on the components subsampling infromation in case sampling factors are not stadard or number of components is different it will return NVJPEG_CSS_UNKNOWN",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegOutputFormat_t": {
+    "doc": "Parameter of this type specifies what type of output user wants for image decoding",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegPinnedAllocator_t": {
+    "doc": "Pinned memory allocator using mentioned prototypes, provided to nvjpegCreate This allocator will be used for all pinned host memory allocations inside library In any way library is doing smart allocations (reallocates memory only if needed)",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegSetDeviceMemoryPadding": {
+    "doc": "Sets padding for device memory allocations. After success on this call any device memory allocation would be padded to the multiple of specified number of bytes. IN         padding: padding size IN/OUT     handle: instance handle to release",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegSetPinnedMemoryPadding": {
+    "doc": "Sets padding for pinned host memory allocations. After success on this call any pinned host memory allocation would be padded to the multiple of specified number of bytes. IN         padding: padding size IN/OUT     handle: instance handle to release",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegStateAttachPinnedBuffer": {
+    "doc": "this allows attaching same memory buffers to different states, allowing to switch implementations without allocating extra memory",
+    "kind": "function",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "nvjpegStatus_t": {
+    "doc": "nvJPEG status enums, returned by nvJPEG API",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "tDevFree": {
+    "doc": "Prototype for device memory release",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "tDevMalloc": {
+    "doc": "Prototype for device memory allocation, modelled after cudaMalloc()",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "tPinnedFree": {
+    "doc": "Prototype for device memory release",
+    "members": {},
+    "source": "nvjpeg.h"
+  },
+  "tPinnedMalloc": {
+    "doc": "Prototype for pinned memory allocation, modelled after cudaHostAlloc()",
+    "members": {},
+    "source": "nvjpeg.h"
+  }
+}

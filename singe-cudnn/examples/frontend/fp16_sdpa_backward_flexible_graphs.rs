@@ -1,30 +1,28 @@
 mod common;
 
 use singe_cudnn::{
-    backend::pointwise::PointwiseMode,
-    backend::tensor::{Shape, TensorSpec},
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorSpec},
+    },
     data_type::DataType,
     error::Result,
     frontend::{
-        composite::sdpa::SdpaBackwardInputs,
-        graph::{DataTypePolicy, Graph, GraphConfig},
+        composite::sdpa::{SdpaBackwardInputs, SdpaGradientOutputConfig},
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
-            AttentionBackwardConfig, AttentionScoreConfig, HeuristicMode, PointwiseOperation,
-            SdpaScoreSubgraph,
+            AttentionBackwardConfig, AttentionScoreConfig, PointwiseOperation, SdpaScoreSubgraph,
         },
+        plan::{CompileConfig, HeuristicMode},
     },
     math::NanPropagation,
 };
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-    let properties = ctx.cudnn.cuda_context().device().properties()?;
+    let context = common::ExampleContext::create()?;
+    let properties = context.cudnn.cuda_context().device().properties()?;
     let sm = properties.major * 10 + properties.minor;
 
-    if singe_cudnn::version()? < 90_400 {
-        println!("skipping: requires cuDNN 9.4.0 or above");
-        return Ok(());
-    }
     if sm < 90 {
         println!("skipping: requires Hopper or above");
         return Ok(());
@@ -76,37 +74,46 @@ fn run() -> Result<()> {
         DataType::F32,
         Shape::contiguous([b, h, s_q, 1])?,
     ));
-    let scale = graph.tensor(TensorSpec::scalar_f32(0.123)?);
+    let scale = graph.tensor(TensorSpec::scalar_f32(0.123));
 
-    let mut score_subgraph = Graph::new();
+    let mut score_subgraph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(DataTypePolicy::new().with_compute(DataType::F32)),
+    );
     let score_input = score_subgraph.tensor(TensorSpec::new(
         DataType::F32,
         Shape::contiguous([b, h, s_q, s_kv])?,
     ));
-    let soft_cap = score_subgraph.tensor(TensorSpec::scalar_f32(0.8)?);
-    let divided = score_subgraph.pointwise_binary_infer(
-        score_input,
-        soft_cap,
-        PointwiseMode::Div,
-        DataType::F32,
+    let soft_cap = score_subgraph.tensor(TensorSpec::scalar_f32(0.8));
+    let divided = score_subgraph.pointwise(
+        PointwiseOperation::binary(
+            PointwiseMode::Div,
+            score_input,
+            soft_cap,
+            TensorOutputConfig::new().virtual_tensor(),
+        )
+        .with_compute_type(None),
     )?;
     let activated = score_subgraph.tensor(
         TensorSpec::new(DataType::F32, Shape::contiguous([b, h, s_q, s_kv])?).virtual_tensor(),
     );
-    score_subgraph.pointwise(PointwiseOperation::Unary {
+    score_subgraph.pointwise_into(PointwiseOperation::Unary {
+        name: None,
         mode: PointwiseMode::TanhFwd,
         input: divided,
         output: activated,
-        compute_type: DataType::F32,
+        compute_type: None,
         nan_propagation: NanPropagation::Propagate,
         alpha1: 1.0,
         axis: None,
-    });
-    let score_output = score_subgraph.pointwise_binary_infer(
-        activated,
-        soft_cap,
-        PointwiseMode::Mul,
-        DataType::F32,
+    })?;
+    let score_output = score_subgraph.pointwise(
+        PointwiseOperation::binary(
+            PointwiseMode::Mul,
+            activated,
+            soft_cap,
+            TensorOutputConfig::new().virtual_tensor(),
+        )
+        .with_compute_type(None),
     )?;
 
     let mut score_subgraph_bprop = Graph::new();
@@ -114,17 +121,28 @@ fn run() -> Result<()> {
         DataType::F32,
         Shape::contiguous([b, h, s_q, s_kv])?,
     ));
-    let bprop_scale = score_subgraph_bprop.tensor(TensorSpec::scalar_f32(0.5)?);
-    let bprop_output = score_subgraph_bprop.pointwise_binary_infer(
-        bprop_input,
-        bprop_scale,
-        PointwiseMode::Mul,
-        DataType::F32,
+    let bprop_scale = score_subgraph_bprop.tensor(TensorSpec::scalar_f32(0.5));
+    let bprop_output = score_subgraph_bprop.pointwise(
+        PointwiseOperation::binary(
+            PointwiseMode::Mul,
+            bprop_input,
+            bprop_scale,
+            TensorOutputConfig::new().virtual_tensor(),
+        )
+        .with_compute_type(None),
     )?;
 
-    let outputs = graph.sdpa_backward_infer(
-        SdpaBackwardInputs::new(q, k, v, o, d_o, stats, scale),
-        AttentionBackwardConfig::new(DataType::F32)
+    let outputs = graph.sdpa_backward(
+        SdpaBackwardInputs {
+            query: q,
+            key: k,
+            value: v,
+            output: o,
+            output_gradient: d_o,
+            stats,
+            scale,
+        },
+        AttentionBackwardConfig::new()
             .with_score_config(AttentionScoreConfig::new().with_score_subgraph(
                 SdpaScoreSubgraph::new(score_subgraph, score_input, score_output),
             ))
@@ -133,16 +151,20 @@ fn run() -> Result<()> {
                 bprop_input,
                 bprop_output,
             )),
+        SdpaGradientOutputConfig::new(TensorOutputConfig::new().output_tensor()),
     )?;
-    let d_q = outputs.query_gradient();
-    let d_k = outputs.key_gradient();
-    let d_v = outputs.value_gradient();
+    let d_q = outputs.query_gradient;
+    let d_k = outputs.key_gradient;
+    let d_v = outputs.value_gradient;
 
     for output in [d_q, d_k, d_v] {
         graph.mark_as_output(output)?;
     }
 
-    let _ = graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
+    let _ = graph.compile(
+        Some(&context.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+    )?;
     Ok(())
 }
 

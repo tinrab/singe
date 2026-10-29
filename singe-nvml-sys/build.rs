@@ -1,3 +1,5 @@
+//! Discovers NVML libraries and emits Cargo linker metadata.
+
 use singe_cuda_find::{
     emit_library_path_metadata, emit_link_libraries, emit_rerun_if_env_changed, find_nvml,
 };

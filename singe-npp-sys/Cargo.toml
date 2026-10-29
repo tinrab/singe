@@ -4,7 +4,7 @@ description = "Low-level FFI bindings for the NVIDIA Performance Primitives libr
 version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "npp", "bindings", "ffi"]
 include.workspace = true
@@ -13,9 +13,9 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["npp_13_1"]
+default = ["npp_13_2"]
 
-npp_13_1 = ["singe-cuda-sys/runtime_13_3"]
+npp_13_2 = ["singe-cuda-sys/runtime_13_4"]
 
 [dependencies]
 singe-cuda-sys.workspace = true

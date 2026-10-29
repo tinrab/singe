@@ -1,61 +1,69 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{ImageView, ImageViewMut},
+    image::view::{ImageOutputView, ImageView, ImageWindow},
     types::{BorderType, MaskSize, Point},
 };
 
-#[path = "filtering_edge_typed_directional_traits.rs"]
 mod directional_traits;
-#[path = "filtering_edge_typed_extended_traits.rs"]
 mod extended_traits;
 
 pub use directional_traits::*;
 pub use extended_traits::*;
 
-pub trait SobelExtendedFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait SobelExtendedFilterImage<T, L> {
     fn filter_sobel_horizontal_mask_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
     ) -> Result<()>;
 
     fn filter_sobel_vertical_mask_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
     ) -> Result<()>;
 
     fn filter_sobel_horizontal_second_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
     ) -> Result<()>;
 
     fn filter_sobel_vertical_second_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
     ) -> Result<()>;
 
     fn filter_sobel_cross_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
     ) -> Result<()>;
 }
 
-pub trait SobelExtendedBorderFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait SobelExtendedBorderFilterImage<T, L> {
     fn filter_sobel_horizontal_mask_border_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
         border_type: BorderType,
     ) -> Result<()>;
@@ -64,7 +72,7 @@ pub trait SobelExtendedBorderFilterImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
         border_type: BorderType,
     ) -> Result<()>;
@@ -73,7 +81,7 @@ pub trait SobelExtendedBorderFilterImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
         border_type: BorderType,
     ) -> Result<()>;
@@ -82,7 +90,7 @@ pub trait SobelExtendedBorderFilterImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
         border_type: BorderType,
     ) -> Result<()>;
@@ -91,32 +99,42 @@ pub trait SobelExtendedBorderFilterImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         mask_size: MaskSize,
         border_type: BorderType,
     ) -> Result<()>;
 }
 
-pub trait ScharrFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait ScharrFilterImage<T, L> {
     fn filter_scharr_horizontal_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()>;
 
     fn filter_scharr_vertical_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()>;
 }
 
-pub trait ScharrBorderFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait ScharrBorderFilterImage<T, L> {
     fn filter_scharr_horizontal_border_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         border_type: BorderType,
     ) -> Result<()>;
 
@@ -124,7 +142,7 @@ pub trait ScharrBorderFilterImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         border_type: BorderType,
     ) -> Result<()>;
 }

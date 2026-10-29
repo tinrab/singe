@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs, path::Path};
+use std::{collections::HashSet, fmt::Write as _, fs, path::Path};
 
 use anyhow::Result;
 use proc_macro2::{Ident, TokenStream};
@@ -7,6 +7,11 @@ use syn::{Expr, Item, ItemMod, Type};
 
 use crate::utility::{workspace_root, write_generated_file};
 
+/// Generates dtype-specific cuTile kernel modules under `singe-kernel/src/-generated/cutile`.
+///
+/// # Errors
+///
+/// Returns an error if a template cannot be read or parsed, or a generated file cannot be written.
 pub fn generate_cutile_dtype_kernels() -> Result<()> {
     let root = workspace_root()?;
     for &dtype in DTYPES {
@@ -25,19 +30,17 @@ struct Dtype {
     high_i8: &'static str,
     low_u8: &'static str,
     high_u8: &'static str,
-    quantize_ties_to_even: bool,
 }
 
 const DTYPES: &[Dtype] = &[
     Dtype {
         name: "f16",
-        zero: "f16::from_f32(0.0)",
-        one: "f16::from_f32(1.0)",
-        low_i8: "f16::from_f32(-128.0)",
-        high_i8: "f16::from_f32(127.0)",
-        low_u8: "f16::from_f32(0.0)",
-        high_u8: "f16::from_f32(255.0)",
-        quantize_ties_to_even: false,
+        zero: "f16::ZERO",
+        one: "f16::ONE",
+        low_i8: "-128.0f32",
+        high_i8: "127.0f32",
+        low_u8: "0.0f32",
+        high_u8: "255.0f32",
     },
     Dtype {
         name: "f32",
@@ -47,7 +50,6 @@ const DTYPES: &[Dtype] = &[
         high_i8: "127.0f32",
         low_u8: "0.0f32",
         high_u8: "255.0f32",
-        quantize_ties_to_even: true,
     },
     Dtype {
         name: "f64",
@@ -57,7 +59,6 @@ const DTYPES: &[Dtype] = &[
         high_i8: "127.0f64",
         low_u8: "0.0f64",
         high_u8: "255.0f64",
-        quantize_ties_to_even: false,
     },
 ];
 
@@ -68,72 +69,72 @@ fn update_dtype_files(dir: &Path, dtype: Dtype) -> Result<()> {
     reduction.push_str(&render_arg_reduction_entries(dtype));
     write_generated_file(
         &dir.join("elementwise.rs"),
-        render_kernel_file(
+        &render_kernel_file(
             dtype,
-            elementwise,
+            &elementwise,
             &["binary_store", "cmp_store", "cmp_bool_store"],
             &[],
         )?,
     )?;
     write_generated_file(
         &dir.join("cast.rs"),
-        render_kernel_file(dtype, render_cast_entries(dtype), &[], &[])?,
+        &render_kernel_file(dtype, &render_cast_entries(dtype), &[], &[])?,
     )?;
     write_generated_file(
         &dir.join("quantization.rs"),
-        render_kernel_file(
+        &render_kernel_file(
             dtype,
-            render_quantization_entries(dtype),
+            &render_quantization_entries(dtype),
             &[],
             quantization_utility_exports(dtype),
         )?,
     )?;
     write_generated_file(
         &dir.join("activation.rs"),
-        render_kernel_file(
+        &render_kernel_file(
             dtype,
-            render_activation_entries(dtype),
+            &render_activation_entries(dtype),
             &["activation_unary_store"],
             &[],
         )?,
     )?;
     write_generated_file(
         &dir.join("unary.rs"),
-        render_kernel_file(
+        &render_kernel_file(
             dtype,
-            render_unary_entries(dtype),
+            &render_unary_entries(dtype),
             &["unary_store", "nan_to_num_store", "unary_bool_store"],
             &[],
         )?,
     )?;
     write_generated_file(
         &dir.join("scalar.rs"),
-        render_kernel_file(
+        &render_kernel_file(
             dtype,
-            render_scalar_entries(dtype),
+            &render_scalar_entries(dtype),
             &["scalar_store", "scalar_cmp_bool_store"],
             &[],
         )?,
     )?;
     write_generated_file(
         &dir.join("softmax.rs"),
-        render_kernel_file(
+        &render_kernel_file(
             dtype,
-            render_softmax_entries(dtype),
+            &render_softmax_entries(dtype),
             &["softmax_impl"],
             softmax_utility_exports(dtype),
         )?,
     )?;
     write_generated_file(
         &dir.join("reduction.rs"),
-        render_kernel_file(dtype, reduction, &["reduce_impl", "arg_reduce_impl"], &[])?,
+        &render_kernel_file(dtype, &reduction, reduction_utility_helpers(dtype), &[])?,
     )?;
     Ok(())
 }
 
 fn render_kernel_file(
     dtype: Dtype,
-    entries: String,
+    entries: &str,
     utility_helpers: &[&str],
     utility_exports: &[&str],
 ) -> Result<String> {
@@ -142,11 +143,15 @@ fn render_kernel_file(
         dtype.name
     ))
     .expect("generated utility path must parse");
-    let entry_items = syn::parse_file(&entries)
+    let entry_items = syn::parse_file(entries)
         .expect("generated cutile dtype entries must parse")
         .items;
     let mut module_items: Vec<Item> = Vec::new();
     module_items.push(syn::parse_quote!(
+        use crate::cuda::cutile::runtime as cutile;
+    ));
+    module_items.push(syn::parse_quote!(
+        #[allow(clippy::wildcard_imports, reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits")]
         use cutile::core::*;
     ));
     module_items.extend(extract_utility_helpers(dtype, utility_helpers)?);
@@ -248,6 +253,24 @@ fn quantization_utility_exports(dtype: Dtype) -> &'static [&'static str] {
     }
 }
 
+fn reduction_utility_helpers(dtype: Dtype) -> &'static [&'static str] {
+    match dtype.name {
+        "f32" => &[
+            "propagate_nan_reduction",
+            "reduce_impl",
+            "reduce_sum_impl",
+            "reduce_mean_impl",
+            "reduce_max_impl",
+            "reduce_min_impl",
+            "reduce_product_impl",
+            "arg_reduce_impl",
+            "argmax_f32_impl",
+            "argmin_f32_impl",
+        ],
+        _ => &["reduce_impl", "arg_reduce_impl"],
+    }
+}
+
 fn softmax_utility_exports(dtype: Dtype) -> &'static [&'static str] {
     match dtype.name {
         "f16" => &["softmax_lse_f16"],
@@ -259,10 +282,11 @@ fn softmax_utility_exports(dtype: Dtype) -> &'static [&'static str] {
 
 fn render_items(tokens: TokenStream) -> String {
     let file = syn::parse2::<syn::File>(tokens).expect("generated cutile dtype items must parse");
-    prettyplease::unparse(&file)
-        .lines()
-        .map(|line| format!("    {line}\n"))
-        .collect()
+    let mut output = String::new();
+    for line in prettyplease::unparse(&file).lines() {
+        writeln!(output, "    {line}").expect("writing into a String cannot fail");
+    }
+    output
 }
 
 fn ty(value: &str) -> Type {
@@ -496,7 +520,10 @@ fn render_selection_entries(dtype: Dtype) -> String {
             let x: Tile<#ty, { [B] }> = load_tile_like(input, out);
             let min_value = broadcast_scalar(min_value, out.shape());
             let max_value = broadcast_scalar(max_value, out.shape());
-            out.store(min_tile(max_tile(x, min_value), max_value));
+            let lower = select(cmpf(x, min_value, predicate::LessThan, cmp_ordering::Ordered), min_value, x);
+            let lower = select(cmpf(min_value, min_value, predicate::NotEqual, cmp_ordering::Unordered), min_value, lower);
+            let upper = select(cmpf(lower, max_value, predicate::GreaterThan, cmp_ordering::Ordered), max_value, lower);
+            out.store(select(cmpf(max_value, max_value, predicate::NotEqual, cmp_ordering::Unordered), max_value, upper));
         }
 
         #[cutile::entry()]
@@ -522,7 +549,7 @@ fn render_selection_entries(dtype: Dtype) -> String {
             let condition_tile: Tile<#ty, { [B] }> = load_tile_like(condition, out);
             let x_tile: Tile<#ty, { [B] }> = load_tile_like(x, out);
             let y_tile: Tile<#ty, { [B] }> = load_tile_like(y, out);
-            let zero = constant(#zero, out.shape());
+            let zero: Tile<#ty, { [B] }> = constant(#zero, out.shape());
             let mask = cmpf(
                 condition_tile,
                 zero,
@@ -631,15 +658,22 @@ fn render_arg_reduction_entries(dtype: Dtype) -> String {
     let mut out = String::new();
     for (name, op) in [("argmax", 0), ("argmin", 1)] {
         for bn in [1, 8, 128, 256, 512, 1024] {
-            let name = format_ident!("reduce_{name}_{}_{bn}", dtype.name);
+            let op_name = name;
+            let name = format_ident!("reduce_{op_name}_{}_{bn}", dtype.name);
             let ty = ty(dtype.name);
+            let call = if dtype.name == "f32" {
+                let helper = format_ident!("{op_name}_f32_impl");
+                quote! { #helper::<#bn>(out, input); }
+            } else {
+                quote! { arg_reduce_impl::<#op, #bn>(out, input); }
+            };
             out.push_str(&render_items(quote! {
                 #[cutile::entry()]
                 pub fn #name(
                     out: &mut Tensor<i32, { [1, 2] }>,
                     input: &Tensor<#ty, { [-1, -1] }>,
                 ) {
-                    arg_reduce_impl::<#op, #bn>(out, input);
+                    #call
                 }
             }));
         }
@@ -723,7 +757,7 @@ fn push_float_cast_entry(out: &mut String, dtype: Dtype, target: &str) {
 
 fn push_bf16_to_f32_cast_entry(out: &mut String) {
     out.push_str(&render_items(quote! {
-        #[cfg(feature = "dtype-bf16")]
+        #[cfg(feature = "dtype_bf16")]
         #[cutile::entry()]
         pub fn cast_bf16_f32<const B: i32>(
             out: &mut Tensor<f32, { [B] }>,
@@ -738,7 +772,7 @@ fn push_bf16_to_f32_cast_entry(out: &mut String) {
 
 fn push_f32_to_bf16_cast_entry(out: &mut String) {
     out.push_str(&render_items(quote! {
-        #[cfg(feature = "dtype-bf16")]
+        #[cfg(feature = "dtype_bf16")]
         #[cutile::entry()]
         pub fn cast_f32_bf16<const B: i32>(
             out: &mut Tensor<bf16, { [B] }>,
@@ -828,7 +862,7 @@ fn push_float_to_bool_cast_entry(out: &mut String, dtype: Dtype) {
                 input_base.broadcast(tile_shape);
             let input_ptrs: PointerTile<*mut #ty, { [128] }> =
                 input_ptrs.offset_tile(safe_offsets);
-            let input_result: (Tile<#ty, { [128] }>, Token) = load_ptr_tko(
+            let input_result: (Tile<#ty, { [128] }>, Token) = unsafe { load_ptr_tko(
                 input_ptrs,
                 ordering::Weak,
                 None::<scope::TileBlock>,
@@ -836,8 +870,8 @@ fn push_float_to_bool_cast_entry(out: &mut String, dtype: Dtype) {
                 Some(#zero),
                 None,
                 Latency::<0>,
-            );
-            let zero = constant(#zero, tile_shape);
+            ) };
+            let zero: Tile<#ty, { [128] }> = constant(#zero, tile_shape);
             let nonzero = cmpf(
                 input_result.0,
                 zero,
@@ -852,7 +886,7 @@ fn push_float_to_bool_cast_entry(out: &mut String, dtype: Dtype) {
             let out_base: PointerTile<*mut u8, { [1] }> = out_base.reshape(const_shape![1]);
             let out_ptrs: PointerTile<*mut u8, { [128] }> = out_base.broadcast(tile_shape);
             let out_ptrs: PointerTile<*mut u8, { [128] }> = out_ptrs.offset_tile(offsets);
-            store_ptr_tko(
+            unsafe { store_ptr_tko(
                 out_ptrs,
                 values,
                 ordering::Weak,
@@ -860,7 +894,7 @@ fn push_float_to_bool_cast_entry(out: &mut String, dtype: Dtype) {
                 Some(mask),
                 None,
                 Latency::<0>,
-            );
+            ) };
         }
     }));
 }
@@ -871,66 +905,79 @@ fn push_quantize_entry(out: &mut String, dtype: Dtype, target: &str, low: &str, 
     let target = ty(target);
     let low = expr(low);
     let high = expr(high);
-    if dtype.quantize_ties_to_even {
-        out.push_str(&render_items(quote! {
-            #[cutile::entry()]
-            pub fn #name<const B: i32>(
-                out: &mut Tensor<#target, { [B] }>,
-                input: &Tensor<#dtype_ty, { [-1] }>,
-                scale: #dtype_ty,
-                zero_point: #dtype_ty,
-            ) {
-                let values: Tile<#dtype_ty, { [B] }> = load_tile_like(input, out);
-                let raw =
-                    values / broadcast_scalar(scale, out.shape())
-                        + broadcast_scalar(zero_point, out.shape());
-                let low = constant(#low, out.shape());
-                let high = constant(#high, out.shape());
-                let clamped = min_tile(max_tile(raw, low), high);
-                let floored = floor(clamped);
-                let fraction = clamped - floored;
-                let half = constant(0.5f32, out.shape());
-                let one = constant(1.0f32, out.shape());
-                let two = constant(2.0f32, out.shape());
-                let floor_half = floor(floored / two);
-                let floor_is_odd = cmpf(
-                    floor_half * two,
-                    floored,
-                    predicate::NotEqual,
-                    cmp_ordering::Ordered,
-                );
-                let above_half = cmpf(
-                    fraction,
-                    half,
-                    predicate::GreaterThan,
-                    cmp_ordering::Ordered,
-                );
-                let tie = cmpf(fraction, half, predicate::Equal, cmp_ordering::Ordered);
-                let rounded_up = floored + one;
-                let rounded = select(above_half | (tie & floor_is_odd), rounded_up, floored);
-                let quantized: Tile<#target, { [B] }> = convert_tile(rounded);
-                out.store(quantized);
-            }
-        }));
+    // Half constants are converted as tiles; ordinary half constructors are not
+    // compiler operations, and scalar conversions cannot form dense attributes.
+    let bounds = if dtype.name == "f16" {
+        quote! {
+            let low: Tile<f32, { [B] }> = constant(#low, out.shape());
+            let high: Tile<f32, { [B] }> = constant(#high, out.shape());
+            let low: Tile<#dtype_ty, { [B] }> = convert_tile(low);
+            let high: Tile<#dtype_ty, { [B] }> = convert_tile(high);
+        }
     } else {
-        out.push_str(&render_items(quote! {
-            #[cutile::entry()]
-            pub fn #name<const B: i32>(
-                out: &mut Tensor<#target, { [B] }>,
-                input: &Tensor<#dtype_ty, { [-1] }>,
-                scale: #dtype_ty,
-                zero_point: #dtype_ty,
-            ) {
-                let values: Tile<#dtype_ty, { [B] }> = load_tile_like(input, out);
-                let raw =
-                    values / broadcast_scalar(scale, out.shape())
-                        + broadcast_scalar(zero_point, out.shape());
-                let low = constant(#low, out.shape());
-                let high = constant(#high, out.shape());
-                out.store(ftoi(min_tile(max_tile(raw, low), high), rounding::NearestEven));
-            }
-        }));
-    }
+        quote! {
+            let low: Tile<#dtype_ty, { [B] }> = constant(#low, out.shape());
+            let high: Tile<#dtype_ty, { [B] }> = constant(#high, out.shape());
+        }
+    };
+    let rounding_ty = ty(if dtype.name == "f16" {
+        "f32"
+    } else {
+        dtype.name
+    });
+    let half = expr(if dtype.name == "f64" {
+        "0.5f64"
+    } else {
+        "0.5f32"
+    });
+    let one = expr(if dtype.name == "f64" {
+        "1.0f64"
+    } else {
+        "1.0f32"
+    });
+    let two = expr(if dtype.name == "f64" {
+        "2.0f64"
+    } else {
+        "2.0f32"
+    });
+    let promote = if dtype.name == "f16" {
+        quote!(let clamped: Tile<f32, { [B] }> = convert_tile(clamped);)
+    } else {
+        TokenStream::new()
+    };
+    out.push_str(&render_items(quote! {
+        #[cutile::entry()]
+        pub fn #name<const B: i32>(
+            out: &mut Tensor<#target, { [B] }>,
+            input: &Tensor<#dtype_ty, { [-1] }>,
+            scale: #dtype_ty,
+            zero_point: #dtype_ty,
+        ) {
+            let values: Tile<#dtype_ty, { [B] }> = load_tile_like(input, out);
+            let raw = values / broadcast_scalar(scale, out.shape())
+                + broadcast_scalar(zero_point, out.shape());
+            #bounds
+            let clamped: Tile<#dtype_ty, { [B] }> = min_tile(max_tile(raw, low), high);
+            #promote
+            // Tile IR float-to-integer conversion truncates. Round ties to even
+            // explicitly before converting the bounded integral result.
+            let floored: Tile<#rounding_ty, { [B] }> = floor(clamped);
+            let fraction = clamped - floored;
+            let half: Tile<#rounding_ty, { [B] }> = constant(#half, out.shape());
+            let one: Tile<#rounding_ty, { [B] }> = constant(#one, out.shape());
+            let two: Tile<#rounding_ty, { [B] }> = constant(#two, out.shape());
+            let floor_half = floor(floored / two);
+            let floor_is_odd = cmpf(floor_half * two, floored,
+                predicate::NotEqual, cmp_ordering::Ordered);
+            let above_half = cmpf(fraction, half,
+                predicate::GreaterThan, cmp_ordering::Ordered);
+            let tie = cmpf(fraction, half, predicate::Equal, cmp_ordering::Ordered);
+            let rounded_up = floored + one;
+            let rounded = select(above_half | (tie & floor_is_odd), rounded_up, floored);
+            let quantized: Tile<#target, { [B] }> = convert_tile(rounded);
+            out.store(quantized);
+        }
+    }));
 }
 
 fn push_swiglu_entry(out: &mut String, dtype: Dtype) {
@@ -948,10 +995,11 @@ fn push_swiglu_entry(out: &mut String, dtype: Dtype) {
                 let gate_tile: Tile<f16, { [B] }> = load_tile_like(gate, out);
                 let input_tile: Tile<f32, { [B] }> = convert_tile(input_tile);
                 let gate_tile: Tile<f32, { [B] }> = convert_tile(gate_tile);
-                let one = constant(1.0f32, out.shape());
-                let zero = constant(0.0f32, out.shape());
+                let one: Tile<f32, { [B] }> = constant(1.0f32, out.shape());
+                let zero: Tile<f32, { [B] }> = constant(0.0f32, out.shape());
                 let value = input_tile * gate_tile / (one + exp(zero - gate_tile));
-                out.store(convert_tile(value));
+                let value: Tile<f16, { [B] }> = convert_tile(value);
+                out.store(value);
             }
         }));
     } else {
@@ -966,8 +1014,8 @@ fn push_swiglu_entry(out: &mut String, dtype: Dtype) {
             ) {
                 let input_tile: Tile<#ty, { [B] }> = load_tile_like(input, out);
                 let gate_tile: Tile<#ty, { [B] }> = load_tile_like(gate, out);
-                let one = constant(#one, out.shape());
-                let zero = constant(#zero, out.shape());
+                let one: Tile<#ty, { [B] }> = constant(#one, out.shape());
+                let zero: Tile<#ty, { [B] }> = constant(#zero, out.shape());
                 out.store(input_tile * gate_tile / (one + exp(zero - gate_tile)));
             }
         }));
@@ -996,7 +1044,7 @@ fn push_unary_param_entry(out: &mut String, dtype: Dtype, name: &str, param: &st
     let body = match name {
         "leaky_relu" => quote! {
             let x: Tile<#ty, { [B] }> = load_tile_like(input, out);
-            let zero = constant(#zero, out.shape());
+            let zero: Tile<#ty, { [B] }> = constant(#zero, out.shape());
             let positive = cmpf(
                 x,
                 zero,
@@ -1011,8 +1059,8 @@ fn push_unary_param_entry(out: &mut String, dtype: Dtype, name: &str, param: &st
         },
         "elu" => quote! {
             let x: Tile<#ty, { [B] }> = load_tile_like(input, out);
-            let zero = constant(#zero, out.shape());
-            let one = constant(#one, out.shape());
+            let zero: Tile<#ty, { [B] }> = constant(#zero, out.shape());
+            let one: Tile<#ty, { [B] }> = constant(#one, out.shape());
             let positive = cmpf(
                 x,
                 zero,
@@ -1027,8 +1075,8 @@ fn push_unary_param_entry(out: &mut String, dtype: Dtype, name: &str, param: &st
         },
         "celu" => quote! {
             let x: Tile<#ty, { [B] }> = load_tile_like(input, out);
-            let zero = constant(#zero, out.shape());
-            let one = constant(#one, out.shape());
+            let zero: Tile<#ty, { [B] }> = constant(#zero, out.shape());
+            let one: Tile<#ty, { [B] }> = constant(#one, out.shape());
             let alpha = broadcast_scalar(alpha, out.shape());
             let positive = cmpf(
                 x,
@@ -1040,7 +1088,7 @@ fn push_unary_param_entry(out: &mut String, dtype: Dtype, name: &str, param: &st
         },
         "hardshrink" => quote! {
             let x: Tile<#ty, { [B] }> = load_tile_like(input, out);
-            let zero = constant(#zero, out.shape());
+            let zero: Tile<#ty, { [B] }> = constant(#zero, out.shape());
             let lambda = broadcast_scalar(lambda, out.shape());
             let keep_positive = cmpf(x, lambda, predicate::GreaterThan, cmp_ordering::Ordered);
             let keep_negative = cmpf(x, zero - lambda, predicate::LessThan, cmp_ordering::Ordered);
@@ -1048,7 +1096,7 @@ fn push_unary_param_entry(out: &mut String, dtype: Dtype, name: &str, param: &st
         },
         "softshrink" => quote! {
             let x: Tile<#ty, { [B] }> = load_tile_like(input, out);
-            let zero = constant(#zero, out.shape());
+            let zero: Tile<#ty, { [B] }> = constant(#zero, out.shape());
             let lambda = broadcast_scalar(lambda, out.shape());
             let positive = cmpf(x, lambda, predicate::GreaterThan, cmp_ordering::Ordered);
             let negative = cmpf(x, zero - lambda, predicate::LessThan, cmp_ordering::Ordered);
@@ -1193,6 +1241,7 @@ fn push_reduce_entry(
     bn: i32,
     has_divisor: bool,
 ) {
+    let op_name = name;
     let ty = ty(dtype.name);
     let name = format_ident!("reduce_{name}_{}_{bn}", dtype.name);
     let divisor = expr(if has_divisor { "divisor" } else { dtype.one });
@@ -1201,6 +1250,16 @@ fn push_reduce_entry(
     } else {
         quote! {}
     };
+    let call = if dtype.name == "f32" {
+        let helper = format_ident!("reduce_{op_name}_impl");
+        if has_divisor {
+            quote! { #helper::<#bn>(out, input, divisor); }
+        } else {
+            quote! { #helper::<#bn>(out, input); }
+        }
+    } else {
+        quote! { reduce_impl::<#op, #bn>(out, input, #divisor); }
+    };
     out.push_str(&render_items(quote! {
         #[cutile::entry()]
         pub fn #name(
@@ -1208,7 +1267,7 @@ fn push_reduce_entry(
             input: &Tensor<#ty, { [-1, -1] }>,
             #args
         ) {
-            reduce_impl::<#op, #bn>(out, input, #divisor);
+            #call
         }
     }));
 }

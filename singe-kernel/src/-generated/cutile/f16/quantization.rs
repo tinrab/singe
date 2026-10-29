@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     #[cutile::entry()]
     pub fn quantize_f16_u8<const B: i32>(
@@ -14,12 +19,35 @@ mod kernels {
         let values: Tile<f16, { [B] }> = load_tile_like(input, out);
         let raw = values / broadcast_scalar(scale, out.shape())
             + broadcast_scalar(zero_point, out.shape());
-        let low = constant(f16::from_f32(0.0), out.shape());
-        let high = constant(f16::from_f32(255.0), out.shape());
-        out.store(ftoi(
-            min_tile(max_tile(raw, low), high),
-            rounding::NearestEven,
-        ));
+        let low: Tile<f32, { [B] }> = constant(0.0f32, out.shape());
+        let high: Tile<f32, { [B] }> = constant(255.0f32, out.shape());
+        let low: Tile<f16, { [B] }> = convert_tile(low);
+        let high: Tile<f16, { [B] }> = convert_tile(high);
+        let clamped: Tile<f16, { [B] }> = min_tile(max_tile(raw, low), high);
+        let clamped: Tile<f32, { [B] }> = convert_tile(clamped);
+        let floored: Tile<f32, { [B] }> = floor(clamped);
+        let fraction = clamped - floored;
+        let half: Tile<f32, { [B] }> = constant(0.5f32, out.shape());
+        let one: Tile<f32, { [B] }> = constant(1.0f32, out.shape());
+        let two: Tile<f32, { [B] }> = constant(2.0f32, out.shape());
+        let floor_half = floor(floored / two);
+        let floor_is_odd = cmpf(
+            floor_half * two,
+            floored,
+            predicate::NotEqual,
+            cmp_ordering::Ordered,
+        );
+        let above_half = cmpf(
+            fraction,
+            half,
+            predicate::GreaterThan,
+            cmp_ordering::Ordered,
+        );
+        let tie = cmpf(fraction, half, predicate::Equal, cmp_ordering::Ordered);
+        let rounded_up = floored + one;
+        let rounded = select(above_half | (tie & floor_is_odd), rounded_up, floored);
+        let quantized: Tile<u8, { [B] }> = convert_tile(rounded);
+        out.store(quantized);
     }
     #[cutile::entry()]
     pub fn quantize_f16_i8<const B: i32>(
@@ -31,12 +59,35 @@ mod kernels {
         let values: Tile<f16, { [B] }> = load_tile_like(input, out);
         let raw = values / broadcast_scalar(scale, out.shape())
             + broadcast_scalar(zero_point, out.shape());
-        let low = constant(f16::from_f32(-128.0), out.shape());
-        let high = constant(f16::from_f32(127.0), out.shape());
-        out.store(ftoi(
-            min_tile(max_tile(raw, low), high),
-            rounding::NearestEven,
-        ));
+        let low: Tile<f32, { [B] }> = constant(-128.0f32, out.shape());
+        let high: Tile<f32, { [B] }> = constant(127.0f32, out.shape());
+        let low: Tile<f16, { [B] }> = convert_tile(low);
+        let high: Tile<f16, { [B] }> = convert_tile(high);
+        let clamped: Tile<f16, { [B] }> = min_tile(max_tile(raw, low), high);
+        let clamped: Tile<f32, { [B] }> = convert_tile(clamped);
+        let floored: Tile<f32, { [B] }> = floor(clamped);
+        let fraction = clamped - floored;
+        let half: Tile<f32, { [B] }> = constant(0.5f32, out.shape());
+        let one: Tile<f32, { [B] }> = constant(1.0f32, out.shape());
+        let two: Tile<f32, { [B] }> = constant(2.0f32, out.shape());
+        let floor_half = floor(floored / two);
+        let floor_is_odd = cmpf(
+            floor_half * two,
+            floored,
+            predicate::NotEqual,
+            cmp_ordering::Ordered,
+        );
+        let above_half = cmpf(
+            fraction,
+            half,
+            predicate::GreaterThan,
+            cmp_ordering::Ordered,
+        );
+        let tie = cmpf(fraction, half, predicate::Equal, cmp_ordering::Ordered);
+        let rounded_up = floored + one;
+        let rounded = select(above_half | (tie & floor_is_odd), rounded_up, floored);
+        let quantized: Tile<i8, { [B] }> = convert_tile(rounded);
+        out.store(quantized);
     }
 }
 pub use crate::cuda::cutile::kernel::f16::utility::dequantize_i8_f16;

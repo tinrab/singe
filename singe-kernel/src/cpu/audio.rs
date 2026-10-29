@@ -1,5 +1,7 @@
 //! Audio feature extraction helpers used by speech models.
 
+use std::f32::consts::PI;
+
 use crate::{
     audio::{
         AudioFeatureLayout, AudioFrontendConfig, MelFilterConfig, PadMode, StftConfig, WindowKind,
@@ -26,12 +28,17 @@ pub fn stft_r2c(input: &[f32], config: StftConfig) -> Result<Vec<f32>> {
             let mut imag = 0.0f32;
             for (sample, window_value) in window.iter().copied().enumerate().take(config.n_fft) {
                 let raw_index = frame * config.hop_length + sample;
-                let value =
-                    padded_sample(input, raw_index as isize - pad as isize, config.pad_mode)?
-                        * window_value;
+                let value = padded_sample(
+                    input,
+                    isize::try_from(raw_index)
+                        .expect("sample index fits the host signed address range")
+                        - isize::try_from(pad)
+                            .expect("sample index fits the host signed address range"),
+                    config.pad_mode,
+                )? * window_value;
                 let table_offset = frequency * config.n_fft + sample;
-                real += value * dft_real[table_offset];
-                imag += value * dft_imag[table_offset];
+                real = f32::mul_add(value, dft_real[table_offset], real);
+                imag = f32::mul_add(value, dft_imag[table_offset], imag);
             }
             let output_offset = (frame * config.frequency_bin_count() + frequency) * 2;
             out[output_offset] = real;
@@ -46,7 +53,11 @@ pub fn padded_sample(input: &[f32], index: isize, pad_mode: PadMode) -> Result<f
     match pad_mode {
         PadMode::Reflect => Ok(input[reflect_index(index, input.len())?]),
         PadMode::Zero => {
-            if index < 0 || index >= input.len() as isize {
+            if index < 0
+                || index
+                    >= isize::try_from(input.len())
+                        .expect("sample index fits the host signed address range")
+            {
                 Ok(0.0)
             } else {
                 Ok(input[index as usize])
@@ -55,10 +66,13 @@ pub fn padded_sample(input: &[f32], index: isize, pad_mode: PadMode) -> Result<f
     }
 }
 
+#[must_use]
 pub fn power_from_r2c(spectrum: &[f32]) -> Vec<f32> {
     spectrum
-        .chunks_exact(2)
-        .map(|complex| complex[0] * complex[0] + complex[1] * complex[1])
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|complex| f32::mul_add(complex[1], complex[1], complex[0] * complex[0]))
         .collect()
 }
 
@@ -76,8 +90,10 @@ pub fn log_mel(power: &[f32], frames: usize, config: AudioFrontendConfig) -> Res
         for mel in 0..config.mel.mel_bin_count {
             let mut sum = 0.0f32;
             for frequency in 0..config.mel.frequency_bin_count {
-                sum += power[frame * config.mel.frequency_bin_count + frequency]
-                    * filters[mel * config.mel.frequency_bin_count + frequency];
+                sum = power[frame * config.mel.frequency_bin_count + frequency].mul_add(
+                    filters[mel * config.mel.frequency_bin_count + frequency],
+                    sum,
+                );
             }
             raw[frame * config.mel.mel_bin_count + mel] = sum.max(config.log_mel.floor).log10();
         }
@@ -107,6 +123,7 @@ pub fn log_mel(power: &[f32], frames: usize, config: AudioFrontendConfig) -> Res
     Ok(out)
 }
 
+#[must_use]
 pub fn sparse_log_mel_range(
     full: &[f32],
     config: AudioFrontendConfig,
@@ -128,6 +145,7 @@ pub fn sparse_log_mel_range(
     out
 }
 
+#[must_use]
 pub fn convert_log_mel_layout(
     input: &[f32],
     batch: usize,
@@ -151,6 +169,7 @@ pub fn convert_log_mel_layout(
     output
 }
 
+#[must_use]
 pub fn log_mel_offset(
     batch_index: usize,
     frame: usize,
@@ -179,7 +198,9 @@ pub fn reflect_index(index: isize, len: usize) -> Result<usize> {
     }
     let reflected = if index < 0 {
         (-index) as usize
-    } else if index >= len as isize {
+    } else if index
+        >= isize::try_from(len).expect("sample index fits the host signed address range")
+    {
         (2 * len - 2) - index as usize
     } else {
         index as usize
@@ -221,6 +242,10 @@ fn validate_stft_config(config: StftConfig) -> Result<()> {
     Ok(())
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 fn validate_mel_filter_config(config: MelFilterConfig) -> Result<()> {
     if config.sample_rate == 0 || config.frequency_bin_count == 0 || config.mel_bin_count == 0 {
         return Err(Error::InvalidLength);
@@ -237,12 +262,16 @@ fn validate_mel_filter_config(config: MelFilterConfig) -> Result<()> {
     Ok(())
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 fn stft_window(kind: WindowKind, len: usize) -> Vec<f32> {
     match kind {
         WindowKind::Rectangular => vec![1.0; len],
         WindowKind::PeriodicHann => (0..len)
             .map(|index| {
-                let angle = 2.0 * std::f32::consts::PI * index as f32 / len as f32;
+                let angle = 2.0 * PI * index as f32 / len as f32;
                 0.5 * (1.0 - angle.cos())
             })
             .collect(),
@@ -251,22 +280,25 @@ fn stft_window(kind: WindowKind, len: usize) -> Vec<f32> {
             const BETA: f32 = 1.0 - ALPHA;
             (0..len)
                 .map(|index| {
-                    let angle = 2.0 * std::f32::consts::PI * index as f32 / len as f32;
-                    ALPHA - BETA * angle.cos()
+                    let angle = 2.0 * PI * index as f32 / len as f32;
+                    BETA.mul_add(-angle.cos(), ALPHA)
                 })
                 .collect()
         }
     }
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 fn dft_tables(n_fft: usize, frequency_bin_count: usize) -> Result<(Vec<f32>, Vec<f32>)> {
     let len = checked_element_count(n_fft, frequency_bin_count)?;
     let mut real = Vec::with_capacity(len);
     let mut imag = Vec::with_capacity(len);
     for frequency in 0..frequency_bin_count {
         for sample in 0..n_fft {
-            let angle =
-                2.0 * std::f32::consts::PI * frequency as f32 * sample as f32 / n_fft as f32;
+            let angle = 2.0 * PI * frequency as f32 * sample as f32 / n_fft as f32;
             real.push(angle.cos());
             imag.push(-angle.sin());
         }
@@ -274,6 +306,10 @@ fn dft_tables(n_fft: usize, frequency_bin_count: usize) -> Result<(Vec<f32>, Vec
     Ok((real, imag))
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 fn slaney_mel_filters(config: MelFilterConfig) -> Result<Vec<f32>> {
     validate_mel_filter_config(config)?;
     let len = checked_element_count(config.mel_bin_count, config.frequency_bin_count)?;
@@ -285,7 +321,7 @@ fn slaney_mel_filters(config: MelFilterConfig) -> Result<Vec<f32>> {
 
     let mut mel_edges = Vec::with_capacity(config.mel_bin_count + 2);
     for index in 0..config.mel_bin_count + 2 {
-        mel_edges.push(slaney_mel_to_hertz(min_mel + step * index as f32));
+        mel_edges.push(slaney_mel_to_hertz(step.mul_add(index as f32, min_mel)));
     }
 
     let mut fft_frequencies = Vec::with_capacity(config.frequency_bin_count);
@@ -315,7 +351,7 @@ fn slaney_mel_filters(config: MelFilterConfig) -> Result<Vec<f32>> {
 fn hertz_to_slaney_mel(frequency: f32) -> f32 {
     const MIN_LOG_HZ: f32 = 1000.0;
     const MIN_LOG_MEL: f32 = 15.0;
-    const LOG_STEP: f32 = 0.06875178;
+    const LOG_STEP: f32 = 0.068_751_78;
 
     if frequency < MIN_LOG_HZ {
         frequency * 0.015
@@ -327,7 +363,7 @@ fn hertz_to_slaney_mel(frequency: f32) -> f32 {
 fn slaney_mel_to_hertz(mel: f32) -> f32 {
     const MIN_LOG_HZ: f32 = 1000.0;
     const MIN_LOG_MEL: f32 = 15.0;
-    const LOG_STEP: f32 = 0.06875178;
+    const LOG_STEP: f32 = 0.068_751_78;
 
     if mel < MIN_LOG_MEL {
         mel / 0.015
@@ -342,7 +378,7 @@ mod tests {
     use crate::audio::{LogMelConfig, SpectralNormalization, SpectrumKind};
 
     #[test]
-    fn padded_sample_rejects_empty_reflect_input() {
+    fn test_padded_sample_rejects_empty_reflect_input() {
         assert!(matches!(
             padded_sample(&[], 0, PadMode::Reflect),
             Err(Error::InvalidLength)
@@ -350,7 +386,7 @@ mod tests {
     }
 
     #[test]
-    fn stft_power_rejects_too_short_centered_reflect_input() {
+    fn test_stft_power_rejects_too_short_centered_reflect_input() {
         let config = test_stft_config(PadMode::Reflect);
 
         assert!(matches!(
@@ -360,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn stft_power_allows_empty_centered_zero_padded_input() -> Result<()> {
+    fn test_stft_power_allows_empty_centered_zero_padded_input() -> Result<()> {
         let config = test_stft_config(PadMode::Zero);
 
         let actual = stft_power(&[], config)?;
@@ -374,7 +410,7 @@ mod tests {
     }
 
     #[test]
-    fn log_mel_rejects_empty_dynamic_reference_input() {
+    fn test_log_mel_rejects_empty_dynamic_reference_input() {
         let mut config = test_frontend_config();
         config.log_mel.reference_max = None;
 

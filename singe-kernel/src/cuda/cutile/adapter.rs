@@ -1,13 +1,19 @@
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "retained for layout, ownership or API completeness"
+)]
 
-use std::{marker::PhantomData, mem::size_of};
+use std::{marker::PhantomData, mem::size_of, result::Result as StdResult};
 
+use async_launcher::AsyncKernelLaunch;
 use cutile::{
     DType,
     cuda_async::{
-        device_operation::{IntoDeviceOp, Value, value},
+        device_operation::{ExecutionContext, IntoDeviceOp, Value, value},
+        error::DeviceError,
         launch as async_launcher,
     },
+    error::{Result as CutileResult, tensor_error},
     tensor::{
         KernelInput, KernelInputStored, KernelOutput, KernelOutputStored, SpecializationBits,
         compute_spec,
@@ -19,8 +25,6 @@ use crate::{
     error::Result,
     utility::{checked_element_count, checked_i32_value},
 };
-
-use async_launcher::AsyncKernelLaunch;
 
 #[derive(Debug, Clone)]
 pub struct TensorAdapter<'a, T: DType> {
@@ -82,7 +86,12 @@ impl<'a, T: DType> TensorAdapter<'a, T> {
     }
 
     fn create(ptr: DevicePointer<T>, shape: Vec<i32>, strides: Vec<i32>) -> Result<Self> {
-        let spec = compute_spec(ptr.cu_deviceptr(), &shape, &strides, size_of::<T>() as i32);
+        let spec = compute_spec(
+            ptr.cu_deviceptr(),
+            &shape,
+            &strides,
+            checked_i32_value(size_of::<T>())?,
+        );
         Ok(Self {
             ptr,
             shape,
@@ -96,14 +105,14 @@ impl<'a, T: DType> TensorAdapter<'a, T> {
         self,
         partition_shape: [usize; RANK],
     ) -> Result<TensorAdapterPartition<'a, T>> {
-        let partition_shape = partition_shape
+        let partition_shape_i32 = partition_shape
             .into_iter()
             .map(checked_i32_value)
             .collect::<Result<Vec<_>>>()?;
-        let partition_strides = contiguous_strides(&partition_shape);
+        let partition_strides = contiguous_strides(&partition_shape_i32);
         Ok(TensorAdapterPartition {
             tensor: self,
-            partition_shape,
+            partition_shape: partition_shape.to_vec(),
             partition_strides,
         })
     }
@@ -112,7 +121,7 @@ impl<'a, T: DType> TensorAdapter<'a, T> {
 #[derive(Debug, Clone)]
 pub struct TensorAdapterPartition<'a, T: DType> {
     tensor: TensorAdapter<'a, T>,
-    partition_shape: Vec<i32>,
+    partition_shape: Vec<usize>,
     partition_strides: Vec<i32>,
 }
 
@@ -127,11 +136,14 @@ fn contiguous_strides(shape: &[i32]) -> Vec<i32> {
     strides
 }
 
-fn grid(shape: &[i32], partition_shape: &[i32]) -> cutile::error::Result<(u32, u32, u32)> {
-    let shape = shape.iter().map(|&dim| dim as u32).collect::<Vec<_>>();
+fn grid(shape: &[i32], partition_shape: &[usize]) -> CutileResult<(u32, u32, u32)> {
+    let shape = shape
+        .iter()
+        .map(|&dim| u32::try_from(dim).expect("partition dimension is validated to fit i32"))
+        .collect::<Vec<_>>();
     let partition_shape = partition_shape
         .iter()
-        .map(|&dim| dim as u32)
+        .map(|&dim| u32::try_from(dim).expect("partition dimension is validated to fit i32"))
         .collect::<Vec<_>>();
     match shape.len() {
         1 => Ok((shape[0].div_ceil(partition_shape[0]), 1, 1)),
@@ -145,14 +157,13 @@ fn grid(shape: &[i32], partition_shape: &[i32]) -> cutile::error::Result<(u32, u
             shape[1].div_ceil(partition_shape[1]),
             shape[2].div_ceil(partition_shape[2]),
         )),
-        _ => Err(cutile::error::tensor_error(
-            "mutable tensor must be at most rank 3.",
-        )),
+        _ => Err(tensor_error("mutable tensor must be at most rank 3.")),
     }
 }
 
 impl<T: DType> TensorAdapter<'_, T> {
     fn push_tensor_args(&self, launcher: &mut AsyncKernelLaunch) {
+        // SAFETY: the pointer belongs to the tensor that this adapter borrows for the launch.
         unsafe {
             launcher.push_device_ptr(self.ptr.cu_deviceptr());
         }
@@ -169,7 +180,10 @@ impl<T: DType> TensorAdapterPartition<'_, T> {
     fn push_partition_args(&self, launcher: &mut AsyncKernelLaunch) {
         self.tensor.push_tensor_args(launcher);
         for dim in &self.partition_shape {
-            launcher.push_arg(*dim);
+            // Partition dimensions were checked to fit i32 at construction.
+            launcher.push_arg(
+                i32::try_from(*dim).expect("partition dimension is validated to fit i32"),
+            );
         }
         for stride in &self.partition_strides {
             launcher.push_arg(*stride);
@@ -178,6 +192,12 @@ impl<T: DType> TensorAdapterPartition<'_, T> {
 }
 
 impl<T: DType + Sync> KernelInputStored for TensorAdapter<'_, T> {
+    fn retain(&self, _ctx: &ExecutionContext) -> StdResult<(), DeviceError> {
+        // This adapter borrows externally owned raw allocations.
+        // enqueue_on requires the caller to retain them and order their accesses until GPU completion.
+        Ok(())
+    }
+
     fn push_kernel_args(&self, launcher: &mut AsyncKernelLaunch) {
         self.push_tensor_args(launcher);
     }
@@ -201,6 +221,7 @@ impl<T: DType + Sync> KernelInputStored for TensorAdapter<'_, T> {
 
 impl<T: DType + Sync> KernelInput<T> for TensorAdapter<'_, T> {
     type Returned = Self;
+
     type Stored = Self;
 
     fn prepare(self) -> Self::Stored {
@@ -212,8 +233,8 @@ impl<T: DType + Sync> KernelInput<T> for TensorAdapter<'_, T> {
     }
 }
 
-impl<'a, T: DType + Sync> IntoDeviceOp<TensorAdapter<'a, T>> for TensorAdapter<'a, T> {
-    type Op = Value<TensorAdapter<'a, T>>;
+impl<T: DType + Sync> IntoDeviceOp<Self> for TensorAdapter<'_, T> {
+    type Op = Value<Self>;
 
     fn into_op(self) -> Self::Op {
         value(self)
@@ -221,11 +242,15 @@ impl<'a, T: DType + Sync> IntoDeviceOp<TensorAdapter<'a, T>> for TensorAdapter<'
 }
 
 impl<T: DType + Sync> KernelOutputStored<T> for TensorAdapterPartition<'_, T> {
+    fn retain(&self, context: &ExecutionContext) -> StdResult<(), DeviceError> {
+        self.tensor.retain(context)
+    }
+
     fn push_kernel_args(&self, launcher: &mut AsyncKernelLaunch) {
         self.push_partition_args(launcher);
     }
 
-    fn grid(&self) -> cutile::error::Result<(u32, u32, u32)> {
+    fn grid(&self) -> CutileResult<(u32, u32, u32)> {
         grid(&self.tensor.shape, &self.partition_shape)
     }
 
@@ -234,7 +259,14 @@ impl<T: DType + Sync> KernelOutputStored<T> for TensorAdapterPartition<'_, T> {
     }
 
     fn partition_shape_as_i32(&self) -> Vec<i32> {
-        self.partition_shape.clone()
+        self.partition_shape
+            .iter()
+            .map(|&dim| i32::try_from(dim).expect("partition dimension is validated to fit i32"))
+            .collect()
+    }
+
+    fn partition_shape(&self) -> &[usize] {
+        &self.partition_shape
     }
 
     fn strides_hint(&self) -> Vec<i32> {
@@ -257,6 +289,7 @@ impl<T: DType + Sync> KernelOutputStored<T> for TensorAdapterPartition<'_, T> {
 
 impl<T: DType + Sync> KernelOutput<T> for TensorAdapterPartition<'_, T> {
     type Returned = Self;
+
     type Stored = Self;
 
     fn prepare(self) -> Self::Stored {
@@ -268,10 +301,8 @@ impl<T: DType + Sync> KernelOutput<T> for TensorAdapterPartition<'_, T> {
     }
 }
 
-impl<'a, T: DType + Sync> IntoDeviceOp<TensorAdapterPartition<'a, T>>
-    for TensorAdapterPartition<'a, T>
-{
-    type Op = Value<TensorAdapterPartition<'a, T>>;
+impl<T: DType + Sync> IntoDeviceOp<Self> for TensorAdapterPartition<'_, T> {
+    type Op = Value<Self>;
 
     fn into_op(self) -> Self::Op {
         value(self)

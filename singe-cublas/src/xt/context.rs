@@ -23,7 +23,7 @@ struct Handle {
     raw: sys::cublasXtHandle_t,
 }
 
-// cuBLASXt handles are stateful and not exposed for shared concurrent use.
+// SAFETY: cuBLASXt handles are stateful and not exposed for shared concurrent use.
 unsafe impl Send for Handle {}
 
 impl Context {
@@ -63,6 +63,7 @@ impl Context {
         }
 
         let mut handle = ptr::null_mut();
+        // SAFETY: `cublasXtCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cublasXtCreate(&raw mut handle))?;
         }
@@ -86,6 +87,10 @@ impl Context {
     /// been selected exactly once with `cublasXtDeviceSelect`. It must not be
     /// destroyed elsewhere or reconfigured with `cublasXtDeviceSelect` after
     /// calling this function.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NullHandle`] if `handle` is null.
     pub unsafe fn from_raw(handle: sys::cublasXtHandle_t) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -101,6 +106,7 @@ impl Context {
             .iter()
             .map(|device| to_i32(device.id(), "device id"))
             .collect::<Result<Vec<i32>>>()?;
+        // SAFETY: `cublasXtDeviceSelect` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasXtDeviceSelect(
                 self.as_raw(),
@@ -122,6 +128,7 @@ impl Context {
             return Err(Error::InvalidMatrixShape);
         }
 
+        // SAFETY: `cublasXtSetBlockDim` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasXtSetBlockDim(
                 self.as_raw(),
@@ -138,6 +145,7 @@ impl Context {
     /// Returns an error if cuBLASXt cannot report the value.
     pub fn block_dim(&self) -> Result<usize> {
         let mut block_dim = 0;
+        // SAFETY: `cublasXtGetBlockDim` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasXtGetBlockDim(self.as_raw(), &raw mut block_dim,))?;
         }
@@ -150,6 +158,7 @@ impl Context {
     ///
     /// Returns an error if cuBLASXt rejects the mode.
     pub fn set_pinning_memory_mode(&self, mode: PinningMemoryMode) -> Result<()> {
+        // SAFETY: `cublasXtSetPinningMemMode` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasXtSetPinningMemMode(self.as_raw(), mode.into(),))?;
         }
@@ -163,6 +172,7 @@ impl Context {
     /// Returns an error if cuBLASXt cannot report the mode.
     pub fn pinning_memory_mode(&self) -> Result<PinningMemoryMode> {
         let mut mode = sys::cublasXtPinnedMemMode_t::CUBLASXT_PINNING_DISABLED;
+        // SAFETY: `cublasXtGetPinningMemMode` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasXtGetPinningMemMode(self.as_raw(), &raw mut mode,))?;
         }
@@ -181,6 +191,7 @@ impl Context {
         operation_type: OperationType,
         ratio: f32,
     ) -> Result<()> {
+        // SAFETY: `cublasXtSetCpuRatio` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasXtSetCpuRatio(
                 self.as_raw(),
@@ -212,6 +223,7 @@ impl Context {
         operation_type: OperationType,
         routine: *mut (),
     ) -> Result<()> {
+        // SAFETY: `cublasXtSetCpuRoutine` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasXtSetCpuRoutine(
                 self.as_raw(),
@@ -241,10 +253,11 @@ impl Context {
 
 impl Drop for Handle {
     fn drop(&mut self) {
+        // SAFETY: `cublasXtDestroy` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cublasXtDestroy(self.raw)) {
+            if let Err(error) = try_ffi!(sys::cublasXtDestroy(self.raw)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cuBLASXt context: {err}");
+                eprintln!("failed to destroy cublasxt context: {error}");
             }
         }
     }
@@ -255,11 +268,11 @@ mod tests {
     use crate::{error::Error, xt::context::Context};
 
     #[test]
-    fn create_for_rejects_empty_devices() {
-        let err = Context::create_for(&[]).unwrap_err();
+    fn test_create_for_rejects_empty_devices() {
+        let error = Context::create_for(&[]).unwrap_err();
 
         assert!(matches!(
-            err,
+            error,
             Error::LengthMismatch {
                 ref name,
                 expected: 1,

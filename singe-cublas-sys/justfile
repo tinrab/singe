@@ -26,7 +26,6 @@ generate:
         --blocklist-item "^CUDA.*" \
         --blocklist-item "^libraryPropertyType.*" \
         --allowlist-file ".*[^\w]cublas_api.h" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -82,7 +81,6 @@ generate:
         --blocklist-item "^cublasStatus_t$" \
         --blocklist-item "^cublasComputeType_t$" \
         --allowlist-file ".*[^\w]cublasLt.h" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -120,7 +118,6 @@ generate:
         --blocklist-item "^float2$" \
         --blocklist-item "^double2$" \
         --allowlist-file ".*[^\w]cublasXt.h" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \

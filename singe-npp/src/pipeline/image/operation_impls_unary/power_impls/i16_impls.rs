@@ -1,0 +1,30 @@
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{
+        arithmetic,
+        view::{C1, C3, ImageOutputView, ImageView, ImageViewMut},
+    },
+    pipeline::image::{
+        ImagePipeline,
+        operation_traits::{SquareImage, SquareRootImage},
+    },
+};
+
+impl_scaled_unary_power_image!(
+    i16,
+    C1,
+    arithmetic::square_i16_c1,
+    arithmetic::square_i16_c1_in_place,
+    arithmetic::square_root_i16_c1,
+    arithmetic::square_root_i16_c1_in_place
+);
+
+impl_scaled_unary_power_image!(
+    i16,
+    C3,
+    arithmetic::square_i16_c3,
+    arithmetic::square_i16_c3_in_place,
+    arithmetic::square_root_i16_c3,
+    arithmetic::square_root_i16_c3_in_place
+);

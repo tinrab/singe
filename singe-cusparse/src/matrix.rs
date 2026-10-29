@@ -1,73 +1,108 @@
 use std::{
     marker::PhantomData,
+    mem,
     mem::{ManuallyDrop, MaybeUninit, size_of},
     ptr,
     sync::Arc,
 };
 
 use singe_cuda::{
-    context::Context as CudaContext, data_type::DataTypeLike, memory::DeviceMemory,
+    context::Context as CudaContext,
+    data_type::DataTypeLike,
     types::DevicePtr,
+    view::{DeviceInput, DeviceOutput, DeviceOutputView, DeviceRegion},
 };
 
 use crate::{
     context::Context,
+    descriptor::{
+        RawDescriptor, checked_add, checked_mul, input_region, matrix_extent, output_region,
+        output_region_for, workspace,
+    },
     error::{Error, Result},
     sys, try_ffi,
     types::{
-        CsrToCscAlgorithm, DenseToSparseAlgorithm, DiagonalType, FillMode, Format, IndexBase,
-        IndexTypeLike, MatrixType, Order, SparseMatrixAttribute, SparseToDenseAlgorithm,
+        Action, CsrToCscAlgorithm, DenseToSparseAlgorithm, DiagonalType, FillMode, Format,
+        IndexBase, IndexTypeLike, MatrixType, Order, SparseMatrixAttribute, SparseToDenseAlgorithm,
     },
     utility::{to_i32, to_i64, to_usize},
 };
 
+/// Logical matrix dimensions and stored sparse-entry count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SparseMatrixShape {
+    /// Logical number of matrix rows.
     pub rows: usize,
+    /// Logical number of matrix columns.
     pub cols: usize,
+    /// Number of stored sparse entries.
     pub nonzero_count: usize,
 }
 
+/// Dimensions, storage order, stride, and value address reported by a dense matrix descriptor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DenseMatrixInfo {
+    /// Logical number of matrix rows.
     pub rows: usize,
+    /// Logical number of matrix columns.
     pub cols: usize,
+    /// Stride between major rows or columns, measured in elements.
     pub leading_dimension: usize,
+    /// Device address of the matrix values.
     pub values: DevicePtr,
+    /// Row-major or column-major storage order.
     pub order: Order,
 }
 
+/// Owns a legacy cuSPARSE matrix-property descriptor.
 #[derive(Debug)]
 pub struct MatrixDescriptor {
     handle: sys::cusparseMatDescr_t,
 }
 
+/// Owns a sparse-matrix descriptor tied to a CUDA context and borrowed device storage.
+///
+/// Storage metadata does not establish that pending device values are initialized.
 #[derive(Debug)]
 pub struct SparseMatrixDescriptor<'a> {
     handle: sys::cusparseSpMatDescr_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
+    regions: Vec<Option<DeviceRegion<'a>>>,
     _buffers: PhantomData<&'a mut ()>,
 }
 
+/// Owns a dense-matrix descriptor tied to a CUDA context and borrowed device storage.
 #[derive(Debug)]
 pub struct DenseMatrixDescriptor<'a> {
     handle: sys::cusparseDnMatDescr_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
+    regions: Vec<Option<DeviceRegion<'a>>>,
     _buffers: PhantomData<&'a mut ()>,
 }
 
-// Legacy matrix descriptors contain descriptor attributes only, so immutable
+// SAFETY: legacy matrix descriptors contain descriptor attributes only, so immutable
 // sharing follows the cuSPARSE descriptor contract. Data-bearing descriptors
 // can rebind borrowed pointers and therefore require exclusive access.
 unsafe impl Send for MatrixDescriptor {}
+
 unsafe impl Sync for MatrixDescriptor {}
+
+#[expect(
+    clippy::non_send_fields_in_send_ty,
+    reason = "native owners transfer their handles and storage borrows under the adjacent safety contract"
+)]
 unsafe impl Send for SparseMatrixDescriptor<'_> {}
+
+#[expect(
+    clippy::non_send_fields_in_send_ty,
+    reason = "native owners transfer their handles and storage borrows under the adjacent safety contract"
+)]
 unsafe impl Send for DenseMatrixDescriptor<'_> {}
 
 impl MatrixDescriptor {
     /// Initializes a matrix descriptor.
     /// It sets [`MatrixType`] and [`IndexBase`] to [`MatrixType::General`] and
-    /// [`IndexBase::Zero`], respectively, while leaving other fields uninitialized.
+    /// [`IndexBase::Zero`], respectively, with lower fill mode and non-unit diagonal.
     ///
     /// # Errors
     ///
@@ -75,6 +110,7 @@ impl MatrixDescriptor {
     /// a null handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusparseCreateMatDescr` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseCreateMatDescr(&raw mut handle))?;
         }
@@ -83,11 +119,16 @@ impl MatrixDescriptor {
             return Err(Error::NullHandle);
         }
 
-        Ok(Self { handle })
+        let mut descriptor = Self { handle };
+        descriptor.set_fill_mode(FillMode::Lower)?;
+        descriptor.set_diagonal_type(DiagonalType::NonUnit)?;
+        Ok(descriptor)
     }
 
     /// Returns the [`MatrixType`] field of this matrix descriptor.
+    #[must_use]
     pub fn matrix_type(&self) -> MatrixType {
+        // SAFETY: `cusparseGetMatType` receives live handles owned by the wrappers.
         unsafe { sys::cusparseGetMatType(self.as_raw()).into() }
     }
 
@@ -97,6 +138,7 @@ impl MatrixDescriptor {
     ///
     /// Returns an error if cuSPARSE rejects `matrix_type`.
     pub fn set_matrix_type(&mut self, matrix_type: MatrixType) -> Result<()> {
+        // SAFETY: `cusparseSetMatType` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusparseSetMatType(self.as_raw(), matrix_type.into()))?;
         }
@@ -104,7 +146,9 @@ impl MatrixDescriptor {
     }
 
     /// Returns the [`FillMode`] field of this matrix descriptor.
+    #[must_use]
     pub fn fill_mode(&self) -> FillMode {
+        // SAFETY: `cusparseGetMatFillMode` receives live handles owned by the wrappers.
         unsafe { sys::cusparseGetMatFillMode(self.as_raw()).into() }
     }
 
@@ -114,6 +158,7 @@ impl MatrixDescriptor {
     ///
     /// Returns an error if cuSPARSE rejects `fill_mode`.
     pub fn set_fill_mode(&mut self, fill_mode: FillMode) -> Result<()> {
+        // SAFETY: `cusparseSetMatFillMode` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusparseSetMatFillMode(self.as_raw(), fill_mode.into()))?;
         }
@@ -121,7 +166,9 @@ impl MatrixDescriptor {
     }
 
     /// Returns the [`DiagonalType`] field of this matrix descriptor.
+    #[must_use]
     pub fn diagonal_type(&self) -> DiagonalType {
+        // SAFETY: `cusparseGetMatDiagType` receives live handles owned by the wrappers.
         unsafe { sys::cusparseGetMatDiagType(self.as_raw()).into() }
     }
 
@@ -131,6 +178,7 @@ impl MatrixDescriptor {
     ///
     /// Returns an error if cuSPARSE rejects `diagonal_type`.
     pub fn set_diagonal_type(&mut self, diagonal_type: DiagonalType) -> Result<()> {
+        // SAFETY: `cusparseSetMatDiagType` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusparseSetMatDiagType(
                 self.as_raw(),
@@ -141,7 +189,9 @@ impl MatrixDescriptor {
     }
 
     /// Returns the [`IndexBase`] field of this matrix descriptor.
+    #[must_use]
     pub fn index_base(&self) -> IndexBase {
+        // SAFETY: `cusparseGetMatIndexBase` receives live handles owned by the wrappers.
         unsafe { sys::cusparseGetMatIndexBase(self.as_raw()).into() }
     }
 
@@ -151,6 +201,7 @@ impl MatrixDescriptor {
     ///
     /// Returns an error if cuSPARSE rejects `index_base`.
     pub fn set_index_base(&mut self, index_base: IndexBase) -> Result<()> {
+        // SAFETY: `cusparseSetMatIndexBase` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusparseSetMatIndexBase(
                 self.as_raw(),
@@ -160,6 +211,8 @@ impl MatrixDescriptor {
         Ok(())
     }
 
+    /// Returns the native matrix-property descriptor handle without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseMatDescr_t {
         self.handle
     }
@@ -172,6 +225,11 @@ impl MatrixDescriptor {
     /// `handle` must be a valid `cusparseMatDescr_t`. Ownership of `handle` is
     /// transferred to the returned descriptor, and the handle must not be
     /// destroyed elsewhere after calling this function.
+    /// Every descriptor attribute must have an initialized native value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
     pub unsafe fn from_raw(handle: sys::cusparseMatDescr_t) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -185,6 +243,7 @@ impl MatrixDescriptor {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseDestroyMatDescr`.
+    #[must_use]
     pub fn into_raw(self) -> sys::cusparseMatDescr_t {
         let descriptor = ManuallyDrop::new(self);
         descriptor.handle
@@ -193,10 +252,11 @@ impl MatrixDescriptor {
 
 impl Drop for MatrixDescriptor {
     fn drop(&mut self) {
+        // SAFETY: `cusparseDestroyMatDescr` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseDestroyMatDescr(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cusparseDestroyMatDescr(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse matrix descriptor: {err}");
+                eprintln!("failed to destroy cusparse matrix descriptor: {error}");
             }
         }
     }
@@ -207,122 +267,235 @@ impl<'a> SparseMatrixDescriptor<'a> {
     ///
     /// The descriptor borrows the row-offset, column-index, and value buffers by
     /// pointer; those buffers must remain valid while the descriptor uses them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if supplied arrays belong to another CUDA context or are smaller than the required storage. Rejects count conversion and storage-size overflow. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create_csr<Offsets: IndexTypeLike, Columns: IndexTypeLike, T: DataTypeLike>(
-        ctx: &Context,
+        context: &Context,
         rows: usize,
         cols: usize,
         nonzero_count: usize,
-        row_offsets: &'a mut DeviceMemory<Offsets>,
-        column_indices: &'a mut DeviceMemory<Columns>,
-        values: &'a mut DeviceMemory<T>,
+        row_offsets: Option<DeviceOutputView<'a, Offsets>>,
+        column_indices: Option<DeviceOutputView<'a, Columns>>,
+        values: Option<DeviceOutputView<'a, T>>,
         index_base: IndexBase,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = Offsets::LAYOUT;
+        let () = Columns::LAYOUT;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        let row_offsets = row_offsets
+            .map(|view| {
+                output_region(
+                    context,
+                    view,
+                    checked_add(rows, 1, "row offsets")?,
+                    "row_offsets",
+                )
+            })
+            .transpose()?;
+        let column_indices = column_indices
+            .map(|view| output_region(context, view, nonzero_count, "column_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region(context, view, nonzero_count, "values"))
+            .transpose()?;
+
         let mut raw = ptr::null_mut();
+        // SAFETY: `cusparseCreateCsr` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateCsr(
                 &raw mut raw,
                 to_i64(rows, "rows")?,
                 to_i64(cols, "cols")?,
                 to_i64(nonzero_count, "nonzero_count")?,
-                row_offsets.as_mut_ptr().cast(),
-                column_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                row_offsets
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                column_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
                 Offsets::index_type().into(),
                 Columns::index_type().into(),
                 index_base.into(),
                 T::data_type().into(),
             ))?;
         }
-        ensure_spmat(raw, ctx)
+        ensure_spmat(raw, context, vec![row_offsets, column_indices, values])
     }
 
     /// Initializes a sparse matrix descriptor in the CSC format.
     ///
     /// The descriptor borrows the column-offset, row-index, and value buffers by
     /// pointer; those buffers must remain valid while the descriptor uses them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if supplied arrays belong to another CUDA context or are smaller than the required storage. Rejects count conversion and storage-size overflow. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create_csc<Offsets: IndexTypeLike, Rows: IndexTypeLike, T: DataTypeLike>(
-        ctx: &Context,
+        context: &Context,
         rows: usize,
         cols: usize,
         nonzero_count: usize,
-        column_offsets: &'a mut DeviceMemory<Offsets>,
-        row_indices: &'a mut DeviceMemory<Rows>,
-        values: &'a mut DeviceMemory<T>,
+        column_offsets: Option<DeviceOutputView<'a, Offsets>>,
+        row_indices: Option<DeviceOutputView<'a, Rows>>,
+        values: Option<DeviceOutputView<'a, T>>,
         index_base: IndexBase,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = Offsets::LAYOUT;
+        let () = Rows::LAYOUT;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        let column_offsets = column_offsets
+            .map(|view| {
+                output_region(
+                    context,
+                    view,
+                    checked_add(cols, 1, "column offsets")?,
+                    "column_offsets",
+                )
+            })
+            .transpose()?;
+        let row_indices = row_indices
+            .map(|view| output_region(context, view, nonzero_count, "row_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region(context, view, nonzero_count, "values"))
+            .transpose()?;
+
         let mut raw = ptr::null_mut();
+        // SAFETY: `cusparseCreateCsc` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateCsc(
                 &raw mut raw,
                 to_i64(rows, "rows")?,
                 to_i64(cols, "cols")?,
                 to_i64(nonzero_count, "nonzero_count")?,
-                column_offsets.as_mut_ptr().cast(),
-                row_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                column_offsets
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                row_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
                 Offsets::index_type().into(),
                 Rows::index_type().into(),
                 index_base.into(),
                 T::data_type().into(),
             ))?;
         }
-        ensure_spmat(raw, ctx)
+        ensure_spmat(raw, context, vec![column_offsets, row_indices, values])
     }
 
     /// Initializes a sparse matrix descriptor in the COO format (Structure of Arrays layout).
     ///
     /// The descriptor borrows the row-index, column-index, and value buffers by
     /// pointer; those buffers must remain valid while the descriptor uses them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if supplied arrays belong to another CUDA context or are smaller than the required storage. Rejects count conversion and storage-size overflow. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create_coo<I: IndexTypeLike, T: DataTypeLike>(
-        ctx: &Context,
+        context: &Context,
         rows: usize,
         cols: usize,
         nonzero_count: usize,
-        row_indices: &'a mut DeviceMemory<I>,
-        column_indices: &'a mut DeviceMemory<I>,
-        values: &'a mut DeviceMemory<T>,
+        row_indices: Option<DeviceOutputView<'a, I>>,
+        column_indices: Option<DeviceOutputView<'a, I>>,
+        values: Option<DeviceOutputView<'a, T>>,
         index_base: IndexBase,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = I::LAYOUT;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        let row_indices = row_indices
+            .map(|view| output_region(context, view, nonzero_count, "row_indices"))
+            .transpose()?;
+        let column_indices = column_indices
+            .map(|view| output_region(context, view, nonzero_count, "column_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region(context, view, nonzero_count, "values"))
+            .transpose()?;
+
         let mut raw = ptr::null_mut();
+        // SAFETY: `cusparseCreateCoo` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateCoo(
                 &raw mut raw,
                 to_i64(rows, "rows")?,
                 to_i64(cols, "cols")?,
                 to_i64(nonzero_count, "nonzero_count")?,
-                row_indices.as_mut_ptr().cast(),
-                column_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                row_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                column_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
                 I::index_type().into(),
                 index_base.into(),
                 T::data_type().into(),
             ))?;
         }
-        ensure_spmat(raw, ctx)
+        ensure_spmat(raw, context, vec![row_indices, column_indices, values])
     }
 
     /// Initializes a sparse matrix descriptor for the Block Compressed Row (BSR) format.
     ///
     /// The descriptor borrows the block row-offset, column-index, and value
     /// buffers by pointer; those buffers must remain valid while the descriptor uses them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if supplied arrays belong to another CUDA context or are smaller than the required storage. Rejects count conversion and storage-size overflow. Block value-count multiplication must not overflow. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create_bsr<Offsets: IndexTypeLike, Columns: IndexTypeLike, T: DataTypeLike>(
-        ctx: &Context,
+        context: &Context,
         block_rows: usize,
         block_cols: usize,
         block_nnz: usize,
         row_block_size: usize,
         col_block_size: usize,
-        row_offsets: &'a mut DeviceMemory<Offsets>,
-        column_indices: &'a mut DeviceMemory<Columns>,
-        values: &'a mut DeviceMemory<T>,
+        row_offsets: Option<DeviceOutputView<'a, Offsets>>,
+        column_indices: Option<DeviceOutputView<'a, Columns>>,
+        values: Option<DeviceOutputView<'a, T>>,
         index_base: IndexBase,
         order: Order,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = Offsets::LAYOUT;
+        let () = Columns::LAYOUT;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        let value_count = checked_mul(
+            checked_mul(block_nnz, row_block_size, "block values")?,
+            col_block_size,
+            "block values",
+        )?;
+        let row_offsets = row_offsets
+            .map(|view| {
+                output_region(
+                    context,
+                    view,
+                    checked_add(block_rows, 1, "row offsets")?,
+                    "row_offsets",
+                )
+            })
+            .transpose()?;
+        let column_indices = column_indices
+            .map(|view| output_region(context, view, block_nnz, "column_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region(context, view, value_count, "values"))
+            .transpose()?;
+
         let mut raw = ptr::null_mut();
+        // SAFETY: `cusparseCreateBsr` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateBsr(
                 &raw mut raw,
@@ -331,9 +504,13 @@ impl<'a> SparseMatrixDescriptor<'a> {
                 to_i64(block_nnz, "block_nnz")?,
                 to_i64(row_block_size, "row_block_size")?,
                 to_i64(col_block_size, "col_block_size")?,
-                row_offsets.as_mut_ptr().cast(),
-                column_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                row_offsets
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                column_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
                 Offsets::index_type().into(),
                 Columns::index_type().into(),
                 index_base.into(),
@@ -341,7 +518,7 @@ impl<'a> SparseMatrixDescriptor<'a> {
                 order.into(),
             ))?;
         }
-        ensure_spmat(raw, ctx)
+        ensure_spmat(raw, context, vec![row_offsets, column_indices, values])
     }
 
     /// Initializes a sparse matrix descriptor for the Blocked-Ellpack (ELL) format.
@@ -350,18 +527,41 @@ impl<'a> SparseMatrixDescriptor<'a> {
     /// The array can contain `-1` values for indicating empty blocks.
     /// The descriptor borrows the column-index and value buffers by pointer;
     /// those buffers must remain valid while the descriptor uses them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if supplied arrays belong to another CUDA context or are smaller than the required storage. Rejects count conversion and storage-size overflow. The block size must be nonzero and divide both the row count and padded column count. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create_blocked_ell<I: IndexTypeLike, T: DataTypeLike>(
-        ctx: &Context,
+        context: &Context,
         rows: usize,
         cols: usize,
         block_size: usize,
         ell_cols: usize,
-        column_indices: &'a mut DeviceMemory<I>,
-        values: &'a mut DeviceMemory<T>,
+        column_indices: Option<DeviceOutputView<'a, I>>,
+        values: Option<DeviceOutputView<'a, T>>,
         index_base: IndexBase,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = I::LAYOUT;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        if block_size == 0
+            || !rows.is_multiple_of(block_size)
+            || !ell_cols.is_multiple_of(block_size)
+        {
+            return Err(Error::out_of_range("blocked ELL geometry"));
+        }
+        let index_count = checked_mul(rows / block_size, ell_cols / block_size, "ELL indices")?;
+        let value_count = checked_mul(rows, ell_cols, "ELL values")?;
+        let column_indices = column_indices
+            .map(|view| output_region(context, view, index_count, "column_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region(context, view, value_count, "values"))
+            .transpose()?;
+
         let mut raw = ptr::null_mut();
+        // SAFETY: `cusparseCreateBlockedEll` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateBlockedEll(
                 &raw mut raw,
@@ -369,38 +569,63 @@ impl<'a> SparseMatrixDescriptor<'a> {
                 to_i64(cols, "cols")?,
                 to_i64(block_size, "block_size")?,
                 to_i64(ell_cols, "ell_cols")?,
-                column_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                column_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
                 I::index_type().into(),
                 index_base.into(),
                 T::data_type().into(),
             ))?;
         }
-        ensure_spmat(raw, ctx)
+        ensure_spmat(raw, context, vec![column_indices, values])
     }
 
     /// Initializes a sparse matrix descriptor for the Sliced Ellpack (SELL) format.
     ///
     /// The descriptor borrows the slice-offset, column-index, and value buffers
     /// by pointer; those buffers must remain valid while the descriptor uses them.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if supplied arrays belong to another CUDA context or are smaller than the required storage. Rejects count conversion and storage-size overflow. The slice size must be nonzero. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create_sliced_ell<
         SliceOffsets: IndexTypeLike,
         Columns: IndexTypeLike,
         T: DataTypeLike,
     >(
-        ctx: &Context,
+        context: &Context,
         rows: usize,
         cols: usize,
         nonzero_count: usize,
         values_size: usize,
         slice_size: usize,
-        slice_offsets: &'a mut DeviceMemory<SliceOffsets>,
-        column_indices: &'a mut DeviceMemory<Columns>,
-        values: &'a mut DeviceMemory<T>,
+        slice_offsets: Option<DeviceOutputView<'a, SliceOffsets>>,
+        column_indices: Option<DeviceOutputView<'a, Columns>>,
+        values: Option<DeviceOutputView<'a, T>>,
         index_base: IndexBase,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = SliceOffsets::LAYOUT;
+        let () = Columns::LAYOUT;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        if slice_size == 0 {
+            return Err(Error::out_of_range("slice size"));
+        }
+        let offset_count = checked_add(rows.div_ceil(slice_size), 1, "slice offsets")?;
+        let slice_offsets = slice_offsets
+            .map(|view| output_region(context, view, offset_count, "slice_offsets"))
+            .transpose()?;
+        let column_indices = column_indices
+            .map(|view| output_region(context, view, values_size, "column_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region(context, view, values_size, "values"))
+            .transpose()?;
+
         let mut raw = ptr::null_mut();
+        // SAFETY: `cusparseCreateSlicedEll` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateSlicedEll(
                 &raw mut raw,
@@ -409,16 +634,20 @@ impl<'a> SparseMatrixDescriptor<'a> {
                 to_i64(nonzero_count, "nonzero_count")?,
                 to_i64(values_size, "values_size")?,
                 to_i64(slice_size, "slice_size")?,
-                slice_offsets.as_mut_ptr().cast(),
-                column_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                slice_offsets
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                column_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
                 SliceOffsets::index_type().into(),
                 Columns::index_type().into(),
                 index_base.into(),
                 T::data_type().into(),
             ))?;
         }
-        ensure_spmat(raw, ctx)
+        ensure_spmat(raw, context, vec![slice_offsets, column_indices, values])
     }
 
     /// Returns the format of this sparse matrix descriptor.
@@ -427,7 +656,9 @@ impl<'a> SparseMatrixDescriptor<'a> {
     ///
     /// Returns an error if cuSPARSE cannot report the sparse matrix format.
     pub fn format(&self) -> Result<Format> {
+        self.cuda_context.bind()?;
         let mut format = sys::cusparseFormat_t::CUSPARSE_FORMAT_CSR;
+        // SAFETY: `cusparseSpMatGetFormat` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpMatGetFormat(
                 self.as_raw_const(),
@@ -443,7 +674,9 @@ impl<'a> SparseMatrixDescriptor<'a> {
     ///
     /// Returns an error if cuSPARSE cannot report the sparse matrix index base.
     pub fn index_base(&self) -> Result<IndexBase> {
+        self.cuda_context.bind()?;
         let mut index_base = sys::cusparseIndexBase_t::CUSPARSE_INDEX_BASE_ZERO;
+        // SAFETY: `cusparseSpMatGetIndexBase` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpMatGetIndexBase(
                 self.as_raw_const(),
@@ -459,28 +692,59 @@ impl<'a> SparseMatrixDescriptor<'a> {
     ///
     /// Returns an error if cuSPARSE cannot report the values pointer.
     pub fn values(&self) -> Result<DevicePtr> {
+        self.cuda_context.bind()?;
         let mut values = ptr::null_mut();
+        // SAFETY: `cusparseSpMatGetValues` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpMatGetValues(self.as_raw(), &raw mut values))?;
         }
+        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
         Ok(unsafe { DevicePtr::from_raw(values.cast()) })
     }
 
-    /// Sets the values pointer of this sparse matrix descriptor.
+    /// Consumes and rebinds the values pointer of this sparse matrix descriptor.
     ///
     /// The pointed-to device buffer must remain valid while the descriptor uses it.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSPARSE rejects the values pointer.
-    pub fn set_values<T: DataTypeLike>(&mut self, values: &'a mut DeviceMemory<T>) -> Result<()> {
+    /// On failure the consumed descriptor is destroyed while both sets of regions remain borrowed.
+    ///
+    /// # Safety
+    ///
+    /// Bindings must match the descriptor's native element types, format, batch
+    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    pub unsafe fn rebind_values<'b, T: DataTypeLike>(
+        self,
+        values: Option<DeviceOutputView<'b, T>>,
+    ) -> Result<SparseMatrixDescriptor<'b>>
+    where
+        'a: 'b,
+    {
+        let () = T::LAYOUT;
+        // SAFETY: ownership is transferred once; all original borrows outlive the new lifetime.
+        let mut rebound = unsafe { SparseMatrixDescriptor::from_raw(self.into_raw())? };
+        rebound.cuda_context.bind()?;
+        let values = values
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "values"))
+            .transpose()?;
+
+        rebound.regions.extend([values]);
+        // SAFETY: `cusparseSpMatSetValues` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseSpMatSetValues(
-                self.as_raw(),
-                values.as_mut_ptr().cast(),
+                rebound.as_raw(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
             ))?;
         }
-        Ok(())
+        let incoming = rebound.regions.pop().unwrap_or(None);
+        if let Some(last) = rebound.regions.last_mut() {
+            *last = incoming;
+        } else {
+            rebound.regions.push(incoming);
+        }
+        Ok(rebound)
     }
 
     /// Returns the shape of this sparse matrix descriptor.
@@ -490,9 +754,11 @@ impl<'a> SparseMatrixDescriptor<'a> {
     /// Returns an error if cuSPARSE cannot report the sparse matrix shape or if
     /// the reported values cannot be represented as `usize`.
     pub fn shape(&self) -> Result<SparseMatrixShape> {
+        self.cuda_context.bind()?;
         let mut rows = 0_i64;
         let mut cols = 0_i64;
         let mut nnz = 0_i64;
+        // SAFETY: `cusparseSpMatGetSize` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpMatGetSize(
                 self.as_raw_const(),
@@ -514,7 +780,9 @@ impl<'a> SparseMatrixDescriptor<'a> {
     ///
     /// Returns an error if cuSPARSE cannot report the strided batch settings.
     pub fn strided_batch_count(&self) -> Result<i32> {
+        self.cuda_context.bind()?;
         let mut batch_count = 0;
+        // SAFETY: `cusparseSpMatGetStridedBatch` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpMatGetStridedBatch(
                 self.as_raw_const(),
@@ -531,6 +799,7 @@ impl<'a> SparseMatrixDescriptor<'a> {
     /// Returns an error if either argument cannot be represented by cuSPARSE or
     /// if cuSPARSE rejects the strided batch settings.
     pub fn set_coo_strided_batch(&mut self, batch_count: usize, batch_stride: usize) -> Result<()> {
+        // SAFETY: `cusparseCooSetStridedBatch` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusparseCooSetStridedBatch(
                 self.as_raw(),
@@ -542,12 +811,17 @@ impl<'a> SparseMatrixDescriptor<'a> {
     }
 
     /// Sets the batch count and batch stride fields of this CSR sparse matrix descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the batch count or strides do not fit the native integer types, or cuSPARSE rejects the batching configuration.
     pub fn set_csr_strided_batch(
         &mut self,
         batch_count: usize,
         offsets_batch_stride: usize,
         columns_values_batch_stride: usize,
     ) -> Result<()> {
+        // SAFETY: `cusparseCsrSetStridedBatch` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusparseCsrSetStridedBatch(
                 self.as_raw(),
@@ -560,6 +834,10 @@ impl<'a> SparseMatrixDescriptor<'a> {
     }
 
     /// Sets the batch count and batch stride fields of this BSR sparse matrix descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the batch count or strides do not fit the native integer types, or cuSPARSE rejects the batching configuration.
     pub fn set_bsr_strided_batch(
         &mut self,
         batch_count: usize,
@@ -567,6 +845,7 @@ impl<'a> SparseMatrixDescriptor<'a> {
         columns_batch_stride: usize,
         values_batch_stride: usize,
     ) -> Result<()> {
+        // SAFETY: `cusparseBsrSetStridedBatch` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusparseBsrSetStridedBatch(
                 self.as_raw(),
@@ -579,11 +858,24 @@ impl<'a> SparseMatrixDescriptor<'a> {
         Ok(())
     }
 
+    /// Queries which triangular part of the sparse matrix is stored.
+    ///
+    /// # Errors
+    ///
+    /// Propagates context-binding and native attribute-query errors. Also rejects an unrecognized fill-mode value or an attribute size that cannot fit the native size type.
     pub fn fill_mode(&self) -> Result<FillMode> {
-        let raw: sys::cusparseFillMode_t = self.raw_attribute(SparseMatrixAttribute::FillMode)?;
-        Ok(raw.into())
+        let value = self.raw_attribute(SparseMatrixAttribute::FillMode)?;
+        FillMode::try_from(value).map_err(|_| Error::InvalidAttributeValue {
+            name: "fill mode".into(),
+            value,
+        })
     }
 
+    /// Sets which triangular part of the sparse matrix an operation uses.
+    ///
+    /// # Errors
+    ///
+    /// Propagates context-binding and native attribute-setting errors. Also rejects an attribute size that cannot fit the native size type.
     pub fn set_fill_mode(&mut self, fill_mode: FillMode) -> Result<()> {
         self.set_attribute_raw::<sys::cusparseFillMode_t>(
             SparseMatrixAttribute::FillMode,
@@ -591,12 +883,24 @@ impl<'a> SparseMatrixDescriptor<'a> {
         )
     }
 
+    /// Queries whether the sparse matrix diagonal is explicit or implicitly unit-valued.
+    ///
+    /// # Errors
+    ///
+    /// Propagates context-binding and native attribute-query errors. Also rejects an unrecognized diagonal-type value or an attribute size that cannot fit the native size type.
     pub fn diagonal_type(&self) -> Result<DiagonalType> {
-        let raw: sys::cusparseDiagType_t =
-            self.raw_attribute(SparseMatrixAttribute::DiagonalType)?;
-        Ok(raw.into())
+        let value = self.raw_attribute(SparseMatrixAttribute::DiagonalType)?;
+        DiagonalType::try_from(value).map_err(|_| Error::InvalidAttributeValue {
+            name: "diagonal type".into(),
+            value,
+        })
     }
 
+    /// Sets whether the sparse matrix diagonal is explicit or implicitly unit-valued.
+    ///
+    /// # Errors
+    ///
+    /// Propagates context-binding and native attribute-setting errors. Also rejects an attribute size that cannot fit the native size type.
     pub fn set_diagonal_type(&mut self, diagonal_type: DiagonalType) -> Result<()> {
         self.set_attribute_raw::<sys::cusparseDiagType_t>(
             SparseMatrixAttribute::DiagonalType,
@@ -604,80 +908,202 @@ impl<'a> SparseMatrixDescriptor<'a> {
         )
     }
 
-    /// Sets the pointers of this CSR sparse matrix descriptor.
+    /// Consumes and rebinds the pointers of this CSR sparse matrix descriptor.
     ///
     /// The pointed-to device buffers must remain valid while the descriptor uses them.
-    pub fn set_csr_pointers(
-        &mut self,
-        row_offsets: &'a mut DeviceMemory<impl IndexTypeLike>,
-        column_indices: &'a mut DeviceMemory<impl IndexTypeLike>,
-        values: &'a mut DeviceMemory<impl DataTypeLike>,
-    ) -> Result<()> {
+    /// # Safety
+    ///
+    /// Bindings must match the descriptor's native element types, format, batch
+    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a replacement array belongs to another CUDA context. Also propagates context-binding and native pointer-update errors.
+    pub unsafe fn rebind_csr<'b, I: IndexTypeLike, J: IndexTypeLike, T: DataTypeLike>(
+        self,
+        row_offsets: Option<DeviceOutputView<'b, I>>,
+        column_indices: Option<DeviceOutputView<'b, J>>,
+        values: Option<DeviceOutputView<'b, T>>,
+    ) -> Result<SparseMatrixDescriptor<'b>>
+    where
+        'a: 'b,
+    {
+        let () = I::LAYOUT;
+        let () = J::LAYOUT;
+
+        // SAFETY: ownership is transferred once; all original borrows outlive the new lifetime.
+        let mut rebound = unsafe { SparseMatrixDescriptor::from_raw(self.into_raw())? };
+        rebound.cuda_context.bind()?;
+        let row_offsets = row_offsets
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "row_offsets"))
+            .transpose()?;
+        let column_indices = column_indices
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "column_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "values"))
+            .transpose()?;
+
+        rebound
+            .regions
+            .extend([row_offsets, column_indices, values]);
+        // SAFETY: `cusparseCsrSetPointers` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCsrSetPointers(
-                self.as_raw(),
-                row_offsets.as_mut_ptr().cast(),
-                column_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                rebound.as_raw(),
+                row_offsets
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                column_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
             ))?;
         }
-        Ok(())
+        rebound.regions = vec![row_offsets, column_indices, values];
+        Ok(rebound)
     }
 
-    /// Sets the pointers of this CSC sparse matrix descriptor.
+    /// Consumes and rebinds the pointers of this CSC sparse matrix descriptor.
     ///
     /// The pointed-to device buffers must remain valid while the descriptor uses them.
-    pub fn set_csc_pointers(
-        &mut self,
-        column_offsets: &'a mut DeviceMemory<impl IndexTypeLike>,
-        row_indices: &'a mut DeviceMemory<impl IndexTypeLike>,
-        values: &'a mut DeviceMemory<impl DataTypeLike>,
-    ) -> Result<()> {
+    /// # Safety
+    ///
+    /// Bindings must match the descriptor's native element types, format, batch
+    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a replacement array belongs to another CUDA context. Also propagates context-binding and native pointer-update errors.
+    pub unsafe fn rebind_csc<'b, I: IndexTypeLike, J: IndexTypeLike, T: DataTypeLike>(
+        self,
+        column_offsets: Option<DeviceOutputView<'b, I>>,
+        row_indices: Option<DeviceOutputView<'b, J>>,
+        values: Option<DeviceOutputView<'b, T>>,
+    ) -> Result<SparseMatrixDescriptor<'b>>
+    where
+        'a: 'b,
+    {
+        let () = I::LAYOUT;
+        let () = J::LAYOUT;
+
+        // SAFETY: ownership is transferred once; all original borrows outlive the new lifetime.
+        let mut rebound = unsafe { SparseMatrixDescriptor::from_raw(self.into_raw())? };
+        rebound.cuda_context.bind()?;
+        let column_offsets = column_offsets
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "column_offsets"))
+            .transpose()?;
+        let row_indices = row_indices
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "row_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "values"))
+            .transpose()?;
+
+        rebound
+            .regions
+            .extend([column_offsets, row_indices, values]);
+        // SAFETY: `cusparseCscSetPointers` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCscSetPointers(
-                self.as_raw(),
-                column_offsets.as_mut_ptr().cast(),
-                row_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                rebound.as_raw(),
+                column_offsets
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                row_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
             ))?;
         }
-        Ok(())
+        rebound.regions = vec![column_offsets, row_indices, values];
+        Ok(rebound)
     }
 
-    /// Sets the pointers of this COO sparse matrix descriptor.
+    /// Consumes and rebinds the pointers of this COO sparse matrix descriptor.
     ///
     /// The pointed-to device buffers must remain valid while the descriptor uses them.
-    pub fn set_coo_pointers(
-        &mut self,
-        row_indices: &'a mut DeviceMemory<impl IndexTypeLike>,
-        column_indices: &'a mut DeviceMemory<impl IndexTypeLike>,
-        values: &'a mut DeviceMemory<impl DataTypeLike>,
-    ) -> Result<()> {
+    /// # Safety
+    ///
+    /// Bindings must match the descriptor's native element types, format, batch
+    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a replacement array belongs to another CUDA context. Also propagates context-binding and native pointer-update errors.
+    pub unsafe fn rebind_coo<'b, I: IndexTypeLike, J: IndexTypeLike, T: DataTypeLike>(
+        self,
+        row_indices: Option<DeviceOutputView<'b, I>>,
+        column_indices: Option<DeviceOutputView<'b, J>>,
+        values: Option<DeviceOutputView<'b, T>>,
+    ) -> Result<SparseMatrixDescriptor<'b>>
+    where
+        'a: 'b,
+    {
+        let () = I::LAYOUT;
+        let () = J::LAYOUT;
+
+        // SAFETY: ownership is transferred once; all original borrows outlive the new lifetime.
+        let mut rebound = unsafe { SparseMatrixDescriptor::from_raw(self.into_raw())? };
+        rebound.cuda_context.bind()?;
+        let row_indices = row_indices
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "row_indices"))
+            .transpose()?;
+        let column_indices = column_indices
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "column_indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "values"))
+            .transpose()?;
+
+        rebound
+            .regions
+            .extend([row_indices, column_indices, values]);
+        // SAFETY: `cusparseCooSetPointers` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCooSetPointers(
-                self.as_raw(),
-                row_indices.as_mut_ptr().cast(),
-                column_indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                rebound.as_raw(),
+                row_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                column_indices
+                    .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                    .cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
             ))?;
         }
-        Ok(())
+        rebound.regions = vec![row_indices, column_indices, values];
+        Ok(rebound)
     }
 
+    /// Returns the native descriptor handle without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseSpMatDescr_t {
         self.handle
     }
 
+    /// Returns the native handle in its const-descriptor form.
+    #[must_use]
     pub fn as_raw_const(&self) -> sys::cusparseConstSpMatDescr_t {
         self.handle.cast_const()
     }
 
-    pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.cuda_ctx
+    /// Available borrowed buffer regions, with `None` for unbound pointers.
+    /// Regions do not establish initialized values, valid indices, or producer ordering.
+    /// Raw adoption without metadata returns an empty list.
+    #[must_use]
+    pub fn regions(&self) -> &[Option<DeviceRegion<'a>>] {
+        &self.regions
     }
 
-    pub(crate) fn ensure_context(&self, ctx: &Context) -> Result<()> {
-        if self.cuda_ctx.as_ref() != ctx.cuda_context().as_ref() {
+    /// Returns the actual CUDA context retained by the descriptor.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        &self.cuda_context
+    }
+
+    pub(crate) fn ensure_context(&self, context: &Context) -> Result<()> {
+        if self.cuda_context.as_ref() != context.cuda_context().as_ref() {
             return Err(Error::PlanContextMismatch);
         }
         Ok(())
@@ -688,18 +1114,29 @@ impl<'a> SparseMatrixDescriptor<'a> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusparseSpMatDescr_t`. Any device buffers
-    /// referenced by the descriptor must remain valid for lifetime `'a`.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(handle: sys::cusparseSpMatDescr_t, ctx: &Context) -> Result<Self> {
+    /// `parts.handle` must be a uniquely owned, valid `cusparseSpMatDescr_t` associated
+    /// with `parts.cuda_context`. Its pointer bindings and regions must describe
+    /// live allocations in that context with the required exclusive borrows for
+    /// lifetime `'a`. An empty region list leaves those raw obligations to the caller.
+    /// No other owner may destroy the handle after transfer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(parts: RawDescriptor<'a, sys::cusparseSpMatDescr_t>) -> Result<Self> {
+        let RawDescriptor {
+            handle,
+            cuda_context,
+            regions,
+        } = parts;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context,
+            regions,
             _buffers: PhantomData,
         })
     }
@@ -709,36 +1146,41 @@ impl<'a> SparseMatrixDescriptor<'a> {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseDestroySpMat`.
-    pub fn into_raw(self) -> sys::cusparseSpMatDescr_t {
-        let descriptor = ManuallyDrop::new(self);
-        descriptor.handle
+    #[must_use]
+    pub fn into_raw(mut self) -> RawDescriptor<'a, sys::cusparseSpMatDescr_t> {
+        RawDescriptor {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            cuda_context: Arc::clone(&self.cuda_context),
+            regions: mem::take(&mut self.regions),
+        }
     }
 
-    fn raw_attribute<T: Copy>(&self, attribute: SparseMatrixAttribute) -> Result<T> {
-        let mut value = MaybeUninit::<T>::uninit();
+    fn raw_attribute(&self, attribute: SparseMatrixAttribute) -> Result<u32> {
+        self.cuda_context.bind()?;
+        let mut value = 0_u32;
+        // SAFETY: `cusparseSpMatGetAttribute` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpMatGetAttribute(
                 self.as_raw_const(),
                 attribute.into(),
-                value.as_mut_ptr().cast(),
-                u64::try_from(size_of::<T>()).map_err(|_| Error::OutOfRange {
-                    name: "attribute size".into(),
-                })?,
+                ptr::from_mut(&mut value).cast(),
+                u64::try_from(size_of::<u32>())
+                    .map_err(|_| Error::out_of_range("attribute size"))?,
             ))?;
-            Ok(value.assume_init())
         }
+        Ok(value)
     }
 
     fn set_attribute_raw<T>(&mut self, attribute: SparseMatrixAttribute, value: T) -> Result<()> {
+        self.cuda_context.bind()?;
         let mut value = value;
+        // SAFETY: `cusparseSpMatSetAttribute` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpMatSetAttribute(
                 self.as_raw(),
                 attribute.into(),
-                &raw mut value as *mut _,
-                u64::try_from(size_of::<T>()).map_err(|_| Error::OutOfRange {
-                    name: "attribute size".into(),
-                })?,
+                (&raw mut value).cast(),
+                u64::try_from(size_of::<T>()).map_err(|_| Error::out_of_range("attribute size"))?,
             ))?;
         }
         Ok(())
@@ -747,10 +1189,18 @@ impl<'a> SparseMatrixDescriptor<'a> {
 
 impl Drop for SparseMatrixDescriptor<'_> {
     fn drop(&mut self) {
+        if self.handle.is_null() {
+            return;
+        }
+        if self.cuda_context.bind().is_err() {
+            return;
+        }
+
+        // SAFETY: `cusparseDestroySpMat` receives only plain values.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseDestroySpMat(self.as_raw_const())) {
+            if let Err(error) = try_ffi!(sys::cusparseDestroySpMat(self.as_raw_const())) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse sparse matrix descriptor: {err}");
+                eprintln!("failed to destroy cusparse sparse matrix descriptor: {error}");
             }
         }
     }
@@ -761,23 +1211,33 @@ impl<'a> DenseMatrixDescriptor<'a> {
     ///
     /// The descriptor borrows the device value buffer by pointer; the buffer must
     /// remain valid while the descriptor uses it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid leading dimension, storage-extent overflow, native dimension conversion failure, a different buffer context, or insufficient value storage. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create<T: DataTypeLike>(
-        ctx: &Context,
+        context: &Context,
         rows: usize,
         cols: usize,
         leading_dimension: usize,
-        values: &'a mut DeviceMemory<T>,
+        values: DeviceOutputView<'a, T>,
         order: Order,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        let extent = matrix_extent(rows, cols, leading_dimension, matches!(order, Order::Row))?;
+        let values = output_region(context, values, extent, "values")?;
+
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusparseCreateDnMat` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateDnMat(
                 &raw mut handle,
                 to_i64(rows, "rows")?,
                 to_i64(cols, "cols")?,
                 to_i64(leading_dimension, "leading_dimension")?,
-                values.as_mut_ptr().cast(),
+                values.as_ptr().cast(),
                 T::data_type().into(),
                 order.into(),
             ))?;
@@ -789,7 +1249,8 @@ impl<'a> DenseMatrixDescriptor<'a> {
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context: Arc::clone(context.cuda_context()),
+            regions: vec![Some(values)],
             _buffers: PhantomData,
         })
     }
@@ -800,28 +1261,59 @@ impl<'a> DenseMatrixDescriptor<'a> {
     ///
     /// Returns an error if cuSPARSE cannot report the values pointer.
     pub fn values(&self) -> Result<DevicePtr> {
+        self.cuda_context.bind()?;
         let mut values = ptr::null_mut();
+        // SAFETY: `cusparseDnMatGetValues` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseDnMatGetValues(self.as_raw(), &raw mut values))?;
         }
+        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
         Ok(unsafe { DevicePtr::from_raw(values.cast()) })
     }
 
-    /// Sets the values pointer of this dense matrix descriptor.
+    /// Consumes and rebinds the values pointer of this dense matrix descriptor.
     ///
     /// The pointed-to device buffer must remain valid while the descriptor uses it.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSPARSE rejects the values pointer.
-    pub fn set_values<T: DataTypeLike>(&mut self, values: &'a mut DeviceMemory<T>) -> Result<()> {
+    /// On failure the consumed descriptor is destroyed while both sets of regions remain borrowed.
+    ///
+    /// # Safety
+    ///
+    /// Bindings must match the descriptor's native element types, format, batch
+    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    pub unsafe fn rebind_values<'b, T: DataTypeLike>(
+        self,
+        values: Option<DeviceOutputView<'b, T>>,
+    ) -> Result<DenseMatrixDescriptor<'b>>
+    where
+        'a: 'b,
+    {
+        let () = T::LAYOUT;
+        // SAFETY: ownership is transferred once; all original borrows outlive the new lifetime.
+        let mut rebound = unsafe { DenseMatrixDescriptor::from_raw(self.into_raw())? };
+        rebound.cuda_context.bind()?;
+        let values = values
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "values"))
+            .transpose()?;
+
+        rebound.regions.extend([values]);
+        // SAFETY: `cusparseDnMatSetValues` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseDnMatSetValues(
-                self.as_raw(),
-                values.as_mut_ptr().cast(),
+                rebound.as_raw(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
             ))?;
         }
-        Ok(())
+        let incoming = rebound.regions.pop().unwrap_or(None);
+        if let Some(last) = rebound.regions.last_mut() {
+            *last = incoming;
+        } else {
+            rebound.regions.push(incoming);
+        }
+        Ok(rebound)
     }
 
     /// Returns the fields of this dense matrix descriptor.
@@ -831,12 +1323,14 @@ impl<'a> DenseMatrixDescriptor<'a> {
     /// Returns an error if cuSPARSE cannot report the descriptor fields or if
     /// reported dimensions cannot be represented as `usize`.
     pub fn info(&self) -> Result<DenseMatrixInfo> {
+        self.cuda_context.bind()?;
         let mut rows = 0_i64;
         let mut cols = 0_i64;
         let mut leading_dimension = 0_i64;
         let mut values = ptr::null_mut();
         let mut value_type = MaybeUninit::uninit();
         let mut order = sys::cusparseOrder_t::CUSPARSE_ORDER_ROW;
+        // SAFETY: `cusparseDnMatGet` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseDnMatGet(
                 self.as_raw(),
@@ -852,6 +1346,7 @@ impl<'a> DenseMatrixDescriptor<'a> {
             rows: to_usize(rows, "rows")?,
             cols: to_usize(cols, "cols")?,
             leading_dimension: to_usize(leading_dimension, "leading_dimension")?,
+            // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
             values: unsafe { DevicePtr::from_raw(values.cast()) },
             order: order.into(),
         })
@@ -864,6 +1359,7 @@ impl<'a> DenseMatrixDescriptor<'a> {
     /// Returns an error if either argument cannot be represented by cuSPARSE or
     /// if cuSPARSE rejects the strided batch settings.
     pub fn set_strided_batch(&mut self, batch_count: usize, batch_stride: usize) -> Result<()> {
+        // SAFETY: `cusparseDnMatSetStridedBatch` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusparseDnMatSetStridedBatch(
                 self.as_raw(),
@@ -881,8 +1377,10 @@ impl<'a> DenseMatrixDescriptor<'a> {
     /// Returns an error if cuSPARSE cannot report the strided batch settings or
     /// if the reported stride cannot be represented as `usize`.
     pub fn strided_batch(&self) -> Result<(i32, usize)> {
+        self.cuda_context.bind()?;
         let mut batch_count = 0;
         let mut batch_stride = 0_i64;
+        // SAFETY: `cusparseDnMatGetStridedBatch` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseDnMatGetStridedBatch(
                 self.as_raw_const(),
@@ -893,20 +1391,34 @@ impl<'a> DenseMatrixDescriptor<'a> {
         Ok((batch_count, to_usize(batch_stride, "batch_stride")?))
     }
 
+    /// Returns the native descriptor handle without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseDnMatDescr_t {
         self.handle
     }
 
+    /// Returns the native handle in its const-descriptor form.
+    #[must_use]
     pub fn as_raw_const(&self) -> sys::cusparseConstDnMatDescr_t {
         self.handle.cast_const()
     }
 
-    pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.cuda_ctx
+    /// Available borrowed buffer regions, with `None` for unbound pointers.
+    /// Regions do not establish initialized values, valid indices, or producer ordering.
+    /// Raw adoption without metadata returns an empty list.
+    #[must_use]
+    pub fn regions(&self) -> &[Option<DeviceRegion<'a>>] {
+        &self.regions
     }
 
-    pub(crate) fn ensure_context(&self, ctx: &Context) -> Result<()> {
-        if self.cuda_ctx.as_ref() != ctx.cuda_context().as_ref() {
+    /// Returns the actual CUDA context retained by the descriptor.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        &self.cuda_context
+    }
+
+    pub(crate) fn ensure_context(&self, context: &Context) -> Result<()> {
+        if self.cuda_context.as_ref() != context.cuda_context().as_ref() {
             return Err(Error::PlanContextMismatch);
         }
         Ok(())
@@ -917,18 +1429,29 @@ impl<'a> DenseMatrixDescriptor<'a> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusparseDnMatDescr_t`. Any device buffer
-    /// referenced by the descriptor must remain valid for lifetime `'a`.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(handle: sys::cusparseDnMatDescr_t, ctx: &Context) -> Result<Self> {
+    /// `parts.handle` must be a uniquely owned, valid `cusparseDnMatDescr_t` associated
+    /// with `parts.cuda_context`. Its pointer bindings and regions must describe
+    /// live allocations in that context with the required exclusive borrows for
+    /// lifetime `'a`. An empty region list leaves those raw obligations to the caller.
+    /// No other owner may destroy the handle after transfer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(parts: RawDescriptor<'a, sys::cusparseDnMatDescr_t>) -> Result<Self> {
+        let RawDescriptor {
+            handle,
+            cuda_context,
+            regions,
+        } = parts;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context,
+            regions,
             _buffers: PhantomData,
         })
     }
@@ -938,18 +1461,30 @@ impl<'a> DenseMatrixDescriptor<'a> {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseDestroyDnMat`.
-    pub fn into_raw(self) -> sys::cusparseDnMatDescr_t {
-        let descriptor = ManuallyDrop::new(self);
-        descriptor.handle
+    #[must_use]
+    pub fn into_raw(mut self) -> RawDescriptor<'a, sys::cusparseDnMatDescr_t> {
+        RawDescriptor {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            cuda_context: Arc::clone(&self.cuda_context),
+            regions: mem::take(&mut self.regions),
+        }
     }
 }
 
 impl Drop for DenseMatrixDescriptor<'_> {
     fn drop(&mut self) {
+        if self.handle.is_null() {
+            return;
+        }
+        if self.cuda_context.bind().is_err() {
+            return;
+        }
+
+        // SAFETY: `cusparseDestroyDnMat` receives only plain values.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseDestroyDnMat(self.as_raw_const())) {
+            if let Err(error) = try_ffi!(sys::cusparseDestroyDnMat(self.as_raw_const())) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse dense matrix descriptor: {err}");
+                eprintln!("failed to destroy cusparse dense matrix descriptor: {error}");
             }
         }
     }
@@ -957,20 +1492,23 @@ impl Drop for DenseMatrixDescriptor<'_> {
 
 fn ensure_spmat<'a>(
     handle: sys::cusparseSpMatDescr_t,
-    ctx: &Context,
+    context: &Context,
+    regions: Vec<Option<DeviceRegion<'a>>>,
 ) -> Result<SparseMatrixDescriptor<'a>> {
     if handle.is_null() {
         Err(Error::NullHandle)
     } else {
         Ok(SparseMatrixDescriptor {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context: Arc::clone(context.cuda_context()),
+            regions,
             _buffers: PhantomData,
         })
     }
 }
 
 /// Converts a sparse matrix in CSR format into a sparse matrix in CSC format.
+///
 /// The resulting matrix can also be seen as the transpose of the original sparse matrix.
 /// This can also convert a matrix in CSC format into a matrix in CSR format.
 ///
@@ -1010,8 +1548,8 @@ fn ensure_spmat<'a>(
 ///
 /// | Action | Notes |
 /// | --- | --- |
-/// | [`Action::Symbolic`](crate::types::Action::Symbolic) | Compute the structure of the CSC output matrix (offset, row indices). |
-/// | [`Action::Numeric`](crate::types::Action::Numeric) | Compute the structure of the CSC output matrix and copy the values. |
+/// | [`Action::Symbolic`] | Compute the structure of the CSC output matrix (offset, row indices). |
+/// | [`Action::Numeric`] | Compute the structure of the CSC output matrix and copy the values. |
 ///
 /// [`csr_to_csc`] has the following properties:
 ///
@@ -1022,33 +1560,66 @@ fn ensure_spmat<'a>(
 ///
 /// * CUDA graph capture.
 /// * Hardware Memory Compression.
-pub fn csr_to_csc<T: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error for a buffer from another CUDA context, insufficient exposed storage, offset-count overflow, or counts that cannot fit in the native integer types. Also propagates context-binding and native conversion errors.
+pub unsafe fn csr_to_csc<T: DataTypeLike>(
+    context: &Context,
     row_count: usize,
     col_count: usize,
     nonzero_count: usize,
-    csr_values: &DeviceMemory<T>,
-    csr_row_offsets: &DeviceMemory<i32>,
-    csr_column_indices: &DeviceMemory<i32>,
-    csc_values: &mut DeviceMemory<T>,
-    csc_column_offsets: &mut DeviceMemory<i32>,
-    csc_row_indices: &mut DeviceMemory<i32>,
-    action: crate::types::Action,
+    csr_values: &(impl DeviceInput<T> + ?Sized),
+    csr_row_offsets: &(impl DeviceInput<i32> + ?Sized),
+    csr_column_indices: &(impl DeviceInput<i32> + ?Sized),
+    column_ordered_values: &mut (impl DeviceOutput<T> + ?Sized),
+    csc_column_offsets: &mut (impl DeviceOutput<i32> + ?Sized),
+    csc_row_indices: &mut (impl DeviceOutput<i32> + ?Sized),
+    action: Action,
     index_base: IndexBase,
     algorithm: CsrToCscAlgorithm,
-    external_buffer: &mut DeviceMemory<u8>,
+    external_buffer: &mut (impl DeviceOutput<u8> + ?Sized),
 ) -> Result<()> {
-    ctx.bind()?;
+    let row_offsets = checked_add(row_count, 1, "CSR row offsets")?;
+    let column_offsets = checked_add(col_count, 1, "CSC column offsets")?;
+    input_region(context, csr_values, nonzero_count, "csr_values")?;
+    input_region(context, csr_row_offsets, row_offsets, "csr_row_offsets")?;
+    input_region(
+        context,
+        csr_column_indices,
+        nonzero_count,
+        "csr_column_indices",
+    )?;
+    input_region(
+        context,
+        column_ordered_values,
+        nonzero_count,
+        "column_ordered_values",
+    )?;
+    input_region(
+        context,
+        csc_column_offsets,
+        column_offsets,
+        "csc_column_offsets",
+    )?;
+    input_region(context, csc_row_indices, nonzero_count, "csc_row_indices")?;
+    input_region(context, external_buffer, 0, "workspace")?;
+    context.bind()?;
+    // SAFETY: `cusparseCsr2cscEx2` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseCsr2cscEx2(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(row_count, "row_count")?,
             to_i32(col_count, "col_count")?,
             to_i32(nonzero_count, "nonzero_count")?,
-            csr_values.as_ptr().cast(),
-            csr_row_offsets.as_ptr() as _,
-            csr_column_indices.as_ptr() as _,
-            csc_values.as_mut_ptr().cast(),
+            csr_values.as_device_ptr().cast(),
+            csr_row_offsets.as_device_ptr().cast(),
+            csr_column_indices.as_device_ptr().cast(),
+            column_ordered_values.as_mut_ptr().cast(),
             csc_column_offsets.as_mut_ptr(),
             csc_row_indices.as_mut_ptr(),
             T::data_type().into(),
@@ -1102,41 +1673,67 @@ pub fn csr_to_csc<T: DataTypeLike>(
 ///
 /// * CUDA graph capture.
 /// * Hardware Memory Compression.
-pub fn sparse_to_dense(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn sparse_to_dense(
+    context: &Context,
     matrix_a: &SparseMatrixDescriptor,
     matrix_b: &mut DenseMatrixDescriptor,
     algorithm: SparseToDenseAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    ctx.bind()?;
+    let external_buffer = workspace(context, external_buffer)?;
+
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    context.bind()?;
+    // SAFETY: `cusparseSparseToDense` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSparseToDense(
-            ctx.as_raw(),
+            context.as_raw(),
             matrix_a.as_raw_const(),
             matrix_b.as_raw(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())
 }
 
-pub fn dense_to_sparse_buffer_size(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn dense_to_sparse_buffer_size(
+    context: &Context,
     matrix_a: &DenseMatrixDescriptor,
     matrix_b: &mut SparseMatrixDescriptor,
     algorithm: DenseToSparseAlgorithm,
 ) -> Result<usize> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    ctx.bind()?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    context.bind()?;
     let mut size = 0;
+    // SAFETY: `cusparseDenseToSparse_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusparseDenseToSparse_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             matrix_a.as_raw_const(),
             matrix_b.as_raw(),
             algorithm.into(),
@@ -1146,77 +1743,139 @@ pub fn dense_to_sparse_buffer_size(
     to_usize(size, "dense-to-sparse buffer size")
 }
 
-pub fn dense_to_sparse_analysis(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn dense_to_sparse_analysis(
+    context: &Context,
     matrix_a: &DenseMatrixDescriptor,
     matrix_b: &mut SparseMatrixDescriptor,
     algorithm: DenseToSparseAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    ctx.bind()?;
+    let external_buffer = workspace(context, external_buffer)?;
+
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    context.bind()?;
+    // SAFETY: `cusparseDenseToSparse_analysis` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseDenseToSparse_analysis(
-            ctx.as_raw(),
+            context.as_raw(),
             matrix_a.as_raw_const(),
             matrix_b.as_raw(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())
 }
 
-pub fn dense_to_sparse_convert(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn dense_to_sparse_convert(
+    context: &Context,
     matrix_a: &DenseMatrixDescriptor,
     matrix_b: &mut SparseMatrixDescriptor,
     algorithm: DenseToSparseAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    ctx.bind()?;
+    let external_buffer = workspace(context, external_buffer)?;
+
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    context.bind()?;
+    // SAFETY: `cusparseDenseToSparse_convert` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseDenseToSparse_convert(
-            ctx.as_raw(),
+            context.as_raw(),
             matrix_a.as_raw_const(),
             matrix_b.as_raw(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())
 }
 
-pub fn csr_to_csc_buffer_size<T: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error for a buffer from another CUDA context, insufficient exposed storage, offset-count overflow, or counts that cannot fit in the native integer types. Also propagates context-binding and native conversion errors. Rejects a returned workspace size that cannot fit in `usize`.
+pub unsafe fn csr_to_csc_buffer_size<T: DataTypeLike>(
+    context: &Context,
     row_count: usize,
     col_count: usize,
     nonzero_count: usize,
-    csr_values: &DeviceMemory<T>,
-    csr_row_offsets: &DeviceMemory<i32>,
-    csr_column_indices: &DeviceMemory<i32>,
-    csc_values: &mut DeviceMemory<T>,
-    csc_column_offsets: &mut DeviceMemory<i32>,
-    csc_row_indices: &mut DeviceMemory<i32>,
-    action: crate::types::Action,
+    csr_values: &(impl DeviceInput<T> + ?Sized),
+    csr_row_offsets: &(impl DeviceInput<i32> + ?Sized),
+    csr_column_indices: &(impl DeviceInput<i32> + ?Sized),
+    column_ordered_values: &mut (impl DeviceOutput<T> + ?Sized),
+    csc_column_offsets: &mut (impl DeviceOutput<i32> + ?Sized),
+    csc_row_indices: &mut (impl DeviceOutput<i32> + ?Sized),
+    action: Action,
     index_base: IndexBase,
     algorithm: CsrToCscAlgorithm,
 ) -> Result<usize> {
-    ctx.bind()?;
+    let row_offsets = checked_add(row_count, 1, "CSR row offsets")?;
+    let column_offsets = checked_add(col_count, 1, "CSC column offsets")?;
+    input_region(context, csr_values, nonzero_count, "csr_values")?;
+    input_region(context, csr_row_offsets, row_offsets, "csr_row_offsets")?;
+    input_region(
+        context,
+        csr_column_indices,
+        nonzero_count,
+        "csr_column_indices",
+    )?;
+    input_region(
+        context,
+        column_ordered_values,
+        nonzero_count,
+        "column_ordered_values",
+    )?;
+    input_region(
+        context,
+        csc_column_offsets,
+        column_offsets,
+        "csc_column_offsets",
+    )?;
+    input_region(context, csc_row_indices, nonzero_count, "csc_row_indices")?;
+    context.bind()?;
     let mut size = 0;
+    // SAFETY: `cusparseCsr2cscEx2_bufferSize` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseCsr2cscEx2_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(row_count, "row_count")?,
             to_i32(col_count, "col_count")?,
             to_i32(nonzero_count, "nonzero_count")?,
-            csr_values.as_ptr().cast(),
-            csr_row_offsets.as_ptr() as _,
-            csr_column_indices.as_ptr() as _,
-            csc_values.as_mut_ptr().cast(),
+            csr_values.as_device_ptr().cast(),
+            csr_row_offsets.as_device_ptr().cast(),
+            csr_column_indices.as_device_ptr().cast(),
+            column_ordered_values.as_mut_ptr().cast(),
             csc_column_offsets.as_mut_ptr(),
             csc_row_indices.as_mut_ptr(),
             T::data_type().into(),
@@ -1236,25 +1895,35 @@ pub fn csr_to_csc_buffer_size<T: DataTypeLike>(
 /// * Requires no extra storage.
 /// * Supports asynchronous execution.
 /// * Supports CUDA graph capture.
-pub fn csr_to_coo(
-    ctx: &Context,
-    csr_row_offsets: &DeviceMemory<i32>,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error for a buffer from another CUDA context, insufficient exposed storage, offset-count overflow, or counts that cannot fit in the native integer types. Also propagates context-binding and native conversion errors.
+pub unsafe fn csr_to_coo(
+    context: &Context,
+    csr_row_offsets: &(impl DeviceInput<i32> + ?Sized),
     nonzero_count: usize,
     row_count: usize,
-    coo_row_indices: &mut DeviceMemory<i32>,
+    coo_row_indices: &mut (impl DeviceOutput<i32> + ?Sized),
     index_base: IndexBase,
 ) -> Result<()> {
-    ctx.bind()?;
-    if csr_row_offsets.len() < row_count.saturating_add(1) || coo_row_indices.len() < nonzero_count
-    {
-        return Err(Error::OutOfRange {
-            name: "csr/coo buffer length".into(),
-        });
-    }
+    context.bind()?;
+    input_region(
+        context,
+        csr_row_offsets,
+        checked_add(row_count, 1, "CSR row offsets")?,
+        "csr_row_offsets",
+    )?;
+    input_region(context, coo_row_indices, nonzero_count, "coo_row_indices")?;
+    // SAFETY: `cusparseXcsr2coo` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseXcsr2coo(
-            ctx.as_raw(),
-            csr_row_offsets.as_ptr() as _,
+            context.as_raw(),
+            csr_row_offsets.as_device_ptr().cast(),
             to_i32(nonzero_count, "nonzero_count")?,
             to_i32(row_count, "row_count")?,
             coo_row_indices.as_mut_ptr(),
@@ -1264,19 +1933,30 @@ pub fn csr_to_coo(
     Ok(())
 }
 
-pub fn sparse_to_dense_buffer_size(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn sparse_to_dense_buffer_size(
+    context: &Context,
     matrix_a: &SparseMatrixDescriptor,
     matrix_b: &mut DenseMatrixDescriptor,
     algorithm: SparseToDenseAlgorithm,
 ) -> Result<usize> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    ctx.bind()?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    context.bind()?;
     let mut size = 0;
+    // SAFETY: `cusparseSparseToDense_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusparseSparseToDense_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             matrix_a.as_raw_const(),
             matrix_b.as_raw(),
             algorithm.into(),
@@ -1293,24 +1973,35 @@ pub fn sparse_to_dense_buffer_size(
 /// * Requires no extra storage.
 /// * Supports asynchronous execution.
 /// * Supports CUDA graph capture.
-pub fn coo_to_csr(
-    ctx: &Context,
-    coo_row_indices: &DeviceMemory<i32>,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including index
+/// bounds, initialized inputs, produced output ranges, and scratch lifetimes.
+///
+/// # Errors
+///
+/// Returns an error for a buffer from another CUDA context, insufficient exposed storage, offset-count overflow, or counts that cannot fit in the native integer types. Also propagates context-binding and native conversion errors.
+pub unsafe fn coo_to_csr(
+    context: &Context,
+    coo_row_indices: &(impl DeviceInput<i32> + ?Sized),
     row_count: usize,
-    csr_row_offsets: &mut DeviceMemory<i32>,
+    csr_row_offsets: &mut (impl DeviceOutput<i32> + ?Sized),
     index_base: IndexBase,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     let nonzero_count = coo_row_indices.len();
-    if csr_row_offsets.len() < row_count.saturating_add(1) {
-        return Err(Error::OutOfRange {
-            name: "csr_row_offsets length".into(),
-        });
-    }
+    input_region(context, coo_row_indices, nonzero_count, "coo_row_indices")?;
+    input_region(
+        context,
+        csr_row_offsets,
+        checked_add(row_count, 1, "CSR row offsets")?,
+        "csr_row_offsets",
+    )?;
+    // SAFETY: `cusparseXcoo2csr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseXcoo2csr(
-            ctx.as_raw(),
-            coo_row_indices.as_ptr() as _,
+            context.as_raw(),
+            coo_row_indices.as_device_ptr().cast(),
             to_i32(nonzero_count, "nonzero_count")?,
             to_i32(row_count, "row_count")?,
             csr_row_offsets.as_mut_ptr(),

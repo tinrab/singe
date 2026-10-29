@@ -1,4 +1,5 @@
 nccl_include_path := "$NCCL_INCLUDE_PATH"
+cuda_path := "$CUDA_PATH"
 
 generate:
     #!/usr/bin/env bash
@@ -9,6 +10,7 @@ generate:
         "ncclRedOp_t"
         "ncclDataType_t"
         "ncclScalarResidence_t"
+        "ncclHostCftMode_t"
     )
     enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
 
@@ -19,7 +21,6 @@ generate:
         --blocklist-item "^cuda.*" \
         --blocklist-item "^CUstream_st$" \
         --blocklist-item "^dim3$" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -29,10 +30,14 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -fparse-all-comments \
+            -fretain-comments-from-system-headers \
+            -I {{cuda_path}}/include \
             -I {{nccl_include_path}} \
+            -include nccl_device/host.h \
         > bindings.rs
 
-    NCCL_VERSION=$(cat bindings.rs | grep "NCCL_VERSION_CODE" | awk '{ print $6 }' | sed 's/.$//')
+    NCCL_VERSION=$(awk '/^pub const NCCL_VERSION_CODE:/ { sub(/;$/, "", $6); print $6 }' bindings.rs)
     if [ -z "${NCCL_VERSION}" ]; then
         echo "NCCL_VERSION is empty"
         exit 1

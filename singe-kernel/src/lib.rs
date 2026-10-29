@@ -5,7 +5,7 @@ pub mod cpu;
 pub mod error;
 
 // `cutile` is currently the only backend.
-#[cfg(all(feature = "cuda_13_3", feature = "cutile"))]
+#[cfg(all(feature = "cuda_13_4", feature = "cutile"))]
 pub mod cuda;
 
 pub(crate) mod utility;

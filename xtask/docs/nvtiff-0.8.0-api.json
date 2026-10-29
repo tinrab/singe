@@ -1,0 +1,2341 @@
+{
+  "nvtiffGetProperty": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv417nvtiffGetProperty19libraryPropertyTypePi",
+    "doc": "Gets the library\u2019s property values.\n\nThis function retrieves version information about the nvTIFF library. The `libraryPropertyType` enum is defined in CUDA\u2019s `library_types.h` header.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvtiffGetProperty19libraryPropertyTypePi",
+    "signature": "nvtiffStatus_t nvtiffGetProperty(libraryPropertyType type, int * value)",
+    "parameters": {
+      "type": {
+        "doc": "The property to retrieve. Valid values are."
+      },
+      "value": {
+        "doc": "Pointer to receive the numeric value of the requested property.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv418nvtiffStreamCreateP14nvtiffStream_t",
+    "doc": "Creates an instance of the bitstream handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv418nvtiffStreamCreateP14nvtiffStream_t",
+    "signature": "nvtiffStatus_t nvtiffStreamCreate(nvtiffStream_t * tiff_stream)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "Pointer to nvTIFF bitstream handle.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffStreamDestroy14nvtiffStream_t",
+    "doc": "Releases the bitstream handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvtiffStreamDestroy14nvtiffStream_t",
+    "signature": "nvtiffStatus_t nvtiffStreamDestroy(nvtiffStream_t tiff_stream)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "nvTIFF bitstream handle to destroy."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecoderCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffDecoderCreateP15nvtiffDecoder_tP23nvtiffDeviceAllocator_tP23nvtiffPinnedAllocator_t12cudaStream_t",
+    "doc": "Creates an instance of the decoder handle with custom memory allocators.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvtiffDecoderCreateP15nvtiffDecoder_tP23nvtiffDeviceAllocator_tP23nvtiffPinnedAllocator_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffDecoderCreate(nvtiffDecoder_t * decoder, nvtiffDeviceAllocator_t * device_allocator, nvtiffPinnedAllocator_t * pinned_allocator, cudaStream_t stream)",
+    "parameters": {
+      "decoder": {
+        "doc": "Pointer to nvTIFF decoder handle.",
+        "output": true
+      },
+      "device_allocator": {
+        "doc": "User-provided device memory allocator. If `NULL`, the library uses `cudaMalloc` / `cudaFree`."
+      },
+      "pinned_allocator": {
+        "doc": "User-provided pinned memory allocator. If `NULL`, the library uses `cudaHostAlloc` / `cudaFreeHost`."
+      },
+      "stream": {
+        "doc": "CUDA stream for asynchronous API calls."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecoderCreateSimple": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv425nvtiffDecoderCreateSimpleP15nvtiffDecoder_t12cudaStream_t",
+    "doc": "Creates an instance of the decoder handle with default memory allocators.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvtiffDecoderCreateSimpleP15nvtiffDecoder_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffDecoderCreateSimple(nvtiffDecoder_t * decoder, cudaStream_t stream)",
+    "parameters": {
+      "decoder": {
+        "doc": "Pointer to nvTIFF decoder handle.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream for asynchronous API calls."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecoderDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffDecoderDestroy15nvtiffDecoder_t12cudaStream_t",
+    "doc": "Releases the decoder handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvtiffDecoderDestroy15nvtiffDecoder_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffDecoderDestroy(nvtiffDecoder_t decoder, cudaStream_t stream)",
+    "parameters": {
+      "decoder": {
+        "doc": "nvTIFF decoder handle to destroy."
+      },
+      "stream": {
+        "doc": "CUDA stream for asynchronous API calls."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecodeParamsCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv424nvtiffDecodeParamsCreateP20nvtiffDecodeParams_t",
+    "doc": "Creates an instance of the decode parameters handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv424nvtiffDecodeParamsCreateP20nvtiffDecodeParams_t",
+    "signature": "nvtiffStatus_t nvtiffDecodeParamsCreate(nvtiffDecodeParams_t * decode_params)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Pointer to decode parameters handle.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecodeParamsDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv425nvtiffDecodeParamsDestroy20nvtiffDecodeParams_t",
+    "doc": "Releases the decode parameters handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvtiffDecodeParamsDestroy20nvtiffDecodeParams_t",
+    "signature": "nvtiffStatus_t nvtiffDecodeParamsDestroy(nvtiffDecodeParams_t decode_params)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode parameters handle to destroy."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncoderCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffEncoderCreateP15nvtiffEncoder_tP23nvtiffDeviceAllocator_tP23nvtiffPinnedAllocator_t12cudaStream_t",
+    "doc": "Creates and initializes a TIFF encoder instance.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvtiffEncoderCreateP15nvtiffEncoder_tP23nvtiffDeviceAllocator_tP23nvtiffPinnedAllocator_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffEncoderCreate(nvtiffEncoder_t * encoder, nvtiffDeviceAllocator_t * device_allocator, nvtiffPinnedAllocator_t * pinned_allocator, cudaStream_t stream)",
+    "parameters": {
+      "encoder": {
+        "doc": "Pointer to encoder handle.",
+        "output": true
+      },
+      "device_allocator": {
+        "doc": "Custom device memory allocator (can be `NULL` to use `cudaMalloc()` / `cudaFree()`)."
+      },
+      "pinned_allocator": {
+        "doc": "Custom pinned memory allocator (can be `NULL` to use `cudaHostAlloc()` / `cudaFreeHost()`)."
+      },
+      "stream": {
+        "doc": "CUDA stream."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncoderDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffEncoderDestroy15nvtiffEncoder_t12cudaStream_t",
+    "doc": "Destroys a TIFF encoder instance and frees associated resources.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvtiffEncoderDestroy15nvtiffEncoder_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffEncoderDestroy(nvtiffEncoder_t encoder, cudaStream_t stream)",
+    "parameters": {
+      "encoder": {
+        "doc": "Encoder handle to destroy."
+      },
+      "stream": {
+        "doc": "CUDA stream."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsCreate": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv424nvtiffEncodeParamsCreateP20nvtiffEncodeParams_t",
+    "doc": "Creates and initializes encode parameters object.",
+    "page": "apireference.md",
+    "anchor": "_CPPv424nvtiffEncodeParamsCreateP20nvtiffEncodeParams_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsCreate(nvtiffEncodeParams_t * params)",
+    "parameters": {
+      "params": {
+        "doc": "Pointer to encode parameters handle.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsDestroy": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv425nvtiffEncodeParamsDestroy20nvtiffEncodeParams_t12cudaStream_t",
+    "doc": "Destroys encode parameters object and frees associated resources.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvtiffEncodeParamsDestroy20nvtiffEncodeParams_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsDestroy(nvtiffEncodeParams_t params, cudaStream_t stream)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "stream": {
+        "doc": "CUDA stream."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamParseFromFile": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv425nvtiffStreamParseFromFilePKc14nvtiffStream_t",
+    "doc": "Parses a TIFF file and stores the metadata in the stream handle.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvtiffStreamParseFromFilePKc14nvtiffStream_t",
+    "signature": "nvtiffStatus_t nvtiffStreamParseFromFile(const char * fname, nvtiffStream_t tiff_stream)",
+    "parameters": {
+      "fname": {
+        "doc": "TIFF file name on disk."
+      },
+      "tiff_stream": {
+        "doc": "TIFF stream handle to be initialized.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamParse": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv417nvtiffStreamParsePK7uint8_t6size_t14nvtiffStream_t",
+    "doc": "Parses a TIFF file from host memory and stores the metadata.\n\nFor best decode performance, the host buffer should be page-locked (pinned) memory. This can be allocated with `cudaHostAlloc`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvtiffStreamParsePK7uint8_t6size_t14nvtiffStream_t",
+    "signature": "nvtiffStatus_t nvtiffStreamParse(const uint8_t * buffer, size_t buffer_size, nvtiffStream_t tiff_stream)",
+    "parameters": {
+      "buffer": {
+        "doc": "Buffer containing TIFF file data."
+      },
+      "buffer_size": {
+        "doc": "Size of the buffer in bytes."
+      },
+      "tiff_stream": {
+        "doc": "TIFF stream handle to be initialized.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamParseFromFileEx": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv427nvtiffStreamParseFromFileExPKc14nvtiffStream_t6size_t8uint32_tP6size_t",
+    "doc": "Extended version of `nvtiffStreamParseFromFile()` with pagination support.\n\nSupports parsing from a specific bitstream offset and limiting the number of images parsed. This is useful for parsing large multi-image TIFFs incrementally.\n\nIf `bitstream_offset` is zero, parsing starts at the first IFD specified in the TIFF header. If `limit_images` is zero, all images in the IFD chain are parsed.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvtiffStreamParseFromFileExPKc14nvtiffStream_t6size_t8uint32_tP6size_t",
+    "signature": "nvtiffStatus_t nvtiffStreamParseFromFileEx(const char * fname, nvtiffStream_t tiff_stream, size_t bitstream_offset, uint32_t limit_images, size_t * next_bitstream_offset)",
+    "parameters": {
+      "fname": {
+        "doc": "TIFF file name on disk."
+      },
+      "tiff_stream": {
+        "doc": "TIFF stream handle to be initialized.",
+        "output": true
+      },
+      "bitstream_offset": {
+        "doc": "Bitstream offset of the IFD to start parsing from (0 = beginning)."
+      },
+      "limit_images": {
+        "doc": "Maximum number of images to parse (0 = no limit)."
+      },
+      "next_bitstream_offset": {
+        "doc": "If non-null, receives the offset of the next IFD (0 if end of chain).",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamParseEx": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffStreamParseExPK7uint8_t6size_t14nvtiffStream_t6size_t8uint32_tP6size_t",
+    "doc": "Extended version of `nvtiffStreamParse()` with pagination support.\n\nSupports parsing from a specific bitstream offset and limiting the number of images parsed. This is useful for parsing large multi-image TIFFs from memory incrementally.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvtiffStreamParseExPK7uint8_t6size_t14nvtiffStream_t6size_t8uint32_tP6size_t",
+    "signature": "nvtiffStatus_t nvtiffStreamParseEx(const uint8_t * buffer, size_t buffer_size, nvtiffStream_t tiff_stream, size_t bitstream_offset, uint32_t limit_images, size_t * next_bitstream_offset)",
+    "parameters": {
+      "buffer": {
+        "doc": "Buffer containing TIFF file data."
+      },
+      "buffer_size": {
+        "doc": "Size of the buffer in bytes."
+      },
+      "tiff_stream": {
+        "doc": "TIFF stream handle to be initialized.",
+        "output": true
+      },
+      "bitstream_offset": {
+        "doc": "Bitstream offset of the IFD to start parsing from (0 = beginning)."
+      },
+      "limit_images": {
+        "doc": "Maximum number of images to parse (0 = no limit)."
+      },
+      "next_bitstream_offset": {
+        "doc": "If non-null, receives the offset of the next IFD (0 if end of chain).",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamParseFromParentStream": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv433nvtiffStreamParseFromParentStream14nvtiffStream_t14nvtiffStream_t6size_t8uint32_tP6size_t",
+    "doc": "Parses a new stream from a specified bitstream offset within an existing TIFF stream.\n\nThis can be used to parse SubIFDs and other custom IFD chains. The new stream shares the same base resource (file or memory buffer) as the parent stream. The resource is only released when all streams referencing it have been destroyed.\n\nThe `offset_stream` parameter can be the same as `parent_stream`, in which case the source stream will be replaced with the target stream.",
+    "page": "apireference.md",
+    "anchor": "_CPPv433nvtiffStreamParseFromParentStream14nvtiffStream_t14nvtiffStream_t6size_t8uint32_tP6size_t",
+    "signature": "nvtiffStatus_t nvtiffStreamParseFromParentStream(nvtiffStream_t parent_stream, nvtiffStream_t offset_stream, size_t bitstream_offset, uint32_t limit_images, size_t * next_bitstream_offset)",
+    "parameters": {
+      "parent_stream": {
+        "doc": "Parent TIFF stream handle."
+      },
+      "offset_stream": {
+        "doc": "Stream handle to be initialized from the specified offset.",
+        "output": true
+      },
+      "bitstream_offset": {
+        "doc": "Bitstream offset of the IFD to parse relative to the file beginning."
+      },
+      "limit_images": {
+        "doc": "Maximum number of images to parse along the IFD chain (0 = no limit)."
+      },
+      "next_bitstream_offset": {
+        "doc": "If non-null, receives the offset of the next IFD (0 if end of chain).",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetBitstreamOffset": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv430nvtiffStreamGetBitstreamOffset14nvtiffStream_t8uint32_tP6size_t",
+    "doc": "Retrieves the bitstream offset of a given IFD within the TIFF file.\n\nEach image\u2019s bitstream offset serves as a unique identifier, which is helpful for dealing with complex TIFF structures involving SubIFDs.",
+    "page": "apireference.md",
+    "anchor": "_CPPv430nvtiffStreamGetBitstreamOffset14nvtiffStream_t8uint32_tP6size_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetBitstreamOffset(nvtiffStream_t tiff_stream, uint32_t image_id, size_t * offset)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "offset": {
+        "doc": "Pointer to receive the file offset where the image\u2019s IFD begins.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamPrint": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv417nvtiffStreamPrint14nvtiffStream_t",
+    "doc": "Prints the TIFF file metadata to standard output.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvtiffStreamPrint14nvtiffStream_t",
+    "signature": "nvtiffStatus_t nvtiffStreamPrint(nvtiffStream_t tiff_stream)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetNumImages": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv424nvtiffStreamGetNumImages14nvtiffStream_tP8uint32_t",
+    "doc": "Retrieves the number of images stored in a TIFF file.",
+    "page": "apireference.md",
+    "anchor": "_CPPv424nvtiffStreamGetNumImages14nvtiffStream_tP8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetNumImages(nvtiffStream_t tiff_stream, uint32_t * num_images)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "num_images": {
+        "doc": "Pointer to receive the number of images.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetImageInfo": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv424nvtiffStreamGetImageInfo14nvtiffStream_t8uint32_tP17nvtiffImageInfo_t",
+    "doc": "Retrieves the image information for a given image in a TIFF file.",
+    "page": "apireference.md",
+    "anchor": "_CPPv424nvtiffStreamGetImageInfo14nvtiffStream_t8uint32_tP17nvtiffImageInfo_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetImageInfo(nvtiffStream_t tiff_stream, uint32_t image_id, nvtiffImageInfo_t * image_info)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "image_info": {
+        "doc": "Pointer to [nvtiffImageInfo_t](https://docs.nvidia.com/cuda/nvtiff/apireference.html#structnvtiffImageInfo__t) structure to receive the image information.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetImageGeometry": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv428nvtiffStreamGetImageGeometry14nvtiffStream_t8uint32_tP21nvtiffImageGeometry_t",
+    "doc": "Retrieves image geometry information.\n\nGeometry includes information whether the images use strips or tiles and their corresponding dimensions.",
+    "page": "apireference.md",
+    "anchor": "_CPPv428nvtiffStreamGetImageGeometry14nvtiffStream_t8uint32_tP21nvtiffImageGeometry_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetImageGeometry(nvtiffStream_t tiff_stream, uint32_t image_id, nvtiffImageGeometry_t * geometry)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "geometry": {
+        "doc": "Pointer to [nvtiffImageGeometry_t](https://docs.nvidia.com/cuda/nvtiff/apireference.html#structnvtiffImageGeometry__t) structure.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetTagInfo": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffStreamGetTagInfo14nvtiffStream_t8uint32_t11nvtiffTag_tP19nvtiffTagDataType_tP8uint32_tP8uint32_t",
+    "doc": "Retrieves TIFF tag information.\n\nRetrieves tag type, size per element, and count for a specific tag in an image.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvtiffStreamGetTagInfo14nvtiffStream_t8uint32_t11nvtiffTag_tP19nvtiffTagDataType_tP8uint32_tP8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetTagInfo(nvtiffStream_t tiff_stream, uint32_t image_id, nvtiffTag_t tiff_tag, nvtiffTagDataType_t * tag_type, uint32_t * size, uint32_t * count)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "tiff_tag": {
+        "doc": "TIFF tag to query."
+      },
+      "tag_type": {
+        "doc": "Pointer to receive the datatype of the tag.",
+        "output": true
+      },
+      "size": {
+        "doc": "Pointer to receive the size of individual values in the tag.",
+        "output": true
+      },
+      "count": {
+        "doc": "Pointer to receive the number of values in the tag.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetTagValue": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv423nvtiffStreamGetTagValue14nvtiffStream_t8uint32_t11nvtiffTag_tPv8uint32_t",
+    "doc": "Retrieves the values stored in a TIFF tag.",
+    "page": "apireference.md",
+    "anchor": "_CPPv423nvtiffStreamGetTagValue14nvtiffStream_t8uint32_t11nvtiffTag_tPv8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetTagValue(nvtiffStream_t tiff_stream, uint32_t image_id, nvtiffTag_t tiff_tag, void * tag_value, uint32_t count)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "tiff_tag": {
+        "doc": "TIFF tag to query."
+      },
+      "tag_value": {
+        "doc": "Pointer to buffer to receive the tag values.",
+        "output": true
+      },
+      "count": {
+        "doc": "Number of values to retrieve."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetTagInfoGeneric": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv429nvtiffStreamGetTagInfoGeneric14nvtiffStream_t8uint32_t8uint16_tP19nvtiffTagDataType_tP8uint32_tP8uint32_t",
+    "doc": "Retrieves TIFF tag information using a generic tag ID.\n\nRetrieves tag type, size per element, and count for any TIFF tag (not just nvtiffTag_t values). If the tag is not found, returns [`nvtiffStatus_t::NVTIFF_STATUS_TAG_NOT_FOUND`].",
+    "page": "apireference.md",
+    "anchor": "_CPPv429nvtiffStreamGetTagInfoGeneric14nvtiffStream_t8uint32_t8uint16_tP19nvtiffTagDataType_tP8uint32_tP8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetTagInfoGeneric(nvtiffStream_t tiff_stream, uint32_t image_id, uint16_t tiff_tag, nvtiffTagDataType_t * tag_type, uint32_t * size, uint32_t * count)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "tiff_tag": {
+        "doc": "TIFF tag ID (any valid TIFF tag number)."
+      },
+      "tag_type": {
+        "doc": "Pointer to receive the datatype of the tag.",
+        "output": true
+      },
+      "size": {
+        "doc": "Pointer to receive the size per element. When tag type is [`nvtiffTagDataType_t::NVTIFF_TAG_TYPE_ASCII`], the string is NULL terminated.",
+        "output": true
+      },
+      "count": {
+        "doc": "Pointer to receive the number of elements.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetTagValueGeneric": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv430nvtiffStreamGetTagValueGeneric14nvtiffStream_t8uint32_t8uint16_tPv8uint32_t",
+    "doc": "Retrieves the values stored in a TIFF tag using a generic tag ID.\n\nIf the tag is not found, returns [`nvtiffStatus_t::NVTIFF_STATUS_TAG_NOT_FOUND`].",
+    "page": "apireference.md",
+    "anchor": "_CPPv430nvtiffStreamGetTagValueGeneric14nvtiffStream_t8uint32_t8uint16_tPv8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetTagValueGeneric(nvtiffStream_t tiff_stream, uint32_t image_id, uint16_t tiff_tag, void * tag_value, uint32_t count)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "tiff_tag": {
+        "doc": "TIFF tag ID (any valid TIFF tag number)."
+      },
+      "tag_value": {
+        "doc": "Output buffer to receive the tag value.",
+        "output": true
+      },
+      "count": {
+        "doc": "Number of elements to retrieve."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetNumberOfTags": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv427nvtiffStreamGetNumberOfTags14nvtiffStream_t8uint32_tP8uint16_tP8uint32_t",
+    "doc": "Enumerates all TIFF tags present in a specific image.\n\nUse the two-call pattern: first call with tags=`NULL` to get the count, then allocate a buffer and call again to retrieve the tag IDs.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvtiffStreamGetNumberOfTags14nvtiffStream_t8uint32_tP8uint16_tP8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetNumberOfTags(nvtiffStream_t tiff_stream, uint32_t image_id, uint16_t * tags, uint32_t * num_tags)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "tags": {
+        "doc": "Pointer to buffer for storing tag IDs (can be `NULL` to get count only).",
+        "output": true
+      },
+      "num_tags": {
+        "doc": "Pointer to receive the number of tags.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamHasTag": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv418nvtiffStreamHasTag14nvtiffStream_t8uint32_t8uint16_tPi",
+    "doc": "Checks whether a specific tag exists in an image.\n\nThis is useful for quickly determining tag presence without enumerating all tags.",
+    "page": "apireference.md",
+    "anchor": "_CPPv418nvtiffStreamHasTag14nvtiffStream_t8uint32_t8uint16_tPi",
+    "signature": "nvtiffStatus_t nvtiffStreamHasTag(nvtiffStream_t tiff_stream, uint32_t image_id, uint16_t tag, int * has_tag)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "image_id": {
+        "doc": "Image index."
+      },
+      "tag": {
+        "doc": "Tag ID to check for."
+      },
+      "has_tag": {
+        "doc": "Set to 1 if tag exists, 0 if not.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetGeoKeyInfo": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv425nvtiffStreamGetGeoKeyInfo14nvtiffStream_t14nvtiffGeoKey_tP8uint32_tP8uint32_tP22nvtiffGeoKeyDataType_t",
+    "doc": "Retrieves information about a GeoTIFF key.\n\nThis information is useful for retrieving the values associated with the geo key.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvtiffStreamGetGeoKeyInfo14nvtiffStream_t14nvtiffGeoKey_tP8uint32_tP8uint32_tP22nvtiffGeoKeyDataType_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetGeoKeyInfo(nvtiffStream_t tiff_stream, nvtiffGeoKey_t key, uint32_t * size, uint32_t * count, nvtiffGeoKeyDataType_t * type)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to query."
+      },
+      "size": {
+        "doc": "Pointer to receive the size of each value (in bytes).",
+        "output": true
+      },
+      "count": {
+        "doc": "Pointer to receive the number of values stored in key.",
+        "output": true
+      },
+      "type": {
+        "doc": "Pointer to receive the datatype of values stored in key.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetNumberOfGeoKeys": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv430nvtiffStreamGetNumberOfGeoKeys14nvtiffStream_tP14nvtiffGeoKey_tP8uint32_t",
+    "doc": "Retrieves the list of GeoTIFF keys present in a TIFF file and their count.\n\nUse the two-call pattern: first call with key=`NULL` to get the count, then allocate a buffer and call again to retrieve the key IDs.",
+    "page": "apireference.md",
+    "anchor": "_CPPv430nvtiffStreamGetNumberOfGeoKeys14nvtiffStream_tP14nvtiffGeoKey_tP8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetNumberOfGeoKeys(nvtiffStream_t tiff_stream, nvtiffGeoKey_t * key, uint32_t * num_keys)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "key": {
+        "doc": "Pointer to buffer for storing geokey IDs (can be `NULL` to get count only).",
+        "output": true
+      },
+      "num_keys": {
+        "doc": "Pointer to receive the number of geokeys.",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetGeoKey": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv421nvtiffStreamGetGeoKey14nvtiffStream_t14nvtiffGeoKey_tPv8uint32_t",
+    "doc": "Retrieves the values associated with a given GeoTIFF key.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvtiffStreamGetGeoKey14nvtiffStream_t14nvtiffGeoKey_tPv8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetGeoKey(nvtiffStream_t tiff_stream, nvtiffGeoKey_t key, void * val, uint32_t count)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to retrieve."
+      },
+      "val": {
+        "doc": "Pointer to buffer to receive the key values.",
+        "output": true
+      },
+      "count": {
+        "doc": "Number of values to copy. For [`nvtiffGeoKeyDataType_t::NVTIFF_GEOKEY_TYPE_ASCII`] this is ignored. For [`nvtiffGeoKeyDataType_t::NVTIFF_GEOKEY_TYPE_SHORT`], `count=1` is implied."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetGeoKeyASCII": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv426nvtiffStreamGetGeoKeyASCII14nvtiffStream_t14nvtiffGeoKey_tPc8uint32_t",
+    "doc": "Retrieves ASCII values associated with a GeoTIFF key.",
+    "page": "apireference.md",
+    "anchor": "_CPPv426nvtiffStreamGetGeoKeyASCII14nvtiffStream_t14nvtiffGeoKey_tPc8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetGeoKeyASCII(nvtiffStream_t tiff_stream, nvtiffGeoKey_t key, char * str, uint32_t max_len)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to retrieve."
+      },
+      "str": {
+        "doc": "Pointer to buffer to receive the ASCII string.",
+        "output": true
+      },
+      "max_len": {
+        "doc": "Size of the user-allocated buffer `str`."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetGeoKeySHORT": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv426nvtiffStreamGetGeoKeySHORT14nvtiffStream_t14nvtiffGeoKey_tPt8uint32_t8uint32_t",
+    "doc": "Retrieves SHORT values associated with a GeoTIFF key.",
+    "page": "apireference.md",
+    "anchor": "_CPPv426nvtiffStreamGetGeoKeySHORT14nvtiffStream_t14nvtiffGeoKey_tPt8uint32_t8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetGeoKeySHORT(nvtiffStream_t tiff_stream, nvtiffGeoKey_t key, unsigned short * val, uint32_t index, uint32_t count)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to retrieve."
+      },
+      "val": {
+        "doc": "Pointer to buffer to receive the SHORT values.",
+        "output": true
+      },
+      "index": {
+        "doc": "Index of the starting value to copy."
+      },
+      "count": {
+        "doc": "Number of values to copy."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStreamGetGeoKeyDOUBLE": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv427nvtiffStreamGetGeoKeyDOUBLE14nvtiffStream_t14nvtiffGeoKey_tPd8uint32_t8uint32_t",
+    "doc": "Retrieves DOUBLE values associated with a GeoTIFF key.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvtiffStreamGetGeoKeyDOUBLE14nvtiffStream_t14nvtiffGeoKey_tPd8uint32_t8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffStreamGetGeoKeyDOUBLE(nvtiffStream_t tiff_stream, nvtiffGeoKey_t key, double * val, uint32_t index, uint32_t count)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to retrieve."
+      },
+      "val": {
+        "doc": "Pointer to buffer to receive the DOUBLE values.",
+        "output": true
+      },
+      "index": {
+        "doc": "Index of the starting value to copy."
+      },
+      "count": {
+        "doc": "Number of values to copy."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecodeRange": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv417nvtiffDecodeRange14nvtiffStream_t15nvtiffDecoder_tjjPPh12cudaStream_t",
+    "doc": "Decodes a range of images from a TIFF file.\n\nDecodes images in the range `[sub_file_start, sub_file_start + sub_file_num)`. When the photometric interpretation is [`nvtiffPhotometricInt_t::NVTIFF_PHOTOMETRIC_PALETTE`] or [`nvtiffPhotometricInt_t::NVTIFF_PHOTOMETRIC_YCBCR`], the decode output will be converted to RGB. For images with multiple samples, the decode output will always be in planar contiguous format.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvtiffDecodeRange14nvtiffStream_t15nvtiffDecoder_tjjPPh12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffDecodeRange(nvtiffStream_t tiff_stream, nvtiffDecoder_t decoder, unsigned int sub_file_start, unsigned int sub_file_num, unsigned char * * image_out, cudaStream_t stream)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle containing the parsed file."
+      },
+      "decoder": {
+        "doc": "Decoder handle."
+      },
+      "sub_file_start": {
+        "doc": "Index of the first image to decode, in the range `[0, num_images)`."
+      },
+      "sub_file_num": {
+        "doc": "Number of images to decode starting from `sub_file_start`."
+      },
+      "image_out": {
+        "doc": "Host array of pointers to device buffers. Each buffer size should be `image_height * DivUp(image_width * bits_per_pixel, 8)`. For palette mode images, buffer size should be `image_width * image_height * 6`.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream for GPU work submission."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecode": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv412nvtiffDecode14nvtiffStream_t15nvtiffDecoder_tPPh12cudaStream_t",
+    "doc": "Decodes all images from a TIFF file.\n\nDecodes all image data on the GPU. Each image is copied into the respective buffer pointed to by `image_out`. This function is fully asynchronous. When the photometric interpretation is [`nvtiffPhotometricInt_t::NVTIFF_PHOTOMETRIC_PALETTE`] or [`nvtiffPhotometricInt_t::NVTIFF_PHOTOMETRIC_YCBCR`], the decode output will be converted to RGB. For images with multiple samples, the decode output will always be in planar contiguous format.",
+    "page": "apireference.md",
+    "anchor": "_CPPv412nvtiffDecode14nvtiffStream_t15nvtiffDecoder_tPPh12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffDecode(nvtiffStream_t tiff_stream, nvtiffDecoder_t decoder, unsigned char * * image_out, cudaStream_t stream)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle containing the parsed file."
+      },
+      "decoder": {
+        "doc": "Decoder handle."
+      },
+      "image_out": {
+        "doc": "Host array (of size `num_images`) of pointers to device buffers. Each buffer size should be `image_height * DivUp(image_width * bits_per_pixel, 8)`. For palette mode images, buffer size should be `image_width * image_height * 6`.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream for GPU work submission."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecodeImage": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv417nvtiffDecodeImage14nvtiffStream_t15nvtiffDecoder_t20nvtiffDecodeParams_t8uint32_tPv12cudaStream_t",
+    "doc": "Decodes a single image with additional output control.\n\nDecodes a single image on the GPU. The function is asynchronous with respect to the host. Additional control of the decode output is possible using `nvtiffDecodeParams_t`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvtiffDecodeImage14nvtiffStream_t15nvtiffDecoder_t20nvtiffDecodeParams_t8uint32_tPv12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffDecodeImage(nvtiffStream_t tiff_stream, nvtiffDecoder_t decoder, nvtiffDecodeParams_t params, uint32_t image_id, void * image_out_d, cudaStream_t stream)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle containing the parsed file."
+      },
+      "decoder": {
+        "doc": "Decoder handle."
+      },
+      "params": {
+        "doc": "Decode parameters for controlling output (ROI, output format)."
+      },
+      "image_id": {
+        "doc": "Image index within the TIFF file."
+      },
+      "image_out_d": {
+        "doc": "Device buffer for decoded output. See `nvtiffDecodeParamsSetOutputFormat()` for size requirements.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream for GPU work submission."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecodeImageEx": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffDecodeImageEx14nvtiffStream_t15nvtiffDecoder_t20nvtiffDecodeParams_t8uint32_tP13nvtiffImage_t12cudaStream_t",
+    "doc": "Decodes a single image with extended output support.\n\nDecodes a single image on the GPU with extended output buffer control via `nvtiffImage_t`. The function is asynchronous with respect to the host.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvtiffDecodeImageEx14nvtiffStream_t15nvtiffDecoder_t20nvtiffDecodeParams_t8uint32_tP13nvtiffImage_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffDecodeImageEx(nvtiffStream_t tiff_stream, nvtiffDecoder_t decoder, nvtiffDecodeParams_t params, uint32_t image_id, nvtiffImage_t * image_out, cudaStream_t stream)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle containing the parsed file."
+      },
+      "decoder": {
+        "doc": "Decoder handle."
+      },
+      "params": {
+        "doc": "Decode parameters for controlling output (ROI, output format)."
+      },
+      "image_id": {
+        "doc": "Image index within the TIFF file."
+      },
+      "image_out": {
+        "doc": "Output image structure. Only one output plane is currently supported. The pitch must be aligned to the size of the sample type.",
+        "output": true
+      },
+      "stream": {
+        "doc": "CUDA stream for GPU work submission."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecodeCheckSupported": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv426nvtiffDecodeCheckSupported14nvtiffStream_t15nvtiffDecoder_t20nvtiffDecodeParams_t8uint32_t",
+    "doc": "Checks whether an image can be decoded by nvTIFF.\n\nReturns [`nvtiffStatus_t::NVTIFF_STATUS_SUCCESS`] if the image is supported.",
+    "page": "apireference.md",
+    "anchor": "_CPPv426nvtiffDecodeCheckSupported14nvtiffStream_t15nvtiffDecoder_t20nvtiffDecodeParams_t8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffDecodeCheckSupported(nvtiffStream_t tiff_stream, nvtiffDecoder_t decoder, nvtiffDecodeParams_t params, uint32_t image_id)",
+    "parameters": {
+      "tiff_stream": {
+        "doc": "TIFF stream handle containing the parsed file."
+      },
+      "decoder": {
+        "doc": "Decoder handle."
+      },
+      "params": {
+        "doc": "Decode parameters."
+      },
+      "image_id": {
+        "doc": "Image index within the TIFF file."
+      }
+    },
+    "return_value": {
+      "doc": "[`nvtiffStatus_t::NVTIFF_STATUS_SUCCESS`] if supported, otherwise an error code as specified in [API](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)Return Status Codes\u201d."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecodeParamsSetOutputFormat": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv433nvtiffDecodeParamsSetOutputFormat20nvtiffDecodeParams_t20nvtiffOutputFormat_t",
+    "doc": "Sets the decode output format.\n\nThe default value is [`nvtiffOutputFormat_t::NVTIFF_OUTPUT_UNCHANGED_I`].\n\n**Buffer size and pitch requirements:**\n\nWhen [`nvtiffOutputFormat_t::NVTIFF_OUTPUT_UNCHANGED_I`] is used:\n\n* Buffer size: `image_height * DivUp(image_width * bits_per_pixel, 8)`\n* Pitch must be aligned to `DivUp(bits_per_sample[0], 8)` bytes.\n* Default pitch (if not specified): `DivUp(image_width * bits_per_pixel, 8)`\n\nWhen [`nvtiffOutputFormat_t::NVTIFF_OUTPUT_RGB_I_UINT8`] is used:\n\n* Buffer size: `image_width * image_height * 3`\n* Pitch must be aligned to 1 byte.\n\nWhen [`nvtiffOutputFormat_t::NVTIFF_OUTPUT_RGB_I_UINT16`] is used:\n\n* Buffer size: `image_width * image_height * 6`\n* Pitch must be aligned to 2 bytes.",
+    "page": "apireference.md",
+    "anchor": "_CPPv433nvtiffDecodeParamsSetOutputFormat20nvtiffDecodeParams_t20nvtiffOutputFormat_t",
+    "signature": "nvtiffStatus_t nvtiffDecodeParamsSetOutputFormat(nvtiffDecodeParams_t decode_params, nvtiffOutputFormat_t format)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode parameters handle.",
+        "output": true
+      },
+      "format": {
+        "doc": "Output format value."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffDecodeParamsSetROI": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv424nvtiffDecodeParamsSetROI20nvtiffDecodeParams_t7int32_t7int32_t7int32_t7int32_t",
+    "doc": "Sets the region of interest for decoding.\n\nThe entire image is decoded by default.\n\nConstraints:\n\n* `offset_x` and `offset_y` must be non-negative and cannot exceed image dimensions.\n* `offset_x + roi_width` and `offset_y + roi_height` cannot exceed image dimensions.\n* When image bitdepth is 1, `offset_x` and `roi_width` must be multiples of 8.",
+    "page": "apireference.md",
+    "anchor": "_CPPv424nvtiffDecodeParamsSetROI20nvtiffDecodeParams_t7int32_t7int32_t7int32_t7int32_t",
+    "signature": "nvtiffStatus_t nvtiffDecodeParamsSetROI(nvtiffDecodeParams_t decode_params, int32_t offset_x, int32_t offset_y, int32_t roi_width, int32_t roi_height)",
+    "parameters": {
+      "decode_params": {
+        "doc": "Decode parameters handle.",
+        "output": true
+      },
+      "offset_x": {
+        "doc": "Horizontal offset from top-left corner."
+      },
+      "offset_y": {
+        "doc": "Vertical offset from top-left corner."
+      },
+      "roi_width": {
+        "doc": "Width of the region of interest."
+      },
+      "roi_height": {
+        "doc": "Height of the region of interest."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncode": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv412nvtiffEncode15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_t12cudaStream_t",
+    "doc": "Performs asynchronous TIFF encoding of one or more images.\n\nParameters must be set using `nvtiffEncodeParamsSetImageInfo()` and `nvtiffEncodeParamsSetInputs()` before calling this function. If the provided compression method (LZW by default) results in a bitstream larger than the raw input image data, compression is automatically disabled.",
+    "page": "apireference.md",
+    "anchor": "_CPPv412nvtiffEncode15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffEncode(nvtiffEncoder_t encoder, nvtiffEncodeParams_t * params, uint32_t num_params, cudaStream_t stream)",
+    "parameters": {
+      "encoder": {
+        "doc": "Encoder handle."
+      },
+      "params": {
+        "doc": "Array of encode parameters."
+      },
+      "num_params": {
+        "doc": "Number of encode parameters (must be 1 for now)."
+      },
+      "stream": {
+        "doc": "CUDA stream."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeFinalize": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffEncodeFinalize15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_t12cudaStream_t",
+    "doc": "Finalizes asynchronous TIFF encoding operation started by `nvtiffEncode()`.\n\nThis function must be called before the encoded bitstream can be written with `nvtiffWriteTiffBuffer()` or `nvtiffWriteTiffFile()`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvtiffEncodeFinalize15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeFinalize(nvtiffEncoder_t encoder, nvtiffEncodeParams_t * params, uint32_t num_params, cudaStream_t stream)",
+    "parameters": {
+      "encoder": {
+        "doc": "Encoder handle."
+      },
+      "params": {
+        "doc": "Array of encode parameters."
+      },
+      "num_params": {
+        "doc": "Number of encode parameters (must be 1 for now)."
+      },
+      "stream": {
+        "doc": "CUDA stream."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffGetBitstreamSize": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffGetBitstreamSize15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_tP6size_tP6size_t",
+    "doc": "Calculates the size of TIFF metadata and/or compressed bitstream.\n\nEither `metadata_size` or `bitstream_size` can be `NULL` to skip that calculation. `metadata_size` can be calculated before calling `nvtiffEncode()`, but `bitstream_size` can only be calculated after `nvtiffEncodeFinalize()` is called.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvtiffGetBitstreamSize15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_tP6size_tP6size_t",
+    "signature": "nvtiffStatus_t nvtiffGetBitstreamSize(nvtiffEncoder_t encoder, nvtiffEncodeParams_t * params, uint32_t num_params, size_t * metadata_size, size_t * bitstream_size)",
+    "parameters": {
+      "encoder": {
+        "doc": "Encoder handle."
+      },
+      "params": {
+        "doc": "Array of encode parameters."
+      },
+      "num_params": {
+        "doc": "Number of encode parameters (must be 1 for now)."
+      },
+      "metadata_size": {
+        "doc": "Size of TIFF metadata in bytes (can be NULL).",
+        "output": true
+      },
+      "bitstream_size": {
+        "doc": "Size of compressed data in bytes (can be NULL).",
+        "output": true
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffWriteTiffBuffer": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv421nvtiffWriteTiffBuffer15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_tP7uint8_t6size_t12cudaStream_t",
+    "doc": "Writes complete TIFF data including metadata to a host memory buffer.\n\nThis function performs stream synchronization internally to ensure the bitstream is ready.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvtiffWriteTiffBuffer15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_tP7uint8_t6size_t12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffWriteTiffBuffer(nvtiffEncoder_t encoder, nvtiffEncodeParams_t * params, uint32_t num_params, uint8_t * buffer, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "encoder": {
+        "doc": "Encoder handle."
+      },
+      "params": {
+        "doc": "Array of encode parameters."
+      },
+      "num_params": {
+        "doc": "Number of encode parameters (must be 1 for now)."
+      },
+      "buffer": {
+        "doc": "Buffer to write TIFF data to.",
+        "output": true
+      },
+      "size": {
+        "doc": "Size of output buffer in bytes."
+      },
+      "stream": {
+        "doc": "CUDA stream."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffWriteTiffFile": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffWriteTiffFile15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_tPKc12cudaStream_t",
+    "doc": "Writes complete TIFF data including metadata to a file.\n\nThis function performs stream synchronization internally to ensure the bitstream is ready.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvtiffWriteTiffFile15nvtiffEncoder_tP20nvtiffEncodeParams_t8uint32_tPKc12cudaStream_t",
+    "signature": "nvtiffStatus_t nvtiffWriteTiffFile(nvtiffEncoder_t encoder, nvtiffEncodeParams_t * params, uint32_t num_params, const char * fname, cudaStream_t stream)",
+    "parameters": {
+      "encoder": {
+        "doc": "Encoder handle."
+      },
+      "params": {
+        "doc": "Array of encode parameters."
+      },
+      "num_params": {
+        "doc": "Number of encode parameters (must be 1 for now)."
+      },
+      "fname": {
+        "doc": "Output file path."
+      },
+      "stream": {
+        "doc": "CUDA stream."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetTiffVariant": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv432nvtiffEncodeParamsSetTiffVariant20nvtiffEncodeParams_t15nvtiffVariant_t",
+    "doc": "Sets the TIFF variant (regular or BigTIFF) for encoding.\n\nThis API is optional; by default, regular TIFF is used.",
+    "page": "apireference.md",
+    "anchor": "_CPPv432nvtiffEncodeParamsSetTiffVariant20nvtiffEncodeParams_t15nvtiffVariant_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetTiffVariant(nvtiffEncodeParams_t params, nvtiffVariant_t variant)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "variant": {
+        "doc": "TIFF variant ([`nvtiffVariant_t::NVTIFF_REGULAR_TIFF`] or [`nvtiffVariant_t::NVTIFF_BIG_TIFF`])."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetImageInfo": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv430nvtiffEncodeParamsSetImageInfo20nvtiffEncodeParams_tPK17nvtiffImageInfo_t",
+    "doc": "Sets image information for encoding.\n\nRequired fields: `image_width`, `image_height`, `samples_per_pixel`, `bits_per_sample`, and `sample_format` (for each sample in a pixel).\n\nConstraints:\n\n* `samples_per_pixel` must be either 1 or 3.\n* `photometric_int` must be [`nvtiffPhotometricInt_t::NVTIFF_PHOTOMETRIC_RGB`] (if `samples_per_pixel` is 3) or [`nvtiffPhotometricInt_t::NVTIFF_PHOTOMETRIC_MINISBLACK`] (if `samples_per_pixel` is 1). [`nvtiffPhotometricInt_t::NVTIFF_PHOTOMETRIC_UNKNOWN`] is auto-set.\n* `sample_format` must be [`nvtiffSampleFormat_t::NVTIFF_SAMPLEFORMAT_UNKNOWN`], [`nvtiffSampleFormat_t::NVTIFF_SAMPLEFORMAT_UINT`], or [`nvtiffSampleFormat_t::NVTIFF_SAMPLEFORMAT_IEEEFP`].\n* `planar_config` must be [`nvtiffPlanarConfig_t::NVTIFF_PLANARCONFIG_CONTIG`].\n* `compression` must be [`nvtiffCompression_t::NVTIFF_COMPRESSION_LZW`] or [`nvtiffCompression_t::NVTIFF_COMPRESSION_NONE`].",
+    "page": "apireference.md",
+    "anchor": "_CPPv430nvtiffEncodeParamsSetImageInfo20nvtiffEncodeParams_tPK17nvtiffImageInfo_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetImageInfo(nvtiffEncodeParams_t params, const nvtiffImageInfo_t * image_info)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "image_info": {
+        "doc": "Pointer to image information structure."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetImageGeometry": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv434nvtiffEncodeParamsSetImageGeometry20nvtiffEncodeParams_tPK21nvtiffImageGeometry_t",
+    "doc": "Sets strip size for encoding.\n\nThis is optional; by default, strip size will be set to 8 KB. Only the `strile_height` field (number of rows per strip) needs to be set, as only stripes (not tiles) are currently supported.",
+    "page": "apireference.md",
+    "anchor": "_CPPv434nvtiffEncodeParamsSetImageGeometry20nvtiffEncodeParams_tPK21nvtiffImageGeometry_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetImageGeometry(nvtiffEncodeParams_t params, const nvtiffImageGeometry_t * geometry)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "geometry": {
+        "doc": "Pointer to image geometry structure."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetInputs": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv427nvtiffEncodeParamsSetInputs20nvtiffEncodeParams_tPP7uint8_t8uint32_t",
+    "doc": "Sets input image pointers for encoding.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvtiffEncodeParamsSetInputs20nvtiffEncodeParams_tPP7uint8_t8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetInputs(nvtiffEncodeParams_t params, uint8_t * * images_d, uint32_t num_images)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "images_d": {
+        "doc": "Host array of size `num_images` of pointers to device buffers."
+      },
+      "num_images": {
+        "doc": "Number of input images."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetTag": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv424nvtiffEncodeParamsSetTag20nvtiffEncodeParams_t8uint16_t17nvtiffTagDataTypePv8uint32_t",
+    "doc": "Sets a TIFF tag with specified type and value.",
+    "page": "apireference.md",
+    "anchor": "_CPPv424nvtiffEncodeParamsSetTag20nvtiffEncodeParams_t8uint16_t17nvtiffTagDataTypePv8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetTag(nvtiffEncodeParams_t params, uint16_t tag, nvtiffTagDataType type, void * value, uint32_t count)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "tag": {
+        "doc": "TIFF tag to set."
+      },
+      "type": {
+        "doc": "Data type of tag value."
+      },
+      "value": {
+        "doc": "Pointer to tag value."
+      },
+      "count": {
+        "doc": "Number of values."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetGeoKey": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv427nvtiffEncodeParamsSetGeoKey20nvtiffEncodeParams_t14nvtiffGeoKey_t22nvtiffGeoKeyDataType_tPv8uint32_t8uint32_t",
+    "doc": "Sets a GeoTIFF key with arbitrary type and value.",
+    "page": "apireference.md",
+    "anchor": "_CPPv427nvtiffEncodeParamsSetGeoKey20nvtiffEncodeParams_t14nvtiffGeoKey_t22nvtiffGeoKeyDataType_tPv8uint32_t8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetGeoKey(nvtiffEncodeParams_t params, nvtiffGeoKey_t key, nvtiffGeoKeyDataType_t type, void * value, uint32_t value_size, uint32_t count)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to set."
+      },
+      "type": {
+        "doc": "Data type of the key value."
+      },
+      "value": {
+        "doc": "Pointer to key value."
+      },
+      "value_size": {
+        "doc": "Size of individual value in bytes."
+      },
+      "count": {
+        "doc": "Number of values."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetGeoKeySHORT": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv432nvtiffEncodeParamsSetGeoKeySHORT20nvtiffEncodeParams_t14nvtiffGeoKey_t8uint16_t8uint32_t",
+    "doc": "Sets a GeoTIFF key with SHORT value type.",
+    "page": "apireference.md",
+    "anchor": "_CPPv432nvtiffEncodeParamsSetGeoKeySHORT20nvtiffEncodeParams_t14nvtiffGeoKey_t8uint16_t8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetGeoKeySHORT(nvtiffEncodeParams_t params, nvtiffGeoKey_t key, uint16_t value, uint32_t count)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to set."
+      },
+      "value": {
+        "doc": "SHORT value to set."
+      },
+      "count": {
+        "doc": "Number of values."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetGeoKeyDOUBLE": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv433nvtiffEncodeParamsSetGeoKeyDOUBLE20nvtiffEncodeParams_t14nvtiffGeoKey_td8uint32_t",
+    "doc": "Sets a GeoTIFF key with DOUBLE value type.",
+    "page": "apireference.md",
+    "anchor": "_CPPv433nvtiffEncodeParamsSetGeoKeyDOUBLE20nvtiffEncodeParams_t14nvtiffGeoKey_td8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetGeoKeyDOUBLE(nvtiffEncodeParams_t params, nvtiffGeoKey_t key, double value, uint32_t count)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to set."
+      },
+      "value": {
+        "doc": "DOUBLE value to set."
+      },
+      "count": {
+        "doc": "Number of values."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffEncodeParamsSetGeoKeyASCII": {
+    "kind": "function",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv432nvtiffEncodeParamsSetGeoKeyASCII20nvtiffEncodeParams_t14nvtiffGeoKey_tPKc8uint32_t",
+    "doc": "Sets a GeoTIFF key with ASCII value type.",
+    "page": "apireference.md",
+    "anchor": "_CPPv432nvtiffEncodeParamsSetGeoKeyASCII20nvtiffEncodeParams_t14nvtiffGeoKey_tPKc8uint32_t",
+    "signature": "nvtiffStatus_t nvtiffEncodeParamsSetGeoKeyASCII(nvtiffEncodeParams_t params, nvtiffGeoKey_t key, const char * value, uint32_t value_size)",
+    "parameters": {
+      "params": {
+        "doc": "Encode parameters handle."
+      },
+      "key": {
+        "doc": "GeoTIFF key to set."
+      },
+      "value": {
+        "doc": "ASCII string value."
+      },
+      "value_size": {
+        "doc": "Size of ASCII string including null terminator."
+      }
+    },
+    "return_value": {
+      "doc": "An error code as specified in [API Return Status Codes](https://docs.nvidia.com/cuda/nvtiff/apireference.html#nvtiff_8h_1a6bb6a8150db026477c1bb83fdc7b8801)."
+    },
+    "deprecated": false
+  },
+  "nvtiffStatus_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t",
+    "doc": "Return status codes for nvTIFF APIs.",
+    "page": "apireference.md",
+    "anchor": "_CPPv414nvtiffStatus_t",
+    "signature": "enum nvtiffStatus_t",
+    "members": {
+      "NVTIFF_STATUS_SUCCESS": {
+        "doc": "The API call finished successfully. Note that many calls are asynchronous and some errors may only be seen after synchronization."
+      },
+      "NVTIFF_STATUS_NOT_INITIALIZED": {
+        "doc": "The library handle was not initialized."
+      },
+      "NVTIFF_STATUS_INVALID_PARAMETER": {
+        "doc": "Wrong parameter was passed. For example, a null pointer as input data, or an invalid enum value."
+      },
+      "NVTIFF_STATUS_BAD_TIFF": {
+        "doc": "Cannot parse the TIFF stream. Likely due to a corruption that cannot be handled."
+      },
+      "NVTIFF_STATUS_TIFF_NOT_SUPPORTED": {
+        "doc": "Attempting to decode a TIFF stream that is not supported by the nvTIFF library."
+      },
+      "NVTIFF_STATUS_ALLOCATOR_FAILURE": {
+        "doc": "The user-provided allocator functions returned a non-zero code."
+      },
+      "NVTIFF_STATUS_EXECUTION_FAILED": {
+        "doc": "Error during the execution of the device tasks."
+      },
+      "NVTIFF_STATUS_ARCH_MISMATCH": {
+        "doc": "The device capabilities are not enough for the set of input parameters provided."
+      },
+      "NVTIFF_STATUS_INTERNAL_ERROR": {
+        "doc": "Unknown error occurred in the library."
+      },
+      "NVTIFF_STATUS_NVCOMP_NOT_FOUND": {
+        "doc": "nvTIFF is unable to load the nvcomp library."
+      },
+      "NVTIFF_STATUS_NVJPEG_NOT_FOUND": {
+        "doc": "nvTIFF is unable to load the nvjpeg library."
+      },
+      "NVTIFF_STATUS_TAG_NOT_FOUND": {
+        "doc": "nvTIFF is unable to find information about the provided tag."
+      },
+      "NVTIFF_STATUS_PARAMETER_OUT_OF_BOUNDS": {
+        "doc": "Provided parameter is outside the range of possible values."
+      },
+      "NVTIFF_STATUS_NVJPEG2K_NOT_FOUND": {
+        "doc": "nvTIFF is unable to load the nvJPEG2000 library."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffDeviceMallocAsync": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv423nvtiffDeviceMallocAsync",
+    "doc": "Prototype for stream-ordered device memory allocation.",
+    "page": "apireference.md",
+    "anchor": "_CPPv423nvtiffDeviceMallocAsync",
+    "signature": "typedef int(*nvtiffDeviceMallocAsync)(void * ctx, void * * ptr, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "ptr": {
+        "doc": "Pointer to allocated memory.",
+        "output": true
+      },
+      "size": {
+        "doc": "Size in bytes to allocate."
+      },
+      "stream": {
+        "doc": "CUDA stream for ordered allocation."
+      }
+    },
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvtiffDeviceFreeAsync": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv421nvtiffDeviceFreeAsync",
+    "doc": "Prototype for stream-ordered device memory deallocation.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvtiffDeviceFreeAsync",
+    "signature": "typedef int(*nvtiffDeviceFreeAsync)(void * ctx, void * ptr, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "ptr": {
+        "doc": "Pointer to memory to free."
+      },
+      "size": {
+        "doc": "Size in bytes that was allocated."
+      },
+      "stream": {
+        "doc": "CUDA stream for ordered deallocation."
+      }
+    },
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvtiffDeviceAllocator_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv423nvtiffDeviceAllocator_t",
+    "doc": "Custom device memory allocator interface.\n\nSupports stream-ordered allocation and user-defined context information. When invoking the device allocators, nvTIFF will pass device_ctx as input.",
+    "page": "apireference.md",
+    "anchor": "_CPPv423nvtiffDeviceAllocator_t",
+    "signature": "struct nvtiffDeviceAllocator_t",
+    "fields": {
+      "device_malloc": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N23nvtiffDeviceAllocator_t13device_mallocE",
+        "doc": "Device allocator callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "device_free": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N23nvtiffDeviceAllocator_t11device_freeE",
+        "doc": "Device free callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "device_ctx": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N23nvtiffDeviceAllocator_t10device_ctxE",
+        "doc": "User-defined context pointer.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffPinnedMallocAsync": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv423nvtiffPinnedMallocAsync",
+    "doc": "Prototype for stream-ordered pinned memory allocation.",
+    "page": "apireference.md",
+    "anchor": "_CPPv423nvtiffPinnedMallocAsync",
+    "signature": "typedef int(*nvtiffPinnedMallocAsync)(void * ctx, void * * ptr, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "ptr": {
+        "doc": "Pointer to allocated memory.",
+        "output": true
+      },
+      "size": {
+        "doc": "Size in bytes to allocate."
+      },
+      "stream": {
+        "doc": "CUDA stream for ordered allocation."
+      }
+    },
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvtiffPinnedFreeAsync": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv421nvtiffPinnedFreeAsync",
+    "doc": "Prototype for stream-ordered pinned memory deallocation.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvtiffPinnedFreeAsync",
+    "signature": "typedef int(*nvtiffPinnedFreeAsync)(void * ctx, void * ptr, size_t size, cudaStream_t stream)",
+    "parameters": {
+      "ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "ptr": {
+        "doc": "Pointer to memory to free."
+      },
+      "size": {
+        "doc": "Size in bytes that was allocated."
+      },
+      "stream": {
+        "doc": "CUDA stream for ordered deallocation."
+      }
+    },
+    "return_value": {
+      "doc": "0 on success, non-zero on failure."
+    },
+    "deprecated": false
+  },
+  "nvtiffPinnedAllocator_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv423nvtiffPinnedAllocator_t",
+    "doc": "Custom pinned memory allocator interface.\n\nSupports stream-ordered allocation and user-defined context information. When invoking the pinned allocators, nvTIFF will pass pinned_ctx as input.",
+    "page": "apireference.md",
+    "anchor": "_CPPv423nvtiffPinnedAllocator_t",
+    "signature": "struct nvtiffPinnedAllocator_t",
+    "fields": {
+      "pinned_malloc": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N23nvtiffPinnedAllocator_t13pinned_mallocE",
+        "doc": "Pinned allocator callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "pinned_free": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N23nvtiffPinnedAllocator_t11pinned_freeE",
+        "doc": "Pinned free callback.",
+        "signature": "",
+        "deprecated": false
+      },
+      "pinned_ctx": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N23nvtiffPinnedAllocator_t10pinned_ctxE",
+        "doc": "User-defined context pointer.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffEncoder_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffEncoder_t",
+    "doc": "Handle to opaque nvTIFF encoder instance.",
+    "page": "apireference.md",
+    "anchor": "_CPPv415nvtiffEncoder_t",
+    "signature": "typedef struct nvtiffEncoder * nvtiffEncoder_t",
+    "deprecated": false
+  },
+  "nvtiffEncodeParams_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffEncodeParams_t",
+    "doc": "Handle to opaque nvTIFF encode parameters.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvtiffEncodeParams_t",
+    "signature": "typedef struct nvtiffEncodeParams * nvtiffEncodeParams_t",
+    "deprecated": false
+  },
+  "nvtiffDecoder_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffDecoder_t",
+    "doc": "Handle to opaque nvTIFF decoder instance.\n\nStores intermediate decode buffers used in decoding.",
+    "page": "apireference.md",
+    "anchor": "_CPPv415nvtiffDecoder_t",
+    "signature": "typedef struct nvtiffDecoder * nvtiffDecoder_t",
+    "deprecated": false
+  },
+  "nvtiffStream_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStream_t",
+    "doc": "Handle to opaque nvTIFF stream instance.\n\nUsed for parsing a TIFF file. TIFF metadata can be extracted using parser APIs.",
+    "page": "apireference.md",
+    "anchor": "_CPPv414nvtiffStream_t",
+    "signature": "typedef struct nvtiffStream * nvtiffStream_t",
+    "deprecated": false
+  },
+  "nvtiffDecodeParams_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffDecodeParams_t",
+    "doc": "Handle to opaque decode parameters.\n\nUsed to specify decode output parameters such as region of interest and output format.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvtiffDecodeParams_t",
+    "signature": "typedef struct nvtiffDecodeParams * nvtiffDecodeParams_t",
+    "deprecated": false
+  },
+  "nvtiffVariant_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffVariant_t",
+    "doc": "TIFF file format variant.",
+    "page": "apireference.md",
+    "anchor": "_CPPv415nvtiffVariant_t",
+    "signature": "enum nvtiffVariant_t",
+    "members": {
+      "NVTIFF_REGULAR_TIFF": {
+        "doc": "Standard TIFF format (up to 4GB file size)."
+      },
+      "NVTIFF_BIG_TIFF": {
+        "doc": "BigTIFF format (supports files larger than 4GB)."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffSampleFormat_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffSampleFormat_t",
+    "doc": "Sample format types.\n\nCorresponds to the SampleFormat (339) tag defined in the TIFF specification.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvtiffSampleFormat_t",
+    "signature": "enum nvtiffSampleFormat_t",
+    "members": {
+      "NVTIFF_SAMPLEFORMAT_UNKNOWN": {
+        "doc": "Unknown sample format."
+      },
+      "NVTIFF_SAMPLEFORMAT_UINT": {
+        "doc": "Unsigned integer data."
+      },
+      "NVTIFF_SAMPLEFORMAT_INT": {
+        "doc": "Signed integer data."
+      },
+      "NVTIFF_SAMPLEFORMAT_IEEEFP": {
+        "doc": "IEEE floating point data."
+      },
+      "NVTIFF_SAMPLEFORMAT_VOID": {
+        "doc": "Undefined data format."
+      },
+      "NVTIFF_SAMPLEFORMAT_COMPLEXINT": {
+        "doc": "Complex integer data."
+      },
+      "NVTIFF_SAMPLEFORMAT_COMPLEXIEEEFP": {
+        "doc": "Complex IEEE floating point data."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffPhotometricInt_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t",
+    "doc": "Photometric interpretation types.\n\nCorresponds to the PhotometricInterpretation (262) tag defined in the TIFF specification.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvtiffPhotometricInt_t",
+    "signature": "enum nvtiffPhotometricInt_t",
+    "members": {
+      "NVTIFF_PHOTOMETRIC_UNKNOWN": {
+        "doc": "Unknown photometric interpretation."
+      },
+      "NVTIFF_PHOTOMETRIC_MINISWHITE": {
+        "doc": "0 is white, max value is black."
+      },
+      "NVTIFF_PHOTOMETRIC_MINISBLACK": {
+        "doc": "0 is black, max value is white."
+      },
+      "NVTIFF_PHOTOMETRIC_RGB": {
+        "doc": "RGB color model."
+      },
+      "NVTIFF_PHOTOMETRIC_PALETTE": {
+        "doc": "Color map indexed (palette color)."
+      },
+      "NVTIFF_PHOTOMETRIC_MASK": {
+        "doc": "Holdout mask."
+      },
+      "NVTIFF_PHOTOMETRIC_SEPARATED": {
+        "doc": "Color separations (e.g., CMYK)."
+      },
+      "NVTIFF_PHOTOMETRIC_YCBCR": {
+        "doc": "YCbCr color space."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffPlanarConfig_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffPlanarConfig_t",
+    "doc": "Planar configuration types.\n\nCorresponds to the PlanarConfiguration (284) tag defined in the TIFF specification.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvtiffPlanarConfig_t",
+    "signature": "enum nvtiffPlanarConfig_t",
+    "members": {
+      "NVTIFF_PLANARCONFIG_UNKNOWN": {
+        "doc": "Unknown planar configuration."
+      },
+      "NVTIFF_PLANARCONFIG_CONTIG": {
+        "doc": "Chunky format (interleaved)."
+      },
+      "NVTIFF_PLANARCONFIG_SEPARATE": {
+        "doc": "Planar format (separate planes)."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffCompression_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t",
+    "doc": "Compression types.\n\nCorresponds to the Compression (259) tag defined in the TIFF specification.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvtiffCompression_t",
+    "signature": "enum nvtiffCompression_t",
+    "members": {
+      "NVTIFF_COMPRESSION_UNKNOWN": {
+        "doc": "Unknown compression."
+      },
+      "NVTIFF_COMPRESSION_NONE": {
+        "doc": "No compression."
+      },
+      "NVTIFF_COMPRESSION_LZW": {
+        "doc": "LZW compression."
+      },
+      "NVTIFF_COMPRESSION_JPEG": {
+        "doc": "JPEG compression."
+      },
+      "NVTIFF_COMPRESSION_ADOBE_DEFLATE": {
+        "doc": "Adobe Deflate compression."
+      },
+      "NVTIFF_COMPRESSION_DEFLATE": {
+        "doc": "Deflate compression."
+      },
+      "NVTIFF_COMPRESSION_APERIO_JP2000_YCC": {
+        "doc": "Aperio JPEG2000 YCC compression."
+      },
+      "NVTIFF_COMPRESSION_APERIO_JP2000_RGB": {
+        "doc": "Aperio JPEG2000 RGB compression."
+      },
+      "NVTIFF_COMPRESSION_JP2000": {
+        "doc": "JPEG2000 compression."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffImageType": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffImageType",
+    "doc": "Image type flags.\n\nCorresponds to the NewSubfileType (254) tag defined in the TIFF specification.",
+    "page": "apireference.md",
+    "anchor": "_CPPv415nvtiffImageType",
+    "signature": "enum nvtiffImageType",
+    "members": {
+      "NVTIFF_IMAGETYPE_REDUCED_IMAGE": {
+        "doc": "Reduced resolution version of another image."
+      },
+      "NVTIFF_IMAGETYPE_PAGE": {
+        "doc": "Single page of a multi-page image."
+      },
+      "NVTIFF_IMAGETYPE_MASK": {
+        "doc": "Transparency mask for another image."
+      },
+      "NVTIFF_IMAGETYPE_ENUM_FORCE_UINT32": {
+        "doc": "Force enum to 32-bit."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffImageType_t": {
+    "kind": "typedef",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv417nvtiffImageType_t",
+    "doc": "Image type storage type.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvtiffImageType_t",
+    "signature": "typedef uint32_t nvtiffImageType_t",
+    "deprecated": false
+  },
+  "nvtiffImageInfo_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv417nvtiffImageInfo_t",
+    "doc": "TIFF image metadata structure.\n\nContains metadata of an image stored in a TIFF file.",
+    "page": "apireference.md",
+    "anchor": "_CPPv417nvtiffImageInfo_t",
+    "signature": "struct nvtiffImageInfo_t",
+    "fields": {
+      "image_type": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t10image_typeE",
+        "doc": "Image type flags from NewSubfileType tag.",
+        "signature": "",
+        "deprecated": false
+      },
+      "image_width": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t11image_widthE",
+        "doc": "Image width in pixels.",
+        "signature": "",
+        "deprecated": false
+      },
+      "image_height": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t12image_heightE",
+        "doc": "Image height in pixels.",
+        "signature": "",
+        "deprecated": false
+      },
+      "compression": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t11compressionE",
+        "doc": "Compression method used.",
+        "signature": "",
+        "deprecated": false
+      },
+      "photometric_int": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t15photometric_intE",
+        "doc": "Photometric interpretation.",
+        "signature": "",
+        "deprecated": false
+      },
+      "planar_config": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t13planar_configE",
+        "doc": "Planar configuration.",
+        "signature": "",
+        "deprecated": false
+      },
+      "samples_per_pixel": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t17samples_per_pixelE",
+        "doc": "Number of samples (channels) per pixel.",
+        "signature": "",
+        "deprecated": false
+      },
+      "bits_per_pixel": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t14bits_per_pixelE",
+        "doc": "Total bits per pixel (sum of `bits_per_sample`).",
+        "signature": "",
+        "deprecated": false
+      },
+      "bits_per_sample": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t15bits_per_sampleE",
+        "doc": "Bits per sample for each channel.",
+        "signature": "",
+        "deprecated": false
+      },
+      "sample_format": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N17nvtiffImageInfo_t13sample_formatE",
+        "doc": "Sample format for each channel.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffImageGeometryType_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv425nvtiffImageGeometryType_t",
+    "doc": "Image geometry type.\n\nSpecifies whether a TIFF file uses strips or tiles.",
+    "page": "apireference.md",
+    "anchor": "_CPPv425nvtiffImageGeometryType_t",
+    "signature": "enum nvtiffImageGeometryType_t",
+    "members": {
+      "NVTIFF_IMAGE_STRIPED": {
+        "doc": "Image is organized in strips."
+      },
+      "NVTIFF_IMAGE_TILED": {
+        "doc": "Image is organized in tiles."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffImageGeometry_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv421nvtiffImageGeometry_t",
+    "doc": "Image geometry information.\n\nStores image geometry along with strip/tile dimensions. When the geometry type is [`nvtiffImageGeometryType_t::NVTIFF_IMAGE_STRIPED`], `strile_width` equals `image_width`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv421nvtiffImageGeometry_t",
+    "signature": "struct nvtiffImageGeometry_t",
+    "fields": {
+      "type": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N21nvtiffImageGeometry_t4typeE",
+        "doc": "Geometry type (striped or tiled).",
+        "signature": "",
+        "deprecated": false
+      },
+      "image_depth": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N21nvtiffImageGeometry_t11image_depthE",
+        "doc": "Image depth (for 3D images).",
+        "signature": "",
+        "deprecated": false
+      },
+      "strile_width": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N21nvtiffImageGeometry_t12strile_widthE",
+        "doc": "Strip/tile width (equals `image_width` for strips).",
+        "signature": "",
+        "deprecated": false
+      },
+      "strile_height": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N21nvtiffImageGeometry_t13strile_heightE",
+        "doc": "Strip/tile height.",
+        "signature": "",
+        "deprecated": false
+      },
+      "strile_depth": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N21nvtiffImageGeometry_t12strile_depthE",
+        "doc": "Strip/tile depth (equals `image_depth` for strips).",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_striles_per_plane": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N21nvtiffImageGeometry_t21num_striles_per_planeE",
+        "doc": "Number of strips/tiles per plane.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_striles": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N21nvtiffImageGeometry_t11num_strilesE",
+        "doc": "Total number of strips/tiles.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffOutputFormat_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffOutputFormat_t",
+    "doc": "Decode output format types.\n\nUsed to specify the decode output format.",
+    "page": "apireference.md",
+    "anchor": "_CPPv420nvtiffOutputFormat_t",
+    "signature": "enum nvtiffOutputFormat_t",
+    "members": {
+      "NVTIFF_OUTPUT_UNCHANGED_I": {
+        "doc": "Keep original format, interleaved channels."
+      },
+      "NVTIFF_OUTPUT_RGB_I_UINT8": {
+        "doc": "Interleaved RGB with 8 bits per channel."
+      },
+      "NVTIFF_OUTPUT_RGB_I_UINT16": {
+        "doc": "Interleaved RGB with 16 bits per channel."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffImage_t": {
+    "kind": "type",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv413nvtiffImage_t",
+    "doc": "Output image data structure.\n\nContains output image data buffers used by `nvtiffDecodeImageEx()`.",
+    "page": "apireference.md",
+    "anchor": "_CPPv413nvtiffImage_t",
+    "signature": "struct nvtiffImage_t",
+    "fields": {
+      "plane_data": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N13nvtiffImage_t10plane_dataE",
+        "doc": "Array of pointers to plane data buffers on device.",
+        "signature": "",
+        "deprecated": false
+      },
+      "plane_pitch_bytes": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N13nvtiffImage_t17plane_pitch_bytesE",
+        "doc": "Array of pitch values (bytes per row) for each plane.",
+        "signature": "",
+        "deprecated": false
+      },
+      "num_planes": {
+        "kind": "field",
+        "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv4N13nvtiffImage_t10num_planesE",
+        "doc": "Number of planes in the output image.",
+        "signature": "",
+        "deprecated": false
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffTagDataType_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t",
+    "doc": "TIFF tag data types as defined in the TIFF specification.",
+    "page": "apireference.md",
+    "anchor": "_CPPv419nvtiffTagDataType_t",
+    "signature": "enum nvtiffTagDataType_t",
+    "members": {
+      "NVTIFF_TAG_TYPE_BYTE": {
+        "doc": "8-bit unsigned integer."
+      },
+      "NVTIFF_TAG_TYPE_ASCII": {
+        "doc": "8-bit byte containing ASCII code (null-terminated)."
+      },
+      "NVTIFF_TAG_TYPE_SHORT": {
+        "doc": "16-bit unsigned integer."
+      },
+      "NVTIFF_TAG_TYPE_LONG": {
+        "doc": "32-bit unsigned integer."
+      },
+      "NVTIFF_TAG_TYPE_RATIONAL": {
+        "doc": "Two LONGs: numerator and denominator."
+      },
+      "NVTIFF_TAG_TYPE_SBYTE": {
+        "doc": "8-bit signed integer."
+      },
+      "NVTIFF_TAG_TYPE_UNDEFINED": {
+        "doc": "8-bit byte that may contain anything."
+      },
+      "NVTIFF_TAG_TYPE_SSHORT": {
+        "doc": "16-bit signed integer."
+      },
+      "NVTIFF_TAG_TYPE_SLONG": {
+        "doc": "32-bit signed integer."
+      },
+      "NVTIFF_TAG_TYPE_SRATIONAL": {
+        "doc": "Two SLONGs: numerator and denominator."
+      },
+      "NVTIFF_TAG_TYPE_FLOAT": {
+        "doc": "32-bit IEEE floating point."
+      },
+      "NVTIFF_TAG_TYPE_DOUBLE": {
+        "doc": "64-bit IEEE floating point."
+      },
+      "NVTIFF_TAG_TYPE_LONG8": {
+        "doc": "BigTIFF 64-bit unsigned integer."
+      },
+      "NVTIFF_TAG_TYPE_SLONG8": {
+        "doc": "BigTIFF 64-bit signed integer."
+      },
+      "NVTIFF_TAG_TYPE_IFD8": {
+        "doc": "BigTIFF 64-bit unsigned IFD offset."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffTag_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv411nvtiffTag_t",
+    "doc": "TIFF tag identifiers.\n\nCorresponds to various TIFF tags listed in the TIFF specification. Currently only GeoTIFF relevant tags are supported.",
+    "page": "apireference.md",
+    "anchor": "_CPPv411nvtiffTag_t",
+    "signature": "enum nvtiffTag_t",
+    "members": {
+      "NVTIFF_TAG_UNKNOWN": {
+        "doc": "Unknown tag."
+      },
+      "NVTIFF_TAG_MODEL_PIXEL_SCALE": {
+        "doc": "GeoTIFF ModelPixelScaleTag."
+      },
+      "NVTIFF_TAG_MODEL_TIE_POINT": {
+        "doc": "GeoTIFF ModelTiepointTag."
+      },
+      "NVTIFF_TAG_MODEL_TRANSFORMATION": {
+        "doc": "GeoTIFF ModelTransformationTag."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffGeoKey_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t",
+    "doc": "GeoTIFF key identifiers.\n\nCorresponds to various geo keys listed in the GeoTIFF specification. User can refer to the GeoTIFF specification for additional details.",
+    "page": "apireference.md",
+    "anchor": "_CPPv414nvtiffGeoKey_t",
+    "signature": "enum nvtiffGeoKey_t",
+    "members": {
+      "NVTIFF_GEOKEY_GT_MODEL_TYPE": {
+        "doc": "Model type."
+      },
+      "NVTIFF_GEOKEY_GT_RASTER_TYPE": {
+        "doc": "Raster type."
+      },
+      "NVTIFF_GEOKEY_GT_CITATION": {
+        "doc": "Citation."
+      },
+      "NVTIFF_GEOKEY_GEODETIC_CRS": {
+        "doc": "Geodetic CRS."
+      },
+      "NVTIFF_GEOKEY_GEODETIC_CITATION": {
+        "doc": "Geodetic citation."
+      },
+      "NVTIFF_GEOKEY_GEODETIC_DATUM": {
+        "doc": "Geodetic datum."
+      },
+      "NVTIFF_GEOKEY_PRIME_MERIDIAN": {
+        "doc": "Prime meridian."
+      },
+      "NVTIFF_GEOKEY_GEOG_LINEAR_UNITS": {
+        "doc": "Geographic linear units."
+      },
+      "NVTIFF_GEOKEY_GEOG_LINEAR_UNIT_SIZE": {
+        "doc": "Geographic linear unit size."
+      },
+      "NVTIFF_GEOKEY_GEOG_ANGULAR_UNITS": {
+        "doc": "Geographic angular units."
+      },
+      "NVTIFF_GEOKEY_GEOG_ANGULAR_UNIT_SIZE": {
+        "doc": "Geographic angular unit size."
+      },
+      "NVTIFF_GEOKEY_ELLIPSOID": {
+        "doc": "Ellipsoid."
+      },
+      "NVTIFF_GEOKEY_ELLIPSOID_SEMI_MAJOR_AXIS": {
+        "doc": "Ellipsoid semi-major axis."
+      },
+      "NVTIFF_GEOKEY_ELLIPSOID_SEMI_MINOR_AXIS": {
+        "doc": "Ellipsoid semi-minor axis."
+      },
+      "NVTIFF_GEOKEY_ELLIPSOID_INV_FLATTENING": {
+        "doc": "Ellipsoid inverse flattening."
+      },
+      "NVTIFF_GEOKEY_GEOG_AZIMUTH_UNITS": {
+        "doc": "Geographic azimuth units."
+      },
+      "NVTIFF_GEOKEY_PRIME_MERIDIAN_LONG": {
+        "doc": "Prime meridian longitude."
+      },
+      "NVTIFF_GEOKEY_PROJECTED_CRS": {
+        "doc": "Projected CRS."
+      },
+      "NVTIFF_GEOKEY_PROJECTED_CITATION": {
+        "doc": "Projected citation."
+      },
+      "NVTIFF_GEOKEY_PROJECTION": {
+        "doc": "Projection."
+      },
+      "NVTIFF_GEOKEY_PROJ_METHOD": {
+        "doc": "Projection method."
+      },
+      "NVTIFF_GEOKEY_PROJ_LINEAR_UNITS": {
+        "doc": "Projection linear units."
+      },
+      "NVTIFF_GEOKEY_PROJ_LINEAR_UNIT_SIZE": {
+        "doc": "Projection linear unit size."
+      },
+      "NVTIFF_GEOKEY_PROJ_STD_PARALLEL1": {
+        "doc": "Standard parallel 1."
+      },
+      "NVTIFF_GEOKEY_PROJ_STD_PARALLEL": {
+        "doc": "Standard parallel (alias for PROJ_STD_PARALLEL1)."
+      },
+      "NVTIFF_GEOKEY_PROJ_STD_PARALLEL2": {
+        "doc": "Standard parallel 2."
+      },
+      "NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LONG": {
+        "doc": "Natural origin longitude."
+      },
+      "NVTIFF_GEOKEY_PROJ_ORIGIN_LONG": {
+        "doc": "Origin longitude (alias for PROJ_NAT_ORIGIN_LONG)."
+      },
+      "NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LAT": {
+        "doc": "Natural origin latitude."
+      },
+      "NVTIFF_GEOKEY_PROJ_ORIGIN_LAT": {
+        "doc": "Origin latitude (alias for PROJ_NAT_ORIGIN_LAT)."
+      },
+      "NVTIFF_GEOKEY_PROJ_FALSE_EASTING": {
+        "doc": "False easting."
+      },
+      "NVTIFF_GEOKEY_PROJ_FALSE_NORTHING": {
+        "doc": "False northing."
+      },
+      "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LONG": {
+        "doc": "False origin longitude."
+      },
+      "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LAT": {
+        "doc": "False origin latitude."
+      },
+      "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_EASTING": {
+        "doc": "False origin easting."
+      },
+      "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_NORTHING": {
+        "doc": "False origin northing."
+      },
+      "NVTIFF_GEOKEY_PROJ_CENTER_LONG": {
+        "doc": "Center longitude."
+      },
+      "NVTIFF_GEOKEY_PROJ_CENTER_LAT": {
+        "doc": "Center latitude."
+      },
+      "NVTIFF_GEOKEY_PROJ_CENTER_EASTING": {
+        "doc": "Center easting."
+      },
+      "NVTIFF_GEOKEY_PROJ_CENTER_NORTHING": {
+        "doc": "Center northing."
+      },
+      "NVTIFF_GEOKEY_PROJ_SCALE_AT_NAT_ORIGIN": {
+        "doc": "Scale at natural origin."
+      },
+      "NVTIFF_GEOKEY_PROJ_SCALE_AT_ORIGIN": {
+        "doc": "Scale at origin (alias for PROJ_SCALE_AT_NAT_ORIGIN)."
+      },
+      "NVTIFF_GEOKEY_PROJ_SCALE_AT_CENTER": {
+        "doc": "Scale at center."
+      },
+      "NVTIFF_GEOKEY_PROJ_AZIMUTH_ANGLE": {
+        "doc": "Azimuth angle."
+      },
+      "NVTIFF_GEOKEY_PROJ_STRAIGHT_VERT_POLE_LONG": {
+        "doc": "Straight vertical pole longitude."
+      },
+      "NVTIFF_GEOKEY_VERTICAL": {
+        "doc": "Vertical CRS."
+      },
+      "NVTIFF_GEOKEY_VERTICAL_CITATION": {
+        "doc": "Vertical citation."
+      },
+      "NVTIFF_GEOKEY_VERTICAL_DATUM": {
+        "doc": "Vertical datum."
+      },
+      "NVTIFF_GEOKEY_VERTICAL_UNITS": {
+        "doc": "Vertical units."
+      },
+      "NVTIFF_GEOKEY_BASE": {
+        "doc": "Reserved for private use."
+      },
+      "NVTIFF_GEOKEY_END": {
+        "doc": "Maximum value."
+      }
+    },
+    "deprecated": false
+  },
+  "nvtiffGeoKeyDataType_t": {
+    "kind": "enum",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffGeoKeyDataType_t",
+    "doc": "Data type for GeoTIFF key values.",
+    "page": "apireference.md",
+    "anchor": "_CPPv422nvtiffGeoKeyDataType_t",
+    "signature": "enum nvtiffGeoKeyDataType_t",
+    "members": {
+      "NVTIFF_GEOKEY_TYPE_SHORT": {
+        "doc": "16-bit unsigned integer."
+      },
+      "NVTIFF_GEOKEY_TYPE_ASCII": {
+        "doc": "ASCII string."
+      },
+      "NVTIFF_GEOKEY_TYPE_DOUBLE": {
+        "doc": "64-bit floating point."
+      },
+      "NVTIFF_GEOKEY_TYPE_UNKNOWN": {
+        "doc": "Unknown type."
+      }
+    },
+    "deprecated": false
+  }
+}

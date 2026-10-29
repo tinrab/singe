@@ -4,26 +4,26 @@ description = "Safe Rust wrappers for the NVIDIA cuBLAS dense linear algebra lib
 version = "0.1.0-alpha.9"
 edition.workspace = true
 repository.workspace = true
-keywords = ["cuda", "nvidia", "cublas", "blas"]
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
+keywords = ["cuda", "nvidia", "cublas", "blas"]
 include.workspace = true
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cublas_13_5"]
+default = ["cublas_13_8"]
 
-cublas_13_5 = [
-    "singe-cublas-sys/cublas_13_5",
-    "singe-cuda/runtime_13_3",
-    "singe-cuda-sys/runtime_13_3",
+cublas_13_8 = [
+    "singe-cublas-sys/cublas_13_8",
+    "singe-cuda/runtime_13_4",
+    "singe-cuda-sys/runtime_13_4",
 ]
 
 testing = ["singe-cuda/testing"]
-lt = ["cublas_13_5", "singe-cublas-sys/lt"]
-xt = ["cublas_13_5", "singe-cublas-sys/xt"]
+lt = ["cublas_13_8", "singe-cublas-sys/lt"]
+xt = ["cublas_13_8", "singe-cublas-sys/xt"]
 
 [dependencies]
 singe-core.workspace = true

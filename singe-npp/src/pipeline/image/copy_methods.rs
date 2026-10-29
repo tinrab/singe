@@ -1,42 +1,61 @@
-use singe_cuda::types::f16;
+use singe_cuda::view::DeviceRepr;
 
 use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        exchange,
-        memory::Image,
-        view::{AC4, C1, C2, C3, C4, ChannelLayout, ImageView, ImageViewMut},
+        Image, SupportedImage,
+        view::{ChannelLayout, ImageOutputView, ImageView},
     },
-    pipeline::{ImageAllocator, Workspace},
+    pipeline::image::{ImageBacking, ImagePipeline},
 };
 
-use super::{ImageBacking, ImagePipeline};
-
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
-    T: Copy,
+    T: SupportedImage<L>,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
-    Self: CopyImage<T, L>,
 {
+    /// Copies every logical channel, including alpha, into the supplied destination.
+    ///
+    /// Source and destination dimensions must match. Prepares both regions, waits for
+    /// producers on other streams, rejects capture, and completes CUDA row transfers before
+    /// returning successfully. Destination row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, transfer or native execution, or stream synchronization fail.
+    /// Source and destination dimensions must match.
     pub fn copy_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()> {
         <Self as CopyImage<T, L>>::copy(stream_context, source, destination)
     }
 
+    /// Copies every logical channel, including alpha, into a new owned image.
+    ///
+    /// Always allocates a source-sized image. Prepares source and destination regions,
+    /// waits for producers on other streams, rejects capture, and completes CUDA row
+    /// transfers before returning successfully. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, transfer or native execution, or stream synchronization fail.
+    /// Allocation, copying borrowed input, or image view construction can also fail.
     pub fn copy(self) -> Result<Self> {
-        let mut destination = self.workspace.image::<T, L>(self.size())?;
-
-        {
-            let source = self.view()?;
-            let mut destination_view = destination.view_mut()?;
-            <Self as CopyImage<T, L>>::copy(self.stream_context, &source, &mut destination_view)?;
-        }
-
+        self.ensure_eager()?;
+        let mut destination =
+            Image::<T, L>::create_uninit(self.stream_context.cuda_context(), self.size())?;
+        <Self as CopyImage<T, L>>::copy(
+            self.stream_context,
+            &self.view()?,
+            &mut destination.output()?,
+        )?;
+        // SAFETY: completed copy wrote all logical channels, including alpha, without exposing pitch padding.
+        let destination = unsafe { destination.assume_init() };
         Ok(Self {
             stream_context: self.stream_context,
             workspace: self.workspace,
@@ -44,76 +63,63 @@ where
         })
     }
 
-    // TODO: call `stream.synchronize()`?
+    /// Completes outstanding stream work and returns an initialized owned image.
+    ///
+    /// For owned input, synchronizes the selected stream and returns the existing image.
+    /// For borrowed input, allocates a source-sized image and completes a copy of every
+    /// logical channel, including alpha. The copy prepares participating regions and waits
+    /// for producers on other streams. Rejects capture. Row padding remains outside the
+    /// initialized logical image.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, transfer or native execution, or stream synchronization fail.
+    /// Allocation, copying borrowed input, or image view construction can also fail.
     pub fn finish(self) -> Result<Image<T, L>> {
+        self.ensure_eager()?;
         match self.backing {
-            ImageBacking::Owned(image) => Ok(image),
+            ImageBacking::Owned(image) => {
+                self.stream_context.sync_scope(|| Ok(()))?;
+                Ok(image)
+            }
             ImageBacking::Borrowed(source) => {
-                let mut destination = self.workspace.image::<T, L>(source.size())?;
-                let mut destination_view = destination.view_mut()?;
+                let mut destination = Image::<T, L>::create_uninit(
+                    self.stream_context.cuda_context(),
+                    source.size(),
+                )?;
                 <Self as CopyImage<T, L>>::copy(
                     self.stream_context,
                     &source,
-                    &mut destination_view,
+                    &mut destination.output()?,
                 )?;
-                Ok(destination)
+                // SAFETY: the completed copy established every logical channel.
+                Ok(unsafe { destination.assume_init() })
             }
         }
     }
 }
 
-pub trait CopyImage<T, L> {
+/// # Safety
+/// Complete borrowed work on every path and initialize every logical channel, including alpha.
+pub unsafe trait CopyImage<T, L> {
     fn copy(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()>;
 }
 
-macro_rules! impl_copy_image {
-    ($ty:ty, $layout:ty, $copy:path) => {
-        impl<'a> CopyImage<$ty, $layout> for ImagePipeline<'a, $ty, $layout> {
-            fn copy(
-                stream_context: &StreamContext,
-                source: &ImageView<'_, $ty, $layout>,
-                destination: &mut ImageViewMut<'_, $ty, $layout>,
-            ) -> Result<()> {
-                $copy(stream_context, source, destination)
-            }
-        }
-    };
+// SAFETY: each completed CUDA row transfer copies valid T values for every logical channel.
+unsafe impl<T: DeviceRepr, L: ChannelLayout> CopyImage<T, L> for ImagePipeline<'_, T, L> {
+    fn copy(
+        stream_context: &StreamContext,
+        source: &ImageView<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
+    ) -> Result<()> {
+        stream_context.stream().ensure_not_capturing()?;
+        stream_context.prepare_region(source)?;
+        stream_context.prepare_region(destination)?;
+        stream_context.sync_scope(|| destination.copy_from(source))
+    }
 }
-
-#[path = "copy_complex_impls.rs"]
-mod complex_impls;
-
-impl_copy_image!(u8, C1, exchange::copy_c1);
-impl_copy_image!(u8, C3, exchange::copy_c3);
-impl_copy_image!(u8, C4, exchange::copy_c4);
-impl_copy_image!(u8, AC4, exchange::copy_ac4);
-impl_copy_image!(i8, C1, exchange::copy_c1);
-impl_copy_image!(i8, C2, exchange::copy_c2);
-impl_copy_image!(i8, C3, exchange::copy_c3);
-impl_copy_image!(i8, C4, exchange::copy_c4);
-impl_copy_image!(i8, AC4, exchange::copy_ac4);
-impl_copy_image!(u16, C1, exchange::copy_c1);
-impl_copy_image!(u16, C3, exchange::copy_c3);
-impl_copy_image!(u16, C4, exchange::copy_c4);
-impl_copy_image!(u16, AC4, exchange::copy_ac4);
-impl_copy_image!(f16, C1, exchange::copy_c1);
-impl_copy_image!(f16, C3, exchange::copy_c3);
-impl_copy_image!(f16, C4, exchange::copy_c4);
-impl_copy_image!(i16, C1, exchange::copy_c1);
-impl_copy_image!(i16, C3, exchange::copy_c3);
-impl_copy_image!(i16, C4, exchange::copy_c4);
-impl_copy_image!(i16, AC4, exchange::copy_ac4);
-impl_copy_image!(u32, C1, exchange::copy_c1);
-impl_copy_image!(u32, AC4, exchange::copy_ac4);
-impl_copy_image!(i32, C1, exchange::copy_c1);
-impl_copy_image!(i32, C3, exchange::copy_c3);
-impl_copy_image!(i32, C4, exchange::copy_c4);
-impl_copy_image!(i32, AC4, exchange::copy_ac4);
-impl_copy_image!(f32, C1, exchange::copy_c1);
-impl_copy_image!(f32, C3, exchange::copy_c3);
-impl_copy_image!(f32, C4, exchange::copy_c4);
-impl_copy_image!(f32, AC4, exchange::copy_ac4);

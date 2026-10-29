@@ -4,13 +4,17 @@ use std::sync::{Arc, Mutex};
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::execution::KernelCache,
-    backend::tensor::{Shape, TensorSpec},
+    backend::{
+        execution::KernelCache,
+        tensor::{Shape, TensorId, TensorSpec},
+    },
     data_type::{DataType, bf16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::HeuristicMode,
+        error::Error as FrontendError,
+        graph::{DataTypePolicy, Graph, GraphConfig, GraphKeyShapePolicy},
+        operation::MatmulConfig,
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
 };
 
@@ -30,48 +34,19 @@ fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
 }
 
 fn lhs_shape(shape: MatmulShape) -> Result<Shape> {
-    Shape::contiguous([shape.batch, shape.m, shape.k])?.with_strides([
-        shape.m * shape.k,
-        shape.k,
-        1,
-    ])
+    Shape::contiguous([shape.batch, shape.m, shape.k])
 }
 
 fn rhs_shape(shape: MatmulShape) -> Result<Shape> {
-    Shape::contiguous([shape.batch, shape.k, shape.n])?.with_strides([
-        shape.k * shape.n,
-        shape.n,
-        1,
-    ])
+    Shape::contiguous([shape.batch, shape.k, shape.n])
 }
 
 fn output_shape(shape: MatmulShape) -> Result<Shape> {
-    Shape::contiguous([shape.batch, shape.m, shape.n])?.with_strides([
-        shape.m * shape.n,
-        shape.n,
-        1,
-    ])
-}
-
-fn lhs_volume(shape: MatmulShape) -> usize {
-    (shape.batch * shape.m * shape.k) as usize
-}
-
-fn rhs_volume(shape: MatmulShape) -> usize {
-    (shape.batch * shape.k * shape.n) as usize
-}
-
-fn output_volume(shape: MatmulShape) -> usize {
-    (shape.batch * shape.m * shape.n) as usize
+    Shape::contiguous([shape.batch, shape.m, shape.n])
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-
-    if singe_cudnn::version()? < 90400 {
-        println!("skipping: dynamic shape kernel cache requires cuDNN 9.4 or newer");
-        return Ok(());
-    }
+    let example = common::ExampleContext::create()?;
 
     let base = MatmulShape {
         batch: 2,
@@ -90,86 +65,172 @@ fn run() -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new()
             .with_name("matmul-dynamic-shapes")
-            .with_dynamic_shape()
-            .with_override_shape()
             .with_data_type_policy(
                 DataTypePolicy::new()
                     .with_io(DataType::BF16)
                     .with_compute(DataType::F32),
             ),
     );
-    graph.attach_shared_kernel_cache(Arc::clone(&kernel_cache))?;
+    let lhs = graph.insert_tensor(
+        TensorId::new(1000),
+        TensorSpec::new(DataType::BF16, lhs_shape(base)?).with_name("lhs"),
+    )?;
+    let rhs = graph.insert_tensor(
+        TensorId::new(1001),
+        TensorSpec::new(DataType::BF16, rhs_shape(base)?).with_name("rhs"),
+    )?;
+    let output = graph.insert_tensor(
+        TensorId::new(1002),
+        TensorSpec::new(DataType::F32, output_shape(base)?).with_name("output"),
+    )?;
+    graph.matmul_into(
+        lhs,
+        rhs,
+        output,
+        MatmulConfig::new().with_compute_type(DataType::F32),
+    )?;
 
-    let lhs = graph.tensor(
-        TensorSpec::new(DataType::BF16, lhs_shape(base)?)
-            .with_id(1000)
-            .with_name("lhs"),
-    );
-    let rhs = graph.tensor(
-        TensorSpec::new(DataType::BF16, rhs_shape(base)?)
-            .with_id(1001)
-            .with_name("rhs"),
-    );
-    let output = graph.tensor(
-        TensorSpec::new(DataType::F32, output_shape(base)?)
-            .with_id(1002)
-            .with_name("output"),
-    );
-    graph.matmul(lhs, rhs, output, DataType::F32)?;
-
-    graph.record_dynamic_shape_constraints(
+    graph.record_runtime_shape_constraints(
         lhs,
         [1, 1, base.k],
         [runtime.batch, runtime.m, base.k],
     )?;
-    graph.record_dynamic_shape_constraints(
+    graph.record_runtime_shape_constraints(
         rhs,
         [1, base.k, 1],
         [runtime.batch, base.k, runtime.n],
     )?;
-    graph.record_dynamic_shape_constraints(
+    graph.record_runtime_shape_constraints(
         output,
         [1, 1, 1],
         [runtime.batch, runtime.m, runtime.n],
     )?;
+    // Compilation options can be selected after constructing operations and runtime bounds.
+    graph.set_dynamic_shape_enabled(true);
+    graph.set_override_shape_enabled(true);
+    graph.attach_shared_kernel_cache(Arc::clone(&kernel_cache))?;
 
-    let compiled = graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
+    println!(
+        "dynamic graph key: {:016x}, concrete-layout key: {:016x}",
+        graph.key(GraphKeyShapePolicy::Auto)?,
+        graph.key(GraphKeyShapePolicy::Include)?,
+    );
+
+    let candidates = graph.plan_candidates(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+    )?;
+    println!(
+        "native shape modes: dynamic={}, overrides={}",
+        candidates.operation_graph().is_dynamic_shape_enabled(),
+        candidates.operation_graph().is_override_shape_enabled(),
+    );
+    let built = candidates.build_candidates(Some(&example.cudnn), &CompileConfig::new())?;
+    let selected = built
+        .available_plan_ids()
+        .into_iter()
+        .next()
+        .ok_or_else(|| FrontendError::NoAvailablePlans {
+            reports: built.build_reports(),
+        })?;
+    // Built plans retain their preparation and cache independently of later recipe changes.
+    graph.detach_kernel_cache();
+    graph.set_dynamic_shape_enabled(false);
+    graph.set_override_shape_enabled(false);
+    let (cache_bytes, revision, entries) = {
+        let cache = kernel_cache
+            .lock()
+            .map_err(|_| FrontendError::KernelCacheLockPoisoned)?;
+        (cache.serialize()?, cache.revision()?, cache.entry_count()?)
+    };
+    let mut restored_cache = KernelCache::deserialize(&cache_bytes)?;
+    restored_cache.build(None)?;
+    println!(
+        "kernel cache: revision={revision}, entries={entries}, native bytes={}, restored entries={}",
+        cache_bytes.len(),
+        restored_cache.entry_count()?,
+    );
 
     let mut seed = 123_456_789_u32;
-    let mut lhs_dev = DeviceMemory::from_slice(&init_bf16_image(lhs_volume(base), &mut seed))?;
-    let mut rhs_dev = DeviceMemory::from_slice(&init_bf16_image(rhs_volume(base), &mut seed))?;
-    let mut output_dev = DeviceMemory::<f32>::zeroes(output_volume(base))?;
-    let mut workspace = common::workspace(compiled.workspace_size()?.max(1))?;
+    let lhs_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(lhs_shape(base)?.storage_span()?, &mut seed),
+    )?;
+    let rhs_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(rhs_shape(base)?.storage_span()?, &mut seed),
+    )?;
+    let mut output_dev = DeviceMemory::<f32>::zeroed(
+        example.cudnn.cuda_context(),
+        output_shape(base)?.storage_span()?,
+    )?;
+    let mut workspace = common::workspace(
+        example.cudnn.cuda_context(),
+        built.workspace_size_for(&selected)?,
+    )?;
 
-    let mut bindings = compiled.bindings();
-    bindings.set(lhs, &mut lhs_dev)?;
-    bindings.set(rhs, &mut rhs_dev)?;
+    let mut bindings = built.bindings()?;
+    bindings.set_input(lhs, &lhs_dev)?;
+    bindings.set_input(rhs, &rhs_dev)?;
     bindings.set(output, &mut output_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    // SAFETY: inputs, writable output, plan and workspace remain live through stream
+    // completion, including when native execution returns an enqueue error.
+    example.execute_and_wait(|context| unsafe {
+        built.execute(
+            context,
+            ExecuteArgs::new(&bindings)
+                .with_workspace(&mut workspace)
+                .with_plan(&selected),
+        )
+    })?;
+    drop(bindings);
 
-    let mut lhs_runtime =
-        DeviceMemory::from_slice(&init_bf16_image(lhs_volume(runtime), &mut seed))?;
-    let mut rhs_runtime =
-        DeviceMemory::from_slice(&init_bf16_image(rhs_volume(runtime), &mut seed))?;
-    let mut output_runtime = DeviceMemory::<f32>::zeroes(output_volume(runtime))?;
+    let lhs_runtime = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(lhs_shape(runtime)?.storage_span()?, &mut seed),
+    )?;
+    let rhs_runtime = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_bf16_image(rhs_shape(runtime)?.storage_span()?, &mut seed),
+    )?;
+    let mut output_runtime = DeviceMemory::<f32>::zeroed(
+        example.cudnn.cuda_context(),
+        output_shape(runtime)?.storage_span()?,
+    )?;
 
-    let mut runtime_bindings = compiled.bindings();
-    runtime_bindings.set(lhs, &mut lhs_runtime)?;
-    runtime_bindings.set(rhs, &mut rhs_runtime)?;
+    let mut runtime_bindings = built.bindings()?;
+    runtime_bindings.set_input(lhs, &lhs_runtime)?;
+    runtime_bindings.set_input(rhs, &rhs_runtime)?;
     runtime_bindings.set(output, &mut output_runtime)?;
 
-    let mut runtime_overrides = compiled.runtime_overrides();
-    runtime_overrides.set_shape(lhs, &lhs_shape(runtime)?)?;
-    runtime_overrides.set_shape(rhs, &rhs_shape(runtime)?)?;
-    runtime_overrides.set_shape(output, &output_shape(runtime)?)?;
+    let mut runtime_overrides = built.runtime_overrides();
+    runtime_overrides.set(lhs, lhs_shape(runtime)?)?;
+    runtime_overrides.set(rhs, rhs_shape(runtime)?)?;
+    runtime_overrides.set(output, output_shape(runtime)?)?;
     let runtime_overrides = runtime_overrides.build();
-
-    compiled.execute_with_runtime_overrides(
-        &ctx.cudnn,
-        &runtime_bindings,
-        Some(&mut workspace),
-        &runtime_overrides,
+    let mut runtime_workspace = common::workspace(
+        example.cudnn.cuda_context(),
+        built.max_workspace_size_with_runtime_overrides(&example.cudnn, &runtime_overrides)?,
     )?;
+
+    // SAFETY: runtime layouts match these initialized inputs and writable output;
+    // all buffers, plan and workspace remain live through completion on success or error.
+    example.execute_and_wait(|context| unsafe {
+        built.execute(
+            context,
+            ExecuteArgs::new(&runtime_bindings)
+                .with_workspace(&mut runtime_workspace)
+                .with_plan(&selected)
+                .with_overrides(&runtime_overrides),
+        )
+    })?;
+    drop(runtime_bindings);
+
+    let compiled = built.compile_selected(&selected)?;
+    println!(
+        "selected {selected}: {} runtime workspace bytes",
+        compiled.workspace_size_with_runtime_overrides(&example.cudnn, &runtime_overrides)?,
+    );
 
     Ok(())
 }

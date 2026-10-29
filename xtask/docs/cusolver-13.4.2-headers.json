@@ -1,0 +1,330 @@
+{
+  "CUSOLVER_ALG_0": {
+    "doc": "default algorithm",
+    "members": {},
+    "source": "cusolver_common.h"
+  },
+  "CUSOLVER_VERSION": {
+    "doc": "Compile-time cuSOLVER version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.",
+    "kind": "constant",
+    "source": "cusolver_common.h"
+  },
+  "CUSOLVER_VER_BUILD": {
+    "doc": "Build component of the cuSOLVER version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cusolver_common.h"
+  },
+  "CUSOLVER_VER_MAJOR": {
+    "doc": "Major component of the cuSOLVER version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cusolver_common.h"
+  },
+  "CUSOLVER_VER_MINOR": {
+    "doc": "Minor component of the cuSOLVER version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cusolver_common.h"
+  },
+  "CUSOLVER_VER_PATCH": {
+    "doc": "Patch component of the cuSOLVER version used to generate these bindings.",
+    "kind": "constant",
+    "source": "cusolver_common.h"
+  },
+  "cusolverDnIRSInfosDestroy": {
+    "doc": "============================================================================= cusolverDnIRSInfos prototypes =============================================================================",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnIRSParams": {
+    "doc": "------------------------------------------------------ opaque cusolverDnIRS structure for IRS solver",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnIRSParamsCreate": {
+    "doc": "============================================================================= IRS helper function API =============================================================================",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnIRSXgesv": {
+    "doc": "****************************************************************************",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnParams": {
+    "doc": "------------------------------------------------------",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSetDeterministicMode": {
+    "doc": "============================================================ Deterministic Mode ============================================================",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSetFixedPointEmulationMantissaControl": {
+    "doc": "Fixed-point FP64 emulation configuration APIs",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSgebrd_bufferSize": {
+    "doc": "bidiagonal factorization",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSgeqrf_bufferSize": {
+    "doc": "QR factorization",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSgesvd_bufferSize": {
+    "doc": "singular value decomposition, A = U * Sigma * V^H",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSgesvdaStridedBatched_bufferSize": {
+    "doc": "batched approximate SVD",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSgetrf_bufferSize": {
+    "doc": "LU Factorization",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSgetrs": {
+    "doc": "LU solve",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSlaswp": {
+    "doc": "Row pivoting",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSlauum_bufferSize": {
+    "doc": "lauum, auxiliar routine for s.p.d matrix inversion",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSorgbr_bufferSize": {
+    "doc": "generates one of the unitary matrices Q or P**T determined by GEBRD",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSorgqr_bufferSize": {
+    "doc": "generate unitary matrix Q from QR factorization",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSorgtr_bufferSize": {
+    "doc": "generate unitary Q comes from sytrd",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSormqr_bufferSize": {
+    "doc": "compute Q**T*b in solve min||A*x = b||",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSormtr_bufferSize": {
+    "doc": "compute op(Q)*C or C*op(Q) where Q comes from sytrd",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSpotrfBatched": {
+    "doc": "batched Cholesky factorization and its solver",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSpotrf_bufferSize": {
+    "doc": "Cholesky factorization and its solver",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSpotri_bufferSize": {
+    "doc": "s.p.d. matrix inversion (POTRI) and auxiliary routines (TRTRI and LAUUM)",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSsyevd_bufferSize": {
+    "doc": "standard symmetric eigenvalue solver, A*x = lambda*x, by divide-and-conquer",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSsyevdx_bufferSize": {
+    "doc": "standard selective symmetric eigenvalue solver, A*x = lambda*x, by divide-and-conquer",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSsygvd_bufferSize": {
+    "doc": "generalized symmetric eigenvalue solver, A*x = lambda*B*x, by divide-and-conquer",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSsygvdx_bufferSize": {
+    "doc": "selective generalized symmetric eigenvalue solver, A*x = lambda*B*x, by divide-and-conquer",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSsytrd_bufferSize": {
+    "doc": "tridiagonal factorization",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSsytrf_bufferSize": {
+    "doc": "L*D*L**T,U*D*U**T factorization",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnSsytri_bufferSize": {
+    "doc": "Symmetric indefinite inversion (sytri)",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXgeev_bufferSize": {
+    "doc": "64-bit API for GEEV",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXgeqrf_bufferSize": {
+    "doc": "64-bit API for GEQRF",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXgesvd_bufferSize": {
+    "doc": "64-bit API for GESVD",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXgesvdp_bufferSize": {
+    "doc": "64-bit API for GESVDP",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXgetrf_bufferSize": {
+    "doc": "64-bit API for GETRF",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXgetrs": {
+    "doc": "64-bit API for GETRS",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXhetrs_bufferSize": {
+    "doc": "Hermitian indefinite solve (HETRS), 64-bit interface. Complex-only: dataTypeA and dataTypeB must both be CUDA_C_32F or CUDA_C_64F and must match. Real types are rejected.",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXpolar_bufferSize": {
+    "doc": "Public APIs for cusolverDnXpolar.",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXpotrf_bufferSize": {
+    "doc": "new 64-bit API\n\n64-bit API for POTRF",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXpotrs": {
+    "doc": "64-bit API for POTRS",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXstedc_bufferSize": {
+    "doc": "64-bit API for STEDC",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXsyevBatched_bufferSize": {
+    "doc": "64-bit API for batched SYEV",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXsyevd_bufferSize": {
+    "doc": "64-bit API for SYEVD",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXsyevdx_bufferSize": {
+    "doc": "64-bit API for SYEVDX",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXsytrf_bufferSize": {
+    "doc": "Symmetric / Hermitian indefinite factorization (SYTRF / HETRF), 64-bit interface. SYTRF and HETRF dispatch to a shared implementation specialized at compile time (is_hermitian template parameter): SYTRF computes A = U*D*U^T (or L*D*L^T), HETRF computes A = U*D*U^H (or L*D*L^H) with a real D-diagonal and Hermitian-aware arithmetic in the panel updates. The bufferSize and compute routines share the same argument list (workspace queries accept the pivot pointer purely for signature symmetry; the buffer size does not depend on ipiv).",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnXsytrs_bufferSize": {
+    "doc": "Symmetric indefinite solve (SYTRS)",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnZZgels": {
+    "doc": "****************************************************************************",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnZZgels_bufferSize": {
+    "doc": "****************************************************************************",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnZZgesv": {
+    "doc": "****************************************************************************",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  },
+  "cusolverDnZZgesv_bufferSize": {
+    "doc": "****************************************************************************",
+    "kind": "function",
+    "members": {},
+    "source": "cusolverDn.h"
+  }
+}

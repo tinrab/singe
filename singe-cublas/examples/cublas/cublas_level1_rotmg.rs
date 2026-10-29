@@ -1,4 +1,5 @@
 use singe_cublas::{blas::level1::drotmg, context::Context, error::Result};
+
 use singe_cuda::{context::Context as CudaContext, device::Device};
 
 fn main() -> Result<()> {

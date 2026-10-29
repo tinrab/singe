@@ -1,82 +1,118 @@
-use std::{
-    marker::PhantomData,
-    mem::{ManuallyDrop, MaybeUninit},
-    ptr,
-    sync::Arc,
-};
+use std::{marker::PhantomData, mem, mem::MaybeUninit, ptr, sync::Arc};
 
 use singe_cuda::{
-    context::Context as CudaContext, data_type::DataTypeLike, memory::DeviceMemory,
+    context::Context as CudaContext,
+    data_type::DataTypeLike,
     types::DevicePtr,
+    view::{DeviceOutputView, DeviceRegion},
 };
 
 use crate::{
     context::Context,
+    descriptor::{RawDescriptor, output_region, output_region_for},
     error::{Error, Result},
     sys, try_ffi,
     types::{IndexBase, IndexType, IndexTypeLike},
     utility::{to_i64, to_usize},
 };
 
+/// Size, storage addresses, and index metadata reported by a sparse vector descriptor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SparseVectorInfo {
+    /// Logical number of vector elements.
     pub size: usize,
+    /// Number of stored sparse entries.
     pub nonzero_count: usize,
+    /// Device address of the sparse indices.
     pub indices: DevicePtr,
+    /// Device address of the stored values.
     pub values: DevicePtr,
+    /// Native representation of each index.
     pub index_type: IndexType,
+    /// Zero-based or one-based index convention.
     pub index_base: IndexBase,
 }
 
+/// Size and value address reported by a dense vector descriptor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DenseVectorInfo {
+    /// Logical number of vector elements.
     pub size: usize,
+    /// Device address of the vector values.
     pub values: DevicePtr,
 }
 
+/// Owns a sparse-vector descriptor tied to a CUDA context and borrowed device storage.
 #[derive(Debug)]
 pub struct SparseVectorDescriptor<'a> {
     handle: sys::cusparseSpVecDescr_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
+    regions: Vec<Option<DeviceRegion<'a>>>,
     _buffers: PhantomData<&'a mut ()>,
 }
 
+/// Owns a dense-vector descriptor tied to a CUDA context and borrowed device storage.
 #[derive(Debug)]
 pub struct DenseVectorDescriptor<'a> {
     handle: sys::cusparseDnVecDescr_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
+    regions: Vec<Option<DeviceRegion<'a>>>,
     _buffers: PhantomData<&'a mut ()>,
 }
 
-// Vector descriptors borrow mutable device buffers and can rebind their value
+// SAFETY: vector descriptors borrow mutable device buffers and can rebind their value
 // pointers, so they are movable but not shared concurrently.
+#[expect(
+    clippy::non_send_fields_in_send_ty,
+    reason = "native owners transfer their handles and storage borrows under the adjacent safety contract"
+)]
 unsafe impl Send for SparseVectorDescriptor<'_> {}
+
+#[expect(
+    clippy::non_send_fields_in_send_ty,
+    reason = "native owners transfer their handles and storage borrows under the adjacent safety contract"
+)]
 unsafe impl Send for DenseVectorDescriptor<'_> {}
 
 impl<'a> SparseVectorDescriptor<'a> {
     /// Initializes a sparse vector descriptor.
     ///
     /// The descriptor borrows the device index and value buffers by pointer; the
-    /// buffers must outlive descriptor use or be replaced with [`SparseVectorDescriptor::set_values`].
+    /// buffers must outlive descriptor use or be replaced with [`SparseVectorDescriptor::rebind_values`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if supplied index or value storage is too small or belongs to another CUDA context, or counts cannot fit in native integers. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create<I: IndexTypeLike, T: DataTypeLike>(
-        ctx: &Context,
+        context: &Context,
         size: usize,
         nonzero_count: usize,
-        indices: &'a mut DeviceMemory<I>,
-        values: &'a mut DeviceMemory<T>,
+        indices: Option<DeviceOutputView<'a, I>>,
+        values: Option<DeviceOutputView<'a, T>>,
         index_base: IndexBase,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = I::LAYOUT;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        let indices = indices
+            .map(|view| output_region(context, view, nonzero_count, "indices"))
+            .transpose()?;
+        let values = values
+            .map(|view| output_region(context, view, nonzero_count, "values"))
+            .transpose()?;
+
         let size = to_i64(size, "size")?;
         let nonzero_count = to_i64(nonzero_count, "nonzero_count")?;
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusparseCreateSpVec` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateSpVec(
                 &raw mut handle,
                 size,
                 nonzero_count,
-                indices.as_mut_ptr().cast(),
-                values.as_mut_ptr().cast(),
+                indices.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast(),
                 I::index_type().into(),
                 index_base.into(),
                 T::data_type().into(),
@@ -89,7 +125,8 @@ impl<'a> SparseVectorDescriptor<'a> {
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context: Arc::clone(context.cuda_context()),
+            regions: vec![indices, values],
             _buffers: PhantomData,
         })
     }
@@ -100,7 +137,9 @@ impl<'a> SparseVectorDescriptor<'a> {
     ///
     /// Returns an error if cuSPARSE cannot report the sparse vector index base.
     pub fn index_base(&self) -> Result<IndexBase> {
+        self.cuda_context.bind()?;
         let mut value = sys::cusparseIndexBase_t::CUSPARSE_INDEX_BASE_ZERO;
+        // SAFETY: `cusparseSpVecGetIndexBase` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpVecGetIndexBase(
                 self.as_raw_const(),
@@ -116,28 +155,59 @@ impl<'a> SparseVectorDescriptor<'a> {
     ///
     /// Returns an error if cuSPARSE cannot report the values pointer.
     pub fn values(&self) -> Result<DevicePtr> {
+        self.cuda_context.bind()?;
         let mut values = ptr::null_mut();
+        // SAFETY: `cusparseSpVecGetValues` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpVecGetValues(self.as_raw(), &raw mut values))?;
         }
+        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
         Ok(unsafe { DevicePtr::from_raw(values.cast()) })
     }
 
-    /// Sets the values pointer of this sparse vector descriptor.
+    /// Consumes and rebinds the values pointer of this sparse vector descriptor.
     ///
     /// The pointed-to device buffer must remain valid while the descriptor uses it.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSPARSE rejects the values pointer.
-    pub fn set_values<T: DataTypeLike>(&mut self, values: &'a mut DeviceMemory<T>) -> Result<()> {
+    /// On failure the consumed descriptor is destroyed while both sets of regions remain borrowed.
+    ///
+    /// # Safety
+    ///
+    /// Bindings must match the descriptor's native element types, format, batch
+    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    pub unsafe fn rebind_values<'b, T: DataTypeLike>(
+        self,
+        values: Option<DeviceOutputView<'b, T>>,
+    ) -> Result<SparseVectorDescriptor<'b>>
+    where
+        'a: 'b,
+    {
+        let () = T::LAYOUT;
+        // SAFETY: ownership is transferred once; all original borrows outlive the new lifetime.
+        let mut rebound = unsafe { SparseVectorDescriptor::from_raw(self.into_raw())? };
+        rebound.cuda_context.bind()?;
+        let values = values
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "values"))
+            .transpose()?;
+
+        rebound.regions.extend([values]);
+        // SAFETY: `cusparseSpVecSetValues` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseSpVecSetValues(
-                self.as_raw(),
-                values.as_mut_ptr().cast()
+                rebound.as_raw(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast()
             ))?;
         }
-        Ok(())
+        let incoming = rebound.regions.pop().unwrap_or(None);
+        if let Some(last) = rebound.regions.last_mut() {
+            *last = incoming;
+        } else {
+            rebound.regions.push(incoming);
+        }
+        Ok(rebound)
     }
 
     /// Returns the fields of this sparse vector descriptor.
@@ -147,6 +217,7 @@ impl<'a> SparseVectorDescriptor<'a> {
     /// Returns an error if cuSPARSE cannot report the descriptor fields or if
     /// reported sizes cannot be represented as `usize`.
     pub fn info(&self) -> Result<SparseVectorInfo> {
+        self.cuda_context.bind()?;
         let mut size = 0_i64;
         let mut nnz = 0_i64;
         let mut indices = ptr::null_mut();
@@ -154,6 +225,7 @@ impl<'a> SparseVectorDescriptor<'a> {
         let mut index_type = sys::cusparseIndexType_t::CUSPARSE_INDEX_32I;
         let mut index_base = sys::cusparseIndexBase_t::CUSPARSE_INDEX_BASE_ZERO;
         let mut value_type = MaybeUninit::uninit();
+        // SAFETY: `cusparseSpVecGet` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpVecGet(
                 self.as_raw(),
@@ -169,27 +241,43 @@ impl<'a> SparseVectorDescriptor<'a> {
         Ok(SparseVectorInfo {
             size: to_usize(size, "size")?,
             nonzero_count: to_usize(nnz, "nonzero_count")?,
+            // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
             indices: unsafe { DevicePtr::from_raw(indices.cast()) },
+            // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
             values: unsafe { DevicePtr::from_raw(values.cast()) },
             index_type: index_type.into(),
             index_base: index_base.into(),
         })
     }
 
+    /// Returns the native descriptor handle without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseSpVecDescr_t {
         self.handle
     }
 
+    /// Returns the native handle in its const-descriptor form.
+    #[must_use]
     pub fn as_raw_const(&self) -> sys::cusparseConstSpVecDescr_t {
         self.handle.cast_const()
     }
 
-    pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.cuda_ctx
+    /// Available borrowed buffer regions, with `None` for unbound pointers.
+    /// Regions do not establish initialized values, valid indices, or producer ordering.
+    /// Raw adoption without metadata returns an empty list.
+    #[must_use]
+    pub fn regions(&self) -> &[Option<DeviceRegion<'a>>] {
+        &self.regions
     }
 
-    pub(crate) fn ensure_context(&self, ctx: &Context) -> Result<()> {
-        if self.cuda_ctx.as_ref() != ctx.cuda_context().as_ref() {
+    /// Returns the actual CUDA context retained by the descriptor.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        &self.cuda_context
+    }
+
+    pub(crate) fn ensure_context(&self, context: &Context) -> Result<()> {
+        if self.cuda_context.as_ref() != context.cuda_context().as_ref() {
             return Err(Error::PlanContextMismatch);
         }
         Ok(())
@@ -200,18 +288,29 @@ impl<'a> SparseVectorDescriptor<'a> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusparseSpVecDescr_t`. Any device buffers
-    /// referenced by the descriptor must remain valid for lifetime `'a`.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(handle: sys::cusparseSpVecDescr_t, ctx: &Context) -> Result<Self> {
+    /// `parts.handle` must be a uniquely owned, valid `cusparseSpVecDescr_t` associated
+    /// with `parts.cuda_context`. Its pointer bindings and regions must describe
+    /// live allocations in that context with the required exclusive borrows for
+    /// lifetime `'a`. An empty region list leaves those raw obligations to the caller.
+    /// No other owner may destroy the handle after transfer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(parts: RawDescriptor<'a, sys::cusparseSpVecDescr_t>) -> Result<Self> {
+        let RawDescriptor {
+            handle,
+            cuda_context,
+            regions,
+        } = parts;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context,
+            regions,
             _buffers: PhantomData,
         })
     }
@@ -221,18 +320,30 @@ impl<'a> SparseVectorDescriptor<'a> {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseDestroySpVec`.
-    pub fn into_raw(self) -> sys::cusparseSpVecDescr_t {
-        let descriptor = ManuallyDrop::new(self);
-        descriptor.handle
+    #[must_use]
+    pub fn into_raw(mut self) -> RawDescriptor<'a, sys::cusparseSpVecDescr_t> {
+        RawDescriptor {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            cuda_context: Arc::clone(&self.cuda_context),
+            regions: mem::take(&mut self.regions),
+        }
     }
 }
 
 impl Drop for SparseVectorDescriptor<'_> {
     fn drop(&mut self) {
+        if self.handle.is_null() {
+            return;
+        }
+        if self.cuda_context.bind().is_err() {
+            return;
+        }
+
+        // SAFETY: `cusparseDestroySpVec` receives only plain values.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseDestroySpVec(self.as_raw_const())) {
+            if let Err(error) = try_ffi!(sys::cusparseDestroySpVec(self.as_raw_const())) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse sparse vector descriptor: {err}");
+                eprintln!("failed to destroy cusparse sparse vector descriptor: {error}");
             }
         }
     }
@@ -242,25 +353,30 @@ impl<'a> DenseVectorDescriptor<'a> {
     /// Initializes a dense vector descriptor.
     ///
     /// The descriptor borrows the device value buffer by pointer; the buffer must
-    /// outlive descriptor use or be replaced with [`DenseVectorDescriptor::set_values`].
+    /// outlive descriptor use or be replaced with [`DenseVectorDescriptor::rebind_values`].
     ///
     /// # Errors
     ///
     /// Returns an error if `size` cannot be represented by cuSPARSE, if cuSPARSE
     /// cannot create the descriptor, or if it returns a null handle.
     pub fn create<T: DataTypeLike>(
-        ctx: &Context,
+        context: &Context,
         size: usize,
-        values: &'a mut DeviceMemory<T>,
+        values: DeviceOutputView<'a, T>,
     ) -> Result<Self> {
-        ctx.bind()?;
+        let () = T::LAYOUT;
+
+        context.bind()?;
+        let values = output_region(context, values, size, "values")?;
+
         let size = to_i64(size, "size")?;
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusparseCreateDnVec` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseCreateDnVec(
                 &raw mut handle,
                 size,
-                values.as_mut_ptr().cast(),
+                values.as_ptr().cast(),
                 T::data_type().into(),
             ))?;
         }
@@ -271,7 +387,8 @@ impl<'a> DenseVectorDescriptor<'a> {
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context: Arc::clone(context.cuda_context()),
+            regions: vec![Some(values)],
             _buffers: PhantomData,
         })
     }
@@ -282,28 +399,59 @@ impl<'a> DenseVectorDescriptor<'a> {
     ///
     /// Returns an error if cuSPARSE cannot report the values pointer.
     pub fn values(&self) -> Result<DevicePtr> {
+        self.cuda_context.bind()?;
         let mut values = ptr::null_mut();
+        // SAFETY: `cusparseDnVecGetValues` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseDnVecGetValues(self.as_raw(), &raw mut values))?;
         }
+        // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
         Ok(unsafe { DevicePtr::from_raw(values.cast()) })
     }
 
-    /// Sets the values pointer of this dense vector descriptor.
+    /// Consumes and rebinds the values pointer of this dense vector descriptor.
     ///
     /// The pointed-to device buffer must remain valid while the descriptor uses it.
     ///
     /// # Errors
     ///
     /// Returns an error if cuSPARSE rejects the values pointer.
-    pub fn set_values<T: DataTypeLike>(&mut self, values: &'a mut DeviceMemory<T>) -> Result<()> {
+    /// On failure the consumed descriptor is destroyed while both sets of regions remain borrowed.
+    ///
+    /// # Safety
+    ///
+    /// Bindings must match the descriptor's native element types, format, batch
+    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    pub unsafe fn rebind_values<'b, T: DataTypeLike>(
+        self,
+        values: Option<DeviceOutputView<'b, T>>,
+    ) -> Result<DenseVectorDescriptor<'b>>
+    where
+        'a: 'b,
+    {
+        let () = T::LAYOUT;
+        // SAFETY: ownership is transferred once; all original borrows outlive the new lifetime.
+        let mut rebound = unsafe { DenseVectorDescriptor::from_raw(self.into_raw())? };
+        rebound.cuda_context.bind()?;
+        let values = values
+            .map(|view| output_region_for(&rebound.cuda_context, view, 0, "values"))
+            .transpose()?;
+
+        rebound.regions.extend([values]);
+        // SAFETY: `cusparseDnVecSetValues` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseDnVecSetValues(
-                self.as_raw(),
-                values.as_mut_ptr().cast()
+                rebound.as_raw(),
+                values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast()
             ))?;
         }
-        Ok(())
+        let incoming = rebound.regions.pop().unwrap_or(None);
+        if let Some(last) = rebound.regions.last_mut() {
+            *last = incoming;
+        } else {
+            rebound.regions.push(incoming);
+        }
+        Ok(rebound)
     }
 
     /// Returns the fields of this dense vector descriptor.
@@ -313,9 +461,11 @@ impl<'a> DenseVectorDescriptor<'a> {
     /// Returns an error if cuSPARSE cannot report the descriptor fields or if the
     /// reported size cannot be represented as `usize`.
     pub fn info(&self) -> Result<DenseVectorInfo> {
+        self.cuda_context.bind()?;
         let mut size = 0_i64;
         let mut values = ptr::null_mut();
         let mut value_type = MaybeUninit::uninit();
+        // SAFETY: `cusparseDnVecGet` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseDnVecGet(
                 self.as_raw(),
@@ -326,24 +476,39 @@ impl<'a> DenseVectorDescriptor<'a> {
         }
         Ok(DenseVectorInfo {
             size: to_usize(size, "size")?,
+            // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
             values: unsafe { DevicePtr::from_raw(values.cast()) },
         })
     }
 
+    /// Returns the native descriptor handle without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseDnVecDescr_t {
         self.handle
     }
 
+    /// Returns the native handle in its const-descriptor form.
+    #[must_use]
     pub fn as_raw_const(&self) -> sys::cusparseConstDnVecDescr_t {
         self.handle.cast_const()
     }
 
-    pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.cuda_ctx
+    /// Available borrowed buffer regions, with `None` for unbound pointers.
+    /// Regions do not establish initialized values, valid indices, or producer ordering.
+    /// Raw adoption without metadata returns an empty list.
+    #[must_use]
+    pub fn regions(&self) -> &[Option<DeviceRegion<'a>>] {
+        &self.regions
     }
 
-    pub(crate) fn ensure_context(&self, ctx: &Context) -> Result<()> {
-        if self.cuda_ctx.as_ref() != ctx.cuda_context().as_ref() {
+    /// Returns the actual CUDA context retained by the descriptor.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        &self.cuda_context
+    }
+
+    pub(crate) fn ensure_context(&self, context: &Context) -> Result<()> {
+        if self.cuda_context.as_ref() != context.cuda_context().as_ref() {
             return Err(Error::PlanContextMismatch);
         }
         Ok(())
@@ -354,18 +519,29 @@ impl<'a> DenseVectorDescriptor<'a> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusparseDnVecDescr_t`. Any device buffer
-    /// referenced by the descriptor must remain valid for lifetime `'a`.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(handle: sys::cusparseDnVecDescr_t, ctx: &Context) -> Result<Self> {
+    /// `parts.handle` must be a uniquely owned, valid `cusparseDnVecDescr_t` associated
+    /// with `parts.cuda_context`. Its pointer bindings and regions must describe
+    /// live allocations in that context with the required exclusive borrows for
+    /// lifetime `'a`. An empty region list leaves those raw obligations to the caller.
+    /// No other owner may destroy the handle after transfer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(parts: RawDescriptor<'a, sys::cusparseDnVecDescr_t>) -> Result<Self> {
+        let RawDescriptor {
+            handle,
+            cuda_context,
+            regions,
+        } = parts;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context,
+            regions,
             _buffers: PhantomData,
         })
     }
@@ -375,18 +551,30 @@ impl<'a> DenseVectorDescriptor<'a> {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseDestroyDnVec`.
-    pub fn into_raw(self) -> sys::cusparseDnVecDescr_t {
-        let descriptor = ManuallyDrop::new(self);
-        descriptor.handle
+    #[must_use]
+    pub fn into_raw(mut self) -> RawDescriptor<'a, sys::cusparseDnVecDescr_t> {
+        RawDescriptor {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            cuda_context: Arc::clone(&self.cuda_context),
+            regions: mem::take(&mut self.regions),
+        }
     }
 }
 
 impl Drop for DenseVectorDescriptor<'_> {
     fn drop(&mut self) {
+        if self.handle.is_null() {
+            return;
+        }
+        if self.cuda_context.bind().is_err() {
+            return;
+        }
+
+        // SAFETY: `cusparseDestroyDnVec` receives only plain values.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseDestroyDnVec(self.as_raw_const())) {
+            if let Err(error) = try_ffi!(sys::cusparseDestroyDnVec(self.as_raw_const())) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse dense vector descriptor: {err}");
+                eprintln!("failed to destroy cusparse dense vector descriptor: {error}");
             }
         }
     }
@@ -434,17 +622,29 @@ impl Drop for DenseVectorDescriptor<'_> {
 ///
 /// * CUDA graph capture.
 /// * Hardware Memory Compression.
-pub fn gather(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution).
+/// Sparse indices must address initialized dense elements, and their type,
+/// alignment, and value layout must match the descriptors.
+/// Retain both descriptors and all buffers through completion and replay.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn gather(
+    context: &Context,
     sparse_vector: &mut SparseVectorDescriptor,
     dense_vector: &DenseVectorDescriptor,
 ) -> Result<()> {
-    sparse_vector.ensure_context(ctx)?;
-    dense_vector.ensure_context(ctx)?;
-    ctx.bind()?;
+    sparse_vector.ensure_context(context)?;
+    dense_vector.ensure_context(context)?;
+    context.bind()?;
+    // SAFETY: `cusparseGather` receives live handles owned by the wrappers.
     unsafe {
         try_ffi!(sys::cusparseGather(
-            ctx.as_raw(),
+            context.as_raw(),
             dense_vector.as_raw_const(),
             sparse_vector.as_raw(),
         ))?;
@@ -495,17 +695,29 @@ pub fn gather(
 ///
 /// * CUDA graph capture.
 /// * Hardware Memory Compression.
-pub fn scatter(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution).
+/// Sparse indices must be in bounds and values initialized with matching ABI.
+/// Only indexed dense elements are produced; other elements remain unchanged.
+/// Retain both descriptors and all buffers through completion and replay.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn scatter(
+    context: &Context,
     sparse_vector: &SparseVectorDescriptor,
     dense_vector: &mut DenseVectorDescriptor,
 ) -> Result<()> {
-    sparse_vector.ensure_context(ctx)?;
-    dense_vector.ensure_context(ctx)?;
-    ctx.bind()?;
+    sparse_vector.ensure_context(context)?;
+    dense_vector.ensure_context(context)?;
+    context.bind()?;
+    // SAFETY: `cusparseScatter` receives live handles owned by the wrappers.
     unsafe {
         try_ffi!(sys::cusparseScatter(
-            ctx.as_raw(),
+            context.as_raw(),
             sparse_vector.as_raw_const(),
             dense_vector.as_raw(),
         ))?;

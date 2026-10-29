@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     pub fn scalar_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f16, { [B] }>,
@@ -50,17 +55,17 @@ mod kernels {
             diff * diff
         } else if OP == 16 {
             let max = maxf(x, scalar, nan::Enabled, ftz::Disabled);
-            let neg_inf = constant(f16::from_f32(f32::NEG_INFINITY), out.shape());
+            let neg_inf: Tile<f16, { [B] }> = constant(f16::NEG_INFINITY, out.shape());
             let both_neg_inf = cmpf(x, neg_inf, predicate::Equal, cmp_ordering::Ordered)
                 & cmpf(scalar, neg_inf, predicate::Equal, cmp_ordering::Ordered);
             let value = max + log(exp(x - max) + exp(scalar - max));
             select(both_neg_inf, neg_inf, value)
         } else if OP == 17 {
-            let zero = constant(f16::from_f32(0.0), out.shape());
+            let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
             let zero_x = cmpf(x, zero, predicate::Equal, cmp_ordering::Ordered);
             select(zero_x, zero, x * log(scalar))
         } else if OP == 18 {
-            let zero = constant(f16::from_f32(0.0), out.shape());
+            let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
             let zero_scalar = cmpf(scalar, zero, predicate::Equal, cmp_ordering::Ordered);
             select(zero_scalar, zero, scalar * log(x))
         } else {

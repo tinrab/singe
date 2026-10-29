@@ -1,42 +1,26 @@
 mod common;
 
+use std::env::args;
+
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorSpec},
+    },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{CompileConfig, ConvolutionConfig, HeuristicMode},
-        plan::BuildPlanPolicy,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{ConvolutionConfig, PointwiseOperation},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
 };
 
-fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
-    let mut values = Vec::with_capacity(size);
-    for _ in 0..size {
-        *seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
-        values.push((*seed as f32) * 2.328_306_4e-10_f32);
-    }
-    values
-}
-
-fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
-    init_f32_image(size, seed)
-        .into_iter()
-        .map(f16::from_f32)
-        .collect()
-}
-
-fn count_nonfinite_f16(values: &[f16]) -> usize {
-    values
-        .iter()
-        .filter(|value| !value.to_f32().is_finite())
-        .count()
-}
-
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let accumulate = args().any(|argument| argument == "--accumulate");
+    let fused = args().any(|argument| argument == "--fused-preprocess");
+    let example = common::ExampleContext::create()?;
 
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
@@ -48,68 +32,121 @@ fn run() -> Result<()> {
     );
 
     let x = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([4, 64, 16, 16])?.with_strides(vec![64 * 16 * 16, 1, 64 * 16, 64])?,
-        )
-        .with_name("image"),
+        TensorSpec::new(DataType::F16, Shape::channels_last([4, 64, 16, 16])?).with_name("image"),
     );
     let dy = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([4, 64, 16, 16])?.with_strides(vec![64 * 16 * 16, 1, 64 * 16, 64])?,
-        )
-        .with_name("grad"),
+        TensorSpec::new(DataType::F16, Shape::channels_last([4, 64, 16, 16])?).with_name("grad"),
     );
-    let dw = graph.tensor(TensorSpec::new(
-        DataType::F16,
-        Shape::contiguous([64, 64, 3, 3])?.with_strides([64 * 3 * 3, 1, 64 * 3, 64])?,
-    ));
-    graph.convolution_wgrad(
-        x,
+    let (wgrad_input, affine) = if fused {
+        let channel = TensorSpec::new(DataType::F16, Shape::channels_last([1, 64, 1, 1])?);
+        let scale = graph.tensor(channel.clone().with_name("scale"));
+        let bias = graph.tensor(channel.with_name("bias"));
+        let scaled = graph.pointwise(
+            PointwiseOperation::binary(
+                PointwiseMode::Mul,
+                x,
+                scale,
+                TensorOutputConfig::new().virtual_tensor(),
+            )
+            .with_name("scale"),
+        )?;
+        let shifted = graph.pointwise(
+            PointwiseOperation::binary(
+                PointwiseMode::Add,
+                scaled,
+                bias,
+                TensorOutputConfig::new().virtual_tensor(),
+            )
+            .with_name("bias"),
+        )?;
+        let activated = graph.pointwise(
+            PointwiseOperation::unary(
+                PointwiseMode::ReluFwd,
+                shifted,
+                TensorOutputConfig::new().virtual_tensor(),
+            )
+            .with_name("relu"),
+        )?;
+        (activated, Some((scale, bias)))
+    } else {
+        (x, None)
+    };
+    let dw = graph.convolution_backward_filter(
+        wgrad_input,
         dy,
-        dw,
-        ConvolutionConfig::new(DataType::F32, 2)
-            .with_padding(vec![1, 1])
+        [64, 64, 3, 3],
+        ConvolutionConfig::new(2)
+            .with_name("convolution_backward_filter")
+            .with_scaling(1.0, if accumulate { 1.0 } else { 0.0 })
+            .with_compute_type(DataType::F32)
+            .with_padding([1, 1])
             .with_strides([1, 1])
-            .with_dilations(vec![1, 1]),
+            .with_dilations([1, 1]),
+        TensorOutputConfig::new().output_tensor(),
     )?;
 
-    let compiled = match graph.compile_with_config(
-        &ctx.cudnn,
-        &CompileConfig::new()
-            .with_heuristic_modes(vec![HeuristicMode::A])
-            .with_build_policy(BuildPlanPolicy::AllSupported),
-    ) {
-        Ok(compiled) => compiled,
-        Err(error) => return Err(error),
-    };
+    let input_elements = graph.shape(x)?.storage_span()?;
+    let gradient_elements = graph.shape(dy)?.storage_span()?;
+    let output_elements = graph.shape(dw)?.storage_span()?;
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+    let cuda = example.cudnn.cuda_context();
 
     let mut half_seed = 123_456_789_u32;
-    let mut x_dev = DeviceMemory::from_slice(&init_f16_image(4 * 64 * 16 * 16, &mut half_seed))?;
-    let mut dy_dev = DeviceMemory::from_slice(&init_f16_image(4 * 64 * 16 * 16, &mut half_seed))?;
-    let mut dw_dev = DeviceMemory::from_slice(&init_f16_image(64 * 64 * 3 * 3, &mut half_seed))?;
-    let mut workspace = common::workspace(compiled.max_workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    bindings.set(x, &mut x_dev)?;
-    bindings.set(dy, &mut dy_dev)?;
+    let x_dev = DeviceMemory::from_slice(
+        cuda,
+        &common::init_f16_image(input_elements, &mut half_seed),
+    )?;
+    let dy_dev = DeviceMemory::from_slice(
+        cuda,
+        &common::init_f16_image(gradient_elements, &mut half_seed),
+    )?;
+    let affine_buffers = if let Some((scale, bias)) = affine {
+        let scale_dev = DeviceMemory::from_slice(
+            cuda,
+            &vec![f16::from_f32(1.0); graph.shape(scale)?.storage_span()?],
+        )?;
+        let bias_dev = DeviceMemory::from_slice(
+            cuda,
+            &vec![f16::from_f32(-0.5); graph.shape(bias)?.storage_span()?],
+        )?;
+        Some((scale, scale_dev, bias, bias_dev))
+    } else {
+        None
+    };
+    let mut dw_dev = DeviceMemory::from_slice(
+        cuda,
+        &vec![f16::from_f32(if accumulate { 0.5 } else { 0.0 }); output_elements],
+    )?;
+    let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(x, &x_dev)?;
+    bindings.set_input(dy, &dy_dev)?;
+    if let Some((scale, scale_dev, bias, bias_dev)) = &affine_buffers {
+        bindings.set_input(*scale, scale_dev)?;
+        bindings.set_input(*bias, bias_dev)?;
+    }
     bindings.set(dw, &mut dw_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    // SAFETY: initialized inputs, accumulated output and workspace remain live through stream completion.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
-    let dw_host = dw_dev.copy_to_host_vec()?;
-    let dw_first = dw_host[0].to_f32();
-    let dw_last = dw_host[dw_host.len() - 1].to_f32();
-    let dw_checksum = dw_host.iter().map(|value| value.to_f32()).sum::<f32>();
-    let dw_nonfinite = count_nonfinite_f16(&dw_host);
-
+    let output = compiled.tensor_info(dw)?;
     println!(
-        "dw: first={dw_first}, last={dw_last}, checksum={dw_checksum}, nonfinite={dw_nonfinite}, len={}",
-        dw_host.len()
+        "{:?}: {:?}",
+        output.spec.name,
+        output.spec.shape.dimensions()
     );
 
     Ok(())
 }
 
 fn main() -> Result<()> {
-    common::finish("frontend_convolution_wgrad", run())
+    common::finish("frontend_convolution_backward_filter", run())
 }

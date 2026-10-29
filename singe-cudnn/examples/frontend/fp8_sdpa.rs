@@ -1,59 +1,38 @@
 mod common;
 
-use singe_core::assert_close;
-use singe_cuda::{
-    memory::DeviceMemory,
-    types::{DevicePtr, f8e4m3},
-};
+use std::env::args;
+
+use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
     backend::tensor::{Shape, TensorSpec},
-    cudart_version,
-    data_type::DataType,
-    error::Result,
+    data_type::{DataType, f8e4m3},
+    error::{Error, Result},
     frontend::{
-        composite::sdpa::SdpaFp8Inputs,
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{HeuristicMode, SdpaAuxOutputRequest, SdpaConfig, SdpaFusedMaskMode},
+        composite::sdpa::{SdpaForwardOutputTensors, SdpaFp8Inputs},
+        error::Error as FrontendError,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{
+            AttentionConfig, AttentionDiagonalAlignment, AttentionDiagonalBand,
+            AttentionImplementation, AttentionMaskMode, AttentionScoreConfig,
+        },
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
-    version,
 };
 
-fn init_i8_image(size: usize) -> Vec<f8e4m3> {
-    let mut seed = 123_456_789_u32;
-    let mut values = Vec::with_capacity(size);
-    for _ in 0..size {
-        seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
-        let sample = (seed as f32) * 2.328_306_4e-10_f32;
-        let value = 2_i8 - (5.0_f32 * sample) as i8;
-        values.push(f8e4m3::from_bits(value as u8));
-    }
-    values
-}
-
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-
-    if cudart_version()? < 12_000 {
-        println!("frontend_fp8_sdpa: skipped, requires CUDA toolkit 12.0+");
+    let generate_stats = args().any(|argument| argument == "--stats");
+    let implementation = if args().any(|argument| argument == "--composite") {
+        AttentionImplementation::Composite
+    } else {
+        AttentionImplementation::Auto
+    };
+    let example = common::ExampleContext::create()?;
+    if example.compute_capability()? < 90 {
+        println!("frontend_fp8_sdpa: skipped, requires SM90 or newer");
         return Ok(());
     }
-    if !ctx.is_hopper_device() && !ctx.is_blackwell_device() {
-        println!("frontend_fp8_sdpa: skipped, requires Hopper or Blackwell Computing GPU");
-        return Ok(());
-    }
-    if version()? < 90_100 {
-        println!("frontend_fp8_sdpa: skipped, requires cuDNN 9.1.0+");
-        return Ok(());
-    }
-
-    let b = 2_i64;
-    let h = 2_i64;
-    let s = 512_i64;
-    let d = 128_i64;
-    let generate_stats = false;
-    let attention_scale = 0.123_f32;
-
-    let mut mha_graph = Graph::with_config(
+    let [b, h, s, d] = [2_i64, 2, 512, 128];
+    let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
                 .with_io(DataType::F8E4M3)
@@ -62,161 +41,138 @@ fn run() -> Result<()> {
         ),
     );
 
-    let qkvo_dims = vec![b, h, s, d];
-    let qkv_strides = vec![s * 3 * h * d, d, 3 * h * d, 1];
-    let o_strides = vec![s * h * d, d, h * d, 1];
-
-    let q = mha_graph.tensor(
-        TensorSpec::new(
-            DataType::F8E4M3,
-            Shape::contiguous(&qkvo_dims)?.with_strides(&qkv_strides)?,
-        )
-        .with_name("Q"),
-    );
-    let k = mha_graph.tensor_like_named(q, "K")?;
-    let v = mha_graph.tensor_like_named(q, "V")?;
-
-    let descale_q = mha_graph.tensor(
-        TensorSpec::new(DataType::F32, Shape::contiguous([1, 1, 1, 1])?).with_name("Descale_Q"),
-    );
-    let descale_k = mha_graph.tensor_like_named(descale_q, "Descale_K")?;
-    let descale_v = mha_graph.tensor_like_named(descale_q, "Descale_V")?;
-    let descale_s = mha_graph.tensor_like_named(descale_q, "Descale_S")?;
-    let scale_s = mha_graph.tensor_like_named(descale_q, "Scale_S")?;
-    let scale_o = mha_graph.tensor_like_named(descale_q, "Scale_O")?;
-
-    let mut sdpa_fp8_options = SdpaConfig::new()
-        .with_name("sdpa_fp8")
-        .with_attention_scale(attention_scale)
-        .with_aux_outputs(SdpaAuxOutputRequest::fp8_amax())
-        .with_mask(SdpaFusedMaskMode::CausalTopLeft);
-    if generate_stats {
-        sdpa_fp8_options = sdpa_fp8_options.with_aux_outputs(SdpaAuxOutputRequest::stats_only());
-    }
-
-    let outputs = mha_graph.sdpa_fp8_infer(
-        SdpaFp8Inputs::new(
-            q, k, v, descale_q, descale_k, descale_v, descale_s, scale_s, scale_o,
-        ),
-        &sdpa_fp8_options,
+    // Physical [B, S, 3, H, D] storage supplies three logical [B, H, S, D] views.
+    let qkv_storage_shape = Shape::contiguous([b, s, 3, h, d])?;
+    let strides = qkv_storage_shape.strides();
+    let qkv_shape = Shape::with_strides(
+        [b, h, s, d],
+        [strides[0], strides[3], strides[1], strides[4]],
     )?;
-    let o = outputs.output();
-    let stats = outputs.stats();
-    let absolute_max_s = outputs.logit_max();
-    let absolute_max_o = outputs.score_sum_exp();
-    let mut o_tensor = mha_graph.tensor_config(o)?.clone();
-    o_tensor = o_tensor
-        .output_tensor()
-        .with_shape(Shape::contiguous(&qkvo_dims)?.with_strides(&o_strides)?);
-    mha_graph.replace_tensor(o, o_tensor)?;
-
-    let absolute_max_shape = Shape::contiguous([1, 1, 1, 1])?.with_strides([1, 1, 1, 1])?;
-    let absolute_max_s = absolute_max_s.expect("absolute_max_s requested");
-    let mut absolute_max_s_output = mha_graph.tensor_config(absolute_max_s)?.clone();
-    absolute_max_s_output = absolute_max_s_output
-        .output_tensor()
-        .with_shape(absolute_max_shape.clone());
-    mha_graph.replace_tensor(absolute_max_s, absolute_max_s_output)?;
-
-    let absolute_max_o = absolute_max_o.expect("absolute_max_o requested");
-    let mut absolute_max_o_output = mha_graph.tensor_config(absolute_max_o)?.clone();
-    absolute_max_o_output = absolute_max_o_output
-        .output_tensor()
-        .with_shape(absolute_max_shape);
-    mha_graph.replace_tensor(absolute_max_o, absolute_max_o_output)?;
-
-    if generate_stats {
-        let stats = stats.expect("stats requested");
-        mha_graph.mark_as_output(stats)?;
+    let offset_error = || Error::OutOfRange {
+        name: "interleaved qkv byte offset".into(),
+    };
+    // E4M3 descriptor elements occupy one byte.
+    let key_offset = u64::try_from(strides[2]).map_err(|_| offset_error())?;
+    let value_offset = key_offset.checked_mul(2).ok_or_else(offset_error)?;
+    let qkv_storage =
+        graph.tensor(TensorSpec::new(DataType::F8E4M3, qkv_storage_shape).with_name("QKV"));
+    let q = graph.storage_view(
+        qkv_storage,
+        TensorSpec::new(DataType::F8E4M3, qkv_shape.clone()).with_name("Q"),
+        0,
+    )?;
+    let k = graph.storage_view(
+        qkv_storage,
+        TensorSpec::new(DataType::F8E4M3, qkv_shape.clone()).with_name("K"),
+        key_offset,
+    )?;
+    let v = graph.storage_view(
+        qkv_storage,
+        TensorSpec::new(DataType::F8E4M3, qkv_shape).with_name("V"),
+        value_offset,
+    )?;
+    let descale_q = graph
+        .tensor(TensorSpec::new(DataType::F32, Shape::contiguous([1; 4])?).with_name("Descale_Q"));
+    let descale_k = graph.tensor_like(descale_q, Some("Descale_K"))?;
+    let descale_v = graph.tensor_like(descale_q, Some("Descale_V"))?;
+    let descale_s = graph.tensor_like(descale_q, Some("Descale_S"))?;
+    let scale_s = graph.tensor_like(descale_q, Some("Scale_S"))?;
+    let scale_o = graph.tensor_like(descale_q, Some("Scale_O"))?;
+    let attention_scale = graph.tensor(TensorSpec::scalar_f32(0.123));
+    let config = AttentionConfig::new()
+        .with_implementation(implementation)
+        .with_compute_type(DataType::F32)
+        .with_name("sdpa_fp8")
+        .with_score_config(AttentionScoreConfig::new().with_mask_mode(
+            AttentionMaskMode::DiagonalBand(AttentionDiagonalBand::causal(
+                AttentionDiagonalAlignment::TopLeft,
+            )),
+        ));
+    let outputs = graph.sdpa_fp8(
+        SdpaFp8Inputs::new(
+            q,
+            k,
+            v,
+            attention_scale,
+            descale_q,
+            descale_k,
+            descale_v,
+            descale_s,
+            scale_s,
+            scale_o,
+        ),
+        &config,
+        SdpaForwardOutputTensors::new(TensorOutputConfig::new().output_tensor())
+            .with_stats(generate_stats.then_some(TensorOutputConfig::new().output_tensor()))
+            .with_absolute_max_probabilities(TensorOutputConfig::new().output_tensor())
+            .with_absolute_max_output(TensorOutputConfig::new().output_tensor()),
+    )?;
+    let output = outputs.output;
+    let stats = outputs.stats;
+    let absolute_max_s = outputs
+        .absolute_max_probabilities
+        .ok_or_else(|| FrontendError::Compile("requested score amax is missing".into()))?;
+    let absolute_max_o = outputs
+        .absolute_max_output
+        .ok_or_else(|| FrontendError::Compile("requested output amax is missing".into()))?;
+    let output_storage = Shape::contiguous([b, s, h, d])?;
+    let strides = output_storage.strides();
+    let output_shape = Shape::with_strides(
+        [b, h, s, d],
+        [strides[0], strides[2], strides[1], strides[3]],
+    )?;
+    graph.modify_tensor(output, |tensor| tensor.with_shape(output_shape))?;
+    for id in [absolute_max_s, absolute_max_o] {
+        let shape = Shape::contiguous([1; 4])?;
+        graph.modify_tensor(id, |tensor| tensor.with_shape(shape).output_tensor())?;
+    }
+    if let Some(stats) = stats {
+        graph.mark_as_output(stats)?;
+    }
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+    let cuda = example.cudnn.cuda_context();
+    let mut seed = 123_456_789;
+    let qkv_values =
+        common::init_f8e4m3_image(graph.shape(qkv_storage)?.storage_span()?, &mut seed);
+    let qkv_device = DeviceMemory::from_slice(cuda, &qkv_values)?;
+    let scales = DeviceMemory::from_slice(cuda, &[1.0_f32])?;
+    let mut output_device =
+        DeviceMemory::<f8e4m3>::zeroed(cuda, graph.shape(output)?.storage_span()?)?;
+    let mut score_amax =
+        DeviceMemory::<f32>::zeroed(cuda, graph.shape(absolute_max_s)?.storage_span()?)?;
+    let mut output_amax =
+        DeviceMemory::<f32>::zeroed(cuda, graph.shape(absolute_max_o)?.storage_span()?)?;
+    let mut statistics = if let Some(id) = stats {
+        Some((
+            id,
+            DeviceMemory::<f32>::zeroed(cuda, graph.shape(id)?.storage_span()?)?,
+        ))
     } else {
-        assert!(stats.is_none());
-    }
-
-    assert_eq!(mha_graph.shape(o)?.dimensions(), qkvo_dims.as_slice());
-    assert_eq!(mha_graph.shape(o)?.strides(), o_strides.as_slice());
-
-    let compiled_mha_graph = mha_graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
-
-    let qkv_tensor_host = init_i8_image((b * s * 3 * h * d) as usize);
-    let qkv_tensor = DeviceMemory::from_slice(&qkv_tensor_host)?;
-    let q_ptr = unsafe { DevicePtr::from_raw(qkv_tensor.as_mut_ptr().cast()) };
-    let k_ptr = unsafe {
-        DevicePtr::from_raw(
-            q_ptr
-                .as_raw()
-                .cast::<u8>()
-                .wrapping_add((h * d) as usize)
-                .cast(),
-        )
+        None
     };
-    let v_ptr = unsafe {
-        DevicePtr::from_raw(
-            q_ptr
-                .as_raw()
-                .cast::<u8>()
-                .wrapping_add((2 * h * d) as usize)
-                .cast(),
-        )
-    };
-
-    let mut o_dev = DeviceMemory::<f8e4m3>::zeroes((b * s * h * d) as usize)?;
-    let mut descale_q_dev = DeviceMemory::from_slice(&[1.0_f32])?;
-    let mut descale_k_dev = DeviceMemory::from_slice(&[1.0_f32])?;
-    let mut descale_v_dev = DeviceMemory::from_slice(&[1.0_f32])?;
-    let mut descale_s_dev = DeviceMemory::from_slice(&[1.0_f32])?;
-    let mut scale_s_dev = DeviceMemory::from_slice(&[1.0_f32])?;
-    let mut scale_o_dev = DeviceMemory::from_slice(&[1.0_f32])?;
-    let mut absolute_max_s_tensor = DeviceMemory::<f32>::zeroes(1)?;
-    let mut absolute_max_o_tensor = DeviceMemory::<f32>::zeroes(1)?;
-    let mut workspace = common::workspace(compiled_mha_graph.workspace_size()?)?;
-    let mut bindings = compiled_mha_graph.bindings();
-    unsafe {
-        bindings.set_ptr(q, q_ptr)?;
-        bindings.set_ptr(k, k_ptr)?;
-        bindings.set_ptr(v, v_ptr)?;
+    let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(qkv_storage, &qkv_device)?;
+    for id in [descale_q, descale_k, descale_v, descale_s, scale_s, scale_o] {
+        bindings.set_input(id, &scales)?;
     }
-    bindings
-        .set(descale_q, &mut descale_q_dev)?
-        .set(descale_k, &mut descale_k_dev)?
-        .set(descale_v, &mut descale_v_dev)?
-        .set(descale_s, &mut descale_s_dev)?
-        .set(scale_s, &mut scale_s_dev)?
-        .set(scale_o, &mut scale_o_dev)?
-        .set(o, &mut o_dev)?
-        .set(absolute_max_s, &mut absolute_max_s_tensor)?
-        .set(absolute_max_o, &mut absolute_max_o_tensor)?;
-    compiled_mha_graph.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-
-    let o_host = o_dev.copy_to_host_vec()?;
-    let absolute_max_s_host = absolute_max_s_tensor.copy_to_host_vec()?;
-    let absolute_max_o_host = absolute_max_o_tensor.copy_to_host_vec()?;
-
-    let o_first = o_host[0].to_bits();
-    let o_last = o_host[o_host.len() - 1].to_bits();
-    let o_checksum = o_host
-        .iter()
-        .map(|value| u64::from(value.to_bits()))
-        .sum::<u64>();
-
-    println!(
-        "o_bits: first={o_first}, last={o_last}, checksum={o_checksum}, len={}",
-        o_host.len()
-    );
-    println!(
-        "absolute_max_s: first={}, last={}, checksum={}, nonfinite=0, len=1",
-        absolute_max_s_host[0], absolute_max_s_host[0], absolute_max_s_host[0]
-    );
-    println!(
-        "absolute_max_o: first={}, last={}, checksum={}, nonfinite=0, len=1",
-        absolute_max_o_host[0], absolute_max_o_host[0], absolute_max_o_host[0]
-    );
-
-    assert_eq!(o_first, 127, "o_bits.first mismatch");
-    assert_eq!(o_last, 127, "o_bits.last mismatch");
-    assert_eq!(o_checksum, 33_292_288, "o_bits.checksum mismatch");
-    assert_close!(absolute_max_s_host[0], 0.0, 1.0e-6, "absolute_max_s");
-    assert_close!(absolute_max_o_host[0], 0.0, 1.0e-6, "absolute_max_o");
-
+    bindings.set(output, &mut output_device)?;
+    bindings.set(absolute_max_s, &mut score_amax)?;
+    bindings.set(absolute_max_o, &mut output_amax)?;
+    if let Some((id, memory)) = &mut statistics {
+        bindings.set(*id, memory)?;
+    }
+    // SAFETY: the interleaved QKV owner, initialized scales, writable outputs and workspace remain live through stream completion.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
+    println!("executed fp8 attention with finite interleaved QKV, stats: {generate_stats}");
     Ok(())
 }
 

@@ -1,47 +1,31 @@
-use std::{
-    ffi::{c_int, c_void},
-    sync::Arc,
-};
+use cutile::cuda_async::device_buffer::DevicePointer;
+use singe_cuda::view::{DeviceInput, DeviceOutput, DeviceRepr, DeviceSliceMut};
 
-use cutile::{
-    cuda_async::device_buffer::DevicePointer,
-    cuda_core::{Device, Stream as CutileStream},
-};
-use singe_cuda::{
-    stream::Stream,
-    view::{DeviceRepr, DeviceSlice, DeviceSliceMut},
-};
-
-use crate::error::Result;
-
-#[allow(dead_code)]
-pub fn borrowed_stream(stream: &Stream) -> Result<Arc<CutileStream>> {
-    let context = stream.context();
-    context.bind()?;
-    let device = context.device();
-    let cutile_device = unsafe {
-        Device::borrow_raw(
-            context.as_raw().cast::<c_void>(),
-            device.id() as c_int,
-            device.id() as usize,
-        )
-    };
-    Ok(unsafe { CutileStream::borrow_raw(stream.as_raw().cast::<c_void>(), &cutile_device) })
-}
-
-#[allow(dead_code)]
+#[allow(dead_code, reason = "only used by some kernel feature combinations")]
 pub fn input_pointer<T, S>(input: &S) -> DevicePointer<T>
 where
     T: DeviceRepr,
-    S: DeviceSlice<T> + ?Sized,
+    S: DeviceInput<T> + ?Sized,
 {
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     unsafe { DevicePointer::from_cu_deviceptr(input.as_device_ptr() as _) }
 }
 
-#[allow(dead_code)]
-pub fn output_pointer<T>(output: &mut impl DeviceSliceMut<T>) -> DevicePointer<T>
+#[allow(dead_code, reason = "only used by some kernel feature combinations")]
+pub fn output_pointer<T>(output: &mut (impl DeviceSliceMut<T> + ?Sized)) -> DevicePointer<T>
 where
     T: DeviceRepr,
 {
-    unsafe { DevicePointer::from_cu_deviceptr(output.as_device_mut_ptr() as _) }
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
+    unsafe { DevicePointer::from_cu_deviceptr(output.as_mut_ptr() as _) }
+}
+
+/// Encodes a write-only destination without asserting initialized input values.
+pub fn write_only_pointer<T>(output: &mut (impl DeviceOutput<T> + ?Sized)) -> DevicePointer<T>
+where
+    T: DeviceRepr,
+{
+    // SAFETY: DeviceOutput guarantees an aligned CUDA destination of the stated
+    // length. Constructing the address does not read or initialize its contents.
+    unsafe { DevicePointer::from_cu_deviceptr(output.as_mut_ptr() as _) }
 }

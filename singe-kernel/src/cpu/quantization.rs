@@ -13,7 +13,7 @@ pub struct QuantizedMatmulConfig {
     pub output_scale: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DequantizedWeightMatmulConfig {
     pub rows: usize,
     pub columns: usize,
@@ -23,6 +23,7 @@ pub struct DequantizedWeightMatmulConfig {
     pub output_row_stride: usize,
 }
 
+#[must_use]
 pub fn dequantize_u8_grouped(
     input: &[u8],
     scales: &[f32],
@@ -34,11 +35,12 @@ pub fn dequantize_u8_grouped(
         .enumerate()
         .map(|(index, value)| {
             let group = index / group_size;
-            (*value as f32 - zero_points[group]) * scales[group]
+            (f32::from(*value) - zero_points[group]) * scales[group]
         })
         .collect()
 }
 
+#[must_use]
 pub fn dequantize_i8_grouped(
     input: &[i8],
     scales: &[f32],
@@ -50,11 +52,16 @@ pub fn dequantize_i8_grouped(
         .enumerate()
         .map(|(index, value)| {
             let group = index / group_size;
-            (*value as f32 - zero_points[group]) * scales[group]
+            (f32::from(*value) - zero_points[group]) * scales[group]
         })
         .collect()
 }
 
+#[must_use]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 pub fn matmul_i8_i8_f32(
     activations: &[i8],
     weights: &[i8],
@@ -67,8 +74,8 @@ pub fn matmul_i8_i8_f32(
             for reduction in 0..config.reduction {
                 let activation = activations[row * config.activation_row_stride + reduction];
                 let weight = weights[column * config.weight_row_stride + reduction];
-                sum += (activation as i32 - config.activation_zero_point)
-                    * (weight as i32 - config.weight_zero_point);
+                sum += (i32::from(activation) - config.activation_zero_point)
+                    * (i32::from(weight) - config.weight_zero_point);
             }
             out[row * config.columns + column] = sum as f32 * config.output_scale;
         }
@@ -76,6 +83,7 @@ pub fn matmul_i8_i8_f32(
     out
 }
 
+#[must_use]
 pub fn matmul_f32_i8_dequantize_f32(
     activations: &[f32],
     weights: &[i8],
@@ -90,8 +98,8 @@ pub fn matmul_f32_i8_dequantize_f32(
             for reduction in 0..config.reduction {
                 let activation = activations[row * config.activation_row_stride + reduction];
                 let weight = weights[column * config.weight_row_stride + reduction];
-                let weight = (weight as f32 - zero_points[column]) * scales[column];
-                sum += activation * weight;
+                let weight = (f32::from(weight) - zero_points[column]) * scales[column];
+                sum = activation.mul_add(weight, sum);
             }
             out[row * config.columns + column] = sum;
         }
@@ -99,6 +107,7 @@ pub fn matmul_f32_i8_dequantize_f32(
     out
 }
 
+#[must_use]
 pub fn scatter_strided_i8(
     values: &[i8],
     rows: usize,
@@ -115,6 +124,7 @@ pub fn scatter_strided_i8(
     out
 }
 
+#[must_use]
 pub fn scatter_strided_f32(
     values: &[f32],
     rows: usize,
@@ -131,6 +141,7 @@ pub fn scatter_strided_f32(
     out
 }
 
+#[must_use]
 pub fn gather_strided_f32(
     values: &[f32],
     rows: usize,
@@ -146,7 +157,7 @@ pub fn gather_strided_f32(
     out
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
 /// Per-token group int8 quantization using round-to-nearest-even.
 ///
 /// Each group uses `scale = max(max(abs(group)), eps) / 127`.
@@ -174,7 +185,15 @@ pub fn per_token_group_quant_i8_f32(
     (out, scales)
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
+#[expect(
+    clippy::float_cmp,
+    reason = "exact ties and half-integer cases determine deterministic numerical selection"
+)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the rounded value is clamped to the i8 range; NaN follows Rust saturating cast semantics"
+)]
 fn quantize_i8_round_nearest_even(value: f32) -> i8 {
     let clamped = value.clamp(-128.0, 127.0);
     let floored = clamped.floor();
@@ -187,6 +206,7 @@ fn quantize_i8_round_nearest_even(value: f32) -> i8 {
     rounded as i8
 }
 
+#[must_use]
 pub fn matmul_f8e4m3_block_scaled_f32(
     activations: &[u8],
     weights: &[u8],
@@ -207,10 +227,10 @@ pub fn matmul_f8e4m3_block_scaled_f32(
                 let k_group = k / group_k;
                 let activation_scale = activation_scales[row * k_groups + k_group];
                 let weight_scale = weight_scales[(column / group_n) * k_groups + k_group];
-                sum += f8e4m3_value(activations[row * reduction + k])
+                sum = (f8e4m3_value(activations[row * reduction + k])
                     * f8e4m3_value(weights[column * reduction + k])
-                    * activation_scale
-                    * weight_scale;
+                    * activation_scale)
+                    .mul_add(weight_scale, sum);
             }
             out[row * columns + column] = sum;
         }
@@ -218,6 +238,7 @@ pub fn matmul_f8e4m3_block_scaled_f32(
     out
 }
 
+#[must_use]
 pub fn dequantize_f8e4m3_block_f32(
     input: &[u8],
     scales: &[f32],
@@ -237,6 +258,7 @@ pub fn dequantize_f8e4m3_block_f32(
     out
 }
 
+#[must_use]
 pub fn f8e4m3_value(value: u8) -> f32 {
     let sign = if value & 0x80 == 0 { 1.0 } else { -1.0 };
     let exponent = (value >> 3) & 0x0f;
@@ -247,10 +269,10 @@ pub fn f8e4m3_value(value: u8) -> f32 {
         if mantissa == 0 {
             sign * 0.0
         } else {
-            sign * (mantissa as f32 / 8.0) * 2f32.powi(-6)
+            sign * (f32::from(mantissa) / 8.0) * 2f32.powi(-6)
         }
     } else {
-        sign * (1.0 + mantissa as f32 / 8.0) * 2f32.powi(exponent as i32 - 7)
+        sign * (1.0 + f32::from(mantissa) / 8.0) * 2f32.powi(i32::from(exponent) - 7)
     }
 }
 
@@ -258,9 +280,9 @@ pub fn f8e4m3_value(value: u8) -> f32 {
 mod tests {
     use super::*;
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
     #[test]
-    fn per_token_group_quant_i8_rounds_ties_to_even() {
+    fn test_per_token_group_quant_i8_rounds_ties_to_even() {
         let input = vec![127.0f32, 1.5, 2.5, -1.5, -2.5];
         let (actual, scales) = per_token_group_quant_i8_f32(&input, 5, 1e-10);
 
@@ -269,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn f8e4m3_value_decodes_full_representative_range() {
+    fn test_f8e4m3_value_decodes_full_representative_range() {
         let cases = [
             (0x00, 0.0),
             (0x01, 0.001953125),

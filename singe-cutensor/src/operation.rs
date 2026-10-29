@@ -1,4 +1,5 @@
 use std::{
+    mem,
     mem::{ManuallyDrop, MaybeUninit},
     ptr,
 };
@@ -18,48 +19,79 @@ use crate::{
     utility::{modes_to_i32_vec, to_i32},
 };
 
+/// A borrowed native compute-mode descriptor selecting arithmetic precision and implementation.
+///
+/// Support depends on the operation, tensor data types, and GPU architecture. This value does not own or destroy the native descriptor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct ComputeDescriptor(sys::cutensorComputeDescriptor_t);
 
 impl ComputeDescriptor {
-    // TODO: Not sure if these extern values are always valid.
+    // SAFETY: TODO: Not sure if these extern values are always valid.
+    /// Selects half-precision floating-point computation using `CUTENSOR_COMPUTE_DESC_16F`.
+    #[must_use]
     pub const fn f16() -> Self {
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_16F })
     }
 
+    /// Selects bfloat16 computation using `CUTENSOR_COMPUTE_DESC_16BF`.
+    #[must_use]
     pub const fn bf16() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_16BF })
     }
 
+    /// Selects TensorFloat-32 computation using `CUTENSOR_COMPUTE_DESC_TF32`.
+    #[must_use]
     pub const fn tf32() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_TF32 })
     }
 
+    /// Selects the native `3XTF32` compute mode using `CUTENSOR_COMPUTE_DESC_3XTF32`.
+    #[must_use]
     pub const fn tf32x3() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_3XTF32 })
     }
 
+    /// Selects single-precision floating-point computation using `CUTENSOR_COMPUTE_DESC_32F`.
+    #[must_use]
     pub const fn f32() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_32F })
     }
 
+    /// Selects double-precision floating-point computation using `CUTENSOR_COMPUTE_DESC_64F`.
+    #[must_use]
     pub const fn f64() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_64F })
     }
 
+    /// Selects the native `9X16BF` compute mode using `CUTENSOR_COMPUTE_DESC_9X16BF`.
+    #[must_use]
     pub const fn bf16x9() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_9X16BF })
     }
 
+    /// Selects the native `8XINT8` compute mode using `CUTENSOR_COMPUTE_DESC_8XINT8`.
+    #[must_use]
     pub const fn i8x8() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_8XINT8 })
     }
 
+    /// Selects the native `4X16F` compute mode using `CUTENSOR_COMPUTE_DESC_4X16F`.
+    #[must_use]
     pub const fn f16x4() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
         Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_4X16F })
     }
 
+    /// Returns the borrowed native compute descriptor.
+    #[must_use]
     pub const fn as_raw(self) -> sys::cutensorComputeDescriptor_t {
         self.0
     }
@@ -77,6 +109,7 @@ impl From<ComputeDescriptor> for sys::cutensorComputeDescriptor_t {
     }
 }
 
+/// Borrows a dense tensor descriptor, symbolic mode labels, and a unary operator.
 #[derive(Debug, Clone, Copy)]
 pub struct TensorOperand<'a> {
     desc: &'a TensorDescriptor,
@@ -85,15 +118,22 @@ pub struct TensorOperand<'a> {
 }
 
 impl<'a> TensorOperand<'a> {
+    /// Pairs a dense descriptor with mode labels and a unary element-wise operator.
+    ///
+    /// Mode counts and descriptor compatibility are checked when constructing an operation.
+    #[must_use]
     pub const fn new(desc: &'a TensorDescriptor, modes: &'a [Mode], op: Operator) -> Self {
         Self { desc, modes, op }
     }
 
+    /// Pairs a dense descriptor and mode labels with the identity operator.
+    #[must_use]
     pub fn identity(desc: &'a TensorDescriptor, modes: &'a [Mode]) -> Self {
         Self::new(desc, modes, Operator::Identity)
     }
 }
 
+/// Borrows a block-sparse tensor descriptor, symbolic mode labels, and a unary operator.
 #[derive(Debug, Clone, Copy)]
 pub struct BlockSparseTensorOperand<'a> {
     desc: &'a BlockSparseTensorDescriptor,
@@ -102,6 +142,10 @@ pub struct BlockSparseTensorOperand<'a> {
 }
 
 impl<'a> BlockSparseTensorOperand<'a> {
+    /// Pairs a block-sparse descriptor with mode labels and a unary element-wise operator.
+    ///
+    /// Mode counts and descriptor compatibility are checked when constructing an operation.
+    #[must_use]
     pub const fn new(
         desc: &'a BlockSparseTensorDescriptor,
         modes: &'a [Mode],
@@ -110,11 +154,14 @@ impl<'a> BlockSparseTensorOperand<'a> {
         Self { desc, modes, op }
     }
 
+    /// Pairs a block-sparse descriptor and mode labels with the identity operator.
+    #[must_use]
     pub fn identity(desc: &'a BlockSparseTensorDescriptor, modes: &'a [Mode]) -> Self {
         Self::new(desc, modes, Operator::Identity)
     }
 }
 
+/// Owns a tensor operation descriptor, its context, signature, and optional padding scalar.
 #[derive(Debug)]
 pub struct OperationDescriptor {
     handle: sys::cutensorOperationDescriptor_t,
@@ -125,51 +172,101 @@ pub struct OperationDescriptor {
     padding_value: Option<OwnedPaddingValue>,
 }
 
+/// Transferred native ownership with its original metadata and retained library context.
+///
+/// Destroy `handle` before releasing this record, or reclaim it with [`OperationDescriptor::from_raw`].
+/// Dropping this record does not destroy the native handle.
+#[derive(Debug)]
+pub struct RawOperationDescriptor {
+    /// Transferred native operation handle; destroy it before releasing the retained context and metadata.
+    pub handle: sys::cutensorOperationDescriptor_t,
+    context: ContextRef,
+    output_rank: u32,
+    output_data_type: DataType,
+    signature: OperationSignature,
+    padding_value: Option<OwnedPaddingValue>,
+}
+
+/// Operation family and operand metadata used to validate execution against a plan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum OperationKind {
+    /// Element-wise combination of three scaled inputs into output D.
     ElementwiseTrinary {
+        /// Native sample data type of tensor A.
         a: DataType,
+        /// Native sample data type of tensor B.
         b: DataType,
+        /// Native sample data type of tensor C.
         c: DataType,
+        /// Native sample data type of tensor D.
         d: DataType,
     },
+    /// Element-wise combination of scaled inputs A and C into output D.
     ElementwiseBinary {
+        /// Native sample data type of tensor A.
         a: DataType,
+        /// Native sample data type of tensor C.
         c: DataType,
+        /// Native sample data type of tensor D.
         d: DataType,
     },
+    /// Permutation and unary transformation of A into output B.
     Permutation {
+        /// Native sample data type of tensor A.
         a: DataType,
+        /// Native sample data type of tensor B.
         b: DataType,
     },
+    /// Contraction of A and B with an accumulated C term, producing D.
     Contraction {
+        /// Native sample data type of tensor A.
         a: DataType,
+        /// Native sample data type of tensor B.
         b: DataType,
+        /// Native sample data type of tensor C.
         c: DataType,
+        /// Native sample data type of tensor D.
         d: DataType,
     },
+    /// Reduction of A with an accumulated C term, producing D.
     Reduction {
+        /// Native sample data type of tensor A.
         a: DataType,
+        /// Native sample data type of tensor C.
         c: DataType,
+        /// Native sample data type of tensor D.
         d: DataType,
     },
+    /// Contraction of three inputs A, B, and C with an accumulated D term, producing E.
     ContractionTrinary {
+        /// Native sample data type of tensor A.
         a: DataType,
+        /// Native sample data type of tensor B.
         b: DataType,
+        /// Native sample data type of tensor C.
         c: DataType,
+        /// Native sample data type of tensor D.
         d: DataType,
+        /// Native sample data type of tensor E.
         e: DataType,
     },
+    /// Block-sparse contraction with recorded nonzero block counts.
     BlockSparseContraction {
+        /// Nonzero block count for tensor A.
         a_non_zero_blocks: u64,
+        /// Nonzero block count for tensor B.
         b_non_zero_blocks: u64,
+        /// Nonzero block count for tensor C.
         c_non_zero_blocks: u64,
+        /// Nonzero block count for tensor D.
         d_non_zero_blocks: u64,
     },
 }
 
 impl OperationKind {
+    /// Returns the stable wrapper name used to identify this operation family.
+    #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Self::ElementwiseTrinary { .. } => "elementwise_trinary",
@@ -183,9 +280,12 @@ impl OperationKind {
     }
 }
 
+/// Operation family, operand metadata, and scalar type expected by plan execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OperationSignature {
+    /// Operation family and operand metadata recorded when the descriptor was created.
     pub kind: OperationKind,
+    /// Native representation required for the operation's scaling factors.
     pub scalar_type: DataType,
 }
 
@@ -212,26 +312,38 @@ enum OwnedPaddingValue {
 impl OwnedPaddingValue {
     fn from_value<T: DataTypeLike>(value: T) -> Result<Self> {
         match T::data_type() {
-            DataType::F32 => Ok(Self::F32(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::F64 => Ok(Self::F64(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::F16 => Ok(Self::F16(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::Bf16 => Ok(Self::Bf16(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::F8E4M3 => Ok(Self::F8E4M3(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::F8E5M2 => Ok(Self::F8E5M2(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::F8UE8M0 => Ok(Self::F8UE8M0(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::F6E2M3 => Ok(Self::F6E2M3(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::F6E3M2 => Ok(Self::F6E3M2(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::F4E2M1 => Ok(Self::F4E2M1(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::I8 => Ok(Self::I8(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::U8 => Ok(Self::U8(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::I32 => Ok(Self::I32(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::U32 => Ok(Self::U32(unsafe { std::mem::transmute_copy(&value) })),
-            DataType::ComplexF32 => {
-                Ok(Self::Complex32(unsafe { std::mem::transmute_copy(&value) }))
-            }
-            DataType::ComplexF64 => {
-                Ok(Self::Complex64(unsafe { std::mem::transmute_copy(&value) }))
-            }
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F32 => Ok(Self::F32(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F64 => Ok(Self::F64(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F16 => Ok(Self::F16(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::Bf16 => Ok(Self::Bf16(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F8E4M3 => Ok(Self::F8E4M3(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F8E5M2 => Ok(Self::F8E5M2(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F8UE8M0 => Ok(Self::F8UE8M0(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F6E2M3 => Ok(Self::F6E2M3(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F6E3M2 => Ok(Self::F6E3M2(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::F4E2M1 => Ok(Self::F4E2M1(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::I8 => Ok(Self::I8(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::U8 => Ok(Self::U8(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::I32 => Ok(Self::I32(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::U32 => Ok(Self::U32(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::ComplexF32 => Ok(Self::Complex32(unsafe { mem::transmute_copy(&value) })),
+            // SAFETY: `T::data_type()` selected this variant, so `T` has the same layout as its payload.
+            DataType::ComplexF64 => Ok(Self::Complex64(unsafe { mem::transmute_copy(&value) })),
             data_type => Err(Error::UnsupportedScalarDataType {
                 name: T::rust_type_name().into(),
                 data_type,
@@ -343,7 +455,7 @@ impl OperationDescriptor {
     /// ready, cuTENSOR rejects the operand descriptors, or cuTENSOR returns a
     /// null operation descriptor.
     pub fn elementwise_trinary(
-        ctx: &Context,
+        context: &Context,
         lhs: TensorOperand<'_>,
         rhs: TensorOperand<'_>,
         aux: TensorOperand<'_>,
@@ -352,11 +464,11 @@ impl OperationDescriptor {
         op_abc: Operator,
         compute_descriptor: ComputeDescriptor,
     ) -> Result<Self> {
-        let context = ctx.as_context_ref();
-        validate_tensor_operand_context(&context, lhs, "lhs")?;
-        validate_tensor_operand_context(&context, rhs, "rhs")?;
-        validate_tensor_operand_context(&context, aux, "aux")?;
-        validate_tensor_operand_context(&context, out, "out")?;
+        let context_ref = context.as_context_ref();
+        validate_tensor_operand_context(&context_ref, lhs, "lhs")?;
+        validate_tensor_operand_context(&context_ref, rhs, "rhs")?;
+        validate_tensor_operand_context(&context_ref, aux, "aux")?;
+        validate_tensor_operand_context(&context_ref, out, "out")?;
         validate_modes(lhs.desc.rank(), lhs.modes)?;
         validate_modes(rhs.desc.rank(), rhs.modes)?;
         validate_modes(aux.desc.rank(), aux.modes)?;
@@ -368,10 +480,11 @@ impl OperationDescriptor {
         let mode_d = modes_to_i32_vec(out.modes);
 
         let mut raw = ptr::null_mut();
-        ctx.bind()?;
+        context.bind()?;
+        // SAFETY: `cutensorCreateElementwiseTrinary` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorCreateElementwiseTrinary(
-                ctx.as_raw(),
+                context.as_raw(),
                 &raw mut raw,
                 lhs.desc.as_raw(),
                 mode_a.as_ptr(),
@@ -390,9 +503,9 @@ impl OperationDescriptor {
             ))?;
         }
 
-        Self::from_raw(
+        Self::from_native(
             raw,
-            context,
+            context_ref,
             out.desc.rank(),
             out.desc.data_type(),
             OperationKind::ElementwiseTrinary {
@@ -439,17 +552,17 @@ impl OperationDescriptor {
     /// cuTENSOR rejects the operands, or cuTENSOR returns a null operation
     /// descriptor.
     pub fn elementwise_binary(
-        ctx: &Context,
+        context: &Context,
         a: TensorOperand<'_>,
         c: TensorOperand<'_>,
         d: TensorOperand<'_>,
         op_ac: Operator,
         compute_descriptor: ComputeDescriptor,
     ) -> Result<Self> {
-        let context = ctx.as_context_ref();
-        validate_tensor_operand_context(&context, a, "a")?;
-        validate_tensor_operand_context(&context, c, "c")?;
-        validate_tensor_operand_context(&context, d, "d")?;
+        let context_ref = context.as_context_ref();
+        validate_tensor_operand_context(&context_ref, a, "a")?;
+        validate_tensor_operand_context(&context_ref, c, "c")?;
+        validate_tensor_operand_context(&context_ref, d, "d")?;
         validate_modes(a.desc.rank(), a.modes)?;
         validate_modes(c.desc.rank(), c.modes)?;
         validate_modes(d.desc.rank(), d.modes)?;
@@ -461,10 +574,11 @@ impl OperationDescriptor {
         let mode_d = modes_to_i32_vec(d.modes);
 
         let mut raw = ptr::null_mut();
-        ctx.bind()?;
+        context.bind()?;
+        // SAFETY: `cutensorCreateElementwiseBinary` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorCreateElementwiseBinary(
-                ctx.as_raw(),
+                context.as_raw(),
                 &raw mut raw,
                 a.desc.as_raw(),
                 mode_a.as_ptr(),
@@ -479,9 +593,9 @@ impl OperationDescriptor {
             ))?;
         }
 
-        Self::from_raw(
+        Self::from_native(
             raw,
-            context,
+            context_ref,
             d.desc.rank(),
             d.desc.data_type(),
             OperationKind::ElementwiseBinary {
@@ -543,14 +657,14 @@ impl OperationDescriptor {
     /// or operator combination is unsupported, cuTENSOR rejects the operands,
     /// or cuTENSOR returns a null operation descriptor.
     pub fn permutation(
-        ctx: &Context,
+        context: &Context,
         a: TensorOperand<'_>,
         b: TensorOperand<'_>,
         compute_descriptor: ComputeDescriptor,
     ) -> Result<Self> {
-        let context = ctx.as_context_ref();
-        validate_tensor_operand_context(&context, a, "a")?;
-        validate_tensor_operand_context(&context, b, "b")?;
+        let context_ref = context.as_context_ref();
+        validate_tensor_operand_context(&context_ref, a, "a")?;
+        validate_tensor_operand_context(&context_ref, b, "b")?;
         validate_modes(a.desc.rank(), a.modes)?;
         validate_modes(b.desc.rank(), b.modes)?;
 
@@ -558,10 +672,11 @@ impl OperationDescriptor {
         let mode_b = modes_to_i32_vec(b.modes);
 
         let mut raw = ptr::null_mut();
-        ctx.bind()?;
+        context.bind()?;
+        // SAFETY: `cutensorCreatePermutation` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorCreatePermutation(
-                ctx.as_raw(),
+                context.as_raw(),
                 &raw mut raw,
                 a.desc.as_raw(),
                 mode_a.as_ptr(),
@@ -572,9 +687,9 @@ impl OperationDescriptor {
             ))?;
         }
 
-        Self::from_raw(
+        Self::from_native(
             raw,
-            context,
+            context_ref,
             b.desc.rank(),
             b.desc.data_type(),
             OperationKind::Permutation {
@@ -628,18 +743,18 @@ impl OperationDescriptor {
     /// cuTENSOR rejects the operands, or cuTENSOR returns a null operation
     /// descriptor.
     pub fn contraction(
-        ctx: &Context,
+        context: &Context,
         a: TensorOperand<'_>,
         b: TensorOperand<'_>,
         c: TensorOperand<'_>,
         d: TensorOperand<'_>,
         compute_descriptor: ComputeDescriptor,
     ) -> Result<Self> {
-        let context = ctx.as_context_ref();
-        validate_tensor_operand_context(&context, a, "a")?;
-        validate_tensor_operand_context(&context, b, "b")?;
-        validate_tensor_operand_context(&context, c, "c")?;
-        validate_tensor_operand_context(&context, d, "d")?;
+        let context_ref = context.as_context_ref();
+        validate_tensor_operand_context(&context_ref, a, "a")?;
+        validate_tensor_operand_context(&context_ref, b, "b")?;
+        validate_tensor_operand_context(&context_ref, c, "c")?;
+        validate_tensor_operand_context(&context_ref, d, "d")?;
         validate_modes(a.desc.rank(), a.modes)?;
         validate_modes(b.desc.rank(), b.modes)?;
         validate_modes(c.desc.rank(), c.modes)?;
@@ -653,10 +768,11 @@ impl OperationDescriptor {
         let mode_d = modes_to_i32_vec(d.modes);
 
         let mut raw = ptr::null_mut();
-        ctx.bind()?;
+        context.bind()?;
+        // SAFETY: `cutensorCreateContraction` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorCreateContraction(
-                ctx.as_raw(),
+                context.as_raw(),
                 &raw mut raw,
                 a.desc.as_raw(),
                 mode_a.as_ptr(),
@@ -673,9 +789,9 @@ impl OperationDescriptor {
             ))?;
         }
 
-        Self::from_raw(
+        Self::from_native(
             raw,
-            context,
+            context_ref,
             d.desc.rank(),
             d.desc.data_type(),
             OperationKind::Contraction {
@@ -719,17 +835,17 @@ impl OperationDescriptor {
     /// unsupported, cuTENSOR rejects the operands, or cuTENSOR returns a null
     /// operation descriptor.
     pub fn reduction(
-        ctx: &Context,
+        context: &Context,
         a: TensorOperand<'_>,
         c: TensorOperand<'_>,
         d: TensorOperand<'_>,
         op_reduce: Operator,
         compute_descriptor: ComputeDescriptor,
     ) -> Result<Self> {
-        let context = ctx.as_context_ref();
-        validate_tensor_operand_context(&context, a, "a")?;
-        validate_tensor_operand_context(&context, c, "c")?;
-        validate_tensor_operand_context(&context, d, "d")?;
+        let context_ref = context.as_context_ref();
+        validate_tensor_operand_context(&context_ref, a, "a")?;
+        validate_tensor_operand_context(&context_ref, c, "c")?;
+        validate_tensor_operand_context(&context_ref, d, "d")?;
         validate_modes(a.desc.rank(), a.modes)?;
         validate_modes(c.desc.rank(), c.modes)?;
         validate_modes(d.desc.rank(), d.modes)?;
@@ -741,10 +857,11 @@ impl OperationDescriptor {
         let mode_d = modes_to_i32_vec(d.modes);
 
         let mut raw = ptr::null_mut();
-        ctx.bind()?;
+        context.bind()?;
+        // SAFETY: `cutensorCreateReduction` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorCreateReduction(
-                ctx.as_raw(),
+                context.as_raw(),
                 &raw mut raw,
                 a.desc.as_raw(),
                 mode_a.as_ptr(),
@@ -759,9 +876,9 @@ impl OperationDescriptor {
             ))?;
         }
 
-        Self::from_raw(
+        Self::from_native(
             raw,
-            context,
+            context_ref,
             d.desc.rank(),
             d.desc.data_type(),
             OperationKind::Reduction {
@@ -817,7 +934,7 @@ impl OperationDescriptor {
     /// cuTENSOR rejects the operands, or cuTENSOR returns a null operation
     /// descriptor.
     pub fn contraction_trinary(
-        ctx: &Context,
+        context: &Context,
         lhs: TensorOperand<'_>,
         rhs: TensorOperand<'_>,
         aux: TensorOperand<'_>,
@@ -825,12 +942,12 @@ impl OperationDescriptor {
         output: TensorOperand<'_>,
         compute_descriptor: ComputeDescriptor,
     ) -> Result<Self> {
-        let context = ctx.as_context_ref();
-        validate_tensor_operand_context(&context, lhs, "lhs")?;
-        validate_tensor_operand_context(&context, rhs, "rhs")?;
-        validate_tensor_operand_context(&context, aux, "aux")?;
-        validate_tensor_operand_context(&context, input, "input")?;
-        validate_tensor_operand_context(&context, output, "output")?;
+        let context_ref = context.as_context_ref();
+        validate_tensor_operand_context(&context_ref, lhs, "lhs")?;
+        validate_tensor_operand_context(&context_ref, rhs, "rhs")?;
+        validate_tensor_operand_context(&context_ref, aux, "aux")?;
+        validate_tensor_operand_context(&context_ref, input, "input")?;
+        validate_tensor_operand_context(&context_ref, output, "output")?;
         validate_modes(lhs.desc.rank(), lhs.modes)?;
         validate_modes(rhs.desc.rank(), rhs.modes)?;
         validate_modes(aux.desc.rank(), aux.modes)?;
@@ -846,10 +963,11 @@ impl OperationDescriptor {
         let mode_e = modes_to_i32_vec(output.modes);
 
         let mut raw = ptr::null_mut();
-        ctx.bind()?;
+        context.bind()?;
+        // SAFETY: `cutensorCreateContractionTrinary` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorCreateContractionTrinary(
-                ctx.as_raw(),
+                context.as_raw(),
                 &raw mut raw,
                 lhs.desc.as_raw(),
                 mode_a.as_ptr(),
@@ -869,9 +987,9 @@ impl OperationDescriptor {
             ))?;
         }
 
-        Self::from_raw(
+        Self::from_native(
             raw,
-            context,
+            context_ref,
             output.desc.rank(),
             output.desc.data_type(),
             OperationKind::ContractionTrinary {
@@ -928,18 +1046,18 @@ impl OperationDescriptor {
     /// operator combination is unsupported, cuTENSOR rejects the operands, or
     /// cuTENSOR returns a null operation descriptor.
     pub fn block_sparse_contraction(
-        ctx: &Context,
+        context: &Context,
         a: BlockSparseTensorOperand<'_>,
         b: BlockSparseTensorOperand<'_>,
         c: BlockSparseTensorOperand<'_>,
         d: BlockSparseTensorOperand<'_>,
         compute_descriptor: ComputeDescriptor,
     ) -> Result<Self> {
-        let context = ctx.as_context_ref();
-        validate_block_sparse_tensor_operand_context(&context, a, "a")?;
-        validate_block_sparse_tensor_operand_context(&context, b, "b")?;
-        validate_block_sparse_tensor_operand_context(&context, c, "c")?;
-        validate_block_sparse_tensor_operand_context(&context, d, "d")?;
+        let context_ref = context.as_context_ref();
+        validate_block_sparse_tensor_operand_context(&context_ref, a, "a")?;
+        validate_block_sparse_tensor_operand_context(&context_ref, b, "b")?;
+        validate_block_sparse_tensor_operand_context(&context_ref, c, "c")?;
+        validate_block_sparse_tensor_operand_context(&context_ref, d, "d")?;
         validate_modes(a.desc.mode_count(), a.modes)?;
         validate_modes(b.desc.mode_count(), b.modes)?;
         validate_modes(c.desc.mode_count(), c.modes)?;
@@ -953,10 +1071,11 @@ impl OperationDescriptor {
         let mode_d = modes_to_i32_vec(d.modes);
 
         let mut raw = ptr::null_mut();
-        ctx.bind()?;
+        context.bind()?;
+        // SAFETY: `cutensorCreateBlockSparseContraction` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorCreateBlockSparseContraction(
-                ctx.as_raw(),
+                context.as_raw(),
                 &raw mut raw,
                 a.desc.as_raw(),
                 mode_a.as_ptr(),
@@ -973,9 +1092,9 @@ impl OperationDescriptor {
             ))?;
         }
 
-        Self::from_raw(
+        Self::from_native(
             raw,
-            context,
+            context_ref,
             d.desc.mode_count(),
             d.desc.data_type(),
             OperationKind::BlockSparseContraction {
@@ -991,6 +1110,7 @@ impl OperationDescriptor {
         validate_operation_attribute_size(attr, size_of::<T>())?;
 
         self.context.bind()?;
+        // SAFETY: `cutensorOperationDescriptorSetAttribute` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cutensorOperationDescriptorSetAttribute(
                 self.context.as_raw(),
@@ -1008,6 +1128,7 @@ impl OperationDescriptor {
 
         let mut value = MaybeUninit::<T>::uninit();
         self.context.bind()?;
+        // SAFETY: the library wrote exactly `size_of::<T>()` bytes, checked above, initializing `value`.
         unsafe {
             try_ffi!(sys::cutensorOperationDescriptorGetAttribute(
                 self.context.as_raw(),
@@ -1020,41 +1141,96 @@ impl OperationDescriptor {
         }
     }
 
+    /// Returns the integer tag distinguishing otherwise identical problems in the software-managed plan cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native attribute byte size is incompatible, the CUDA context cannot be bound, or the native attribute query fails.
     pub fn tag(&self) -> Result<i32> {
         let value = self.attribute(OperationDescriptorAttribute::Tag)?;
         Ok(value)
     }
 
+    /// Sets the integer plan-cache tag; the native default is zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native attribute byte size is incompatible, the CUDA context cannot be bound, or cuTENSOR rejects the attribute value.
     pub fn set_tag(&mut self, tag: i32) -> Result<()> {
         self.set_attribute(OperationDescriptorAttribute::Tag, &tag)
     }
 
+    /// Returns the native data type of the operation's scaling factors.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native attribute byte size is incompatible, the CUDA context cannot be bound, or the native attribute query fails.
     pub fn scalar_type(&self) -> Result<DataType> {
         self.attribute(OperationDescriptorAttribute::ScalarType)
     }
 
+    /// Sets the native scaling-factor type and updates the tracked execution signature after success.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native attribute byte size is incompatible, the CUDA context cannot be bound, or cuTENSOR rejects the attribute value.
     pub fn set_scalar_type(&mut self, data_type: DataType) -> Result<()> {
         self.set_attribute(OperationDescriptorAttribute::ScalarType, &data_type)?;
         self.signature.scalar_type = data_type;
         Ok(())
     }
 
+    /// Queries the number of padded values on the left of each output mode.
+    ///
+    /// The returned vector has one entry per output mode, in output descriptor order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the CUDA context cannot be bound or the native padding query fails.
     pub fn padding_left(&self) -> Result<Vec<u32>> {
         self.padding(OperationDescriptorAttribute::PaddingLeft)
     }
 
+    /// Sets the number of padded values on the left of each output mode.
+    ///
+    /// Entries follow output descriptor order and count values, rather than bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the slice length differs from the output rank, a value cannot fit `i32`, the CUDA context cannot be bound, or cuTENSOR rejects the padding.
     pub fn set_padding_left(&mut self, padding: &[u32]) -> Result<()> {
         self.set_padding(OperationDescriptorAttribute::PaddingLeft, padding)
     }
 
+    /// Queries the number of padded values on the right of each output mode.
+    ///
+    /// The returned vector has one entry per output mode, in output descriptor order.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the CUDA context cannot be bound or the native padding query fails.
     pub fn padding_right(&self) -> Result<Vec<u32>> {
         self.padding(OperationDescriptorAttribute::PaddingRight)
     }
 
+    /// Sets the number of padded values on the right of each output mode.
+    ///
+    /// Entries follow output descriptor order and count values, rather than bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the slice length differs from the output rank, a value cannot fit `i32`, the CUDA context cannot be bound, or cuTENSOR rejects the padding.
     pub fn set_padding_right(&mut self, padding: &[u32]) -> Result<()> {
         self.set_padding(OperationDescriptorAttribute::PaddingRight, padding)
     }
 
+    /// Sets and retains a host-side constant used to fill padded output elements.
+    ///
+    /// This uses the output tensor's data type, which can differ from the scaling-factor type returned by [`Self::scalar_type`]. The owned value is replaced only after the native update succeeds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `T` does not match the output tensor type, the wrapper cannot retain this scalar representation, the CUDA context cannot be bound, or cuTENSOR rejects the value.
     pub fn set_padding_value<T: DataTypeLike>(&mut self, value: T) -> Result<()> {
         if self.output_data_type != T::data_type() {
             return Err(Error::ScalarDataTypeMismatch {
@@ -1065,6 +1241,7 @@ impl OperationDescriptor {
 
         let owned = OwnedPaddingValue::from_value(value)?;
         self.context.bind()?;
+        // SAFETY: `cutensorOperationDescriptorSetAttribute` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cutensorOperationDescriptorSetAttribute(
                 self.context.as_raw(),
@@ -1078,10 +1255,24 @@ impl OperationDescriptor {
         Ok(())
     }
 
+    /// Returns the native floating-point operation-count estimate as `f32`.
+    ///
+    /// The estimate assumes nonzero scaling factors unless the operation specifies otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native attribute byte size is incompatible, the CUDA context cannot be bound, or the native attribute query fails.
     pub fn flops(&self) -> Result<f32> {
         self.attribute(OperationDescriptorAttribute::Flops)
     }
 
+    /// Returns the native estimate of minimum bytes transferred to or from global memory as `f32`.
+    ///
+    /// The estimate assumes nonzero scaling factors unless the operation specifies otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native attribute byte size is incompatible, the CUDA context cannot be bound, or the native attribute query fails.
     pub fn moved_bytes(&self) -> Result<f32> {
         self.attribute(OperationDescriptorAttribute::MovedBytes)
     }
@@ -1090,6 +1281,8 @@ impl OperationDescriptor {
         self.signature
     }
 
+    /// Returns the borrowed native operation descriptor.
+    #[must_use]
     pub const fn as_raw(&self) -> sys::cutensorOperationDescriptor_t {
         self.handle
     }
@@ -1097,16 +1290,45 @@ impl OperationDescriptor {
     /// Consumes the descriptor and returns the raw cuTENSOR operation
     /// descriptor handle without destroying it.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with cuTENSOR.
-    pub fn into_raw(self) -> sys::cutensorOperationDescriptor_t {
-        let descriptor = ManuallyDrop::new(self);
-        descriptor.handle
+    /// The returned record retains the native library owner and descriptor metadata.
+    /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
+    #[must_use]
+    pub fn into_raw(self) -> RawOperationDescriptor {
+        let owner = ManuallyDrop::new(self);
+        // SAFETY: move each field exactly once while suppressing native destruction.
+        unsafe {
+            RawOperationDescriptor {
+                handle: owner.handle,
+                context: ptr::read(&raw const owner.context),
+                output_rank: owner.output_rank,
+                output_data_type: owner.output_data_type,
+                signature: owner.signature,
+                padding_value: ptr::read(&raw const owner.padding_value),
+            }
+        }
     }
 
-    fn from_raw(
+    /// Reclaims a transferred resource with its original metadata and library owner.
+    ///
+    /// # Safety
+    ///
+    /// `handle` must remain valid and uniquely owned with its original descriptor metadata unchanged.
+    /// Complete all borrowed queued accesses before replacing or releasing their resources.
+    #[must_use]
+    pub unsafe fn from_raw(raw: RawOperationDescriptor) -> Self {
+        Self {
+            handle: raw.handle,
+            context: raw.context,
+            output_rank: raw.output_rank,
+            output_data_type: raw.output_data_type,
+            signature: raw.signature,
+            padding_value: raw.padding_value,
+        }
+    }
+
+    fn from_native(
         handle: sys::cutensorOperationDescriptor_t,
-        ctx: ContextRef,
+        context: ContextRef,
         output_rank: u32,
         output_data_type: DataType,
         kind: OperationKind,
@@ -1117,10 +1339,11 @@ impl OperationDescriptor {
 
         let scalar_type = {
             let mut value = MaybeUninit::<DataType>::uninit();
-            ctx.bind()?;
+            context.bind()?;
+            // SAFETY: the library wrote exactly `size_of::<T>()` bytes, checked above, initializing `value`.
             unsafe {
                 try_ffi!(sys::cutensorOperationDescriptorGetAttribute(
-                    ctx.as_raw(),
+                    context.as_raw(),
                     handle,
                     OperationDescriptorAttribute::ScalarType.into(),
                     value.as_mut_ptr().cast(),
@@ -1132,7 +1355,7 @@ impl OperationDescriptor {
 
         Ok(Self {
             handle,
-            context: ctx,
+            context,
             output_rank,
             output_data_type,
             signature: OperationSignature { kind, scalar_type },
@@ -1148,6 +1371,7 @@ impl OperationDescriptor {
 
         let mut padding = vec![0_u32; self.output_rank as usize];
         self.context.bind()?;
+        // SAFETY: `cutensorOperationDescriptorGetAttribute` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cutensorOperationDescriptorGetAttribute(
                 self.context.as_raw(),
@@ -1180,6 +1404,7 @@ impl OperationDescriptor {
 
         let padding = padding.to_vec();
         self.context.bind()?;
+        // SAFETY: `cutensorOperationDescriptorSetAttribute` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorOperationDescriptorSetAttribute(
                 self.context.as_raw(),
@@ -1195,17 +1420,18 @@ impl OperationDescriptor {
 
 impl Drop for OperationDescriptor {
     fn drop(&mut self) {
-        if let Err(err) = self.context.bind() {
+        if let Err(error) = self.context.bind() {
             #[cfg(debug_assertions)]
             eprintln!(
-                "failed to bind cutensor context before destroying operation descriptor: {err}"
+                "failed to bind cutensor context before destroying operation descriptor: {error}"
             );
         }
 
+        // SAFETY: `cutensorDestroyOperationDescriptor` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cutensorDestroyOperationDescriptor(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cutensorDestroyOperationDescriptor(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensor operation descriptor: {err}");
+                eprintln!("failed to destroy cutensor operation descriptor: {error}");
             }
         }
     }
@@ -1240,7 +1466,9 @@ fn validate_block_sparse_tensor_operand_context(
 
 fn validate_mode_names_match(lhs: &[Mode], rhs: &[Mode], name: &str) -> Result<()> {
     if lhs != rhs {
-        return Err(Error::ModeMismatch { name: name.into() });
+        return Err(Error::ModeMismatch {
+            name: name.to_owned().into(),
+        });
     }
 
     Ok(())
@@ -1256,7 +1484,9 @@ fn validate_tensor_descriptors_match(
         || lhs.data_type() != rhs.data_type()
         || lhs.alignment_requirement() != rhs.alignment_requirement()
     {
-        return Err(Error::DescriptorMismatch { name: name.into() });
+        return Err(Error::DescriptorMismatch {
+            name: name.to_owned().into(),
+        });
     }
 
     Ok(())
@@ -1271,7 +1501,9 @@ fn validate_block_sparse_tensor_descriptors_match(
         || lhs.non_zero_block_count() != rhs.non_zero_block_count()
         || lhs.data_type() != rhs.data_type()
     {
-        return Err(Error::DescriptorMismatch { name: name.into() });
+        return Err(Error::DescriptorMismatch {
+            name: name.to_owned().into(),
+        });
     }
 
     Ok(())

@@ -1,240 +1,143 @@
-use std::collections::HashMap;
+use std::{borrow::Cow, iter};
 
 use crate::{
-    data_type::DataType,
-    error::{Error, Result},
+    backend::tensor::TensorId,
+    error::Result,
     frontend::{
-        graph::Graph,
-        infer::infer_binary_pointwise_output,
+        error::Error as FrontendError,
+        graph::{Graph, TensorOutputConfig},
         operation::{Operation, PointwiseOperation},
-        shape::unit_shape_like,
     },
-    math::NanPropagation,
-    pointwise::PointwiseMode,
-    tensor::{Shape, TensorId, TensorSpec},
+    utility::to_i64,
 };
 
 impl Graph {
     /// Adds a pointwise operation to the graph.
     ///
     /// Pointwise operations apply elementwise unary, binary, or ternary modes selected by cuDNN's pointwise mode.
-    pub fn pointwise(&mut self, op: PointwiseOperation) {
-        self.operations.push(Operation::Pointwise(op));
-    }
-
-    /// Adds a binary pointwise operation and creates the output tensor.
-    pub fn pointwise_binary_infer(
-        &mut self,
-        lhs: TensorId,
-        rhs: TensorId,
-        mode: PointwiseMode,
-        compute_type: DataType,
-    ) -> Result<TensorId> {
-        let lhs_tensor = self.tensor_config(lhs)?.clone();
-        let rhs_tensor = self.tensor_config(rhs)?.clone();
-        let output_shape = infer_binary_pointwise_output(&lhs_tensor.shape, &rhs_tensor.shape)?;
-        let output_data_type = self.effective_io_data_type(lhs_tensor.data_type);
-        let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
-        self.pointwise(PointwiseOperation::Binary {
-            mode,
-            lhs,
-            rhs,
-            output,
-            compute_type,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
-        Ok(output)
-    }
-
-    /// Adds a binary pointwise operation with an explicit output data type.
-    pub fn pointwise_binary_infer_as(
-        &mut self,
-        lhs: TensorId,
-        rhs: TensorId,
-        mode: PointwiseMode,
-        compute_type: DataType,
-        output_data_type: DataType,
-    ) -> Result<TensorId> {
-        let lhs_tensor = self.tensor_config(lhs)?.clone();
-        let rhs_tensor = self.tensor_config(rhs)?.clone();
-        let output_shape = infer_binary_pointwise_output(&lhs_tensor.shape, &rhs_tensor.shape)?;
-        let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
-        self.pointwise(PointwiseOperation::Binary {
-            mode,
-            lhs,
-            rhs,
-            output,
-            compute_type,
-            nan_propagation: NanPropagation::Propagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
-        Ok(output)
-    }
-
-    pub(crate) fn pointwise_identity_infer(
-        &mut self,
-        input: TensorId,
-        output_data_type: DataType,
-        compute_type: DataType,
-    ) -> Result<TensorId> {
-        let input_tensor = self.tensor_config(input)?.clone();
-        let output = self
-            .tensor(TensorSpec::new(output_data_type, input_tensor.shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::Identity,
-            input,
-            output,
-            compute_type,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            axis: None,
-        });
-        Ok(output)
-    }
-
-    pub(crate) fn validate_pointwise_operations(&self) -> Result<()> {
-        for operation in &self.operations {
-            match operation {
-                Operation::Pointwise(PointwiseOperation::Unary { input, output, .. }) => {
-                    let expected = self.shape(*input)?.dimensions().to_vec();
-                    self.validate_pointwise_output_shape(
-                        "unary",
-                        expected,
-                        self.shape(*output)?.dimensions(),
-                    )?;
-                }
-                Operation::Pointwise(PointwiseOperation::ReluForward { input, output, .. }) => {
-                    let expected = self.shape(*input)?.dimensions().to_vec();
-                    self.validate_pointwise_output_shape(
-                        "relu forward",
-                        expected,
-                        self.shape(*output)?.dimensions(),
-                    )?;
-                }
-                Operation::Pointwise(PointwiseOperation::Binary {
-                    lhs, rhs, output, ..
-                }) => {
-                    let expected =
-                        infer_binary_pointwise_output(self.shape(*lhs)?, self.shape(*rhs)?)?
-                            .dimensions()
-                            .to_vec();
-                    self.validate_pointwise_output_shape(
-                        "binary",
-                        expected,
-                        self.shape(*output)?.dimensions(),
-                    )?;
-                }
-                Operation::Pointwise(PointwiseOperation::Ternary {
-                    x, b, t, output, ..
-                }) => {
-                    let expected = infer_binary_pointwise_output(self.shape(*x)?, self.shape(*b)?)?;
-                    let expected = infer_binary_pointwise_output(&expected, self.shape(*t)?)?
-                        .dimensions()
-                        .to_vec();
-                    self.validate_pointwise_output_shape(
-                        "ternary",
-                        expected,
-                        self.shape(*output)?.dimensions(),
-                    )?;
-                }
-                _ => {}
-            }
-        }
-
+    ///
+    /// # Errors
+    /// Returns an error for a mode with the wrong tensor ports.
+    pub fn pointwise_into(&mut self, operation: PointwiseOperation) -> Result<()> {
+        operation.validate_tensor_ports()?;
+        self.operations.push(Operation::Pointwise(operation));
         Ok(())
     }
 
-    fn validate_pointwise_output_shape(
-        &self,
-        operation: &'static str,
-        expected: Vec<i64>,
-        actual: &[i64],
-    ) -> Result<()> {
-        if expected.as_slice() != actual {
-            return Err(Error::FrontendPointwiseOutputShapeMismatch {
-                operation: operation.to_string(),
-                expected,
-                actual: actual.to_vec(),
-            });
+    /// Infers a unary, binary, ternary or activation-gradient result and records its operation.
+    /// Output placement selects I/O or intermediate precision unless its encoding is explicit.
+    /// Without a selected policy, the first operand supplies the result encoding.
+    /// Broadcasting preserves the first original operand layout matching the complete output dimensions.
+    /// Otherwise, inferred strides follow the first operand with the output rank.
+    /// Vector lanes and their axis follow the first vectorized operand, with rank promotion applied to the axis.
+    /// During preparation, scalar operands adopt the highest non-scalar rank among all inputs and the result.
+    /// Activation parameters, input scaling, NaN behavior, compute precision and index axes reach lowering unchanged.
+    /// A configured operation scope names the result `scope::OUT_0`.
+    ///
+    /// # Errors
+    /// Returns an error for unknown operands, incompatible broadcasting or a mode with the wrong tensor ports.
+    /// Construction errors leave the graph unchanged.
+    pub fn pointwise(
+        &mut self,
+        operation: PointwiseOperation<TensorOutputConfig>,
+    ) -> Result<TensorId> {
+        operation.validate_tensor_ports()?;
+        let (first, others) = operation.input_ids();
+        let first = self.tensor_spec(first)?;
+        let [second, third] = others.map(|id| id.map(|id| self.tensor_spec(id)).transpose());
+        let others = [second?, third?];
+        let mut vector_source = first.vectorization()?.map(|lanes| (first, lanes));
+        let mut dimensions = Cow::Borrowed(first.shape.dimensions());
+        let mut format = first;
+        for tensor in others.iter().flatten() {
+            let tensor = *tensor;
+            let lanes = tensor.vectorization()?;
+            if vector_source.is_none() {
+                vector_source = lanes.map(|lanes| (tensor, lanes));
+            }
+            if tensor.shape.rank() > format.shape.rank() {
+                format = tensor;
+            }
+            dimensions = Cow::Owned(infer_binary_pointwise_dimensions(
+                &dimensions,
+                tensor.shape.dimensions(),
+            )?);
         }
+        let shape = match iter::once(first)
+            .chain(others.into_iter().flatten())
+            .find(|tensor| tensor.shape.dimensions() == dimensions.as_ref())
+        {
+            Some(tensor) => tensor.shape.clone(),
+            None => format
+                .shape
+                .with_dimensions_preserving_stride_order(dimensions.into_owned())?,
+        };
+        let mut output =
+            operation
+                .output()
+                .into_spec(self.config.data_type_policy, first.data_type, shape);
+        if let Some((source, (count, axis))) = vector_source {
+            let axis = axis + to_i64(output.shape.rank(), "output rank")?
+                - to_i64(source.shape.rank(), "source rank")?;
+            output = output.with_vectorization(count, axis)?;
+        }
+        let output = self.inferred_tensor(output, operation.name(), "OUT_0");
+        self.pointwise_into(operation.map_output(|_| output))?;
+        Ok(output)
+    }
+}
 
+pub fn infer_binary_pointwise_dimensions(lhs: &[i64], rhs: &[i64]) -> Result<Vec<i64>> {
+    let rank = lhs.len().max(rhs.len());
+    let lhs_offset = rank - lhs.len();
+    let rhs_offset = rank - rhs.len();
+
+    let mut dimensions = Vec::with_capacity(rank);
+    for index in 0..rank {
+        let lhs_dim = if index < lhs_offset {
+            1
+        } else {
+            lhs[index - lhs_offset]
+        };
+        let rhs_dim = if index < rhs_offset {
+            1
+        } else {
+            rhs[index - rhs_offset]
+        };
+
+        let dimension = match (lhs_dim, rhs_dim) {
+            (left, right) if left == right => left,
+            (1, right) => right,
+            (left, 1) => left,
+            _ => {
+                return Err(FrontendError::PointwiseBroadcastShapeMismatch {
+                    lhs: lhs.to_vec(),
+                    rhs: rhs.to_vec(),
+                }
+                .into());
+            }
+        };
+        dimensions.push(dimension);
+    }
+    Ok(dimensions)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_broadcasts_leading_and_unit_dimensions() -> Result<()> {
+        assert_eq!(
+            infer_binary_pointwise_dimensions(&[4, 1, 8], &[3, 1])?,
+            [4, 3, 8]
+        );
+        assert_eq!(infer_binary_pointwise_dimensions(&[1], &[2, 5])?, [2, 5]);
         Ok(())
     }
 
-    pub(crate) fn expand_fused_scalar_shapes_for_pointwise(&mut self) -> Result<()> {
-        let mut scalar_target_ranks = HashMap::<TensorId, i64>::new();
-
-        for operation in &self.operations {
-            let (inputs, output, alpha2) = match operation {
-                Operation::Pointwise(PointwiseOperation::Binary {
-                    lhs,
-                    rhs,
-                    output,
-                    alpha2,
-                    ..
-                }) => (
-                    [Some(*lhs), Some(*rhs), Some(*output)],
-                    Some(*output),
-                    Some(*alpha2),
-                ),
-                Operation::Pointwise(PointwiseOperation::Ternary {
-                    x, b, t, output, ..
-                }) => ([Some(*x), Some(*b), Some(*t)], Some(*output), None),
-                _ => continue,
-            };
-
-            if let Some(alpha2) = alpha2
-                && alpha2 != 1.0
-            {
-                return Err(Error::FrontendPointwiseBinaryAlpha2Unsupported { alpha2 });
-            }
-
-            let mut target_rank = None;
-            for tensor in inputs.into_iter().flatten().chain(output) {
-                let tensor = self.tensor_config(tensor)?;
-                if !tensor.is_by_value {
-                    target_rank = Some(tensor.shape.rank());
-                    break;
-                }
-            }
-
-            let Some(target_rank) = target_rank else {
-                continue;
-            };
-
-            for tensor_id in inputs.into_iter().flatten() {
-                let tensor = self.tensor_config(tensor_id)?;
-                if !tensor.is_by_value {
-                    continue;
-                }
-
-                match scalar_target_ranks.insert(tensor_id, target_rank) {
-                    Some(existing_rank) if existing_rank != target_rank => {
-                        return Err(Error::FrontendFusedScalarRankConflict {
-                            tensor_id,
-                            first_rank: existing_rank,
-                            second_rank: target_rank,
-                        });
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        for (tensor_index, target_rank) in scalar_target_ranks {
-            let tensor = self.tensor_config(tensor_index)?.clone();
-            if tensor.shape.rank() == target_rank {
-                continue;
-            }
-
-            let target_shape = Shape::contiguous(vec![1; target_rank as usize])?;
-            let expanded_shape = unit_shape_like(&target_shape)?;
-            self.replace_tensor(tensor_index, tensor.with_shape(expanded_shape))?;
-        }
-
-        Ok(())
+    #[test]
+    fn test_rejects_incompatible_dimensions() {
+        assert!(infer_binary_pointwise_dimensions(&[4, 3], &[4, 2]).is_err());
     }
 }

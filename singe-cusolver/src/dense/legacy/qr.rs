@@ -1,7 +1,13 @@
+#![expect(
+    clippy::many_single_char_names,
+    reason = "BLAS and factorization operand names follow the standard mathematical API"
+)]
+use std::ptr;
+
 use singe_cuda::{
     data_type::{DataType, DataTypeLike},
-    memory::DeviceMemory,
     types::{Complex32, Complex64},
+    view::{DeviceOutputView, DeviceRegionProvider, DeviceView, DeviceViewMut},
 };
 
 use crate::{
@@ -12,119 +18,139 @@ use crate::{
         validate_x_vector,
     },
     error::Result,
-    layout::{ByteWorkspaceMut, MatrixMut, MatrixRef, VectorMut, VectorRef, WorkspaceSizes},
+    layout::{ByteWorkspaceMut, MatrixLayout, MatrixMut, VectorOutput, WorkspaceSizes},
     params::Params,
     sys, try_ffi,
     types::{Operation, SideMode},
     utility::{to_i32, to_i64, to_usize},
 };
 
+/// Queries device workspace capacity in elements for `f32` generation of orthogonal QR factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn sorgqr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<f32>,
     lda: usize,
-    tau: &DeviceMemory<f32>,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_matrix(m, n, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnSorgqr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSorgqr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             &raw mut lwork,
         ))?;
     }
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for `f64` generation of orthogonal QR factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn dorgqr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<f64>,
     lda: usize,
-    tau: &DeviceMemory<f64>,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_matrix(m, n, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnDorgqr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDorgqr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             &raw mut lwork,
         ))?;
     }
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for complex single-precision generation of unitary QR factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn cungqr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<Complex32>,
     lda: usize,
-    tau: &DeviceMemory<Complex32>,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_matrix(m, n, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnCungqr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCungqr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             &raw mut lwork,
         ))?;
     }
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for complex double-precision generation of unitary QR factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn zungqr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<Complex64>,
     lda: usize,
-    tau: &DeviceMemory<Complex64>,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_matrix(m, n, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnZungqr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZungqr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             &raw mut lwork,
         ))?;
     }
@@ -154,26 +180,34 @@ pub fn zungqr_buffer_size(
 /// matrix dimensions, reflector count, or leading dimension are invalid, if
 /// the current GPU architecture is unsupported, or if cuSOLVER reports an
 /// internal failure.
-pub fn sorgqr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn sorgqr(
+    context: &Context,
     m: usize,
     n: usize,
     k: usize,
-    a: &mut DeviceMemory<f32>,
+    mut a: DeviceViewMut<'_, f32>,
     lda: usize,
-    tau: &DeviceMemory<f32>,
-    workspace: &mut DeviceMemory<f32>,
-    dev_info: &mut DeviceMemory<i32>,
+    tau: DeviceView<'_, f32>,
+    mut workspace: DeviceOutputView<'_, f32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_matrix(m, n, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
-    require_info_buffer(dev_info)?;
-    let lwork = sorgqr_buffer_size(ctx, m, n, k, a, lda, tau)?;
+    require_tau_buffer(tau.len(), k)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = sorgqr_buffer_size(context, m, n, k, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnSorgqr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnSorgqr(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
@@ -211,26 +245,34 @@ pub fn sorgqr(
 /// matrix dimensions, reflector count, or leading dimension are invalid, if
 /// the current GPU architecture is unsupported, or if cuSOLVER reports an
 /// internal failure.
-pub fn dorgqr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn dorgqr(
+    context: &Context,
     m: usize,
     n: usize,
     k: usize,
-    a: &mut DeviceMemory<f64>,
+    mut a: DeviceViewMut<'_, f64>,
     lda: usize,
-    tau: &DeviceMemory<f64>,
-    workspace: &mut DeviceMemory<f64>,
-    dev_info: &mut DeviceMemory<i32>,
+    tau: DeviceView<'_, f64>,
+    mut workspace: DeviceOutputView<'_, f64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_matrix(m, n, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
-    require_info_buffer(dev_info)?;
-    let lwork = dorgqr_buffer_size(ctx, m, n, k, a, lda, tau)?;
+    require_tau_buffer(tau.len(), k)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = dorgqr_buffer_size(context, m, n, k, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnDorgqr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnDorgqr(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
@@ -245,26 +287,38 @@ pub fn dorgqr(
     Ok(())
 }
 
-pub fn cungqr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn cungqr(
+    context: &Context,
     m: usize,
     n: usize,
     k: usize,
-    a: &mut DeviceMemory<Complex32>,
+    mut a: DeviceViewMut<'_, Complex32>,
     lda: usize,
-    tau: &DeviceMemory<Complex32>,
-    workspace: &mut DeviceMemory<Complex32>,
-    dev_info: &mut DeviceMemory<i32>,
+    tau: DeviceView<'_, Complex32>,
+    mut workspace: DeviceOutputView<'_, Complex32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_matrix(m, n, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
-    require_info_buffer(dev_info)?;
-    let lwork = cungqr_buffer_size(ctx, m, n, k, a, lda, tau)?;
+    require_tau_buffer(tau.len(), k)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = cungqr_buffer_size(context, m, n, k, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnCungqr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnCungqr(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
@@ -279,26 +333,38 @@ pub fn cungqr(
     Ok(())
 }
 
-pub fn zungqr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn zungqr(
+    context: &Context,
     m: usize,
     n: usize,
     k: usize,
-    a: &mut DeviceMemory<Complex64>,
+    mut a: DeviceViewMut<'_, Complex64>,
     lda: usize,
-    tau: &DeviceMemory<Complex64>,
-    workspace: &mut DeviceMemory<Complex64>,
-    dev_info: &mut DeviceMemory<i32>,
+    tau: DeviceView<'_, Complex64>,
+    mut workspace: DeviceOutputView<'_, Complex64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_matrix(m, n, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
-    require_info_buffer(dev_info)?;
-    let lwork = zungqr_buffer_size(ctx, m, n, k, a, lda, tau)?;
+    require_tau_buffer(tau.len(), k)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = zungqr_buffer_size(context, m, n, k, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnZungqr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnZungqr(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
@@ -313,36 +379,40 @@ pub fn zungqr(
     Ok(())
 }
 
+/// Queries device workspace capacity in elements for `f32` application of orthogonal QR factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn sormqr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     side: SideMode,
     operation: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<f32>,
     lda: usize,
-    tau: &DeviceMemory<f32>,
-    c: &DeviceMemory<f32>,
     ldc: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_matrix(qr_rows(side, m, n), k, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
-    validate_matrix(m, n, c.len(), ldc)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(qr_rows(side, m, n), k)?;
+    MatrixLayout::new(ldc).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnSormqr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSormqr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             operation.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
-            c.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(ldc, "ldc")?,
             &raw mut lwork,
         ))?;
@@ -350,36 +420,40 @@ pub fn sormqr_buffer_size(
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for `f64` application of orthogonal QR factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn dormqr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     side: SideMode,
     operation: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<f64>,
     lda: usize,
-    tau: &DeviceMemory<f64>,
-    c: &DeviceMemory<f64>,
     ldc: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_matrix(qr_rows(side, m, n), k, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
-    validate_matrix(m, n, c.len(), ldc)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(qr_rows(side, m, n), k)?;
+    MatrixLayout::new(ldc).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnDormqr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDormqr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             operation.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
-            c.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(ldc, "ldc")?,
             &raw mut lwork,
         ))?;
@@ -387,36 +461,40 @@ pub fn dormqr_buffer_size(
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for complex single-precision application of unitary QR factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn cunmqr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     side: SideMode,
     operation: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<Complex32>,
     lda: usize,
-    tau: &DeviceMemory<Complex32>,
-    c: &DeviceMemory<Complex32>,
     ldc: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_matrix(qr_rows(side, m, n), k, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
-    validate_matrix(m, n, c.len(), ldc)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(qr_rows(side, m, n), k)?;
+    MatrixLayout::new(ldc).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnCunmqr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCunmqr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             operation.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
-            c.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(ldc, "ldc")?,
             &raw mut lwork,
         ))?;
@@ -424,36 +502,40 @@ pub fn cunmqr_buffer_size(
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for complex double-precision application of unitary QR factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn zunmqr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     side: SideMode,
     operation: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<Complex64>,
     lda: usize,
-    tau: &DeviceMemory<Complex64>,
-    c: &DeviceMemory<Complex64>,
     ldc: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_matrix(qr_rows(side, m, n), k, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
-    validate_matrix(m, n, c.len(), ldc)?;
+    context.bind()?;
+    MatrixLayout::new(lda).validate(qr_rows(side, m, n), k)?;
+    MatrixLayout::new(ldc).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnZunmqr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZunmqr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             operation.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
-            c.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(ldc, "ldc")?,
             &raw mut lwork,
         ))?;
@@ -488,31 +570,40 @@ pub fn zunmqr_buffer_size(
 /// matrix dimensions, reflector count, side/operation mode, or leading
 /// dimensions are invalid, if the current GPU architecture is unsupported, or
 /// if cuSOLVER reports an internal failure.
-pub fn sormqr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn sormqr(
+    context: &Context,
     side: SideMode,
     operation: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<f32>,
+    a: DeviceView<'_, f32>,
     lda: usize,
-    tau: &DeviceMemory<f32>,
-    c: &mut DeviceMemory<f32>,
+    tau: DeviceView<'_, f32>,
+    mut c: DeviceViewMut<'_, f32>,
     ldc: usize,
-    workspace: &mut DeviceMemory<f32>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: DeviceOutputView<'_, f32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&c)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_matrix(qr_rows(side, m, n), k, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
+    require_tau_buffer(tau.len(), k)?;
     validate_matrix(m, n, c.len(), ldc)?;
-    require_info_buffer(dev_info)?;
-    let lwork = sormqr_buffer_size(ctx, side, operation, m, n, k, a, lda, tau, c, ldc)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = sormqr_buffer_size(context, side, operation, m, n, k, lda, ldc)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnSormqr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnSormqr(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             operation.into(),
             to_i32(m, "m")?,
@@ -558,31 +649,40 @@ pub fn sormqr(
 /// matrix dimensions, reflector count, side/operation mode, or leading
 /// dimensions are invalid, if the current GPU architecture is unsupported, or
 /// if cuSOLVER reports an internal failure.
-pub fn dormqr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn dormqr(
+    context: &Context,
     side: SideMode,
     operation: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<f64>,
+    a: DeviceView<'_, f64>,
     lda: usize,
-    tau: &DeviceMemory<f64>,
-    c: &mut DeviceMemory<f64>,
+    tau: DeviceView<'_, f64>,
+    mut c: DeviceViewMut<'_, f64>,
     ldc: usize,
-    workspace: &mut DeviceMemory<f64>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: DeviceOutputView<'_, f64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&c)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_matrix(qr_rows(side, m, n), k, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
+    require_tau_buffer(tau.len(), k)?;
     validate_matrix(m, n, c.len(), ldc)?;
-    require_info_buffer(dev_info)?;
-    let lwork = dormqr_buffer_size(ctx, side, operation, m, n, k, a, lda, tau, c, ldc)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = dormqr_buffer_size(context, side, operation, m, n, k, lda, ldc)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnDormqr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnDormqr(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             operation.into(),
             to_i32(m, "m")?,
@@ -601,31 +701,44 @@ pub fn dormqr(
     Ok(())
 }
 
-pub fn cunmqr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn cunmqr(
+    context: &Context,
     side: SideMode,
     operation: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<Complex32>,
+    a: DeviceView<'_, Complex32>,
     lda: usize,
-    tau: &DeviceMemory<Complex32>,
-    c: &mut DeviceMemory<Complex32>,
+    tau: DeviceView<'_, Complex32>,
+    mut c: DeviceViewMut<'_, Complex32>,
     ldc: usize,
-    workspace: &mut DeviceMemory<Complex32>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: DeviceOutputView<'_, Complex32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&c)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_matrix(qr_rows(side, m, n), k, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
+    require_tau_buffer(tau.len(), k)?;
     validate_matrix(m, n, c.len(), ldc)?;
-    require_info_buffer(dev_info)?;
-    let lwork = cunmqr_buffer_size(ctx, side, operation, m, n, k, a, lda, tau, c, ldc)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = cunmqr_buffer_size(context, side, operation, m, n, k, lda, ldc)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnCunmqr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnCunmqr(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             operation.into(),
             to_i32(m, "m")?,
@@ -644,31 +757,44 @@ pub fn cunmqr(
     Ok(())
 }
 
-pub fn zunmqr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn zunmqr(
+    context: &Context,
     side: SideMode,
     operation: Operation,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<Complex64>,
+    a: DeviceView<'_, Complex64>,
     lda: usize,
-    tau: &DeviceMemory<Complex64>,
-    c: &mut DeviceMemory<Complex64>,
+    tau: DeviceView<'_, Complex64>,
+    mut c: DeviceViewMut<'_, Complex64>,
     ldc: usize,
-    workspace: &mut DeviceMemory<Complex64>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: DeviceOutputView<'_, Complex64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&c)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_matrix(qr_rows(side, m, n), k, a.len(), lda)?;
-    require_tau_buffer(tau, k)?;
+    require_tau_buffer(tau.len(), k)?;
     validate_matrix(m, n, c.len(), ldc)?;
-    require_info_buffer(dev_info)?;
-    let lwork = zunmqr_buffer_size(ctx, side, operation, m, n, k, a, lda, tau, c, ldc)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = zunmqr_buffer_size(context, side, operation, m, n, k, lda, ldc)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnZunmqr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnZunmqr(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             operation.into(),
             to_i32(m, "m")?,
@@ -687,33 +813,39 @@ pub fn zunmqr(
     Ok(())
 }
 
+/// Queries device and host workspace capacities in bytes for QR factorization.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn xgeqrf_buffer_size<TA: DataTypeLike, TTau: DataTypeLike>(
-    ctx: &Context,
+    context: &Context,
     params: &Params,
     m: usize,
     n: usize,
-    a: MatrixRef<'_, TA>,
-    tau: VectorRef<'_, TTau>,
+    a: MatrixLayout,
     compute_type: DataType,
 ) -> Result<WorkspaceSizes> {
-    ctx.bind()?;
+    context.bind()?;
     let a_type = TA::data_type();
     let tau_type = TTau::data_type();
-    validate_x_matrix(m, n, a.data.byte_len(), a.leading_dimension, a_type)?;
-    validate_x_vector(m.min(n), tau.data.byte_len(), tau_type)?;
+    a.validate(m, n)?;
     let mut device_bytes = 0;
     let mut host_bytes = 0;
+    // SAFETY: `cusolverDnXgeqrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXgeqrf_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             to_i64(m, "m")?,
             to_i64(n, "n")?,
             a_type.into(),
-            a.data.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i64(a.leading_dimension, "lda")?,
             tau_type.into(),
-            tau.data.as_ptr().cast(),
+            ptr::null(),
             compute_type.into(),
             &raw mut device_bytes,
             &raw mut host_bytes,
@@ -765,7 +897,7 @@ pub fn xgeqrf_buffer_size<TA: DataTypeLike, TTau: DataTypeLike>(
 ///
 /// **Valid combination of data type and compute type**
 ///
-/// | **data_type_a** | **compute_type** | **Meaning** |
+/// | **`data_type_a`** | **`compute_type`** | **Meaning** |
 /// | --- | --- | --- |
 /// | [`DataType::F32`] | [`DataType::F32`] | `SGEQRF` |
 /// | [`DataType::F64`] | [`DataType::F64`] | `DGEQRF` |
@@ -777,30 +909,44 @@ pub fn xgeqrf_buffer_size<TA: DataTypeLike, TTau: DataTypeLike>(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, or if cuSOLVER reports
 /// an internal failure.
-pub fn xgeqrf<TA: DataTypeLike, TTau: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn xgeqrf<TA: DataTypeLike, TTau: DataTypeLike>(
+    context: &Context,
     params: &Params,
     m: usize,
     n: usize,
-    a: MatrixMut<'_, TA>,
-    tau: VectorMut<'_, TTau>,
+    mut a: MatrixMut<'_, TA>,
+    mut tau: VectorOutput<'_, TTau>,
     compute_type: DataType,
-    workspace: ByteWorkspaceMut<'_>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut workspace: ByteWorkspaceMut<'_>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a.data)?;
+    context.validate_region(&tau.data)?;
+    context.validate_region(&dev_info)?;
+    context.validate_region(&workspace.device)?;
     let a_type = TA::data_type();
     let tau_type = TTau::data_type();
-    validate_x_matrix(m, n, a.data.byte_len(), a.leading_dimension, a_type)?;
-    validate_x_vector(m.min(n), tau.data.byte_len(), tau_type)?;
-    require_info_buffer(dev_info)?;
+    validate_x_matrix(
+        m,
+        n,
+        a.data.region().byte_len(),
+        a.leading_dimension,
+        a_type,
+    )?;
+    validate_x_vector(m.min(n), tau.data.region().byte_len(), tau_type)?;
+    require_info_buffer(dev_info.len())?;
     let workspace_sizes =
-        xgeqrf_buffer_size(ctx, params, m, n, a.as_ref(), tau.as_ref(), compute_type)?;
-    require_workspace_bytes(workspace.device.byte_len(), workspace_sizes.device_bytes)?;
+        xgeqrf_buffer_size::<TA, TTau>(context, params, m, n, a.layout(), compute_type)?;
+    require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
     require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    // SAFETY: `cusolverDnXgeqrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXgeqrf(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             to_i64(m, "m")?,
             to_i64(n, "n")?,

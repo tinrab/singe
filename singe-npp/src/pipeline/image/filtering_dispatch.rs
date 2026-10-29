@@ -1,1 +1,1 @@
-pub(super) use super::filtering_traits::*;
+pub use crate::pipeline::image::filtering_traits::*;

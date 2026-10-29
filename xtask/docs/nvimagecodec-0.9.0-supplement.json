@@ -1,0 +1,572 @@
+{
+  "NVIMGCODEC_BACKEND_KIND_CPU_ONLY": {
+    "doc": "Decoding/encoding is executed only on CPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecBackendKind_t"
+  },
+  "NVIMGCODEC_BACKEND_KIND_GPU_ONLY": {
+    "doc": "Decoding/encoding is executed only on GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecBackendKind_t"
+  },
+  "NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY": {
+    "doc": "Decoding/encoding is executed on GPU dedicated hardware engine.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecBackendKind_t"
+  },
+  "NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU": {
+    "doc": "Decoding/encoding is executed on both CPU and GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecBackendKind_t"
+  },
+  "NVIMGCODEC_COLORSPEC_CMYK": {
+    "doc": "The image uses the CMYK color space (Cyan, Magenta, Yellow, Black).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_ENUM_FORCE_INT": {
+    "doc": "Forces the enum to be represented as a 32-bit integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_GRAY": {
+    "doc": "The image is grayscale (single channel, no color).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_ICC_PROFILE": {
+    "doc": "Precise color space is provided in an ICC profile.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_PALETTE": {
+    "doc": "Sample data is represented using a palette color map.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_SRGB": {
+    "doc": "The image uses the standard RGB (sRGB) color space.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_SYCC": {
+    "doc": "The image uses the sYCC color space (YCbCr with sRGB primaries).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_UNCHANGED": {
+    "doc": "The color specification should be left unchanged; equivalent to UNKNOWN.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_UNKNOWN": {
+    "doc": "The color specification is unknown or not specified.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_UNSUPPORTED": {
+    "doc": "The color specification is unsupported by the library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_COLORSPEC_YCCK": {
+    "doc": "The image uses the YCCK color space (YCbCr plus Black channel).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv421nvimgcodecColorSpec_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL": {
+    "doc": "Used in case filtering out by message category.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageCategory_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_GENERAL": {
+    "doc": "Some event has happened that is unrelated to the specification or performance.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageCategory_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_PERFORMANCE": {
+    "doc": "Potential non-optimal use.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageCategory_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_VALIDATION": {
+    "doc": "Something has happened that indicates a possible mistake.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageCategory_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ALL": {
+    "doc": "Used in case filtering out by message severity.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageSeverity_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_DEBUG": {
+    "doc": "Diagnostic message useful for developers.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageSeverity_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR": {
+    "doc": "Message about behavior that is invalid and may cause improper execution or result of operation (e.g. can’t open file) but not application.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageSeverity_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL": {
+    "doc": "Message about behavior that is invalid and may cause crashes and forcing to shutdown application.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageSeverity_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_INFO": {
+    "doc": "Informational message like the creation of a resource.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageSeverity_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_TRACE": {
+    "doc": "Diagnostic message useful for developers.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageSeverity_t"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_WARNING": {
+    "doc": "Message about behavior that is not necessarily an error, but very likely a bug in your application.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv432nvimgcodecDebugMessageSeverity_t"
+  },
+  "NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE": {
+    "doc": "GPU-accessible with planes in pitch-linear layout.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv427nvimgcodecImageBufferKind_t"
+  },
+  "NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_HOST": {
+    "doc": "Host-accessible with planes in pitch-linear layout.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv427nvimgcodecImageBufferKind_t"
+  },
+  "NVIMGCODEC_JPEG2K_STREAM_J2K": {
+    "doc": "Corresponds to the JPEG2000 code stream.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv431nvimgcodecJpeg2kBitstreamType_t"
+  },
+  "NVIMGCODEC_JPEG2K_STREAM_JP2": {
+    "doc": "Corresponds to the .jp2 container.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv431nvimgcodecJpeg2kBitstreamType_t"
+  },
+  "NVIMGCODEC_LOAD_HINT_POLICY_ADAPTIVE_MINIMIZE_IDLE_TIME": {
+    "doc": "Load hint is used as an initial hint, and it is recalculated on every iteration to reduce the idle time of threads.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecLoadHintPolicy_t"
+  },
+  "NVIMGCODEC_LOAD_HINT_POLICY_FIXED": {
+    "doc": "Load hint is used to calculate the backend batch size once.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecLoadHintPolicy_t"
+  },
+  "NVIMGCODEC_LOAD_HINT_POLICY_IGNORE": {
+    "doc": "Load hint is not taken into account.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecLoadHintPolicy_t"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_JSON": {
+    "doc": "JSON metadata format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecMetadataFormat_t"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_RAW": {
+    "doc": "Raw binary metadata format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecMetadataFormat_t"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_UNKNOWN": {
+    "doc": "Unknown metadata format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecMetadataFormat_t"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_XML": {
+    "doc": "XML metadata format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecMetadataFormat_t"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_XMP": {
+    "doc": "XMP metadata format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecMetadataFormat_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_EXIF": {
+    "doc": "EXIF metadata (reserved for future use).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_GEO": {
+    "doc": "Geographic metadata.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_ICC_PROFILE": {
+    "doc": "ICC profile metadata.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_APERIO": {
+    "doc": "Medical metadata - Aperio format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_LEICA": {
+    "doc": "Medical metadata - Leica format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_PHILIPS": {
+    "doc": "Medical metadata - Philips format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_TRESTLE": {
+    "doc": "Medical metadata - Trestle format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_VENTANA": {
+    "doc": "Medical metadata - Ventana format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_TIFF_TAG": {
+    "doc": "TIFF tag metadata.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_TIFF_TAG_LIST": {
+    "doc": "List of available TIFF tag IDs.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_KIND_UNKNOWN": {
+    "doc": "Unknown metadata kind.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecMetadataKind_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_ASCII": {
+    "doc": "8-bit byte containing 7-bit ASCII code; last byte must be NUL.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_BYTE": {
+    "doc": "8-bit unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_DOUBLE": {
+    "doc": "8-byte IEEE floating point value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_FLOAT": {
+    "doc": "4-byte IEEE floating point value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_IFD": {
+    "doc": "4-byte (32-bit) unsigned integer used for IFD offsets.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_IFD8": {
+    "doc": "8-byte (64-bit) unsigned integer used for IFD offsets (BigTIFF).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_LONG": {
+    "doc": "32-bit (4-byte) unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_LONG8": {
+    "doc": "8-byte (64-bit) unsigned integer (BigTIFF).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_RATIONAL": {
+    "doc": "Two LONGs: numerator and denominator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SBYTE": {
+    "doc": "8-bit signed (twos-complement) integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SHORT": {
+    "doc": "16-bit (2-byte) unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SLONG": {
+    "doc": "32-bit (4-byte) signed (twos-complement) integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SLONG8": {
+    "doc": "8-byte (64-bit) signed integer (BigTIFF).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SRATIONAL": {
+    "doc": "Two SLONGs: numerator and denominator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SSHORT": {
+    "doc": "16-bit (2-byte) signed (twos-complement) integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_UNDEFINED": {
+    "doc": "8-bit byte, value depends on field definition.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_UNKNOWN": {
+    "doc": "Unknown metadata type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecMetadataValueType_t"
+  },
+  "NVIMGCODEC_OUT_OF_BOUNDS_POLICY_CONSTANT": {
+    "doc": "Each of ouf bounds pixel will be set to sample specified in `out_of_bounds_samples` in [nvimgcodecRegion_t](https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#structnvimgcodecRegion__t).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv429nvimgcodecOutOfBoundsPolicy_t"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_BACKEND_UNSUPPORTED": {
+    "doc": "Processing failed because no one from allowed backends is supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_CODEC_UNSUPPORTED": {
+    "doc": "Processing failed because codec is unsupported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_CODESTREAM_UNSUPPORTED": {
+    "doc": "Processing failed because some feature of compressed stream is unsupported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_COLOR_SPEC_UNSUPPORTED": {
+    "doc": "Color specification unsupported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_ENCODING_UNSUPPORTED": {
+    "doc": "Processing failed because codec encoding is unsupported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_FAIL": {
+    "doc": "Processing failed because unknown reason.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_IMAGE_CORRUPTED": {
+    "doc": "Processing failed because compressed image stream is corrupted.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_NUM_CHANNELS_UNSUPPORTED": {
+    "doc": "Unsupported number of channels to decode/encode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_NUM_IMAGES_UNSUPPORTED": {
+    "doc": "Unsupported number of images to decode/encode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_NUM_PLANES_UNSUPPORTED": {
+    "doc": "Unsupported number of planes to decode/encode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_ORIENTATION_UNSUPPORTED": {
+    "doc": "Apply orientation was enabled but it is unsupported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_QUALITY_TYPE_UNSUPPORTED": {
+    "doc": "Unsupported quality type to encode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_QUALITY_VALUE_UNSUPPORTED": {
+    "doc": "Unsupported quality value to encode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_RESOLUTION_UNSUPPORTED": {
+    "doc": "Processing failed because image resolution is unsupported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_ROI_UNSUPPORTED": {
+    "doc": "Decoding region of interest is unsupported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SAMPLE_FORMAT_UNSUPPORTED": {
+    "doc": "Selected unsupported sample format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SAMPLE_TYPE_UNSUPPORTED": {
+    "doc": "Selected unsupported sample type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SAMPLING_UNSUPPORTED": {
+    "doc": "Selected unsupported chroma subsampling .",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SATURATED": {
+    "doc": "Decoder/encoder could potentially process image but is saturated.\n\nSee also\n\n[nvimgcodecBackendParams_t](https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#structnvimgcodecBackendParams__t) load_hint.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SUCCESS": {
+    "doc": "Processing finished with success.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_TILING_UNSUPPORTED": {
+    "doc": "Unsupported tiling to encode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv426nvimgcodecProcessingStatus"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_DEFAULT": {
+    "doc": "Each plugin decides what is best quality setting to use. `quality_value `is ignored.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecQualityType_t"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_LOSSLESS": {
+    "doc": "Image encoding is reversible and keeps original image quality. `quality_value` is ignored except for:\n\n* the CUDA TIFF encoder backend, for which `quality_value = 0` means no compression, and `quality_value = 1` means LZW compression,\n* the CPU PNG encoder backend, for which `quality_value` can be in range from 0 (lowest compression ratio, fastest) to 9 (highest compression ratio, slowest).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecQualityType_t"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_PSNR": {
+    "doc": "`quality_value` is interpreted as desired Peak Signal-to-Noise Ratio (PSNR) target for the encoded image. The higher the value, the better quality image is produced. Value should be positive.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecQualityType_t"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_QUALITY": {
+    "doc": "`quality_value` is interpreted as JPEG-like quality in range from 1 (worst) to 100 (best).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecQualityType_t"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_QUANTIZATION_STEP": {
+    "doc": "`quality_value` is interpreted as quantization step (by how much pixel data will be divided). The higher the value, the worse quality image is produced.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecQualityType_t"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_SIZE_RATIO": {
+    "doc": "`quality_value` is interpreted as desired encoded image size ratio compared to original size, should be floating in range (0.0, 1.0). E.g. value 0.1 means target size of 10% of original image.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv423nvimgcodecQualityType_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_BGR": {
+    "doc": "Interleaved BGR.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_CMYK": {
+    "doc": "Interleaved CMYK.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_RGB": {
+    "doc": "Interleaved RGB.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_RGBA": {
+    "doc": "Interleaved RGBA.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_UNCHANGED": {
+    "doc": "Unchanged interleaved.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_Y": {
+    "doc": "Interleaved Y component only. For 3-dimensional shape is defined as (H, W, 1) and this is only difference with P_Y.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_YA": {
+    "doc": "Interleaved Y component with alpha.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_YCC": {
+    "doc": "Interleaved YCC format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_YCCK": {
+    "doc": "Interleaved YCCK.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_YUV": {
+    "doc": "Interleaved YUV format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_BGR": {
+    "doc": "Planar BGR.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_CMYK": {
+    "doc": "Planar CMYK.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_RGB": {
+    "doc": "Planar RGB.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_RGBA": {
+    "doc": "Planar RGBA.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_UNCHANGED": {
+    "doc": "Unchanged planar.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_Y": {
+    "doc": "Planar Y component only. For 3-dimensional shape is defined as (1, H, W) and this is only difference with I_Y.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_YA": {
+    "doc": "Planar Y component with alpha.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_YCC": {
+    "doc": "Planar YCC format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_YCCK": {
+    "doc": "Planar YCCK.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_YUV": {
+    "doc": "Planar YUV format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvimagecodec/c_api.html#_CPPv424nvimgcodecSampleFormat_t"
+  }
+}

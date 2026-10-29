@@ -1,6 +1,27 @@
-use super::*;
+use std::sync::Arc;
 
-pub fn splitk_reduce_f32(
+#[cfg(feature = "dtype_bf16")]
+use cutile::half::bf16;
+#[cfg(feature = "dtype_f16")]
+use cutile::half::f16;
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
+
+use crate::{
+    cuda::cutile::{
+        DeviceOpExt,
+        attention::{FmhaDecodeSplitK, SplitKReduce},
+        kernel::attention as kernel_attention,
+        runtime::tile_kernel::TileKernel,
+        utility::checked_device_pointer,
+    },
+    error::{Error, Result},
+    utility::checked_i32_value,
+};
+
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn splitk_reduce_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     attn_splitk: DevicePointer<f32>,
@@ -17,9 +38,9 @@ pub fn splitk_reduce_f32(
     output_batch_stride: usize,
     output_head_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(attn_splitk)?;
-    checked_device_pointer(lse_splitk)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&attn_splitk)?;
+    checked_device_pointer(&lse_splitk)?;
 
     let params = SplitKReduce::create(
         batch,
@@ -34,6 +55,7 @@ pub fn splitk_reduce_f32(
         output_batch_stride,
         output_head_stride,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::splitk_reduce_f32(
             out,
@@ -59,7 +81,10 @@ pub fn splitk_reduce_f32(
     Ok(())
 }
 
-pub fn fmha_decode_splitk_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fmha_decode_splitk_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -88,11 +113,11 @@ pub fn fmha_decode_splitk_f32(
     lse_head_stride: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     let params = FmhaDecodeSplitK::create(
         batch,
@@ -119,6 +144,7 @@ pub fn fmha_decode_splitk_f32(
     )?;
     macro_rules! launch {
         ($kernel:ident) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -171,7 +197,10 @@ pub fn fmha_decode_splitk_f32(
     Ok(())
 }
 
-pub fn softcapped_window_decode_splitk_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn softcapped_window_decode_splitk_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -202,11 +231,11 @@ pub fn softcapped_window_decode_splitk_f32(
     window_size: usize,
     soft_cap: Option<f32>,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     if let Some(soft_cap) = soft_cap
         && (!soft_cap.is_finite() || soft_cap <= 0.0)
@@ -241,6 +270,7 @@ pub fn softcapped_window_decode_splitk_f32(
     let has_soft_cap = i32::from(soft_cap.is_some());
     let window_size = checked_i32_value(window_size)?;
     match head_dim {
+        // SAFETY: the caller upholds this function's safety contract.
         4 => unsafe {
             kernel_attention::softcapped_window_decode_splitk_f32_hd4(
                 out,
@@ -277,6 +307,7 @@ pub fn softcapped_window_decode_splitk_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_attention::softcapped_window_decode_splitk_f32_hd8(
                 out,
@@ -313,6 +344,7 @@ pub fn softcapped_window_decode_splitk_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_attention::softcapped_window_decode_splitk_f32_hd16(
                 out,
@@ -349,6 +381,7 @@ pub fn softcapped_window_decode_splitk_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_attention::softcapped_window_decode_splitk_f32_hd32(
                 out,
@@ -385,6 +418,7 @@ pub fn softcapped_window_decode_splitk_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         64 => unsafe {
             kernel_attention::softcapped_window_decode_splitk_f32_hd64(
                 out,
@@ -432,9 +466,13 @@ pub fn softcapped_window_decode_splitk_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! softcapped_window_decode_splitk_half_fn {
     ($name:ident, $dtype:ty, $op:literal, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<f32>,
             lse: DevicePointer<f32>,
@@ -465,11 +503,11 @@ macro_rules! softcapped_window_decode_splitk_half_fn {
             window_size: usize,
             soft_cap: Option<f32>,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(lse)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&lse)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             if let Some(soft_cap) = soft_cap
                 && (!soft_cap.is_finite() || soft_cap <= 0.0)
@@ -505,6 +543,7 @@ macro_rules! softcapped_window_decode_splitk_half_fn {
             let window_size = checked_i32_value(window_size)?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -562,7 +601,7 @@ macro_rules! softcapped_window_decode_splitk_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 softcapped_window_decode_splitk_half_fn!(
     softcapped_window_decode_splitk_f16,
     f16,
@@ -574,7 +613,7 @@ softcapped_window_decode_splitk_half_fn!(
     softcapped_window_decode_splitk_f16_hd64
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 softcapped_window_decode_splitk_half_fn!(
     softcapped_window_decode_splitk_bf16,
     bf16,
@@ -586,7 +625,10 @@ softcapped_window_decode_splitk_half_fn!(
     softcapped_window_decode_splitk_bf16_hd64
 );
 
-pub fn attention_sink_decode_splitk_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn attention_sink_decode_splitk_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -618,12 +660,12 @@ pub fn attention_sink_decode_splitk_f32(
     window: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
-    checked_device_pointer(sinks)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
+    checked_device_pointer(&sinks)?;
 
     let params = FmhaDecodeSplitK::create(
         batch,
@@ -652,6 +694,7 @@ pub fn attention_sink_decode_splitk_f32(
     let window = checked_i32_value(window)?;
     macro_rules! launch {
         ($kernel:ident) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -707,10 +750,13 @@ pub fn attention_sink_decode_splitk_f32(
     Ok(())
 }
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! fmha_decode_splitk_half_fn {
     ($name:ident, $ty:ty, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<f32>,
             lse: DevicePointer<f32>,
@@ -739,11 +785,11 @@ macro_rules! fmha_decode_splitk_half_fn {
             lse_head_stride: usize,
             scale: f32,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(lse)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&lse)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             let params = FmhaDecodeSplitK::create(
                 batch,
@@ -770,6 +816,7 @@ macro_rules! fmha_decode_splitk_half_fn {
             )?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -824,7 +871,7 @@ macro_rules! fmha_decode_splitk_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 fmha_decode_splitk_half_fn!(
     fmha_decode_splitk_f16,
     f16,
@@ -834,7 +881,8 @@ fmha_decode_splitk_half_fn!(
     fmha_decode_splitk_f16_hd32,
     fmha_decode_splitk_f16_hd64
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 fmha_decode_splitk_half_fn!(
     fmha_decode_splitk_bf16,
     bf16,
@@ -845,10 +893,13 @@ fmha_decode_splitk_half_fn!(
     fmha_decode_splitk_bf16_hd64
 );
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! attention_sink_decode_splitk_half_fn {
     ($name:ident, $ty:ty, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<f32>,
             lse: DevicePointer<f32>,
@@ -880,12 +931,12 @@ macro_rules! attention_sink_decode_splitk_half_fn {
             window: usize,
             scale: f32,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(lse)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
-            checked_device_pointer(sinks)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&lse)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
+            checked_device_pointer(&sinks)?;
 
             let params = FmhaDecodeSplitK::create(
                 batch,
@@ -914,6 +965,7 @@ macro_rules! attention_sink_decode_splitk_half_fn {
             let window = checked_i32_value(window)?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -971,7 +1023,7 @@ macro_rules! attention_sink_decode_splitk_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 attention_sink_decode_splitk_half_fn!(
     attention_sink_decode_splitk_f16,
     f16,
@@ -981,7 +1033,8 @@ attention_sink_decode_splitk_half_fn!(
     attention_sink_decode_splitk_f16_hd32,
     attention_sink_decode_splitk_f16_hd64
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 attention_sink_decode_splitk_half_fn!(
     attention_sink_decode_splitk_bf16,
     bf16,

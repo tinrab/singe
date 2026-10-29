@@ -1,380 +1,374 @@
 use std::{
-    mem,
+    num::NonZeroUsize,
+    panic::resume_unwind,
+    result::Result as StdResult,
     sync::{Arc, Mutex, MutexGuard},
     thread,
 };
 
+use singe_cuda::context::Context as CudaContext;
+
 use crate::{
-    context::Context,
-    device::DeviceProperties,
-    engine::EngineIndex,
-    error::{Error, Result},
-    execution::{EngineConfig, ExecutionPlan, KernelCache, OperationGraph},
-    frontend::{
-        graph::Graph,
-        operation::CompileConfig,
-        plan::{
-            built::BuiltPlanEntry,
-            metadata::{EngineConfigMetadata, workspace_limit_error},
+    backend::{
+        device::DeviceProperties,
+        execution::{
+            EngineChoice, EngineConfig, EnginePlanningConfig, ExecutionPlan, KernelCache,
+            KernelCacheJson, OperationGraph,
         },
     },
-    knob::BackendKnobType,
+    context::Context,
+    error::{Error, Result},
+    frontend::{
+        error::Error as FrontendError,
+        graph::Graph,
+        logging,
+        plan::{
+            BuildPlanPolicy, CompileConfig, EngineConfigMetadata, PlanExclusion, PlanFailure,
+            PlanFailureStage,
+            entry::{BuiltPlanEntry, PlanBuildOutcome, PlanCandidate},
+        },
+    },
 };
 
-fn should_attempt_plan_build(
-    config: &EngineConfig,
-    compile_config: &CompileConfig,
-) -> Result<bool> {
-    Ok(workspace_limit_error(
-        config.workspace_size()?,
-        compile_config.max_workspace_size(),
-    )
-    .is_none())
+struct BuildRequest {
+    choice: EngineChoice,
+    planning: EnginePlanningConfig,
 }
 
-pub(crate) fn build_execution_plan_entries(
-    ctx: Option<&Context>,
-    operation_graph: &OperationGraph,
-    kernel_cache_enabled: bool,
-    kernel_cache_json: Option<&str>,
-    kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
-    device_properties: Option<&DeviceProperties>,
-    candidates: Vec<(EngineConfig, EngineConfigMetadata)>,
-    compile_config: &CompileConfig,
-) -> Result<Vec<BuiltPlanEntry>> {
-    let mut entries = Vec::new();
-    let kernel_cache = materialize_kernel_cache_state(
-        operation_graph,
-        kernel_cache_enabled,
-        kernel_cache_json,
-        kernel_cache_runtime,
-    )?;
+struct BuiltNativePlan {
+    // A filtered configuration has refreshed metadata but no compiled plan.
+    build_result: Option<Result<ExecutionPlan>>,
+    config: EngineConfig,
+    metadata: EngineConfigMetadata,
+}
 
-    for (config, metadata) in candidates {
-        if !should_attempt_plan_build(&config, compile_config)? {
-            continue;
+type BuildResult<T> = StdResult<T, (PlanFailureStage, Error)>;
+
+fn exclude_plans_over_limit(entries: &mut [BuiltPlanEntry], limit: Option<NonZeroUsize>) {
+    if let Some(limit) = limit {
+        for entry in entries
+            .iter_mut()
+            .filter(|entry| entry.is_available())
+            .skip(limit.get())
+        {
+            entry.exclusion = Some(PlanExclusion::BuildLimit { limit });
         }
-
-        let result = match ctx {
-            Some(ctx) => ExecutionPlan::create_with_config(
-                ctx,
-                &config,
-                lock_kernel_cache(kernel_cache.as_ref())?.as_deref(),
-                device_properties,
-            ),
-            None => ExecutionPlan::create_deviceless(
-                &config,
-                lock_kernel_cache(kernel_cache.as_ref())?.as_deref(),
-                device_properties,
-            ),
-        };
-
-        match result {
-            Ok(plan) => entries.push(BuiltPlanEntry {
-                engine_config: config,
-                engine_metadata: metadata,
-                execution_plan: Some(plan),
-                build_error: None,
-                support_error: None,
-            }),
-            Err(error) => {
-                entries.push(BuiltPlanEntry {
-                    engine_config: config,
-                    engine_metadata: metadata,
-                    execution_plan: None,
-                    build_error: Some(error),
-                    support_error: None,
-                });
-            }
-        }
-    }
-
-    if entries.is_empty() {
-        Err(Error::NoAvailableEngines)
-    } else {
-        Ok(entries)
     }
 }
 
-pub(crate) fn build_execution_plan_choice(
-    ctx: Option<&Context>,
-    operation_graph: &OperationGraph,
-    kernel_cache_enabled: bool,
-    kernel_cache_json: Option<&str>,
-    kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
-    device_properties: Option<&DeviceProperties>,
-    candidates: Vec<(EngineConfig, EngineConfigMetadata)>,
-    compile_config: &CompileConfig,
-) -> Result<Vec<BuiltPlanEntry>> {
-    let mut last_error = None;
-    let kernel_cache = materialize_kernel_cache_state(
-        operation_graph,
-        kernel_cache_enabled,
-        kernel_cache_json,
-        kernel_cache_runtime,
-    )?;
-
-    for (config, metadata) in candidates {
-        if !should_attempt_plan_build(&config, compile_config)? {
-            continue;
-        }
-        let result = match ctx {
-            Some(ctx) => ExecutionPlan::create_with_config(
-                ctx,
-                &config,
-                lock_kernel_cache(kernel_cache.as_ref())?.as_deref(),
-                device_properties,
-            ),
-            None => ExecutionPlan::create_deviceless(
-                &config,
-                lock_kernel_cache(kernel_cache.as_ref())?.as_deref(),
-                device_properties,
-            ),
-        };
-        match result {
-            Ok(plan) => {
-                return Ok(vec![BuiltPlanEntry {
-                    engine_config: config,
-                    engine_metadata: metadata,
-                    execution_plan: Some(plan),
-                    build_error: None,
-                    support_error: None,
-                }]);
-            }
-            Err(error) => {
-                last_error = Some(error);
-            }
-        }
-    }
-
-    Err(last_error.unwrap_or(Error::NoAvailableEngines))
-}
-
-fn build_execution_plan_entries_parallel(
-    ctx: Option<&Context>,
-    operation_graph: &OperationGraph,
-    kernel_cache_enabled: bool,
-    kernel_cache_json: Option<&str>,
-    kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
-    device_properties_json: Option<&str>,
-    device_properties: Option<&DeviceProperties>,
-    candidates: Vec<(EngineConfig, EngineConfigMetadata)>,
-    compile_config: &CompileConfig,
-) -> Result<Vec<BuiltPlanEntry>> {
-    struct BuildRequest {
-        engine_index: EngineIndex,
-        knob_choices: Vec<(BackendKnobType, i64)>,
-    }
-
-    let mut filtered = Vec::new();
-    for (config, metadata) in candidates {
-        if !should_attempt_plan_build(&config, compile_config)? {
-            continue;
-        }
-
-        let engine_index = config.engine()?.index();
-        let knob_choices = config
-            .knob_choices()?
-            .into_iter()
-            .map(|choice| (choice.knob_type, choice.value))
-            .collect::<Vec<_>>();
-        filtered.push((
-            config,
-            metadata,
-            BuildRequest {
-                engine_index,
-                knob_choices,
+impl BuildRequest {
+    fn from_candidate(candidate: &PlanCandidate, config: &CompileConfig) -> Result<Self> {
+        let inherited = candidate.engine_config.planning_config()?;
+        Ok(Self {
+            choice: candidate.choice(),
+            planning: EnginePlanningConfig {
+                sm_count_target: config.sm_count_target().or(inherited.sm_count_target),
+                shared_memory_limit: config
+                    .shared_memory_limit()
+                    .or(inherited.shared_memory_limit),
             },
-        ));
-    }
-
-    if filtered.is_empty() {
-        return Err(Error::NoAvailableEngines);
-    }
-
-    let kernel_cache_json = kernel_cache_json.map(ToOwned::to_owned);
-    let kernel_cache_runtime = kernel_cache_runtime.cloned();
-    let cuda_context = ctx.map(|ctx| Arc::clone(ctx.cuda_context()));
-    let device_properties_json = device_properties_json.map(ToOwned::to_owned);
-    let device_properties = device_properties
-        .map(|device_properties| {
-            DeviceProperties::from_json_representation(&device_properties.json_representation()?)
         })
-        .transpose()?;
-    let device_properties = device_properties.map(Arc::new);
-    let results = thread::scope(|scope| {
-        let mut tasks = Vec::with_capacity(filtered.len());
-        for (_, _, request) in &filtered {
-            let kernel_cache_json = kernel_cache_json.clone();
-            let kernel_cache_runtime = kernel_cache_runtime.clone();
-            let cuda_context = cuda_context.clone();
-            let device_properties_json = device_properties_json.clone();
-            let device_properties = device_properties.clone();
-            tasks.push(scope.spawn(move || -> Result<ExecutionPlan> {
-                let build_context = cuda_context.as_ref().map(Context::create).transpose()?;
-                let owned_device_properties = if let Some(device_properties) = device_properties {
-                    Some(device_properties)
-                } else {
-                    device_properties_json
-                        .as_deref()
-                        .map(DeviceProperties::from_json_representation)
-                        .transpose()?
-                        .map(Arc::new)
-                };
-                let engine_config = match build_context.as_ref() {
-                    Some(build_context) => EngineConfig::create_with_config(
-                        build_context,
-                        operation_graph,
-                        request.engine_index,
-                        &request.knob_choices,
-                        owned_device_properties.as_deref(),
-                    )?,
-                    None => EngineConfig::create_deviceless(
-                        operation_graph,
-                        request.engine_index,
-                        &request.knob_choices,
-                        owned_device_properties
-                            .as_deref()
-                            .ok_or(Error::FrontendDevicelessRequiresDeviceProperties)?,
-                    )?,
-                };
-                let kernel_cache = materialize_kernel_cache_state(
-                    operation_graph,
-                    kernel_cache_enabled,
-                    kernel_cache_json.as_deref(),
-                    kernel_cache_runtime.as_ref(),
-                )?;
-                match build_context.as_ref() {
-                    Some(build_context) => ExecutionPlan::create_with_config(
-                        build_context,
-                        &engine_config,
-                        lock_kernel_cache(kernel_cache.as_ref())?.as_deref(),
-                        owned_device_properties.as_deref(),
-                    ),
-                    None => ExecutionPlan::create_deviceless(
-                        &engine_config,
-                        lock_kernel_cache(kernel_cache.as_ref())?.as_deref(),
-                        owned_device_properties.as_deref(),
-                    ),
-                }
-            }));
-        }
+    }
 
-        tasks
-            .into_iter()
-            .map(|task| {
-                task.join()
-                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    fn create_engine_config(
+        &self,
+        context: Option<&Context>,
+        graph: &OperationGraph,
+        properties: Option<&DeviceProperties>,
+    ) -> Result<EngineConfig> {
+        EngineConfig::create_for_target(context, graph, &self.choice, properties, self.planning)
+    }
+
+    fn build(
+        &self,
+        cuda_context: Option<&Arc<CudaContext>>,
+        operation_graph: &OperationGraph,
+        device_properties: Option<&DeviceProperties>,
+        kernel_cache: Option<&Arc<Mutex<KernelCache>>>,
+        frontend_workspace_bytes: usize,
+        config: &CompileConfig,
+    ) -> BuildResult<BuiltNativePlan> {
+        let context = cuda_context
+            .map(Context::create)
+            .transpose()
+            .map_err(|error| (PlanFailureStage::Build, error))?;
+        let engine_config = self
+            .create_engine_config(context.as_ref(), operation_graph, device_properties)
+            .map_err(|error| (PlanFailureStage::Build, error))?;
+        let metadata = EngineConfigMetadata::create(&engine_config)
+            .and_then(|metadata| metadata.with_frontend_workspace(frontend_workspace_bytes))
+            .map_err(|error| (PlanFailureStage::Requirements, error))?;
+        if metadata.exclusion(config).is_some() {
+            return Ok(BuiltNativePlan {
+                build_result: None,
+                config: engine_config,
+                metadata,
+            });
+        }
+        // Native finalization with a shared cache remains serialized; engine setup runs in parallel.
+        let build_result = (|| {
+            let cache = lock_kernel_cache(kernel_cache)?;
+            ExecutionPlan::create_for_target(
+                context.as_ref(),
+                &engine_config,
+                cache.as_deref(),
+                device_properties,
+            )
+        })();
+        Ok(BuiltNativePlan {
+            build_result: Some(build_result),
+            config: engine_config,
+            metadata,
+        })
+    }
+}
+
+fn record_build_result(
+    entry: &mut BuiltPlanEntry,
+    result: BuildResult<ExecutionPlan>,
+    frontend_workspace_bytes: usize,
+    config: &CompileConfig,
+) {
+    let result = result.and_then(|plan| {
+        let bytes = plan
+            .workspace_size()
+            .and_then(|native| {
+                native
+                    .checked_add(frontend_workspace_bytes)
+                    .ok_or_else(|| Error::out_of_range("built plan workspace bytes"))
             })
-            .collect::<Vec<_>>()
+            .map_err(|error| (PlanFailureStage::Requirements, error));
+        bytes.map(|bytes| (plan, bytes))
     });
-
-    let mut entries = Vec::with_capacity(filtered.len());
-    for ((config, metadata, _), result) in filtered.into_iter().zip(results) {
-        match result {
-            Ok(plan) => entries.push(BuiltPlanEntry {
-                engine_config: config,
-                engine_metadata: metadata,
-                execution_plan: Some(plan),
-                build_error: None,
-                support_error: None,
-            }),
-            Err(error) => {
-                entries.push(BuiltPlanEntry {
-                    engine_config: config,
-                    engine_metadata: metadata,
-                    execution_plan: None,
-                    build_error: Some(error),
-                    support_error: None,
-                });
-            }
+    log_build_result(&entry.candidate, &result);
+    entry.outcome = match result {
+        Ok((plan, bytes)) => {
+            entry.candidate.metadata.workspace_size = bytes;
+            entry.exclusion = entry.candidate.metadata.exclusion(config);
+            PlanBuildOutcome::Built(plan)
         }
-    }
-
-    if entries.is_empty() {
-        Err(Error::NoAvailableEngines)
-    } else {
-        Ok(entries)
-    }
+        Err((stage, error)) => PlanBuildOutcome::Failed(PlanFailure {
+            plan: entry.candidate.id.clone(),
+            stage,
+            source: Arc::new(error),
+        }),
+    };
 }
 
-pub(crate) fn build_execution_plan_choice_parallel_window(
-    ctx: Option<&Context>,
+#[expect(
+    clippy::too_many_lines,
+    reason = "plan construction and selection keep the complete native execution lifecycle together"
+)]
+pub fn build_execution_plan_entries(
+    context: Option<&Context>,
     operation_graph: &OperationGraph,
-    kernel_cache_enabled: bool,
-    kernel_cache_json: Option<&str>,
-    kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
-    device_properties_json: Option<&str>,
+    frontend_workspace_bytes: usize,
     device_properties: Option<&DeviceProperties>,
-    candidates: Vec<(EngineConfig, EngineConfigMetadata)>,
-    compile_config: &CompileConfig,
-    width: usize,
-) -> Result<Vec<BuiltPlanEntry>> {
-    let width = width.max(1);
-    let mut last_error = None;
-
-    let mut chunk = Vec::with_capacity(width);
-    for candidate in candidates {
-        chunk.push(candidate);
-        if chunk.len() < width {
-            continue;
-        }
-
-        let entries = build_execution_plan_entries_parallel(
-            ctx,
-            operation_graph,
-            kernel_cache_enabled,
-            kernel_cache_json,
-            kernel_cache_runtime,
-            device_properties_json,
-            device_properties,
-            mem::take(&mut chunk),
-            compile_config,
-        )?;
-
-        for entry in entries {
-            if let Some(execution_plan) = entry.execution_plan {
-                return Ok(vec![BuiltPlanEntry {
-                    execution_plan: Some(execution_plan),
-                    ..entry
-                }]);
-            }
-            if let Some(error) = entry.build_error {
-                last_error = Some(error);
-            }
+    entries: &mut [BuiltPlanEntry],
+    kernel_cache: Option<&Arc<Mutex<KernelCache>>>,
+    config: &CompileConfig,
+) {
+    let (width, first_only) = match config.build_policy() {
+        BuildPlanPolicy::FirstSupported => (1, true),
+        BuildPlanPolicy::FirstSupportedParallel { window_size } => (window_size.get(), true),
+        BuildPlanPolicy::AllSupported => (1, false),
+        BuildPlanPolicy::AllSupportedParallel { worker_count } => (worker_count.get(), false),
+    };
+    let limit = if first_only {
+        Some(NonZeroUsize::MIN)
+    } else {
+        config.max_plans()
+    };
+    for entry in entries.iter_mut() {
+        if matches!(entry.exclusion, Some(PlanExclusion::BuildLimit { .. })) {
+            entry.exclusion = None;
         }
     }
-
-    if !chunk.is_empty() {
-        let entries = build_execution_plan_entries_parallel(
-            ctx,
-            operation_graph,
-            kernel_cache_enabled,
-            kernel_cache_json,
-            kernel_cache_runtime,
-            device_properties_json,
-            device_properties,
-            chunk,
-            compile_config,
-        )?;
-
-        for entry in entries {
-            if let Some(execution_plan) = entry.execution_plan {
-                return Ok(vec![BuiltPlanEntry {
-                    execution_plan: Some(execution_plan),
-                    ..entry
-                }]);
+    let mut admitted = 0;
+    if width == 1 {
+        for entry in entries.iter_mut() {
+            if entry.exclusion.is_some() {
+                continue;
             }
-            if let Some(error) = entry.build_error {
-                last_error = Some(error);
+            if !matches!(entry.outcome, PlanBuildOutcome::Built(_)) {
+                build_execution_plan_entry(
+                    context,
+                    operation_graph,
+                    entry,
+                    frontend_workspace_bytes,
+                    device_properties,
+                    kernel_cache,
+                    config,
+                );
+            }
+            admitted += usize::from(entry.is_available());
+            if limit.is_some_and(|limit| admitted >= limit.get()) {
+                break;
             }
         }
+        exclude_plans_over_limit(entries, limit);
+        return;
     }
 
-    Err(last_error.unwrap_or(Error::NoAvailableEngines))
+    let cuda_context = context.map(|context| Arc::clone(context.cuda_context()));
+    let device_properties = device_properties.cloned().map(Arc::new);
+
+    for window in entries.chunks_mut(width) {
+        let mut requests = Vec::new();
+        for (position, entry) in window.iter_mut().enumerate() {
+            if entry.exclusion.is_some() || matches!(entry.outcome, PlanBuildOutcome::Built(_)) {
+                continue;
+            }
+            match BuildRequest::from_candidate(&entry.candidate, config) {
+                Ok(request) => requests.push((position, request)),
+                Err(error) => {
+                    record_build_result(
+                        entry,
+                        Err((PlanFailureStage::Requirements, error)),
+                        frontend_workspace_bytes,
+                        config,
+                    );
+                }
+            }
+        }
+        let results = thread::scope(|scope| {
+            #[expect(
+                clippy::needless_collect,
+                reason = "eager collection starts every compile worker before any join can block"
+            )]
+            let tasks = requests
+                .into_iter()
+                .map(|(position, request)| {
+                    let cuda_context = cuda_context.clone();
+                    let device_properties = device_properties.clone();
+                    scope.spawn(move || {
+                        let result = request.build(
+                            cuda_context.as_ref(),
+                            operation_graph,
+                            device_properties.as_deref(),
+                            kernel_cache,
+                            frontend_workspace_bytes,
+                            config,
+                        );
+                        (position, result)
+                    })
+                })
+                .collect::<Vec<_>>();
+            tasks
+                .into_iter()
+                .map(|task| match task.join() {
+                    Ok(result) => result,
+                    Err(panic) => resume_unwind(panic),
+                })
+                .collect::<Vec<_>>()
+        });
+        for (position, result) in results {
+            let entry = &mut window[position];
+            match result {
+                Ok(built) => {
+                    entry.candidate.engine_config = Arc::new(built.config);
+                    entry.candidate.metadata = built.metadata;
+                    entry.exclusion = entry.candidate.metadata.exclusion(config);
+                    if let Some(result) = built.build_result {
+                        record_build_result(
+                            entry,
+                            result.map_err(|error| (PlanFailureStage::Build, error)),
+                            frontend_workspace_bytes,
+                            config,
+                        );
+                    }
+                }
+                Err(error) => {
+                    record_build_result(entry, Err(error), frontend_workspace_bytes, config);
+                }
+            }
+        }
+        admitted += window.iter().filter(|entry| entry.is_available()).count();
+        if limit.is_some_and(|limit| admitted >= limit.get()) {
+            break;
+        }
+    }
+    exclude_plans_over_limit(entries, limit);
 }
 
-pub(crate) fn materialize_graph_kernel_cache(
+pub fn build_execution_plan_entry(
+    context: Option<&Context>,
+    operation_graph: &OperationGraph,
+    entry: &mut BuiltPlanEntry,
+    frontend_workspace_bytes: usize,
+    device_properties: Option<&DeviceProperties>,
+    kernel_cache: Option<&Arc<Mutex<KernelCache>>>,
+    config: &CompileConfig,
+) {
+    let reconfigured = (|| -> BuildResult<_> {
+        let request = BuildRequest::from_candidate(&entry.candidate, config)
+            .map_err(|error| (PlanFailureStage::Requirements, error))?;
+        let inherited = entry
+            .candidate
+            .engine_config
+            .planning_config()
+            .map_err(|error| (PlanFailureStage::Requirements, error))?;
+        if request.planning == inherited {
+            return Ok(None);
+        }
+        let engine_config = request
+            .create_engine_config(context, operation_graph, device_properties)
+            .map_err(|error| (PlanFailureStage::Build, error))?;
+        let metadata = EngineConfigMetadata::create(&engine_config)
+            .and_then(|metadata| metadata.with_frontend_workspace(frontend_workspace_bytes))
+            .map_err(|error| (PlanFailureStage::Requirements, error))?;
+        Ok(Some((engine_config, metadata)))
+    })();
+    match reconfigured {
+        Ok(Some((engine_config, metadata))) => {
+            entry.candidate.engine_config = Arc::new(engine_config);
+            entry.candidate.metadata = metadata;
+        }
+        Ok(None) => {}
+        Err(error) => {
+            record_build_result(entry, Err(error), frontend_workspace_bytes, config);
+            return;
+        }
+    }
+    entry.exclusion = entry.candidate.metadata.exclusion(config);
+    if entry.exclusion.is_some() {
+        return;
+    }
+    let result = (|| {
+        let cache = lock_kernel_cache(kernel_cache)?;
+        ExecutionPlan::create_for_target(
+            context,
+            &entry.candidate.engine_config,
+            cache.as_deref(),
+            device_properties,
+        )
+    })();
+    record_build_result(
+        entry,
+        result.map_err(|error| (PlanFailureStage::Build, error)),
+        frontend_workspace_bytes,
+        config,
+    );
+}
+
+fn log_build_result<T>(candidate: &PlanCandidate, result: &BuildResult<T>) {
+    match result {
+        Ok(_) => logging::diagnostic!(
+            "built candidate {}: engine {}, knobs {:?}",
+            candidate.id,
+            candidate.metadata.engine_index,
+            candidate.metadata.knob_choices,
+        ),
+        Err((stage, error)) => logging::diagnostic!(
+            "candidate {} failed during {stage}: engine {}, knobs {:?}: {error}",
+            candidate.id,
+            candidate.metadata.engine_index,
+            candidate.metadata.knob_choices,
+        ),
+    }
+}
+
+pub fn materialize_graph_kernel_cache(
     graph: &Graph,
     operation_graph: &OperationGraph,
 ) -> Result<Option<Arc<Mutex<KernelCache>>>> {
@@ -386,10 +380,10 @@ pub(crate) fn materialize_graph_kernel_cache(
     )
 }
 
-pub(crate) fn materialize_kernel_cache_state(
+pub fn materialize_kernel_cache_state(
     operation_graph: &OperationGraph,
     kernel_cache_enabled: bool,
-    kernel_cache_json: Option<&str>,
+    kernel_cache_json: Option<&KernelCacheJson>,
     kernel_cache_runtime: Option<&Arc<Mutex<KernelCache>>>,
 ) -> Result<Option<Arc<Mutex<KernelCache>>>> {
     if !kernel_cache_enabled {
@@ -400,7 +394,7 @@ pub(crate) fn materialize_kernel_cache_state(
         Arc::clone(kernel_cache)
     } else {
         Arc::new(Mutex::new(match kernel_cache_json {
-            Some(json) => KernelCache::from_json(json)?,
+            Some(json) => KernelCache::deserialize(json)?,
             None => KernelCache::create()?,
         }))
     };
@@ -408,22 +402,22 @@ pub(crate) fn materialize_kernel_cache_state(
     {
         let mut kernel_cache_guard = kernel_cache
             .lock()
-            .map_err(|_| Error::FrontendKernelCacheLockPoisoned)?;
+            .map_err(|_| FrontendError::KernelCacheLockPoisoned)?;
         if !kernel_cache_guard.is_finalized() {
-            kernel_cache_guard.build(operation_graph)?;
+            kernel_cache_guard.build(Some(operation_graph))?;
         }
     }
     Ok(Some(kernel_cache))
 }
 
-pub(crate) fn lock_kernel_cache(
+pub fn lock_kernel_cache(
     kernel_cache: Option<&Arc<Mutex<KernelCache>>>,
 ) -> Result<Option<MutexGuard<'_, KernelCache>>> {
     kernel_cache
         .map(|kernel_cache| {
             kernel_cache
                 .lock()
-                .map_err(|_| Error::FrontendKernelCacheLockPoisoned)
+                .map_err(|_| FrontendError::KernelCacheLockPoisoned.into())
         })
         .transpose()
 }

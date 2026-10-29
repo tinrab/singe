@@ -1,158 +1,121 @@
 mod common;
 
-use singe_cuda::memory::DeviceMemory;
+use std::{env::args, iter::once};
+
+use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
     backend::tensor::{Shape, TensorSpec},
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{AdaptiveLayerNormalizationBackwardConfig, HeuristicMode},
+        bindings::BindingAccess,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{
+            AdaptiveLayerNormalizationBackwardInputs, AdaptiveLayerNormalizationBackwardOutputs,
+            NormalizationConfig, NormalizationSavedStatistics,
+        },
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
 };
 
-fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
-    let mut values = Vec::with_capacity(size);
-    for _ in 0..size {
-        *seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
-        values.push((*seed as f32) * 2.328_306_4e-10_f32);
-    }
-    values
-}
-
-fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
-    init_f32_image(size, seed)
-        .into_iter()
-        .map(f16::from_f32)
-        .collect()
-}
-
-fn count_nonfinite_f16(values: &[f16]) -> usize {
-    values
-        .iter()
-        .filter(|value| !value.to_f32().is_finite())
-        .count()
-}
-
-fn count_nonfinite_f32(values: &[f32]) -> usize {
-    values.iter().filter(|value| !value.is_finite()).count()
-}
-
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-
-    let b = 4;
-    let s = 1024;
-    let d = 128;
-
+    let example = common::ExampleContext::create()?;
+    let with_bias = !args().any(|argument| argument == "--without-bias-gradient");
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
+                .with_io(DataType::F16)
                 .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
     );
-
-    let x =
-        graph.tensor(TensorSpec::new(DataType::F16, Shape::contiguous([b, s, d])?).with_name("X"));
-    let dy =
-        graph.tensor(TensorSpec::new(DataType::F16, Shape::contiguous([b, s, d])?).with_name("DY"));
+    let activation = TensorSpec::new(DataType::F16, Shape::contiguous([4, 1024, 128])?);
+    let x = graph.tensor(activation.clone().with_name("X"));
+    let dy = graph.tensor(activation.with_name("DY"));
     let scale = graph
-        .tensor(TensorSpec::new(DataType::F32, Shape::contiguous([b, 1, d])?).with_name("scale"));
-    let mean = graph
-        .tensor(TensorSpec::new(DataType::F32, Shape::contiguous([b, s, 1])?).with_name("mean"));
-    let inv_variance = graph.tensor(
-        TensorSpec::new(DataType::F32, Shape::contiguous([b, s, 1])?).with_name("inv_variance"),
-    );
-    let dx = graph.tensor(TensorSpec::new(
-        DataType::F16,
-        Shape::contiguous([b, s, d])?,
-    ));
-    let dscale = graph.tensor(TensorSpec::new(
-        DataType::F32,
-        Shape::contiguous([b, 1, d])?,
-    ));
-    let bias_gradient = graph.tensor(TensorSpec::new(
-        DataType::F32,
-        Shape::contiguous([b, 1, d])?,
-    ));
-    graph.adaptive_layer_normalization_backward(
-        x,
-        mean,
-        inv_variance,
-        dy,
-        scale,
-        dscale,
-        Some(bias_gradient),
-        dx,
-        AdaptiveLayerNormalizationBackwardConfig::new().with_bias_gradient(),
+        .tensor(TensorSpec::new(DataType::F32, Shape::contiguous([4, 1, 128])?).with_name("scale"));
+    let stats = TensorSpec::new(DataType::F32, Shape::contiguous([4, 1024, 1])?);
+    let mean = graph.tensor(stats.clone().with_name("mean"));
+    let inv_variance = graph.tensor(stats.with_name("inv_variance"));
+    let result = TensorOutputConfig::new().output_tensor();
+    let affine_result = result.with_data_type(DataType::F32);
+    let outputs = graph.adaptive_layer_normalization_backward(
+        AdaptiveLayerNormalizationBackwardInputs {
+            input: x,
+            statistics: NormalizationSavedStatistics { mean, inv_variance },
+            output_gradient: dy,
+            scale,
+        },
+        AdaptiveLayerNormalizationBackwardOutputs {
+            input_gradient: result,
+            scale_gradient: affine_result,
+            bias_gradient: with_bias.then_some(affine_result),
+        },
+        NormalizationConfig::new().with_name("adaptive_layer_norm_backward"),
     )?;
-
-    let compiled = match graph.compile(&ctx.cudnn, &[HeuristicMode::A, HeuristicMode::Fallback]) {
-        Ok(compiled) => compiled,
-        Err(error) => return Err(error),
-    };
-
-    let mut half_seed = 123_456_789_u32;
-    let mut float_seed = 123_456_789_u32;
-    let mut x_dev =
-        DeviceMemory::from_slice(&init_f16_image((b * s * d) as usize, &mut half_seed))?;
-    let mut dy_dev =
-        DeviceMemory::from_slice(&init_f16_image((b * s * d) as usize, &mut half_seed))?;
-    let mut mean_dev =
-        DeviceMemory::from_slice(&init_f32_image((b * s) as usize, &mut float_seed))?;
-    let mut inv_variance_dev =
-        DeviceMemory::from_slice(&init_f32_image((b * s) as usize, &mut float_seed))?;
-    let mut scale_dev =
-        DeviceMemory::from_slice(&init_f32_image((b * d) as usize, &mut float_seed))?;
-    let mut dscale_dev =
-        DeviceMemory::from_slice(&init_f32_image((b * d) as usize, &mut float_seed))?;
-    let mut bias_gradient_dev =
-        DeviceMemory::from_slice(&init_f32_image((b * d) as usize, &mut float_seed))?;
-    let mut dx_dev =
-        DeviceMemory::from_slice(&init_f16_image((b * s * d) as usize, &mut half_seed))?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    bindings.set(x, &mut x_dev)?;
-    bindings.set(dy, &mut dy_dev)?;
-    bindings.set(mean, &mut mean_dev)?;
-    bindings.set(inv_variance, &mut inv_variance_dev)?;
-    bindings.set(scale, &mut scale_dev)?;
-    bindings.set(dscale, &mut dscale_dev)?;
-    bindings.set(bias_gradient, &mut bias_gradient_dev)?;
-    bindings.set(dx, &mut dx_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-
-    let dx_host = dx_dev.copy_to_host_vec()?;
-    let dscale_host = dscale_dev.copy_to_host_vec()?;
-    let bias_gradient_host = bias_gradient_dev.copy_to_host_vec()?;
-
-    let dx_first = dx_host[0].to_f32();
-    let dx_last = dx_host[dx_host.len() - 1].to_f32();
-    let dx_checksum = dx_host.iter().map(|value| value.to_f32()).sum::<f32>();
-    let dx_nonfinite = count_nonfinite_f16(&dx_host);
-    let dscale_first = dscale_host[0];
-    let dscale_last = dscale_host[dscale_host.len() - 1];
-    let dscale_checksum = dscale_host.iter().copied().sum::<f32>();
-    let dscale_nonfinite = count_nonfinite_f32(&dscale_host);
-    let bias_gradient_first = bias_gradient_host[0];
-    let bias_gradient_last = bias_gradient_host[bias_gradient_host.len() - 1];
-    let bias_gradient_checksum = bias_gradient_host.iter().copied().sum::<f32>();
-    let bias_gradient_nonfinite = count_nonfinite_f32(&bias_gradient_host);
-
-    println!(
-        "dx: first={dx_first}, last={dx_last}, checksum={dx_checksum}, nonfinite={dx_nonfinite}, len={}",
-        dx_host.len()
-    );
-    println!(
-        "dscale: first={dscale_first}, last={dscale_last}, checksum={dscale_checksum}, nonfinite={dscale_nonfinite}, len={}",
-        dscale_host.len()
-    );
-    println!(
-        "bias_gradient: first={bias_gradient_first}, last={bias_gradient_last}, checksum={bias_gradient_checksum}, nonfinite={bias_gradient_nonfinite}, len={}",
-        bias_gradient_host.len()
-    );
-
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+    let cuda = example.cudnn.cuda_context();
+    let mut bindings = compiled.bindings()?;
+    let mut seed = 123_456_789_u32;
+    for id in [x, dy] {
+        let values = common::init_f32_image(graph.shape(id)?.storage_span()?, &mut seed)
+            .into_iter()
+            .map(f16::from_f32)
+            .collect::<Vec<_>>();
+        let memory = DeviceMemory::from_slice(cuda, &values)?;
+        bindings.set_owned_region(
+            id,
+            OwnedDeviceRegion::from_memory(&memory),
+            BindingAccess::ReadOnly,
+        )?;
+    }
+    for (id, value) in [(mean, 0.0_f32), (inv_variance, 1.0), (scale, 1.0)] {
+        let memory =
+            DeviceMemory::from_slice(cuda, &vec![value; graph.shape(id)?.storage_span()?])?;
+        bindings.set_owned_region(
+            id,
+            OwnedDeviceRegion::from_memory(&memory),
+            BindingAccess::ReadOnly,
+        )?;
+    }
+    let dx_dev =
+        DeviceMemory::<f16>::zeroed(cuda, graph.shape(outputs.input_gradient)?.storage_span()?)?;
+    bindings.set_owned_region(
+        outputs.input_gradient,
+        OwnedDeviceRegion::from_memory(&dx_dev),
+        BindingAccess::ReadWrite,
+    )?;
+    for id in once(outputs.scale_gradient).chain(outputs.bias_gradient) {
+        let memory = DeviceMemory::<f32>::zeroed(cuda, graph.shape(id)?.storage_span()?)?;
+        bindings.set_owned_region(
+            id,
+            OwnedDeviceRegion::from_memory(&memory),
+            BindingAccess::ReadWrite,
+        )?;
+    }
+    let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+    // SAFETY: bindings retain initialized operands and independent writable results.
+    // The plan, buffers and workspace remain live through stream completion, including enqueue failure.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
+    for id in once(outputs.input_gradient)
+        .chain(once(outputs.scale_gradient))
+        .chain(outputs.bias_gradient)
+    {
+        let tensor = compiled.tensor_info(id)?;
+        println!(
+            "{:?}: {:?}",
+            tensor.spec.name,
+            tensor.spec.shape.dimensions()
+        );
+    }
     Ok(())
 }
 

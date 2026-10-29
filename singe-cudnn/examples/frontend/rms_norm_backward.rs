@@ -7,8 +7,13 @@ use singe_cudnn::{
     data_type::DataType,
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{HeuristicMode, RmsNormalizationBackwardConfig},
+        error::Error as FrontendError,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{
+            RmsNormalizationAffineGradients, RmsNormalizationBackwardConfig,
+            RmsNormalizationBackwardInputs, RmsNormalizationBackwardOutputs,
+        },
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
 };
 
@@ -26,7 +31,7 @@ fn count_nonfinite_f32(values: &[f32]) -> usize {
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let example = common::ExampleContext::create()?;
 
     let batch_size = 4;
     let seq_length = 1024;
@@ -43,113 +48,112 @@ fn run() -> Result<()> {
     let x = graph.tensor(
         TensorSpec::new(
             DataType::F32,
-            Shape::contiguous([batch_size * seq_length, hidden_size, 1, 1])?.with_strides([
-                hidden_size,
-                1,
-                hidden_size,
-                hidden_size,
-            ])?,
+            Shape::with_strides(
+                [batch_size * seq_length, hidden_size, 1, 1],
+                [hidden_size, 1, hidden_size, hidden_size],
+            )?,
         )
         .with_name("X"),
     );
     let dy = graph.tensor(
         TensorSpec::new(
             DataType::F32,
-            Shape::contiguous([batch_size * seq_length, hidden_size, 1, 1])?.with_strides([
-                hidden_size,
-                1,
-                hidden_size,
-                hidden_size,
-            ])?,
+            Shape::with_strides(
+                [batch_size * seq_length, hidden_size, 1, 1],
+                [hidden_size, 1, hidden_size, hidden_size],
+            )?,
         )
         .with_name("DY"),
     );
     let scale = graph.tensor(
         TensorSpec::new(
             DataType::F32,
-            Shape::contiguous([1, hidden_size, 1, 1])?.with_strides(vec![
-                hidden_size,
-                1,
-                hidden_size,
-                hidden_size,
-            ])?,
+            Shape::with_strides(
+                [1, hidden_size, 1, 1],
+                vec![hidden_size, 1, hidden_size, hidden_size],
+            )?,
         )
         .with_name("scale"),
     );
     let inv_variance = graph.tensor(
         TensorSpec::new(
             DataType::F32,
-            Shape::contiguous([batch_size * seq_length, 1, 1, 1])?.with_strides([1, 1, 1, 1])?,
+            Shape::with_strides([batch_size * seq_length, 1, 1, 1], [1, 1, 1, 1])?,
         )
         .with_name("inv_variance"),
     );
-    let _epsilon = graph.tensor(TensorSpec::scalar_f32(1e-5)?.with_name("epsilon"));
-    let dx = graph.tensor(TensorSpec::new(
-        DataType::F32,
-        Shape::contiguous([batch_size * seq_length, hidden_size, 1, 1])?.with_strides([
-            hidden_size,
-            1,
-            hidden_size,
-            hidden_size,
-        ])?,
-    ));
-    let dscale = graph.tensor(TensorSpec::new(
-        DataType::F32,
-        Shape::contiguous([1, hidden_size, 1, 1])?.with_strides(vec![
-            hidden_size,
-            1,
-            hidden_size,
-            hidden_size,
-        ])?,
-    ));
-    graph.rms_normalization_backward(
-        x,
-        inv_variance,
-        dy,
-        scale,
-        dscale,
-        None,
-        dx,
-        RmsNormalizationBackwardConfig::new(),
+    let outputs = graph.rms_normalization_backward(
+        RmsNormalizationBackwardInputs {
+            input: x,
+            inv_variance,
+            output_gradient: dy,
+            scale: Some(scale),
+        },
+        RmsNormalizationBackwardOutputs {
+            input_gradient: TensorOutputConfig::new().output_tensor(),
+            affine: Some(RmsNormalizationAffineGradients {
+                scale_gradient: TensorOutputConfig::new().output_tensor(),
+                bias_gradient: None,
+            }),
+        },
+        RmsNormalizationBackwardConfig::new().with_name("rms_norm_backward"),
+    )?;
+    let dx = outputs.input_gradient;
+    let dscale = outputs
+        .affine
+        .ok_or(FrontendError::NormalizationAffineGradients {
+            operation: "rms norm backward",
+        })?
+        .scale_gradient;
+
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
     )?;
 
-    let compiled = match graph.compile(&ctx.cudnn, &[HeuristicMode::A, HeuristicMode::Fallback]) {
-        Ok(compiled) => compiled,
-        Err(error) => return Err(error),
-    };
-
     let mut float_seed = 123_456_789_u32;
-    let mut x_dev = DeviceMemory::from_slice(&init_f32_image(
-        (batch_size * seq_length * hidden_size) as usize,
-        &mut float_seed,
-    ))?;
-    let mut dy_dev = DeviceMemory::from_slice(&init_f32_image(
-        (batch_size * seq_length * hidden_size) as usize,
-        &mut float_seed,
-    ))?;
+    let x_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(graph.shape(x)?.storage_span()?, &mut float_seed),
+    )?;
+    let dy_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(graph.shape(dy)?.storage_span()?, &mut float_seed),
+    )?;
     let _mean_init = init_f32_image((batch_size * seq_length) as usize, &mut float_seed);
-    let mut inv_variance_dev = DeviceMemory::from_slice(&init_f32_image(
-        (batch_size * seq_length) as usize,
-        &mut float_seed,
-    ))?;
-    let mut scale_dev =
-        DeviceMemory::from_slice(&init_f32_image(hidden_size as usize, &mut float_seed))?;
-    let mut dscale_dev =
-        DeviceMemory::from_slice(&init_f32_image(hidden_size as usize, &mut float_seed))?;
+    let inv_variance_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(graph.shape(inv_variance)?.storage_span()?, &mut float_seed),
+    )?;
+    let scale_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(graph.shape(scale)?.storage_span()?, &mut float_seed),
+    )?;
+    let mut dscale_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(graph.shape(dscale)?.storage_span()?, &mut float_seed),
+    )?;
     let _bias_gradient_init = init_f32_image(hidden_size as usize, &mut float_seed);
-    let mut dx_dev = DeviceMemory::from_slice(&init_f32_image(
-        (batch_size * seq_length * hidden_size) as usize,
-        &mut float_seed,
-    ))?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    bindings.set(x, &mut x_dev)?;
-    bindings.set(dy, &mut dy_dev)?;
-    bindings.set(inv_variance, &mut inv_variance_dev)?;
-    bindings.set(scale, &mut scale_dev)?;
+    let mut dx_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(graph.shape(dx)?.storage_span()?, &mut float_seed),
+    )?;
+    let mut workspace = common::workspace(example.cudnn.cuda_context(), compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(x, &x_dev)?;
+    bindings.set_input(dy, &dy_dev)?;
+    bindings.set_input(inv_variance, &inv_variance_dev)?;
+    bindings.set_input(scale, &scale_dev)?;
     bindings.set(dscale, &mut dscale_dev)?;
     bindings.set(dx, &mut dx_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    // SAFETY: matching bindings, buffers and workspace remain live until the helper
+    // completes the cuDNN stream, including when native execution returns an error.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
     let dx_host = dx_dev.copy_to_host_vec()?;
     let dscale_host = dscale_dev.copy_to_host_vec()?;

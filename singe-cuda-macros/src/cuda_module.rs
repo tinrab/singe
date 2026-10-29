@@ -1,11 +1,17 @@
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+    path::Path,
+};
 
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use sha2::{Digest, Sha256};
 use syn::{
-    Error as SynError, Ident, LitStr, Result as SynResult, Token, Visibility, braced, bracketed,
+    Error as SynError, Expr, Ident, LitStr, Result as SynResult, Token, Type, Visibility, braced,
+    bracketed,
     parse::{Parse, ParseStream},
+    token,
 };
 use thiserror::Error;
 use tree_sitter::{Node, Parser};
@@ -13,7 +19,12 @@ use tree_sitter::{Node, Parser};
 pub fn expand_module(input: TokenStream) -> SynResult<TokenStream> {
     let input = syn::parse2::<CudaModuleInput>(input)?;
     let metadata = extract_metadata(&input.config)?;
-    generate_module(&input.visibility, &input.module, &input.config, &metadata)
+    Ok(generate_module(
+        &input.visibility,
+        &input.module,
+        &input.config,
+        &metadata,
+    ))
 }
 
 struct CudaModuleInput {
@@ -113,6 +124,21 @@ struct CompileConfig {
 struct ExportSpec {
     source_name: Ident,
     rust_name: Option<Ident>,
+    parameters: HashMap<String, ParameterSpec>,
+    requirements: Option<Expr>,
+}
+
+struct ParameterSpec {
+    access: ParameterMode,
+    rust_type: Option<Type>,
+}
+
+#[derive(Clone, Copy)]
+enum ParameterMode {
+    Value,
+    Read,
+    Write,
+    ReadWrite,
 }
 
 #[derive(Clone)]
@@ -130,13 +156,24 @@ struct KernelMetadata {
     source_name: String,
     rust_name: Ident,
     params: Vec<KernelParam>,
+    requirements: TokenStream,
 }
 
 struct KernelParam {
     rust_name: Ident,
+    source_name: String,
     rust_type: TokenStream,
-    memory_type: Option<TokenStream>,
-    memory_arg: Option<TokenStream>,
+    typed_argument: Option<TypedArgument>,
+    layout: TokenStream,
+    context_check: Option<TokenStream>,
+    view_type: TokenStream,
+    view_binding: TokenStream,
+    raw_value: TokenStream,
+}
+
+struct TypedArgument {
+    rust_type: TokenStream,
+    value: TokenStream,
 }
 
 struct SourceKernel {
@@ -193,8 +230,6 @@ enum MacroError {
         "exports field references unknown source kernel `{kernel}`; available source kernels: {available}"
     )]
     UnknownExport { kernel: String, available: String },
-    #[error("duplicate rust export name `{0}`")]
-    DuplicateExport(String),
     #[error("no kernels were found in source")]
     MissingSourceKernels,
 }
@@ -214,13 +249,13 @@ fn extract_metadata(config: &ModuleConfig) -> SynResult<ModuleMetadata> {
     let cache_key = cache_key(&source, &config.exports, &headers, &config.nvrtc_args);
     let source_kernels = parse_source_kernels(&source)?;
     if source_kernels.is_empty() {
-        return Err(to_syn_error(MacroError::MissingSourceKernels));
+        return Err(to_syn_error(&MacroError::MissingSourceKernels));
     }
 
-    let mut source_names = HashMap::new();
+    let mut source_names = HashSet::new();
     for kernel in &source_kernels {
-        if source_names.insert(kernel.name.clone(), ()).is_some() {
-            return Err(to_syn_error(MacroError::DuplicateSourceKernel(
+        if !source_names.insert(kernel.name.clone()) {
+            return Err(to_syn_error(&MacroError::DuplicateSourceKernel(
                 kernel.name.clone(),
             )));
         }
@@ -229,22 +264,23 @@ fn extract_metadata(config: &ModuleConfig) -> SynResult<ModuleMetadata> {
     let selected_kernels = if config.exports.is_empty() {
         source_kernels
             .iter()
-            .map(|kernel| SelectedKernel {
-                kernel,
-                rust_name: None,
-            })
+            .map(|kernel| SelectedKernel { kernel, spec: None })
             .collect::<Vec<_>>()
     } else {
-        let exports = config
+        config
             .exports
             .iter()
             .map(|export| {
-                let source_name = export.source_name.to_string();
+                let source_name = export
+                    .source_name
+                    .to_string()
+                    .trim_start_matches("r#")
+                    .to_owned();
                 let source_kernel = source_kernels
                     .iter()
                     .find(|kernel| kernel.exported_name == source_name)
                     .ok_or_else(|| {
-                        to_syn_error(MacroError::UnknownExport {
+                        to_syn_error(&MacroError::UnknownExport {
                             kernel: source_name.clone(),
                             available: join_kernel_names(
                                 source_kernels
@@ -253,54 +289,71 @@ fn extract_metadata(config: &ModuleConfig) -> SynResult<ModuleMetadata> {
                             ),
                         })
                     })?;
-                Ok((source_kernel, export.rust_name.clone()))
+                Ok(SelectedKernel {
+                    kernel: source_kernel,
+                    spec: Some(export),
+                })
             })
-            .collect::<SynResult<Vec<_>>>()?;
-
-        let mut rust_names = HashMap::new();
-        for (kernel, rust_name) in &exports {
-            let rust_name = rust_name
-                .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_else(|| sanitize_identifier(&kernel.exported_name));
-            if rust_names.insert(rust_name.clone(), ()).is_some() {
-                return Err(to_syn_error(MacroError::DuplicateExport(rust_name)));
-            }
-        }
-
-        exports
-            .into_iter()
-            .map(|(kernel, rust_name)| SelectedKernel { kernel, rust_name })
-            .collect::<Vec<_>>()
+            .collect::<SynResult<Vec<_>>>()?
     };
 
     let mut kernels = Vec::new();
     for selected in selected_kernels {
         let source_kernel = selected.kernel;
+        let spec = selected.spec;
+        if let Some(spec) = spec {
+            for name in spec.parameters.keys() {
+                if !source_kernel.params.iter().any(|param| param.name == *name) {
+                    return Err(SynError::new(
+                        spec.source_name.span(),
+                        format!("unknown parameter `{name}`"),
+                    ));
+                }
+            }
+        }
         let params = source_kernel
             .params
             .iter()
-            .map(|source_param| map_param(&source_kernel.name, source_param))
+            .enumerate()
+            .map(|(index, source_param)| {
+                map_param(
+                    index,
+                    &source_kernel.name,
+                    source_param,
+                    spec.and_then(|s| s.parameters.get(&source_param.name)),
+                )
+            })
             .collect::<SynResult<Vec<_>>>()?;
 
         kernels.push(KernelMetadata {
             source_name: source_kernel.name.clone(),
-            rust_name: selected.rust_name.unwrap_or_else(|| {
-                format_ident!("{}", sanitize_identifier(&source_kernel.exported_name))
-            }),
+            rust_name: spec
+                .and_then(|spec| spec.rust_name.clone())
+                .unwrap_or_else(|| {
+                    format_ident!("{}", sanitize_identifier(&source_kernel.exported_name))
+                }),
             params,
+            requirements: spec.and_then(|s| s.requirements.as_ref()).map_or_else(
+                || quote! { LaunchRequirements::DEFAULT },
+                |expr| quote! { #expr },
+            ),
         });
     }
 
+    validate_generated_names(&kernels)?;
     Ok(ModuleMetadata { cache_key, kernels })
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "the generated module is a single quoted item tree whose shared names must stay visible"
+)]
 fn generate_module(
     visibility: &Visibility,
     module: &Ident,
     config: &ModuleConfig,
     metadata: &ModuleMetadata,
-) -> SynResult<TokenStream> {
+) -> TokenStream {
     let source = &config.source;
     let cache_key = &metadata.cache_key;
     let header_literals = config.headers.iter().map(|header| {
@@ -315,307 +368,19 @@ fn generate_module(
     });
     let nvrtc_args = config.nvrtc_args.iter();
 
-    let methods = metadata.kernels.iter().map(|kernel| {
-        let source_name = &kernel.source_name;
-        let name = &kernel.rust_name;
-        let on_name = format_ident!("{}_on", name);
-        let record_name = format_ident!("{}_record", name);
-        let node_name = format_ident!("{}_node", name);
-        let set_node_params_name = format_ident!("{}_set_node_params", name);
-        let memory_name = format_ident!("{}_with_memory", name);
-        let memory_on_name = format_ident!("{}_with_memory_on", name);
-        let memory_record_name = format_ident!("{}_with_memory_record", name);
-        let memory_node_name = format_ident!("{}_with_memory_node", name);
-        let memory_set_node_params_name = format_ident!("{}_with_memory_set_node_params", name);
-        let args = kernel
-            .params
-            .iter()
-            .map(|param| {
-                let name = &param.rust_name;
-                let ty = &param.rust_type;
-                quote! { #name: #ty }
-            })
-            .collect::<Vec<_>>();
-        let launch_args = args.clone();
-        let on_args = args.clone();
-        let node_args = args.clone();
-        let arg_names = kernel
-            .params
-            .iter()
-            .map(|param| {
-                let name = &param.rust_name;
-                quote! { params.arg(&#name); }
-            })
-            .collect::<Vec<_>>();
-        let launch_arg_names = arg_names.clone();
-        let on_arg_names = arg_names.clone();
-        let node_arg_names = arg_names.clone();
-
-        let memory_methods = if kernel
-            .params
-            .iter()
-            .all(|param| param.memory_type.is_some() && param.memory_arg.is_some())
-        {
-            let memory_args = kernel
-                .params
-                .iter()
-                .map(|param| {
-                    let name = &param.rust_name;
-                    let ty = param.memory_type.as_ref().expect("checked above");
-                    quote! { #name: #ty }
-                })
-                .collect::<Vec<_>>();
-            let memory_launch_args = memory_args.clone();
-            let memory_on_args = memory_args.clone();
-            let memory_record_args = memory_args.clone();
-            let memory_node_args = memory_args.clone();
-            let memory_arg_names = kernel
-                .params
-                .iter()
-                .map(|param| param.memory_arg.as_ref().expect("checked above"))
-                .collect::<Vec<_>>();
-            let memory_launch_arg_names = memory_arg_names.clone();
-            let memory_on_arg_names = memory_arg_names.clone();
-            let memory_node_arg_names = memory_arg_names.clone();
-
-            quote! {
-                /// Launches the kernel using `DeviceMemory` parameters for pointer arguments.
-                ///
-                /// # Safety
-                ///
-                /// The caller must ensure the kernel only accesses memory within the
-                /// provided allocations and that all referenced device memory remains
-                /// alive until the launch has finished executing.
-                pub unsafe fn #memory_name(
-                    &self,
-                    config: &LaunchConfig,
-                    #(#memory_launch_args),*
-                ) -> Result<()> {
-                    unsafe {
-                        self.#name(
-                            config,
-                            #(#memory_launch_arg_names),*
-                        )
-                    }
-                }
-
-                /// Launches the kernel on `stream` using `DeviceMemory` parameters for pointer arguments.
-                ///
-                /// # Safety
-                ///
-                /// The caller must ensure the kernel only accesses memory within the
-                /// provided allocations and that all referenced device memory remains
-                /// alive until the stream has finished executing this launch.
-                pub unsafe fn #memory_on_name(
-                    &self,
-                    config: &LaunchConfig,
-                    stream: &Stream,
-                    #(#memory_on_args),*
-                ) -> Result<()> {
-                    unsafe {
-                        self.#on_name(
-                            config,
-                            stream,
-                            #(#memory_on_arg_names),*
-                        )
-                    }
-                }
-
-                /// Records a captured kernel launch using `DeviceMemory` parameters for pointer arguments.
-                ///
-                /// # Safety
-                ///
-                /// The caller must ensure the graph execution only accesses memory within
-                /// the provided allocations and that all referenced device memory remains
-                /// alive until every captured graph execution has finished.
-                pub unsafe fn #memory_record_name(
-                    &self,
-                    scope: &StreamCaptureScope<'_>,
-                    config: &LaunchConfig,
-                    #(#memory_record_args),*
-                ) -> Result<()> {
-                    unsafe {
-                        self.#record_name(
-                            scope,
-                            config,
-                            #(#memory_arg_names),*
-                        )
-                    }
-                }
-
-                /// Adds a graph node using `DeviceMemory` parameters for pointer arguments.
-                ///
-                /// # Safety
-                ///
-                /// CUDA copies each kernel argument value during this call. For
-                /// device-memory arguments, CUDA stores only the device pointer
-                /// address. The caller must ensure the graph execution only
-                /// accesses memory within the provided allocations and that all
-                /// referenced device memory remains alive until every execution
-                /// using the node has finished.
-                pub unsafe fn #memory_node_name(
-                    &self,
-                    graph: &mut Graph,
-                    dependencies: &[GraphNode],
-                    config: &LaunchConfig,
-                    #(#memory_node_args),*
-                ) -> Result<GraphNode> {
-                    unsafe {
-                        self.#node_name(
-                            graph,
-                            dependencies,
-                            config,
-                            #(#memory_node_arg_names),*
-                        )
-                    }
-                }
-
-                /// Updates graph node parameters using `DeviceMemory` parameters for pointer arguments.
-                ///
-                /// # Safety
-                ///
-                /// CUDA copies each kernel argument value during this call. For
-                /// device-memory arguments, CUDA stores only the device pointer
-                /// address. The caller must ensure the graph execution only
-                /// accesses memory within the provided allocations and that all
-                /// referenced device memory remains alive until every execution
-                /// using the node has finished.
-                pub unsafe fn #memory_set_node_params_name(
-                    &self,
-                    executable: &mut ExecutableGraph,
-                    node: GraphNode,
-                    config: &LaunchConfig,
-                    #(#memory_node_args),*
-                ) -> Result<()> {
-                    unsafe {
-                        self.#set_node_params_name(
-                            executable,
-                            node,
-                            config,
-                            #(#memory_node_arg_names),*
-                        )
-                    }
-                }
-            }
-        } else {
-            quote! {}
-        };
-
-        quote! {
-            /// Launches the kernel with raw CUDA pointer arguments.
-            ///
-            /// # Safety
-            ///
-            /// The caller must ensure every raw pointer argument is valid for the
-            /// kernel's accesses and remains valid until the launch has finished
-            /// executing.
-            pub unsafe fn #name(
-                &self,
-                config: &LaunchConfig,
-                #(#launch_args),*
-            ) -> Result<()> {
-                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
-                let mut params = KernelParameters::new();
-                #(#launch_arg_names)*
-                function.launch(config, params)
-            }
-
-            /// Launches the kernel on `stream` with raw CUDA pointer arguments.
-            ///
-            /// # Safety
-            ///
-            /// The caller must ensure every raw pointer argument is valid for the
-            /// kernel's accesses and remains valid until `stream` has finished
-            /// executing this launch.
-            pub unsafe fn #on_name(
-                &self,
-                config: &LaunchConfig,
-                stream: &Stream,
-                #(#on_args),*
-            ) -> Result<()> {
-                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
-                let mut params = KernelParameters::new();
-                #(#on_arg_names)*
-                function.launch_on(config, params, stream)
-            }
-
-            /// Records a captured kernel launch with raw CUDA pointer arguments.
-            ///
-            /// # Safety
-            ///
-            /// The caller must ensure every raw pointer argument is valid for the
-            /// kernel's accesses and remains valid until every captured graph
-            /// execution using this launch has finished.
-            pub unsafe fn #record_name(
-                &self,
-                scope: &StreamCaptureScope<'_>,
-                config: &LaunchConfig,
-                #(#launch_args),*
-            ) -> Result<()> {
-                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
-                let mut params = KernelParameters::new();
-                #(#launch_arg_names)*
-                scope.record(unsafe { function.launch_operation(config, &mut params) })
-            }
-
-            /// Adds a graph node with raw CUDA pointer arguments.
-            ///
-            /// # Safety
-            ///
-            /// CUDA copies each kernel argument value during this call. For raw
-            /// pointer arguments, CUDA stores only the pointer address. The
-            /// caller must ensure every raw pointer argument is valid for the
-            /// kernel's accesses and remains valid until every graph execution
-            /// using the node has finished.
-            pub unsafe fn #node_name(
-                &self,
-                graph: &mut Graph,
-                dependencies: &[GraphNode],
-                config: &LaunchConfig,
-                #(#node_args),*
-            ) -> Result<GraphNode> {
-                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
-                let mut params = KernelParameters::new();
-                #(#node_arg_names)*
-                unsafe { function.add_to_graph(graph, dependencies, config, &mut params) }
-            }
-
-            /// Updates graph node parameters with raw CUDA pointer arguments.
-            ///
-            /// # Safety
-            ///
-            /// CUDA copies each kernel argument value during this call. For raw
-            /// pointer arguments, CUDA stores only the pointer address. The
-            /// caller must ensure every raw pointer argument is valid for the
-            /// kernel's accesses and remains valid until every graph execution
-            /// using the node has finished.
-            pub unsafe fn #set_node_params_name(
-                &self,
-                executable: &mut ExecutableGraph,
-                node: GraphNode,
-                config: &LaunchConfig,
-                #(#node_args),*
-            ) -> Result<()> {
-                let function = self.module.module.function(self.kernel_symbol(#source_name))?;
-                let mut params = KernelParameters::new();
-                #(#node_arg_names)*
-                unsafe { function.set_graph_node_params(executable, node, config, &mut params) }
-            }
-
-            #memory_methods
-        }
-    });
+    let signatures = metadata.kernels.iter().map(generate_signature);
+    let methods = metadata.kernels.iter().map(generate_methods);
 
     let kernel_names = metadata.kernels.iter().map(|kernel| &kernel.source_name);
 
-    Ok(quote! {
+    quote! {
         #visibility mod #module {
-            #[allow(unused_extern_crates, clippy::useless_attribute)]
+            #[expect(unused_extern_crates, clippy::useless_attribute, reason = "linked for side effects; required alongside unused_extern_crates")]
             extern crate singe_cuda as _singe_cuda;
 
             use std::{
-                collections::HashMap,
-                sync::{Arc, Mutex, OnceLock},
+                collections::{HashMap, HashSet},
+                sync::{Arc, Mutex, OnceLock, Weak},
             };
 
             use _singe_cuda::{
@@ -623,10 +388,11 @@ fn generate_module(
                 context::Context,
                 error::Result,
                 graph::{ExecutableGraph, Graph, GraphNode},
-                memory::DeviceMemory,
-                module::{KernelParameters, LaunchConfig, Module as CudaModule},
+                kernel::launch::{KernelSignature, LaunchRequirements, ParameterAccess, ParameterLayout, PreparedLaunch},
+                module::{KernelParameters, LaunchConfig, LaunchGeometry, Module as CudaModule},
                 nvrtc::{CompileOptions, Header, OutputKind, Program, supported_architectures},
                 stream::{Stream, StreamCaptureScope},
+                view::{DeviceInput, DeviceSlice, DeviceSliceMut, DeviceOutput, DeviceView, DeviceViewMut, DeviceOutputView},
             };
 
             const MODULE_CACHE_KEY_SUFFIX: &str = #cache_key;
@@ -636,7 +402,7 @@ fn generate_module(
             }
 
             type ModuleCacheKey = (usize, &'static str);
-            type ModuleCacheMap = HashMap<ModuleCacheKey, Arc<CompiledModule>>;
+            type ModuleCacheMap = HashMap<ModuleCacheKey, Weak<CompiledModule>>;
 
             static MODULE_CACHE: OnceLock<Mutex<ModuleCacheMap>> = OnceLock::new();
 
@@ -651,13 +417,13 @@ fn generate_module(
             }
 
             fn compile_module(
-                ctx: &Arc<Context>,
+                context: &Arc<Context>,
                 source: &str,
                 headers: &[Header<'_>],
                 nvrtc_args: &[&str],
                 kernel_names: &[&'static str],
             ) -> Result<CompiledModule> {
-                let properties = ctx.device().properties()?;
+                let properties = context.device().properties()?;
                 let (architecture, output_kind) =
                     supported_gpu_architecture(properties.major, properties.minor);
                 let program = Program::from_source(source)
@@ -683,7 +449,7 @@ fn generate_module(
                     symbols.insert(*kernel_name, program.lowered_name(name_expression)?);
                 }
 
-                let module = ctx.load_nvrtc_module(&program, output_kind)?;
+                let module = context.load_nvrtc_module(&program, output_kind)?;
                 Ok(CompiledModule { module, symbols })
             }
 
@@ -730,6 +496,10 @@ fn generate_module(
                     (10, 1, true) => Some(GpuArchitecture::Sm101),
                     (10, 3, false) => Some(GpuArchitecture::Compute103),
                     (10, 3, true) => Some(GpuArchitecture::Sm103),
+                    (10, 7, false) => Some(GpuArchitecture::Compute107),
+                    (10, 7, true) => Some(GpuArchitecture::Sm107),
+                    (11, 0, false) => Some(GpuArchitecture::Compute110),
+                    (11, 0, true) => Some(GpuArchitecture::Sm110),
                     (12, 0, false) => Some(GpuArchitecture::Compute120),
                     (12, 0, true) => Some(GpuArchitecture::Sm120),
                     (12, 1, false) => Some(GpuArchitecture::Compute121),
@@ -737,6 +507,8 @@ fn generate_module(
                     _ => None,
                 }
             }
+
+            #(#signatures)*
 
             #[derive(Debug, Clone)]
             pub struct Module {
@@ -746,29 +518,34 @@ fn generate_module(
             impl Module {
                 pub const SOURCE: &'static str = #source;
 
-                pub fn create(ctx: &Arc<Context>) -> Result<Self> {
+                pub fn create(context: &Arc<Context>) -> Result<Self> {
                     let headers = [#(#header_literals),*];
                     let nvrtc_args = [#(#nvrtc_args),*];
                     let kernel_names = [#(#kernel_names),*];
-                    let context_key = unsafe { ctx.as_raw() as usize };
+                    // SAFETY: the raw context handle is only read to key the per-context module cache.
+                    let context_key = unsafe { context.as_raw().addr() };
                     let cache_key = (context_key, module_cache_key_suffix());
                     let cache = module_cache();
 
-                    if let Some(module) = cache.lock().expect("cuda module cache poisoned").get(&cache_key) {
-                        return Ok(Self { module: Arc::clone(module) });
+                    if let Some(module) = cache.lock().expect("cuda module cache poisoned").get(&cache_key).and_then(Weak::upgrade) {
+                        return Ok(Self { module });
                     }
 
                     let module = Arc::new(compile_module(
-                        ctx,
+                        context,
                         Self::SOURCE,
                         &headers,
                         &nvrtc_args,
                         &kernel_names,
                     )?);
                     let mut cache = cache.lock().expect("cuda module cache poisoned");
-                    let entry = cache.entry(cache_key).or_insert_with(|| Arc::clone(&module));
-
-                    let module = Arc::clone(entry);
+                    let module = match cache.get(&cache_key).and_then(Weak::upgrade) {
+                        Some(cached) => cached,
+                        None => {
+                            cache.insert(cache_key, Arc::downgrade(&module));
+                            module
+                        },
+                    };
                     Ok(Self { module })
                 }
 
@@ -787,78 +564,470 @@ fn generate_module(
                 #(#methods)*
             }
         }
-    })
+    }
 }
 
-fn map_param(kernel_name: &str, source_param: &SourceParam) -> SynResult<KernelParam> {
-    let rust_type = match &source_param.kind {
-        SourceParamKind::Pointer { levels, element } => rust_pointer_type(levels, *element),
-        SourceParamKind::Scalar(source_scalar) => match *source_scalar {
-            Some(scalar) => rust_scalar_type(scalar),
-            None => {
-                return Err(to_syn_error(MacroError::UnsupportedParameter {
-                    kernel: kernel_name.to_string(),
-                    detail: source_param.declaration.clone(),
-                }));
+fn map_param(
+    index: usize,
+    kernel_name: &str,
+    source_param: &SourceParam,
+    spec: Option<&ParameterSpec>,
+) -> SynResult<KernelParam> {
+    let name = Ident::new(&format!("__singe_arg_{index}"), Span::mixed_site());
+    match &source_param.kind {
+        SourceParamKind::Scalar(scalar) => {
+            if spec.is_some_and(|spec| !matches!(spec.access, ParameterMode::Value)) {
+                return Err(SynError::new(
+                    name.span(),
+                    "by-value parameters require `value(Type)`",
+                ));
             }
-        },
-    };
-
-    Ok(KernelParam {
-        rust_name: format_ident!("{}", sanitize_identifier(&source_param.name)),
-        rust_type,
-        memory_type: memory_param_type(&source_param.kind),
-        memory_arg: memory_arg(&source_param.name, &source_param.kind),
-    })
+            let ty = spec
+                .and_then(|spec| spec.rust_type.as_ref())
+                .map(|ty| quote! { #ty })
+                .or_else(|| scalar.map(rust_scalar_type))
+                .ok_or_else(|| {
+                    to_syn_error(&MacroError::UnsupportedParameter {
+                        kernel: kernel_name.to_string(),
+                        detail: format!(
+                            "{}; supply `value(RustType)` in `parameters`",
+                            source_param.declaration
+                        ),
+                    })
+                })?;
+            Ok(KernelParam {
+                rust_name: name.clone(),
+                source_name: source_param.name.clone(),
+                rust_type: ty.clone(),
+                typed_argument: Some(TypedArgument {
+                    rust_type: ty.clone(),
+                    value: quote! { #name },
+                }),
+                layout: quote! { ParameterLayout::value::<#ty>() },
+                context_check: None,
+                view_type: ty,
+                view_binding: quote! { #name },
+                raw_value: quote! { #name },
+            })
+        }
+        SourceParamKind::Pointer { levels, element } => {
+            map_pointer_param(&name, source_param, levels, *element, spec)
+        }
+    }
 }
 
-fn rust_pointer_type(levels: &[bool], element: Option<RustScalar>) -> TokenStream {
-    let mut ty = element
-        .map(rust_scalar_type)
-        .unwrap_or_else(|| quote! { () });
+fn map_pointer_param(
+    name: &Ident,
+    source_param: &SourceParam,
+    levels: &[bool],
+    element: Option<RustScalar>,
+    spec: Option<&ParameterSpec>,
+) -> SynResult<KernelParam> {
+    if spec.is_some_and(|spec| matches!(spec.access, ParameterMode::Value)) {
+        return Err(SynError::new(
+            name.span(),
+            "pointer parameters require `read`, `write` or `read_write`",
+        ));
+    }
+    if spec.is_some() && levels.len() != 1 {
+        return Err(SynError::new(
+            name.span(),
+            "access annotations require a single-level pointer",
+        ));
+    }
+    let element_type = spec
+        .and_then(|spec| spec.rust_type.as_ref())
+        .map(|ty| quote! { #ty })
+        .or_else(|| element.map(rust_scalar_type));
+    if spec.is_some() && element_type.is_none() {
+        return Err(SynError::new(
+            name.span(),
+            "access annotations on untyped pointers require an explicit Rust element type",
+        ));
+    }
+    let mut raw = element_type.clone().unwrap_or_else(|| quote! { () });
     for mutable in levels {
-        ty = if *mutable {
-            quote! { *mut #ty }
+        raw = if *mutable {
+            quote! { *mut #raw }
         } else {
-            quote! { *const #ty }
+            quote! { *const #raw }
         };
     }
-    ty
+    let mut param = KernelParam {
+        rust_name: name.clone(),
+        source_name: source_param.name.clone(),
+        rust_type: raw.clone(),
+        typed_argument: None,
+        layout: quote! { ParameterLayout::pointer(ParameterAccess::OpaquePointer) },
+        context_check: None,
+        view_type: raw.clone(),
+        view_binding: quote! { #name },
+        raw_value: quote! { #name },
+    };
+    if let Some(ty) = element_type.filter(|_| levels.len() == 1) {
+        let mode = spec.map_or(
+            if levels[0] {
+                ParameterMode::ReadWrite
+            } else {
+                ParameterMode::Read
+            },
+            |spec| spec.access,
+        );
+        if !levels[0] && !matches!(mode, ParameterMode::Read) {
+            return Err(SynError::new(
+                name.span(),
+                "a const pointer cannot declare writable access",
+            ));
+        }
+        let mapping = pointer_access_tokens(name, &ty, mode);
+        param.view_type = mapping.view;
+        param.typed_argument = Some(mapping.argument);
+        let access = mapping.access;
+        param.layout = quote! { ParameterLayout::pointer(#access) };
+        param.context_check = Some(quote! {
+            if #name.context() != context {
+                return Err(_singe_cuda::error::Error::MemoryContextMismatch);
+            }
+        });
+        if matches!(mode, ParameterMode::Read) {
+            param.raw_value = quote! { #name.as_device_ptr() as #raw };
+        } else {
+            param.view_binding = quote! { mut #name };
+            param.raw_value = quote! { #name.as_mut_ptr() };
+        }
+    }
+    Ok(param)
 }
 
-fn memory_param_type(kind: &SourceParamKind) -> Option<TokenStream> {
-    match kind {
-        SourceParamKind::Scalar(scalar) => scalar.map(rust_scalar_type),
-        SourceParamKind::Pointer {
-            levels,
-            element: Some(element),
-        } if levels.len() == 1 => {
-            let ty = rust_scalar_type(*element);
-            if levels[0] {
-                Some(quote! { &mut DeviceMemory<#ty> })
-            } else {
-                Some(quote! { &DeviceMemory<#ty> })
-            }
+struct PointerAccessTokens {
+    view: TokenStream,
+    argument: TypedArgument,
+    access: TokenStream,
+}
+
+fn pointer_access_tokens(
+    name: &Ident,
+    ty: &TokenStream,
+    mode: ParameterMode,
+) -> PointerAccessTokens {
+    let (view, rust_type, value, access) = match mode {
+        ParameterMode::Read => (
+            quote! { DeviceView<'a, #ty> },
+            quote! { &(impl DeviceSlice<#ty> + ?Sized) },
+            quote! { DeviceView::from_buffer(#name) },
+            quote! { ParameterAccess::Read },
+        ),
+        ParameterMode::Write => (
+            quote! { DeviceOutputView<'a, #ty> },
+            quote! { &mut (impl DeviceOutput<#ty> + ?Sized) },
+            quote! { DeviceOutputView::from_output(#name) },
+            quote! { ParameterAccess::Write },
+        ),
+        ParameterMode::ReadWrite => (
+            quote! { DeviceViewMut<'a, #ty> },
+            quote! { &mut (impl DeviceSliceMut<#ty> + ?Sized) },
+            quote! { DeviceViewMut::from_buffer(#name) },
+            quote! { ParameterAccess::ReadWrite },
+        ),
+        ParameterMode::Value => {
+            unreachable!("pointer value mapping was rejected before token generation")
         }
-        SourceParamKind::Pointer { .. } => None,
+    };
+    PointerAccessTokens {
+        view,
+        argument: TypedArgument { rust_type, value },
+        access,
     }
 }
 
-fn memory_arg(name: &str, kind: &SourceParamKind) -> Option<TokenStream> {
-    let name = format_ident!("{}", sanitize_identifier(name));
-    match kind {
-        SourceParamKind::Scalar(_) => Some(quote! { #name }),
-        SourceParamKind::Pointer {
-            levels,
-            element: Some(_),
-        } if levels.len() == 1 => {
-            if levels[0] {
-                Some(quote! { #name.as_mut_ptr() })
-            } else {
-                Some(quote! { #name.as_ptr() })
+fn signature_name(name: &Ident) -> Ident {
+    let span = name.span();
+    let name = name
+        .to_string()
+        .trim_start_matches("r#")
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            chars
+                .next()
+                .map(|first| first.to_uppercase().to_string() + chars.as_str())
+                .unwrap_or_default()
+        })
+        .collect::<String>();
+    format_ident!("{}Signature", name, span = span)
+}
+
+fn validate_generated_names(kernels: &[KernelMetadata]) -> SynResult<()> {
+    fn register(names: &mut HashMap<String, Span>, name: &Ident) -> SynResult<()> {
+        let key = name.to_string().trim_start_matches("r#").to_owned();
+        if let Some(previous) = names.insert(key.clone(), name.span()) {
+            let mut error = SynError::new(
+                name.span(),
+                format!(
+                    "generated name `{key}` conflicts with another item; use distinct export aliases"
+                ),
+            );
+            error.combine(SynError::new(
+                previous,
+                "conflicting item is generated here",
+            ));
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    let mut types = HashMap::new();
+    let mut methods = HashMap::new();
+    for name in ["create", "raw", "kernel_symbol", "SOURCE"] {
+        register(&mut methods, &Ident::new(name, Span::call_site()))?;
+    }
+    for kernel in kernels {
+        register(&mut types, &signature_name(&kernel.rust_name))?;
+        register(&mut methods, &format_ident!("prepare_{}", kernel.rust_name))?;
+        let has_typed_arguments = kernel.params.iter().all(|p| p.typed_argument.is_some());
+        for suffix in ["", "_on", "_record", "_node", "_set_node_params"] {
+            register(
+                &mut methods,
+                &format_ident!("{}{}_raw", kernel.rust_name, suffix),
+            )?;
+            if has_typed_arguments {
+                let name = if suffix.is_empty() {
+                    kernel.rust_name.clone()
+                } else {
+                    format_ident!("{}{}", kernel.rust_name, suffix)
+                };
+                register(&mut methods, &name)?;
             }
         }
-        SourceParamKind::Pointer { .. } => None,
+    }
+    Ok(())
+}
+
+fn generate_signature(kernel: &KernelMetadata) -> TokenStream {
+    let signature = signature_name(&kernel.rust_name);
+    let types = kernel.params.iter().map(|p| &p.rust_type);
+    let names = kernel
+        .params
+        .iter()
+        .map(|p| &p.rust_name)
+        .collect::<Vec<_>>();
+    let layouts = kernel.params.iter().map(|p| &p.layout);
+    let view_types = kernel.params.iter().map(|p| &p.view_type);
+    let bindings = kernel.params.iter().map(|p| &p.view_binding);
+    let raw_values = kernel.params.iter().map(|p| &p.raw_value);
+    let checks = kernel
+        .params
+        .iter()
+        .filter_map(|p| p.context_check.as_ref());
+    let requirements = &kernel.requirements;
+    quote! {
+        /// ABI and launch requirements extracted from this module's CUDA declaration.
+        #[derive(Debug)]
+        pub struct #signature;
+
+        // SAFETY: argument order and representations come from the CUDA declaration and explicit type mappings.
+        // Semantic access annotations are obligations of the unsafe launch caller.
+        unsafe impl KernelSignature for #signature {
+            type Arguments<'a> = (#(#view_types,)*);
+            type RawArguments = (#(#types,)*);
+            const PARAMETERS: &'static [ParameterLayout] = &[#(#layouts),*];
+            const REQUIREMENTS: LaunchRequirements = #requirements;
+            fn raw_arguments(arguments: Self::Arguments<'_>, context: &Arc<Context>) -> Result<Self::RawArguments> {
+                let (#(#bindings,)*) = arguments;
+                #(#checks)*
+                Ok((#(#raw_values,)*))
+            }
+            fn encode<R>(arguments: Self::RawArguments, f: impl FnOnce(KernelParameters<'_>) -> R) -> R {
+                let (#(#names,)*) = arguments;
+                let mut params = KernelParameters::new();
+                #(params.arg(&#names);)*
+                f(params)
+            }
+        }
+    }
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "raw and typed entry points share one quoted launch-family template"
+)]
+fn generate_methods(kernel: &KernelMetadata) -> TokenStream {
+    let signature = signature_name(&kernel.rust_name);
+    let prepare_name = format_ident!("prepare_{}", kernel.rust_name);
+    let source_name = &kernel.source_name;
+    let names = kernel
+        .params
+        .iter()
+        .map(|p| &p.rust_name)
+        .collect::<Vec<_>>();
+    let typed_arguments = kernel
+        .params
+        .iter()
+        .map(|p| p.typed_argument.as_ref())
+        .collect::<Option<Vec<_>>>();
+    let parameter_description = format!(
+        "CUDA parameters in declaration order: {}.",
+        kernel
+            .params
+            .iter()
+            .map(|p| p.source_name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    let mut methods = Vec::new();
+    for (suffix, extra_args, dispatch, raw_dispatch) in [
+        (
+            "",
+            quote! {},
+            quote! { prepared.launch(arguments) },
+            quote! { prepared.launch_raw(arguments) },
+        ),
+        (
+            "_on",
+            quote! { stream: &Stream, },
+            quote! { prepared.launch_on(arguments, stream) },
+            quote! { prepared.launch_on_raw(arguments, stream) },
+        ),
+        (
+            "_record",
+            quote! { scope: &StreamCaptureScope<'_>, },
+            quote! { prepared.record(arguments, scope) },
+            quote! { prepared.record_raw(arguments, scope) },
+        ),
+        (
+            "_node",
+            quote! { graph: &mut Graph, dependencies: &[GraphNode], },
+            quote! { prepared.add_to_graph(arguments, graph, dependencies) },
+            quote! { prepared.add_to_graph_raw(arguments, graph, dependencies) },
+        ),
+        (
+            "_set_node_params",
+            quote! { executable: &mut ExecutableGraph, node: &GraphNode, },
+            quote! { function.set_typed_graph_node_params::<#signature>(executable, node, geometry, arguments) },
+            quote! { function.set_typed_graph_node_params_raw::<#signature>(executable, node, geometry, arguments) },
+        ),
+    ] {
+        let raw_name = format_ident!("{}{}_raw", kernel.rust_name, suffix);
+        let typed_name = if suffix.is_empty() {
+            kernel.rust_name.clone()
+        } else {
+            format_ident!("{}{}", kernel.rust_name, suffix)
+        };
+        let raw_args = kernel.params.iter().map(|p| {
+            let name = &p.rust_name;
+            let ty = &p.rust_type;
+            quote! { #name: #ty }
+        });
+        let description = match suffix {
+            "" => format!(
+                "Launches `{}` on its context's default stream.",
+                kernel.rust_name
+            ),
+            "_on" => format!("Launches `{}` on `stream`.", kernel.rust_name),
+            "_record" => format!(
+                "Records `{}` in the active capture and retains its code.",
+                kernel.rust_name
+            ),
+            "_node" => format!(
+                "Adds a `{}` kernel node and retains its code.",
+                kernel.rust_name
+            ),
+            "_set_node_params" => format!(
+                "Updates a `{}` executable node and retains its code.",
+                kernel.rust_name
+            ),
+            _ => unreachable!("entry points use a fixed suffix list"),
+        };
+        let is_update = suffix == "_set_node_params";
+        let attribute_safety = if is_update {
+            quote! { /// Existing executable launch attributes must satisfy this kernel's requirements.
+            }
+        } else {
+            quote! {}
+        };
+        let setup = if is_update {
+            quote! { let function = self.raw().function(self.kernel_symbol(#source_name))?; }
+        } else {
+            quote! { let prepared = self.#prepare_name(config.clone())?; }
+        };
+        let configuration = if is_update {
+            quote! { geometry: &LaunchGeometry, }
+        } else {
+            quote! { config: &LaunchConfig, }
+        };
+        let code_lifetime = if matches!(suffix, "_record" | "_node" | "_set_node_params") {
+            quote! { /// This operation retains its code owner; keep the graph or executable alive until queued executions complete.
+            }
+        } else {
+            quote! { /// Keep this module or another code owner alive until execution completes.
+            }
+        };
+        let output = if suffix == "_node" {
+            quote! { GraphNode }
+        } else {
+            quote! { () }
+        };
+        let (leading, trailing) = if matches!(suffix, "_record" | "_node" | "_set_node_params") {
+            (quote! { #extra_args #configuration }, quote! {})
+        } else {
+            (configuration, extra_args.clone())
+        };
+        methods.push(quote! {
+            #[doc = #description]
+            #[doc = #parameter_description]
+            ///
+            /// # Safety
+            /// Values and pointers must satisfy the CUDA kernel's bounds, initialization and aliasing requirements.
+            /// Keep storage alive and order conflicting accesses until execution completes, including every graph replay.
+            #code_lifetime
+            #attribute_safety
+            /// Submission does not establish output initialization or completion.
+            pub unsafe fn #raw_name(&self, #leading #trailing #(#raw_args),*) -> Result<#output> {
+                #setup
+                let arguments = (#(#names,)*);
+                // SAFETY: the caller upholds this function's safety contract.
+                unsafe { #raw_dispatch }
+            }
+        });
+        if let Some(typed_arguments) = &typed_arguments {
+            let view_args = kernel
+                .params
+                .iter()
+                .zip(typed_arguments)
+                .map(|(p, argument)| {
+                    let name = &p.rust_name;
+                    let ty = &argument.rust_type;
+                    quote! { #name: #ty }
+                });
+            let values = typed_arguments.iter().map(|argument| &argument.value);
+            methods.push(quote! {
+                #[doc = #description]
+                #[doc = #parameter_description]
+                ///
+                /// # Safety
+                /// Values and views must satisfy the CUDA kernel's bounds and semantic requirements.
+                /// Keep storage alive and preserve exclusive writable access until execution completes, including every graph replay.
+                #code_lifetime
+                #attribute_safety
+                /// Writable output views do not certify initialization coverage or completion.
+                pub unsafe fn #typed_name(&self, #leading #trailing #(#view_args),*) -> Result<#output> {
+                    #setup
+                    let arguments = (#(#values,)*);
+                    // SAFETY: the caller upholds this function's safety contract.
+                    unsafe { #dispatch }
+                }
+            });
+        }
+    }
+    quote! {
+        /// Prepares this kernel's signature and execution configuration in the loaded context.
+        pub fn #prepare_name(&self, config: LaunchConfig) -> Result<PreparedLaunch<#signature>> {
+            let function = self.raw().function(self.kernel_symbol(#source_name))?;
+            // SAFETY: this function and signature originate from the same compiled CUDA declaration.
+            unsafe { PreparedLaunch::create(&function, config) }
+        }
+        #(#methods)*
     }
 }
 
@@ -885,7 +1054,7 @@ fn rust_scalar_type(scalar: RustScalar) -> TokenStream {
 fn validate_header_name(include_name: &str) -> SynResult<()> {
     let path = Path::new(include_name);
     if include_name.is_empty() || path.is_absolute() || include_name.contains("..") {
-        return Err(to_syn_error(MacroError::InvalidHeaderName));
+        return Err(to_syn_error(&MacroError::InvalidHeaderName));
     }
     Ok(())
 }
@@ -941,9 +1110,44 @@ fn parse_export_specs(input: ParseStream) -> SynResult<Vec<ExportSpec>> {
         } else {
             None
         };
+        let mut parameters = HashMap::new();
+        let mut requirements = None;
+        if content.peek(token::Brace) {
+            let body;
+            braced!(body in content);
+            while !body.is_empty() {
+                let key = body.parse::<Ident>()?;
+                body.parse::<Token![:]>()?;
+                match key.to_string().as_str() {
+                    "requirements" => {
+                        if requirements.is_some() {
+                            return Err(SynError::new(
+                                key.span(),
+                                "duplicate `requirements` field",
+                            ));
+                        }
+                        requirements = Some(body.parse::<Expr>()?);
+                    }
+                    "parameters" => {
+                        parse_parameter_specs(&body, &mut parameters)?;
+                    }
+                    _ => {
+                        return Err(SynError::new(
+                            key.span(),
+                            "expected `requirements` or `parameters`",
+                        ));
+                    }
+                }
+                if !body.is_empty() {
+                    body.parse::<Token![,]>()?;
+                }
+            }
+        }
         exports.push(ExportSpec {
             source_name,
             rust_name,
+            parameters,
+            requirements,
         });
         if content.peek(Token![,]) {
             content.parse::<Token![,]>()?;
@@ -951,6 +1155,61 @@ fn parse_export_specs(input: ParseStream) -> SynResult<Vec<ExportSpec>> {
     }
 
     Ok(exports)
+}
+
+fn parse_parameter_specs(
+    input: ParseStream,
+    parameters: &mut HashMap<String, ParameterSpec>,
+) -> SynResult<()> {
+    let args;
+    braced!(args in input);
+    while !args.is_empty() {
+        let name = args.parse::<Ident>()?;
+        args.parse::<Token![:]>()?;
+        let mode = args.parse::<Ident>()?;
+        let access = match mode.to_string().as_str() {
+            "value" => ParameterMode::Value,
+            "read" => ParameterMode::Read,
+            "write" => ParameterMode::Write,
+            "read_write" => ParameterMode::ReadWrite,
+            _ => {
+                return Err(SynError::new(
+                    mode.span(),
+                    "expected `value`, `read`, `write` or `read_write`",
+                ));
+            }
+        };
+        let rust_type = if args.peek(token::Paren) {
+            let ty;
+            syn::parenthesized!(ty in args);
+            let parsed = ty.parse::<Type>()?;
+            if !ty.is_empty() {
+                return Err(ty.error("expected a single Rust type"));
+            }
+            Some(parsed)
+        } else {
+            None
+        };
+        if matches!(access, ParameterMode::Value) && rust_type.is_none() {
+            return Err(SynError::new(
+                mode.span(),
+                "`value` requires an explicit Rust type",
+            ));
+        }
+        if parameters
+            .insert(
+                name.to_string().trim_start_matches("r#").to_owned(),
+                ParameterSpec { access, rust_type },
+            )
+            .is_some()
+        {
+            return Err(SynError::new(name.span(), "duplicate parameter mapping"));
+        }
+        if !args.is_empty() {
+            args.parse::<Token![,]>()?;
+        }
+    }
+    Ok(())
 }
 
 fn parse_header_specs(input: ParseStream) -> SynResult<Vec<HeaderSpec>> {
@@ -1025,10 +1284,10 @@ fn parse_source_kernels(source: &str) -> SynResult<Vec<SourceKernel>> {
     let language = tree_sitter_c::LANGUAGE;
     parser
         .set_language(&language.into())
-        .map_err(|err| to_syn_error(MacroError::ParseSource(err.to_string())))?;
+        .map_err(|error| to_syn_error(&MacroError::ParseSource(error.to_string())))?;
     let tree = parser
         .parse(source, None)
-        .ok_or_else(|| to_syn_error(MacroError::ParseSource("parser returned no tree".into())))?;
+        .ok_or_else(|| to_syn_error(&MacroError::ParseSource("parser returned no tree".into())))?;
 
     let aliases = collect_type_aliases(source, tree.root_node());
     let mut kernels = Vec::new();
@@ -1049,7 +1308,7 @@ fn collect_source_kernels(
     }
 
     for index in 0..node.child_count() {
-        if let Some(child) = node_child(node, index) {
+        if let Some(child) = node.child(index) {
             collect_source_kernels(source, child, aliases, kernels);
         }
     }
@@ -1083,7 +1342,7 @@ fn parse_source_kernel(
     })
 }
 
-fn function_declarator<'a>(node: Node<'a>) -> Option<Node<'a>> {
+fn function_declarator(node: Node<'_>) -> Option<Node<'_>> {
     node.child_by_field_name("declarator")
         .and_then(|declarator| find_descendant_kind(declarator, "function_declarator"))
 }
@@ -1095,7 +1354,7 @@ fn parse_source_parameters(
 ) -> Vec<SourceParam> {
     let mut params = Vec::new();
     for index in 0..parameters.child_count() {
-        let Some(child) = node_child(parameters, index) else {
+        let Some(child) = parameters.child(index) else {
             continue;
         };
         if child.kind() != "parameter_declaration" {
@@ -1249,6 +1508,10 @@ fn resolve_scalar_tokens(
         return Some(RustScalar::I8);
     }
 
+    resolve_integer_tokens(tokens)
+}
+
+fn resolve_integer_tokens(tokens: &[String]) -> Option<RustScalar> {
     let unsigned = tokens.iter().any(|token| token == "unsigned");
     let signed = tokens.iter().any(|token| token == "signed");
     let long_count = tokens.iter().filter(|token| *token == "long").count();
@@ -1300,7 +1563,7 @@ fn collect_typedef_aliases(
     }
 
     for index in 0..node.child_count() {
-        if let Some(child) = node_child(node, index) {
+        if let Some(child) = node.child(index) {
             collect_typedef_aliases(source, child, aliases);
         }
     }
@@ -1313,7 +1576,7 @@ fn collect_typedef_alias(source: &str, node: Node<'_>, aliases: &mut HashMap<Str
     let base = node_text(source, type_node).trim();
     let scalar = source_scalar_type(base, "", aliases);
     for index in 0..node.child_count() {
-        let Some(child) = node_child(node, index) else {
+        let Some(child) = node.child(index) else {
             continue;
         };
         if child.kind() == "type_identifier"
@@ -1368,7 +1631,7 @@ fn push_type_token(tokens: &mut Vec<String>, current: &mut String, name: &str) {
         return;
     }
     if current != name && !is_ignored_type_token(current) {
-        tokens.push(std::mem::take(current));
+        tokens.push(mem::take(current));
     } else {
         current.clear();
     }
@@ -1398,7 +1661,7 @@ fn find_descendant_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
         return Some(node);
     }
     for index in 0..node.child_count() {
-        if let Some(child) = node_child(node, index)
+        if let Some(child) = node.child(index)
             && let Some(found) = find_descendant_kind(child, kind)
         {
             return Some(found);
@@ -1407,7 +1670,7 @@ fn find_descendant_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     None
 }
 
-fn declarator_name<'a>(node: Node<'a>) -> Option<Node<'a>> {
+fn declarator_name(node: Node<'_>) -> Option<Node<'_>> {
     if matches!(node.kind(), "identifier" | "field_identifier") {
         return Some(node);
     }
@@ -1419,7 +1682,7 @@ fn declarator_name<'a>(node: Node<'a>) -> Option<Node<'a>> {
 
     let mut last = None;
     for index in 0..node.child_count() {
-        if let Some(child) = node_child(node, index)
+        if let Some(child) = node.child(index)
             && child.is_named()
             && let Some(name) = declarator_name(child)
         {
@@ -1434,7 +1697,7 @@ fn declarator_has_kind(node: Node<'_>, kind: &str) -> bool {
         return true;
     }
     for index in 0..node.child_count() {
-        if let Some(child) = node_child(node, index)
+        if let Some(child) = node.child(index)
             && declarator_has_kind(child, kind)
         {
             return true;
@@ -1472,15 +1735,9 @@ fn node_text<'a>(source: &'a str, node: Node<'_>) -> &'a str {
     &source[node.start_byte()..node.end_byte()]
 }
 
-fn node_child<'a>(node: Node<'a>, index: usize) -> Option<Node<'a>> {
-    u32::try_from(index)
-        .ok()
-        .and_then(|index| node.child(index))
-}
-
 struct SelectedKernel<'a> {
     kernel: &'a SourceKernel,
-    rust_name: Option<Ident>,
+    spec: Option<&'a ExportSpec>,
 }
 
 fn sanitize_identifier(name: &str) -> String {
@@ -1545,13 +1802,44 @@ fn is_rust_keyword(value: &str) -> bool {
     )
 }
 
-fn to_syn_error(error: MacroError) -> SynError {
+fn to_syn_error(error: &MacroError) -> SynError {
     SynError::new(Span::call_site(), error.to_string())
 }
 
 #[cfg(test)]
 mod tests {
+    use syn::parse::Parser as _;
+
     use super::*;
+
+    #[test]
+    fn test_export_parameter_blocks_accumulate_mappings() {
+        let exports = parse_export_specs
+            .parse2(quote! {{
+                scale {
+                    parameters: { input: read(f32) },
+                    parameters: { output: write(f32) },
+                }
+            }})
+            .unwrap();
+        let parameters = &exports[0].parameters;
+        assert_eq!(parameters.len(), 2);
+        assert!(matches!(parameters["input"].access, ParameterMode::Read));
+        assert!(matches!(parameters["output"].access, ParameterMode::Write));
+    }
+
+    #[test]
+    fn test_export_parameter_blocks_reject_duplicate_mappings() {
+        let Err(error) = parse_export_specs.parse2(quote! {{
+            scale {
+                parameters: { input: read(f32) },
+                parameters: { input: write(f32) },
+            }
+        }}) else {
+            panic!("duplicate parameter mapping was accepted");
+        };
+        assert_eq!(error.to_string(), "duplicate parameter mapping");
+    }
 
     #[test]
     fn test_extract_kernel_parameters() {

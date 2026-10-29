@@ -1,7 +1,34 @@
-use super::*;
+use std::sync::Arc;
 
-#[cfg(feature = "dtype-f32")]
-pub fn fused_neighborhood_attention_f32(
+#[cfg(feature = "dtype_bf16")]
+use cutile::half::bf16;
+#[cfg(feature = "dtype_f16")]
+use cutile::half::f16;
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
+
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+use crate::cuda::cutile::attention::FusedNeighborhoodAttention;
+#[cfg(feature = "dtype_f32")]
+use crate::cuda::cutile::attention::{
+    CompressedSparseAttentionLightningIndexer, CompressedSparseAttentionSharedMqa,
+    CompressedSparseAttentionTopkSelector, HeavilyCompressedAttention,
+    HeavilyCompressedAttentionCompress, MiniMaxSparseAttentionBlockMax,
+    MiniMaxSparseAttentionGatheredGqa, MiniMaxSparseAttentionSelectTopkBlocks,
+};
+use crate::{
+    cuda::cutile::{
+        DeviceOpExt, attention::MiniMaxSparseAttentionSelectedTokenPositions,
+        kernel::attention as kernel_attention, runtime::tile_kernel::TileKernel,
+        utility::checked_device_pointer,
+    },
+    error::Result,
+};
+
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fused_neighborhood_attention_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -15,10 +42,10 @@ pub fn fused_neighborhood_attention_f32(
     dilation: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     let params = FusedNeighborhoodAttention::create(
         batch,
@@ -30,6 +57,7 @@ pub fn fused_neighborhood_attention_f32(
         scale,
     )?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::fused_neighborhood_attention_f32(
             out,
@@ -50,8 +78,11 @@ pub fn fused_neighborhood_attention_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn heavily_compressed_attention_compress_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn heavily_compressed_attention_compress_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     hidden: DevicePointer<f32>,
@@ -64,11 +95,11 @@ pub fn heavily_compressed_attention_compress_f32(
     head_dim: usize,
     compression_block: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(hidden)?;
-    checked_device_pointer(weight_kv)?;
-    checked_device_pointer(weight_z)?;
-    checked_device_pointer(bias)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&hidden)?;
+    checked_device_pointer(&weight_kv)?;
+    checked_device_pointer(&weight_z)?;
+    checked_device_pointer(&bias)?;
 
     let params = HeavilyCompressedAttentionCompress::create(
         batch,
@@ -78,6 +109,7 @@ pub fn heavily_compressed_attention_compress_f32(
         compression_block,
     )?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::heavily_compressed_attention_compress_f32(
             out,
@@ -98,8 +130,11 @@ pub fn heavily_compressed_attention_compress_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn compressed_sparse_attention_lightning_indexer_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn compressed_sparse_attention_lightning_indexer_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     indexer_query: DevicePointer<f32>,
@@ -111,10 +146,10 @@ pub fn compressed_sparse_attention_lightning_indexer_f32(
     index_heads: usize,
     index_dim: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(indexer_query)?;
-    checked_device_pointer(indexer_key)?;
-    checked_device_pointer(indexer_weight)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&indexer_query)?;
+    checked_device_pointer(&indexer_key)?;
+    checked_device_pointer(&indexer_weight)?;
 
     let params = CompressedSparseAttentionLightningIndexer::create(
         batch,
@@ -124,6 +159,7 @@ pub fn compressed_sparse_attention_lightning_indexer_f32(
         index_dim,
     )?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::compressed_sparse_attention_lightning_indexer_f32(
             out,
@@ -142,8 +178,11 @@ pub fn compressed_sparse_attention_lightning_indexer_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn compressed_sparse_attention_topk_selector_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn compressed_sparse_attention_topk_selector_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     selected_indices: DevicePointer<i32>,
@@ -157,11 +196,11 @@ pub fn compressed_sparse_attention_topk_selector_f32(
     top_k: usize,
     compression_block: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(selected_indices)?;
-    checked_device_pointer(scores)?;
-    checked_device_pointer(compressed_kv)?;
-    checked_device_pointer(query_positions)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&selected_indices)?;
+    checked_device_pointer(&scores)?;
+    checked_device_pointer(&compressed_kv)?;
+    checked_device_pointer(&query_positions)?;
 
     let params = CompressedSparseAttentionTopkSelector::create(
         batch,
@@ -172,6 +211,7 @@ pub fn compressed_sparse_attention_topk_selector_f32(
         compression_block,
     )?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::compressed_sparse_attention_topk_selector_f32(
             out,
@@ -192,8 +232,11 @@ pub fn compressed_sparse_attention_topk_selector_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn compressed_sparse_attention_shared_mqa_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn compressed_sparse_attention_shared_mqa_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -207,16 +250,17 @@ pub fn compressed_sparse_attention_shared_mqa_f32(
     kv_len: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(kv_entries)?;
-    checked_device_pointer(valid_mask)?;
-    checked_device_pointer(sink)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&kv_entries)?;
+    checked_device_pointer(&valid_mask)?;
+    checked_device_pointer(&sink)?;
 
     let params = CompressedSparseAttentionSharedMqa::create(
         batch, query_len, heads, head_dim, kv_len, scale,
     )?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::compressed_sparse_attention_shared_mqa_f32(
             out,
@@ -237,8 +281,11 @@ pub fn compressed_sparse_attention_shared_mqa_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn minimax_sparse_attention_block_max_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn minimax_sparse_attention_block_max_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     scores: DevicePointer<f32>,
@@ -247,11 +294,12 @@ pub fn minimax_sparse_attention_block_max_f32(
     key_len: usize,
     block_size: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(scores)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&scores)?;
 
     let params = MiniMaxSparseAttentionBlockMax::create(batch, rows, key_len, block_size)?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::minimax_sparse_attention_block_max_f32(
             out,
@@ -268,7 +316,10 @@ pub fn minimax_sparse_attention_block_max_f32(
     Ok(())
 }
 
-pub fn minimax_sparse_attention_selected_token_positions_i32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn minimax_sparse_attention_selected_token_positions_i32(
     stream: &Arc<Stream>,
     positions: DevicePointer<i32>,
     valid_mask: DevicePointer<i32>,
@@ -280,10 +331,10 @@ pub fn minimax_sparse_attention_selected_token_positions_i32(
     block_size: usize,
     seq_len: usize,
 ) -> Result<()> {
-    checked_device_pointer(positions)?;
-    checked_device_pointer(valid_mask)?;
-    checked_device_pointer(selected_blocks)?;
-    checked_device_pointer(query_positions)?;
+    checked_device_pointer(&positions)?;
+    checked_device_pointer(&valid_mask)?;
+    checked_device_pointer(&selected_blocks)?;
+    checked_device_pointer(&query_positions)?;
 
     let params = MiniMaxSparseAttentionSelectedTokenPositions::create(
         batch,
@@ -293,6 +344,7 @@ pub fn minimax_sparse_attention_selected_token_positions_i32(
         seq_len,
     )?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::minimax_sparse_attention_selected_token_positions_i32(
             positions,
@@ -312,8 +364,11 @@ pub fn minimax_sparse_attention_selected_token_positions_i32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn minimax_sparse_attention_select_topk_blocks_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn minimax_sparse_attention_select_topk_blocks_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<i32>,
     block_scores: DevicePointer<f32>,
@@ -323,12 +378,13 @@ pub fn minimax_sparse_attention_select_topk_blocks_f32(
     blocks: usize,
     top_k: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(block_scores)?;
-    checked_device_pointer(local_blocks)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&block_scores)?;
+    checked_device_pointer(&local_blocks)?;
 
     let params = MiniMaxSparseAttentionSelectTopkBlocks::create(batch, rows, blocks, top_k)?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::minimax_sparse_attention_select_topk_blocks_f32(
             out,
@@ -345,8 +401,11 @@ pub fn minimax_sparse_attention_select_topk_blocks_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn minimax_sparse_attention_gathered_gqa_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn minimax_sparse_attention_gathered_gqa_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -363,12 +422,12 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
     selected_keys: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
-    checked_device_pointer(positions)?;
-    checked_device_pointer(valid_mask)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
+    checked_device_pointer(&positions)?;
+    checked_device_pointer(&valid_mask)?;
 
     let params = MiniMaxSparseAttentionGatheredGqa::create(
         batch,
@@ -381,6 +440,7 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
         scale,
     )?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::minimax_sparse_attention_gathered_gqa_f32(
             out,
@@ -404,8 +464,11 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn compressed_sparse_attention_compress_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn compressed_sparse_attention_compress_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     hidden: DevicePointer<f32>,
@@ -421,14 +484,14 @@ pub fn compressed_sparse_attention_compress_f32(
     head_dim: usize,
     compression_block: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(hidden)?;
-    checked_device_pointer(weight_a_kv)?;
-    checked_device_pointer(weight_b_kv)?;
-    checked_device_pointer(weight_a_z)?;
-    checked_device_pointer(weight_b_z)?;
-    checked_device_pointer(bias_a)?;
-    checked_device_pointer(bias_b)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&hidden)?;
+    checked_device_pointer(&weight_a_kv)?;
+    checked_device_pointer(&weight_b_kv)?;
+    checked_device_pointer(&weight_a_z)?;
+    checked_device_pointer(&weight_b_z)?;
+    checked_device_pointer(&bias_a)?;
+    checked_device_pointer(&bias_b)?;
 
     let params = HeavilyCompressedAttentionCompress::create(
         batch,
@@ -438,6 +501,7 @@ pub fn compressed_sparse_attention_compress_f32(
         compression_block,
     )?;
     let _batch = params.batch;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::compressed_sparse_attention_compress_f32(
             out,
@@ -461,8 +525,11 @@ pub fn compressed_sparse_attention_compress_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn heavily_compressed_attention_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn heavily_compressed_attention_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -479,11 +546,11 @@ pub fn heavily_compressed_attention_f32(
     hidden_dim: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(compressed_kv)?;
-    checked_device_pointer(weight_group)?;
-    checked_device_pointer(weight_final)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&compressed_kv)?;
+    checked_device_pointer(&weight_group)?;
+    checked_device_pointer(&weight_final)?;
 
     let params = HeavilyCompressedAttention::create(
         batch,
@@ -496,6 +563,7 @@ pub fn heavily_compressed_attention_f32(
         hidden_dim,
         scale,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::heavily_compressed_attention_f32(
             out,
@@ -520,9 +588,13 @@ pub fn heavily_compressed_attention_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! fused_neighborhood_attention_half_fn {
     ($name:ident, $dtype:ty, $kernel:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$dtype>,
             query: DevicePointer<$dtype>,
@@ -536,10 +608,10 @@ macro_rules! fused_neighborhood_attention_half_fn {
             dilation: usize,
             scale: f32,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             let params = FusedNeighborhoodAttention::create(
                 batch,
@@ -551,6 +623,7 @@ macro_rules! fused_neighborhood_attention_half_fn {
                 scale,
             )?;
             let _batch = params.batch;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -573,14 +646,14 @@ macro_rules! fused_neighborhood_attention_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 fused_neighborhood_attention_half_fn!(
     fused_neighborhood_attention_f16,
     f16,
     fused_neighborhood_attention_f16
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 fused_neighborhood_attention_half_fn!(
     fused_neighborhood_attention_bf16,
     bf16,

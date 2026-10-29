@@ -348,6 +348,7 @@ generate:
     enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
     bindgen {{ cuda_path }}/include/library_types.h \
         $enum_args \
+        --bitfield-enum "cudaEmulationSpecialValuesSupport_t" \
         --allowlist-item "cuda.*" \
         --allowlist-item "CUDA.*" \
         --allowlist-item "libraryPropertyType.*" \
@@ -477,6 +478,15 @@ generate:
         > bindings.rs
 
     mv bindings.rs ./src/nvtx_sys_3.rs
+
+    bindgen {{ cuda_path }}/include/nvJitLink.h \
+        --allowlist-item '(__)?nvJitLink.*|NVJITLINK.*' \
+        --no-layout-tests \
+        --default-enum-style=rust \
+        --use-core \
+        -- \
+            -DNVJITLINK_NO_INLINE \
+        > ./src/nvjitlink_sys_${CUDA_VERSION}.rs
 
 clean:
     rm -rf ./dist

@@ -1,28 +1,45 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{ChannelLayout, ImageView, ImageViewMut},
-    pipeline::{ImageAllocator, Workspace},
+    image::{
+        Image, SupportedImage,
+        view::{ChannelLayout, ImageOutputView, ImageView, ImageViewMut},
+    },
+    pipeline::image::{
+        ImageBacking, ImagePipeline,
+        operation_shapes::{ConstantInPlaceOperation, ConstantOperation},
+        operation_traits::MultiplyConstantScaleImage,
+    },
 };
 
-use super::{ImageBacking, ImagePipeline, operation_shapes::*, operation_traits::*};
-
-#[path = "operations_absolute_difference_constant_methods.rs"]
 mod absolute_difference_constant;
-#[path = "operations_device_constant_arithmetic_methods.rs"]
 mod device_constant;
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
     Self: MultiplyConstantScaleImage<T, L>,
 {
+    /// Multiplies each processed sample by the corresponding constant.
+    /// The provided implementations use a scalar for C1, three values for C3 and AC4,
+    /// and four values for C4.
+    /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
+    /// Writes active channels in the supplied destination. AC4 destination alpha retains its
+    /// previous initialization state; this call does not initialize alpha.
+    /// Prepares participating images, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// Source and destination image dimensions must match.
     pub fn multiply_constant_scale_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         constant: <Self as MultiplyConstantScaleImage<T, L>>::Constant,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
     ) -> Result<()> {
         <Self as MultiplyConstantScaleImage<T, L>>::multiply_constant_scale_image(
             stream_context,
@@ -32,6 +49,18 @@ where
         )
     }
 
+    /// Multiplies each processed sample by the corresponding constant.
+    /// The provided implementations use a scalar for C1, three values for C3 and AC4,
+    /// and four values for C4.
+    /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
+    /// Updates the supplied image in place. AC4 alpha remains unchanged.
+    /// Prepares participating images, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
     pub fn multiply_constant_scale_in_place(
         stream_context: &StreamContext,
         constant: <Self as MultiplyConstantScaleImage<T, L>>::Constant,
@@ -45,14 +74,27 @@ where
     }
 }
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
-    T: Copy,
+    T: Copy + SupportedImage<L>,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
     Self: MultiplyConstantScaleImage<T, L>,
     <Self as MultiplyConstantScaleImage<T, L>>::Constant: Copy,
 {
+    /// Multiplies each processed sample by the corresponding constant.
+    /// The provided implementations use a scalar for C1, three values for C3 and AC4,
+    /// and four values for C4.
+    /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Preserves alpha from the pipeline image for AC4.
+    /// Prepares participating images, waits for producers on other streams, rejects
+    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// Allocation or image view construction, including alpha preservation copies, can also fail.
     pub fn multiply_constant_scale(
         self,
         constant: <Self as MultiplyConstantScaleImage<T, L>>::Constant,
@@ -74,16 +116,25 @@ where
             <Self as MultiplyConstantScaleImage<T, L>>::Constant,
         >,
     ) -> Result<Self> {
+        self.ensure_eager()?;
+
         match &mut self.backing {
             ImageBacking::Owned(image) => {
                 let mut image_view = image.view_mut()?;
                 operation_in_place(self.stream_context, constant, &mut image_view)?;
             }
             ImageBacking::Borrowed(source) => {
-                let mut destination = self.workspace.image::<T, L>(source.size())?;
-                let mut destination_view = destination.view_mut()?;
+                let mut destination = Image::<T, L>::create_uninit(
+                    self.stream_context.cuda_context(),
+                    source.size(),
+                )?;
+                let mut destination_view = destination.output()?;
+                if L::IGNORES_ALPHA {
+                    destination_view.copy_from(source)?;
+                }
                 operation(self.stream_context, source, constant, &mut destination_view)?;
-                self.backing = ImageBacking::Owned(destination);
+                // SAFETY: the completed operation above wrote every element.
+                self.backing = ImageBacking::Owned(unsafe { destination.assume_init() });
             }
         }
 

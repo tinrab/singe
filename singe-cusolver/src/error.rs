@@ -1,67 +1,69 @@
-use std::{ffi::NulError, fmt};
+use std::{borrow::Cow, ffi::NulError, result::Result as StdResult};
 
+use singe_core::status_enum;
 use singe_cuda::error::Error as CudaError;
 use singe_cusolver_sys as sys;
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum Status {
-    /// The operation completed successfully.
-    Success,
-    /// The cuSOLVER library was not initialized.
-    NotInitialized,
-    /// Resource allocation failed.
-    AllocFailed,
-    /// An invalid value was provided.
-    InvalidValue,
-    /// The current device architecture is not supported.
-    ArchitectureMismatch,
-    /// Memory or resource mapping failed.
-    MappingError,
-    /// Kernel execution failed.
-    ExecutionFailed,
-    /// An internal cuSOLVER error occurred.
-    InternalError,
-    /// The matrix type is not supported by the operation.
-    MatrixTypeNotSupported,
-    /// The requested operation is not supported.
-    NotSupported,
-    /// A zero pivot was encountered.
-    ZeroPivot,
-    /// The cuSOLVER license is invalid.
-    InvalidLicense,
-    /// IRS parameters were not initialized.
-    IrsParamsNotInitialized,
-    /// IRS parameters are invalid.
-    IrsParamsInvalid,
-    /// IRS precision parameters are invalid.
-    IrsParamsInvalidPrec,
-    /// IRS refinement parameters are invalid.
-    IrsParamsInvalidRefine,
-    /// IRS max-iteration parameters are invalid.
-    IrsParamsInvalidMaxIter,
-    /// An internal IRS error occurred.
-    IrsInternalError,
-    /// The requested IRS configuration is not supported.
-    IrsNotSupported,
-    /// IRS configuration values are out of range.
-    IrsOutOfRange,
-    /// GMRES refinement does not support the requested number of right-hand sides.
-    IrsNrhsNotSupportedForRefineGmres,
-    /// IRS info structures were not initialized.
-    IrsInfosNotInitialized,
-    /// IRS info structures were not destroyed before reuse.
-    IrsInfosNotDestroyed,
-    /// The IRS system matrix is singular.
-    IrsMatrixSingular,
-    /// The provided workspace is invalid.
-    InvalidWorkspace,
-    /// A status code not known to this version of Singe.
-    Unknown(u32),
+status_enum! {
+    /// This is a status type returned by the library functions and it can have the following values.
+    pub enum Status: u32 => sys::cusolverStatus_t, unknown = "UNKNOWN_CUSOLVER_STATUS" {
+        /// The operation completed successfully.
+        Success = CUSOLVER_STATUS_SUCCESS,
+        /// The cuSOLVER library was not initialized.
+        NotInitialized = CUSOLVER_STATUS_NOT_INITIALIZED,
+        /// Resource allocation failed.
+        AllocFailed = CUSOLVER_STATUS_ALLOC_FAILED,
+        /// An invalid value was provided.
+        InvalidValue = CUSOLVER_STATUS_INVALID_VALUE,
+        /// The current device architecture is not supported.
+        ArchitectureMismatch = CUSOLVER_STATUS_ARCH_MISMATCH,
+        /// Memory or resource mapping failed.
+        MappingError = CUSOLVER_STATUS_MAPPING_ERROR,
+        /// Kernel execution failed.
+        ExecutionFailed = CUSOLVER_STATUS_EXECUTION_FAILED,
+        /// An internal cuSOLVER error occurred.
+        InternalError = CUSOLVER_STATUS_INTERNAL_ERROR,
+        /// The matrix type is not supported by the operation.
+        MatrixTypeNotSupported = CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED,
+        /// The requested operation is not supported.
+        NotSupported = CUSOLVER_STATUS_NOT_SUPPORTED,
+        /// A zero pivot was encountered.
+        ZeroPivot = CUSOLVER_STATUS_ZERO_PIVOT,
+        /// The cuSOLVER license is invalid.
+        InvalidLicense = CUSOLVER_STATUS_INVALID_LICENSE,
+        /// IRS parameters were not initialized.
+        IrsParamsNotInitialized = CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED,
+        /// IRS parameters are invalid.
+        IrsParamsInvalid = CUSOLVER_STATUS_IRS_PARAMS_INVALID,
+        /// IRS precision parameters are invalid.
+        IrsParamsInvalidPrec = CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC,
+        /// IRS refinement parameters are invalid.
+        IrsParamsInvalidRefine = CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE,
+        /// IRS max-iteration parameters are invalid.
+        IrsParamsInvalidMaxIter = CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER,
+        /// An internal IRS error occurred.
+        IrsInternalError = CUSOLVER_STATUS_IRS_INTERNAL_ERROR,
+        /// The requested IRS configuration is not supported.
+        IrsNotSupported = CUSOLVER_STATUS_IRS_NOT_SUPPORTED,
+        /// IRS configuration values are out of range.
+        IrsOutOfRange = CUSOLVER_STATUS_IRS_OUT_OF_RANGE,
+        /// GMRES refinement does not support the requested number of right-hand sides.
+        IrsNrhsNotSupportedForRefineGmres = CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES,
+        /// IRS info structures were not initialized.
+        IrsInfosNotInitialized = CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED,
+        /// IRS info structures were not destroyed before reuse.
+        IrsInfosNotDestroyed = CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED,
+        /// The IRS system matrix is singular.
+        IrsMatrixSingular = CUSOLVER_STATUS_IRS_MATRIX_SINGULAR,
+        /// The provided workspace is invalid.
+        InvalidWorkspace = CUSOLVER_STATUS_INVALID_WORKSPACE,
+    }
 }
 
 impl Status {
+    /// Returns a lowercase description of the native status.
+    #[must_use]
     pub const fn description(self) -> &'static str {
         match self {
             Self::Success => "success",
@@ -92,298 +94,110 @@ impl Status {
             Self::Unknown(_) => "unknown cusolver error",
         }
     }
-
-    pub const fn raw(self) -> u32 {
-        match self {
-            Self::Success => sys::cusolverStatus_t::CUSOLVER_STATUS_SUCCESS as _,
-            Self::NotInitialized => sys::cusolverStatus_t::CUSOLVER_STATUS_NOT_INITIALIZED as _,
-            Self::AllocFailed => sys::cusolverStatus_t::CUSOLVER_STATUS_ALLOC_FAILED as _,
-            Self::InvalidValue => sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_VALUE as _,
-            Self::ArchitectureMismatch => sys::cusolverStatus_t::CUSOLVER_STATUS_ARCH_MISMATCH as _,
-            Self::MappingError => sys::cusolverStatus_t::CUSOLVER_STATUS_MAPPING_ERROR as _,
-            Self::ExecutionFailed => sys::cusolverStatus_t::CUSOLVER_STATUS_EXECUTION_FAILED as _,
-            Self::InternalError => sys::cusolverStatus_t::CUSOLVER_STATUS_INTERNAL_ERROR as _,
-            Self::MatrixTypeNotSupported => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED as _
-            }
-            Self::NotSupported => sys::cusolverStatus_t::CUSOLVER_STATUS_NOT_SUPPORTED as _,
-            Self::ZeroPivot => sys::cusolverStatus_t::CUSOLVER_STATUS_ZERO_PIVOT as _,
-            Self::InvalidLicense => sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_LICENSE as _,
-            Self::IrsParamsNotInitialized => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED as _
-            }
-            Self::IrsParamsInvalid => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_INVALID as _
-            }
-            Self::IrsParamsInvalidPrec => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC as _
-            }
-            Self::IrsParamsInvalidRefine => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE as _
-            }
-            Self::IrsParamsInvalidMaxIter => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER as _
-            }
-            Self::IrsInternalError => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_INTERNAL_ERROR as _
-            }
-            Self::IrsNotSupported => sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_NOT_SUPPORTED as _,
-            Self::IrsOutOfRange => sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_OUT_OF_RANGE as _,
-            Self::IrsNrhsNotSupportedForRefineGmres => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES as _
-            }
-            Self::IrsInfosNotInitialized => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED as _
-            }
-            Self::IrsInfosNotDestroyed => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED as _
-            }
-            Self::IrsMatrixSingular => {
-                sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_MATRIX_SINGULAR as _
-            }
-            Self::InvalidWorkspace => sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_WORKSPACE as _,
-            Self::Unknown(code) => code,
-        }
-    }
 }
 
-impl TryFrom<u32> for Status {
-    type Error = u32;
-
-    fn try_from(code: u32) -> std::result::Result<Self, Self::Error> {
-        match code {
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_SUCCESS as u32 => {
-                Ok(Self::Success)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_NOT_INITIALIZED as u32 => {
-                Ok(Self::NotInitialized)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_ALLOC_FAILED as u32 => {
-                Ok(Self::AllocFailed)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_VALUE as u32 => {
-                Ok(Self::InvalidValue)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_ARCH_MISMATCH as u32 => {
-                Ok(Self::ArchitectureMismatch)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_MAPPING_ERROR as u32 => {
-                Ok(Self::MappingError)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_EXECUTION_FAILED as u32 => {
-                Ok(Self::ExecutionFailed)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_INTERNAL_ERROR as u32 => {
-                Ok(Self::InternalError)
-            }
-            code if code
-                == sys::cusolverStatus_t::CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED as u32 =>
-            {
-                Ok(Self::MatrixTypeNotSupported)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_NOT_SUPPORTED as u32 => {
-                Ok(Self::NotSupported)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_ZERO_PIVOT as u32 => {
-                Ok(Self::ZeroPivot)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_LICENSE as u32 => {
-                Ok(Self::InvalidLicense)
-            }
-            code if code
-                == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED as u32 =>
-            {
-                Ok(Self::IrsParamsNotInitialized)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_INVALID as u32 => {
-                Ok(Self::IrsParamsInvalid)
-            }
-            code if code
-                == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC as u32 =>
-            {
-                Ok(Self::IrsParamsInvalidPrec)
-            }
-            code if code
-                == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE as u32 =>
-            {
-                Ok(Self::IrsParamsInvalidRefine)
-            }
-            code if code
-                == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER as u32 =>
-            {
-                Ok(Self::IrsParamsInvalidMaxIter)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_INTERNAL_ERROR as u32 => {
-                Ok(Self::IrsInternalError)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_NOT_SUPPORTED as u32 => {
-                Ok(Self::IrsNotSupported)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_OUT_OF_RANGE as u32 => {
-                Ok(Self::IrsOutOfRange)
-            }
-            code if code
-                == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES
-                    as u32 =>
-            {
-                Ok(Self::IrsNrhsNotSupportedForRefineGmres)
-            }
-            code if code
-                == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED as u32 =>
-            {
-                Ok(Self::IrsInfosNotInitialized)
-            }
-            code if code
-                == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED as u32 =>
-            {
-                Ok(Self::IrsInfosNotDestroyed)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_IRS_MATRIX_SINGULAR as u32 => {
-                Ok(Self::IrsMatrixSingular)
-            }
-            code if code == sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_WORKSPACE as u32 => {
-                Ok(Self::InvalidWorkspace)
-            }
-            code => Err(code),
-        }
-    }
-}
-
-impl From<sys::cusolverStatus_t> for Status {
-    fn from(status: sys::cusolverStatus_t) -> Self {
-        Self::try_from(status as u32).unwrap_or_else(Self::Unknown)
-    }
-}
-
-impl TryFrom<Status> for sys::cusolverStatus_t {
-    type Error = Status;
-
-    fn try_from(status: Status) -> std::result::Result<Self, Self::Error> {
-        match status {
-            Status::Success => Ok(Self::CUSOLVER_STATUS_SUCCESS),
-            Status::NotInitialized => Ok(Self::CUSOLVER_STATUS_NOT_INITIALIZED),
-            Status::AllocFailed => Ok(Self::CUSOLVER_STATUS_ALLOC_FAILED),
-            Status::InvalidValue => Ok(Self::CUSOLVER_STATUS_INVALID_VALUE),
-            Status::ArchitectureMismatch => Ok(Self::CUSOLVER_STATUS_ARCH_MISMATCH),
-            Status::MappingError => Ok(Self::CUSOLVER_STATUS_MAPPING_ERROR),
-            Status::ExecutionFailed => Ok(Self::CUSOLVER_STATUS_EXECUTION_FAILED),
-            Status::InternalError => Ok(Self::CUSOLVER_STATUS_INTERNAL_ERROR),
-            Status::MatrixTypeNotSupported => Ok(Self::CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED),
-            Status::NotSupported => Ok(Self::CUSOLVER_STATUS_NOT_SUPPORTED),
-            Status::ZeroPivot => Ok(Self::CUSOLVER_STATUS_ZERO_PIVOT),
-            Status::InvalidLicense => Ok(Self::CUSOLVER_STATUS_INVALID_LICENSE),
-            Status::IrsParamsNotInitialized => Ok(Self::CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED),
-            Status::IrsParamsInvalid => Ok(Self::CUSOLVER_STATUS_IRS_PARAMS_INVALID),
-            Status::IrsParamsInvalidPrec => Ok(Self::CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC),
-            Status::IrsParamsInvalidRefine => Ok(Self::CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE),
-            Status::IrsParamsInvalidMaxIter => Ok(Self::CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER),
-            Status::IrsInternalError => Ok(Self::CUSOLVER_STATUS_IRS_INTERNAL_ERROR),
-            Status::IrsNotSupported => Ok(Self::CUSOLVER_STATUS_IRS_NOT_SUPPORTED),
-            Status::IrsOutOfRange => Ok(Self::CUSOLVER_STATUS_IRS_OUT_OF_RANGE),
-            Status::IrsNrhsNotSupportedForRefineGmres => {
-                Ok(Self::CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES)
-            }
-            Status::IrsInfosNotInitialized => Ok(Self::CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED),
-            Status::IrsInfosNotDestroyed => Ok(Self::CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED),
-            Status::IrsMatrixSingular => Ok(Self::CUSOLVER_STATUS_IRS_MATRIX_SINGULAR),
-            Status::InvalidWorkspace => Ok(Self::CUSOLVER_STATUS_INVALID_WORKSPACE),
-            Status::Unknown(_) => Err(status),
-        }
-    }
-}
-
-impl fmt::Display for Status {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Success => f.write_str("CUSOLVER_STATUS_SUCCESS"),
-            Self::NotInitialized => f.write_str("CUSOLVER_STATUS_NOT_INITIALIZED"),
-            Self::AllocFailed => f.write_str("CUSOLVER_STATUS_ALLOC_FAILED"),
-            Self::InvalidValue => f.write_str("CUSOLVER_STATUS_INVALID_VALUE"),
-            Self::ArchitectureMismatch => f.write_str("CUSOLVER_STATUS_ARCH_MISMATCH"),
-            Self::MappingError => f.write_str("CUSOLVER_STATUS_MAPPING_ERROR"),
-            Self::ExecutionFailed => f.write_str("CUSOLVER_STATUS_EXECUTION_FAILED"),
-            Self::InternalError => f.write_str("CUSOLVER_STATUS_INTERNAL_ERROR"),
-            Self::MatrixTypeNotSupported => {
-                f.write_str("CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED")
-            }
-            Self::NotSupported => f.write_str("CUSOLVER_STATUS_NOT_SUPPORTED"),
-            Self::ZeroPivot => f.write_str("CUSOLVER_STATUS_ZERO_PIVOT"),
-            Self::InvalidLicense => f.write_str("CUSOLVER_STATUS_INVALID_LICENSE"),
-            Self::IrsParamsNotInitialized => {
-                f.write_str("CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED")
-            }
-            Self::IrsParamsInvalid => f.write_str("CUSOLVER_STATUS_IRS_PARAMS_INVALID"),
-            Self::IrsParamsInvalidPrec => f.write_str("CUSOLVER_STATUS_IRS_PARAMS_INVALID_PREC"),
-            Self::IrsParamsInvalidRefine => {
-                f.write_str("CUSOLVER_STATUS_IRS_PARAMS_INVALID_REFINE")
-            }
-            Self::IrsParamsInvalidMaxIter => {
-                f.write_str("CUSOLVER_STATUS_IRS_PARAMS_INVALID_MAXITER")
-            }
-            Self::IrsInternalError => f.write_str("CUSOLVER_STATUS_IRS_INTERNAL_ERROR"),
-            Self::IrsNotSupported => f.write_str("CUSOLVER_STATUS_IRS_NOT_SUPPORTED"),
-            Self::IrsOutOfRange => f.write_str("CUSOLVER_STATUS_IRS_OUT_OF_RANGE"),
-            Self::IrsNrhsNotSupportedForRefineGmres => {
-                f.write_str("CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES")
-            }
-            Self::IrsInfosNotInitialized => {
-                f.write_str("CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED")
-            }
-            Self::IrsInfosNotDestroyed => f.write_str("CUSOLVER_STATUS_IRS_INFOS_NOT_DESTROYED"),
-            Self::IrsMatrixSingular => f.write_str("CUSOLVER_STATUS_IRS_MATRIX_SINGULAR"),
-            Self::InvalidWorkspace => f.write_str("CUSOLVER_STATUS_INVALID_WORKSPACE"),
-            Self::Unknown(code) => write!(f, "UNKNOWN_CUSOLVER_STATUS({code})"),
-        }
-    }
-}
-
+/// Errors from cuSOLVER, CUDA, and checked solver argument validation.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// A CUDA operation failed.
     #[error("cuda error: {0}")]
     Cuda(#[from] CudaError),
 
+    /// cuSOLVER returned a non-success native status.
     #[error("cusolver error ({code}): {message}")]
-    Cusolver { code: Status, message: String },
+    Cusolver {
+        /// Native status returned by cuSOLVER.
+        code: Status,
+        /// Description of the native status.
+        message: String,
+    },
 
+    /// A native string argument contains an interior nul byte.
     #[error("string contains interior nul byte")]
     InteriorNul,
 
+    /// A native resource handle is unexpectedly null.
     #[error("unexpected null handle")]
     NullHandle,
 
+    /// An argument or checked conversion is outside the supported range.
     #[error("`{name}` is out of range")]
-    OutOfRange { name: String },
+    OutOfRange {
+        /// Name of the out-of-range argument or conversion.
+        name: Cow<'static, str>,
+    },
 
+    /// A matrix leading dimension is too small for its logical rows.
     #[error("invalid matrix leading dimension")]
     InvalidLeadingDimension,
 
+    /// Matrix dimensions, capacity, or checked storage-size arithmetic are invalid.
     #[error("invalid matrix shape")]
     InvalidMatrixShape,
 
+    /// A vector does not have the required extent.
     #[error("invalid vector shape")]
     InvalidVectorShape,
 
+    /// An eigensolver value or index interval is invalid.
     #[error("invalid eigensolver range")]
     InvalidEigenRange,
 
+    /// The requested singular-vector modes are invalid for the operation.
     #[error("invalid svd mode")]
     InvalidSvdMode,
 
+    /// The iterative-refinement precision configuration is unsupported or inconsistent.
     #[error("invalid precision configuration")]
     InvalidPrecisionConfiguration,
 
+    /// The supplied workspace is smaller than the required capacity.
     #[error("insufficient workspace size: {actual} provided (required {required})")]
-    InsufficientWorkspaceSize { required: usize, actual: usize },
+    InsufficientWorkspaceSize {
+        /// Required workspace capacity in the units used by the operation.
+        required: usize,
+        /// Supplied workspace capacity in the units used by the operation.
+        actual: usize,
+    },
 
+    /// The iterative-refinement residual history is invalid.
     #[error("invalid residual history")]
     InvalidResidualHistory,
 
+    /// A stream belongs to another CUDA context.
     #[error("stream belongs to a different cuda context")]
     StreamContextMismatch,
+
+    /// A device allocation belongs to another CUDA context.
+    #[error("memory belongs to a different cuda context")]
+    MemoryContextMismatch,
+
+    /// A completed solver operation reported a nonzero device status.
+    #[error("solver failed with device status {info}")]
+    ComputationFailed {
+        /// Nonzero solver device status; its interpretation depends on the routine.
+        info: i32,
+    },
+
+    /// A solver reported more eigenvalues than the permitted maximum.
+    #[error("invalid eigenvalue count: {actual} exceeds {maximum}")]
+    InvalidEigenvalueCount {
+        /// Eigenvalue count reported by the completed solver.
+        actual: usize,
+        /// Maximum permitted eigenvalue count.
+        maximum: usize,
+    },
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+/// Result of a cuSOLVER wrapper operation.
+pub type Result<T> = StdResult<T, Error>;
+
+impl Error {
+    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::OutOfRange { name: name.into() }
+    }
+}
 
 impl From<sys::cusolverStatus_t> for Error {
     fn from(code: sys::cusolverStatus_t) -> Self {
@@ -407,6 +221,7 @@ impl From<NulError> for Error {
     }
 }
 
+/// Converts a raw cuSOLVER status-returning expression into a crate [`Result`](crate::error::Result).
 #[macro_export]
 macro_rules! try_ffi {
     ($expr:expr) => {{
@@ -417,4 +232,34 @@ macro_rules! try_ffi {
             Ok(())
         }
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_status_converts_from_raw_code() {
+        let status = Status::from(sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_VALUE);
+        assert_eq!(status, Status::InvalidValue);
+        assert_eq!(
+            status.raw(),
+            sys::cusolverStatus_t::CUSOLVER_STATUS_INVALID_VALUE as u32
+        );
+    }
+
+    #[test]
+    fn test_status_display_uses_c_name() {
+        assert_eq!(
+            Status::InvalidValue.to_string(),
+            "CUSOLVER_STATUS_INVALID_VALUE"
+        );
+    }
+
+    #[test]
+    fn test_unknown_status_keeps_raw_code() {
+        let status = Status::Unknown(9999);
+        assert_eq!(status.raw(), 9999);
+        assert_eq!(status.to_string(), "UNKNOWN_CUSOLVER_STATUS(9999)");
+    }
 }

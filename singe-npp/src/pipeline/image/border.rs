@@ -1,30 +1,43 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{ChannelLayout, ImageView, ImageViewMut},
-    pipeline::{ImageAllocator, Workspace},
+    image::{
+        Image, SupportedImage,
+        view::{ChannelLayout, ImageOutputView, ImageView},
+    },
+    pipeline::{ImageBacking, image::ImagePipeline},
     types::Size,
 };
 
-use super::{ImageBacking, ImagePipeline};
-
-#[path = "border_constant_methods.rs"]
 mod constant_methods;
-#[path = "border_dispatch.rs"]
 mod dispatch;
 
-pub(super) use dispatch::{BorderImage, ConstantBorderImage};
+pub use dispatch::{BorderImage, ConstantBorderImage};
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
     Self: BorderImage<T, L>,
 {
+    /// Copies the source into a destination and fills the surrounding border by replicating source edge pixels.
+    /// `top` and `left` are pixel offsets of the source origin in the destination. The source
+    /// rectangle must fit completely; the remaining right and bottom margins form the border.
+    /// Processes every physical channel, including alpha for AC4.
+    /// Writes every logical sample of the supplied destination image.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// Offsets must fit `i32`, placement endpoints must not overflow, and the source placement
+    /// must fit within the destination. NPP may reject additional native geometry restrictions.
     pub fn replicate_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         top: usize,
         left: usize,
     ) -> Result<()> {
@@ -37,10 +50,24 @@ where
         )
     }
 
+    /// Copies the source into a destination and fills the surrounding border by wrapping source pixels periodically.
+    /// `top` and `left` are pixel offsets of the source origin in the destination. The source
+    /// rectangle must fit completely; the remaining right and bottom margins form the border.
+    /// Processes every physical channel, including alpha for AC4.
+    /// Writes every logical sample of the supplied destination image.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// Offsets must fit `i32`, placement endpoints must not overflow, and the source placement
+    /// must fit within the destination. NPP may reject additional native geometry restrictions.
     pub fn wrap_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         top: usize,
         left: usize,
     ) -> Result<()> {
@@ -54,13 +81,27 @@ where
     }
 }
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
-    T: Copy,
+    T: Copy + SupportedImage<L>,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
     Self: BorderImage<T, L>,
 {
+    /// Copies the source into a destination and fills the surrounding border by replicating source edge pixels.
+    /// `top` and `left` are pixel offsets of the source origin in the destination. The source
+    /// rectangle must fit completely; the remaining right and bottom margins form the border.
+    /// Processes every physical channel, including alpha for AC4.
+    /// Allocates a new owned image with the requested `size`.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// Offsets must fit `i32`, placement endpoints must not overflow, and the source placement
+    /// must fit within the destination. NPP may reject additional native geometry restrictions.
+    /// Output allocation, image-view construction, or copying existing pixels can also fail.
     pub fn replicate_border(self, size: Size, top: usize, left: usize) -> Result<Self> {
         self.border(
             size,
@@ -70,6 +111,21 @@ where
         )
     }
 
+    /// Copies the source into a destination and fills the surrounding border by wrapping source pixels periodically.
+    /// `top` and `left` are pixel offsets of the source origin in the destination. The source
+    /// rectangle must fit completely; the remaining right and bottom margins form the border.
+    /// Processes every physical channel, including alpha for AC4.
+    /// Allocates a new owned image with the requested `size`.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// Offsets must fit `i32`, placement endpoints must not overflow, and the source placement
+    /// must fit within the destination. NPP may reject additional native geometry restrictions.
+    /// Output allocation, image-view construction, or copying existing pixels can also fail.
     pub fn wrap_border(self, size: Size, top: usize, left: usize) -> Result<Self> {
         self.border(
             size,
@@ -84,19 +140,15 @@ where
         size: Size,
         top: usize,
         left: usize,
-        operation: fn(
-            &StreamContext,
-            &ImageView<'_, T, L>,
-            &mut ImageViewMut<'_, T, L>,
-            usize,
-            usize,
-        ) -> Result<()>,
+        operation: BorderCallback<L, T>,
     ) -> Result<Self> {
-        let mut destination = self.workspace.image::<T, L>(size)?;
+        self.ensure_eager()?;
+        let mut destination =
+            Image::<T, L>::create_uninit(self.stream_context.cuda_context(), size)?;
 
         {
             let source = self.view()?;
-            let mut destination_view = destination.view_mut()?;
+            let mut destination_view = destination.output()?;
             operation(
                 self.stream_context,
                 &source,
@@ -109,7 +161,16 @@ where
         Ok(Self {
             stream_context: self.stream_context,
             workspace: self.workspace,
-            backing: ImageBacking::Owned(destination),
+            // SAFETY: the completed operation above wrote every element.
+            backing: ImageBacking::Owned(unsafe { destination.assume_init() }),
         })
     }
 }
+
+type BorderCallback<L, T> = fn(
+    &StreamContext,
+    &ImageView<'_, T, L>,
+    &mut ImageOutputView<'_, T, L>,
+    usize,
+    usize,
+) -> Result<()>;

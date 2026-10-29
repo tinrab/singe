@@ -1,40 +1,43 @@
-use singe_npp_sys as sys;
+//! Native image operations on an explicitly selected stream.
+//!
+//! # Safety
+//! Retain each allocation until completion or its last captured replay and establish access ordering.
+//! Input and read-write storage must contain valid initialized values for the complete native footprint.
+//! Non-border spatial operations require initialized source halo beyond the output ROI.
+//! Outputs promise writable capacity only; promotion requires all logical samples to be initialized.
+//! Helpers owning temporary scratch or device descriptors complete their native use before releasing it.
+//! Such helpers reject capture before allocating those temporary resources.
 
 use crate::{
-    context::StreamContext,
     error::{Error, Result},
-    image::view::{AC4, C1, C3, C4, ImageView, ImageViewMut},
-    try_ffi,
-    types::{BorderType, DataTypeLike, Point, Size},
-    utility::to_usize,
-    workspace::ScratchBuffer,
+    types::{Point, Size},
 };
 
-#[path = "morphology_composite.rs"]
 mod composite;
+
 pub use composite::*;
 
-#[path = "morphology_mask.rs"]
 mod mask;
+
 pub use mask::*;
 
-#[path = "morphology_border.rs"]
 mod border;
+
 pub use border::*;
 
-#[path = "morphology_3x3.rs"]
 mod three_by_three;
+
 pub use three_by_three::*;
 
-#[path = "morphology_3x3_border.rs"]
 mod three_by_three_border;
+
 pub use three_by_three_border::*;
 
 fn validate_positive_size(size: Size, name: &str) -> Result<()> {
     if size.width > 0 && size.height > 0 {
         return Ok(());
     }
-    Err(Error::OutOfRange { name: name.into() })
+    Err(Error::out_of_range(name.to_owned()))
 }
 
 fn validate_same_size(source: Size, destination: Size) -> Result<()> {
@@ -54,22 +57,16 @@ fn validate_mask(mask: &[u8], mask_size: Size, anchor: Point) -> Result<()> {
 
 fn validate_mask_shape<T>(mask: &[T], mask_size: Size, anchor: Point) -> Result<()> {
     if mask_size.width <= 0 || mask_size.height <= 0 {
-        return Err(Error::OutOfRange {
-            name: "mask size".into(),
-        });
+        return Err(Error::out_of_range("mask size"));
     }
 
     if anchor.x < 0 || anchor.y < 0 || anchor.x >= mask_size.width || anchor.y >= mask_size.height {
-        return Err(Error::OutOfRange {
-            name: "anchor".into(),
-        });
+        return Err(Error::out_of_range("anchor"));
     }
 
     let expected = (mask_size.width as usize)
         .checked_mul(mask_size.height as usize)
-        .ok_or_else(|| Error::OutOfRange {
-            name: "mask size".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("mask size"))?;
 
     if mask.len() == expected {
         return Ok(());
@@ -84,23 +81,17 @@ fn validate_mask_shape<T>(mask: &[T], mask_size: Size, anchor: Point) -> Result<
 
 fn validate_border_roi(source: Size, source_offset: Point, roi: Size) -> Result<()> {
     if source_offset.x < 0 || source_offset.y < 0 {
-        return Err(Error::OutOfRange {
-            name: "source offset".into(),
-        });
+        return Err(Error::out_of_range("source offset"));
     }
 
     let right = source_offset
         .x
         .checked_add(roi.width)
-        .ok_or_else(|| Error::OutOfRange {
-            name: "source offset".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("source offset"))?;
     let bottom = source_offset
         .y
         .checked_add(roi.height)
-        .ok_or_else(|| Error::OutOfRange {
-            name: "source offset".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("source offset"))?;
 
     if right <= source.width && bottom <= source.height {
         return Ok(());

@@ -1,9 +1,11 @@
-use singe_cuda::{data_type::DataTypeLike, types::DevicePtr};
+use std::ptr;
 
+use singe_cuda::{data_type::DataTypeLike, view::DeviceOutputView};
 use singe_cusparse_sys as sys;
 
 use crate::{
     context::Context,
+    descriptor::workspace,
     error::Result,
     matrix::SparseMatrixDescriptor,
     operation::SpGemmDescriptor,
@@ -13,8 +15,21 @@ use crate::{
     utility::to_usize,
 };
 
-pub fn spgemm_work_estimation<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spgemm_work_estimation<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -24,19 +39,22 @@ pub fn spgemm_work_estimation<Compute: DataTypeLike>(
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SpGemmAlgorithm,
     descriptor: &SpGemmDescriptor,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<usize> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
-    let mut size = 0;
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    let mut size = external_buffer.map_or(0, singe_cuda::view::DeviceRegion::byte_len) as _;
+    // SAFETY: `cusparseSpGEMM_workEstimation` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpGEMM_workEstimation(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -48,14 +66,29 @@ pub fn spgemm_work_estimation<Compute: DataTypeLike>(
             algorithm.into(),
             descriptor.as_raw(),
             &raw mut size,
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     to_usize(size, "spgemm work estimation buffer size")
 }
 
-pub fn spgemm_estimate_memory<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spgemm_estimate_memory<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -66,20 +99,23 @@ pub fn spgemm_estimate_memory<Compute: DataTypeLike>(
     algorithm: SpGemmAlgorithm,
     descriptor: &SpGemmDescriptor,
     chunk_fraction: f32,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<(usize, usize)> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
-    let mut buffer_size3 = 0;
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    let mut buffer_size3 = external_buffer.map_or(0, singe_cuda::view::DeviceRegion::byte_len) as _;
     let mut buffer_size2 = 0;
+    // SAFETY: `cusparseSpGEMM_estimateMemory` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpGEMM_estimateMemory(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -92,7 +128,9 @@ pub fn spgemm_estimate_memory<Compute: DataTypeLike>(
             descriptor.as_raw(),
             chunk_fraction,
             &raw mut buffer_size3,
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
             &raw mut buffer_size2,
         ))?;
     }
@@ -102,8 +140,21 @@ pub fn spgemm_estimate_memory<Compute: DataTypeLike>(
     ))
 }
 
-pub fn spgemm_compute<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spgemm_compute<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -113,19 +164,22 @@ pub fn spgemm_compute<Compute: DataTypeLike>(
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SpGemmAlgorithm,
     descriptor: &SpGemmDescriptor,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<usize> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
-    let mut buffer_size2 = 0;
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    let mut buffer_size2 = external_buffer.map_or(0, singe_cuda::view::DeviceRegion::byte_len) as _;
+    // SAFETY: `cusparseSpGEMM_compute` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpGEMM_compute(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -137,14 +191,27 @@ pub fn spgemm_compute<Compute: DataTypeLike>(
             algorithm.into(),
             descriptor.as_raw(),
             &raw mut buffer_size2,
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     to_usize(buffer_size2, "spgemm compute buffer size")
 }
 
-pub fn spgemm_copy<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spgemm_copy<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -155,16 +222,17 @@ pub fn spgemm_copy<Compute: DataTypeLike>(
     algorithm: SpGemmAlgorithm,
     descriptor: &SpGemmDescriptor,
 ) -> Result<()> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
 
+    // SAFETY: `cusparseSpGEMM_copy` receives live handles owned by the wrappers.
     unsafe {
         try_ffi!(sys::cusparseSpGEMM_copy(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -180,8 +248,19 @@ pub fn spgemm_copy<Compute: DataTypeLike>(
     Ok(())
 }
 
-pub fn spgemmreuse_work_estimation(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spgemmreuse_work_estimation(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     matrix_a: &SparseMatrixDescriptor,
@@ -189,17 +268,20 @@ pub fn spgemmreuse_work_estimation(
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SpGemmAlgorithm,
     descriptor: &SpGemmDescriptor,
-    external_buffer1: Option<DevicePtr>,
+    external_buffer1: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<usize> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    let mut size = 0;
+    let external_buffer1 = workspace(context, external_buffer1)?;
+
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    let mut size = external_buffer1.map_or(0, singe_cuda::view::DeviceRegion::byte_len) as _;
+    // SAFETY: `cusparseSpGEMMreuse_workEstimation` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpGEMMreuse_workEstimation(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             matrix_a.as_raw_const(),
@@ -208,7 +290,9 @@ pub fn spgemmreuse_work_estimation(
             algorithm.into(),
             descriptor.as_raw(),
             &raw mut size,
-            external_buffer1.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer1
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     to_usize(size, "spgemmreuse work estimation buffer size")
@@ -219,8 +303,19 @@ pub fn spgemmreuse_work_estimation(
 /// * This requires temporary extra storage that is allocated internally.
 /// * Supports asynchronous execution if the Stream Ordered Memory Allocator is available.
 /// * Supports CUDA graph capture if the Stream Ordered Memory Allocator is available.
-pub fn spgemmreuse_nnz(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spgemmreuse_nnz(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     matrix_a: &SparseMatrixDescriptor,
@@ -228,21 +323,26 @@ pub fn spgemmreuse_nnz(
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SpGemmAlgorithm,
     descriptor: &SpGemmDescriptor,
-    external_buffer2: Option<DevicePtr>,
-    external_buffer3: Option<DevicePtr>,
-    external_buffer4: Option<DevicePtr>,
+    external_buffer2: Option<DeviceOutputView<'_, u8>>,
+    external_buffer3: Option<DeviceOutputView<'_, u8>>,
+    external_buffer4: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<(usize, usize, usize)> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    let mut size2 = 0;
-    let mut size3 = 0;
-    let mut size4 = 0;
+    let external_buffer2 = workspace(context, external_buffer2)?;
+    let external_buffer3 = workspace(context, external_buffer3)?;
+    let external_buffer4 = workspace(context, external_buffer4)?;
+
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    let mut size2 = external_buffer2.map_or(0, singe_cuda::view::DeviceRegion::byte_len) as _;
+    let mut size3 = external_buffer3.map_or(0, singe_cuda::view::DeviceRegion::byte_len) as _;
+    let mut size4 = external_buffer4.map_or(0, singe_cuda::view::DeviceRegion::byte_len) as _;
+    // SAFETY: `cusparseSpGEMMreuse_nnz` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpGEMMreuse_nnz(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             matrix_a.as_raw_const(),
@@ -251,11 +351,17 @@ pub fn spgemmreuse_nnz(
             algorithm.into(),
             descriptor.as_raw(),
             &raw mut size2,
-            external_buffer2.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer2
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
             &raw mut size3,
-            external_buffer3.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer3
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
             &raw mut size4,
-            external_buffer4.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer4
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok((
@@ -265,8 +371,19 @@ pub fn spgemmreuse_nnz(
     ))
 }
 
-pub fn spgemmreuse_copy(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spgemmreuse_copy(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     matrix_a: &SparseMatrixDescriptor,
@@ -274,17 +391,20 @@ pub fn spgemmreuse_copy(
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SpGemmAlgorithm,
     descriptor: &SpGemmDescriptor,
-    external_buffer5: Option<DevicePtr>,
+    external_buffer5: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<usize> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    let mut size = 0;
+    let external_buffer5 = workspace(context, external_buffer5)?;
+
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    let mut size = external_buffer5.map_or(0, singe_cuda::view::DeviceRegion::byte_len) as _;
+    // SAFETY: `cusparseSpGEMMreuse_copy` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpGEMMreuse_copy(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             matrix_a.as_raw_const(),
@@ -293,14 +413,27 @@ pub fn spgemmreuse_copy(
             algorithm.into(),
             descriptor.as_raw(),
             &raw mut size,
-            external_buffer5.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer5
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     to_usize(size, "spgemmreuse copy buffer size")
 }
 
-pub fn spgemmreuse_compute<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spgemmreuse_compute<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -311,15 +444,16 @@ pub fn spgemmreuse_compute<Compute: DataTypeLike>(
     algorithm: SpGemmAlgorithm,
     descriptor: &SpGemmDescriptor,
 ) -> Result<()> {
-    descriptor.ensure_context(ctx)?;
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    descriptor.ensure_context(context)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+    // SAFETY: `cusparseSpGEMMreuse_compute` receives live handles owned by the wrappers.
     unsafe {
         try_ffi!(sys::cusparseSpGEMMreuse_compute(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),

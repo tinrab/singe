@@ -1,1970 +1,12 @@
 #[cutile::module]
 mod kernels {
-    use crate::cuda::cutile::kernel::utility::*;
     use cutile::core::*;
+
+    use crate::cuda::cutile::{kernel::utility::kernel::*, runtime as cutile};
 
     const VECTOR_TILE_SIZE: i32 = 128;
 
-    #[cutile::entry()]
-    pub unsafe fn mla_prefill_f32(
-        out: *mut f32,
-        query: *mut f32,
-        query_pe: *mut f32,
-        key: *mut f32,
-        key_pe: *mut f32,
-        value: *mut f32,
-        batch: i32,
-        query_len: i32,
-        key_len: i32,
-        heads: i32,
-        kv_heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-
-        // MLA prefill stores the content and positional subspaces separately.
-        // Each lane owns one output scalar.
-        // The flat offset decodes into batch/query/head/dim coordinates.
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let kv_features = kv_heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let kpe_features = kv_heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let query_index = batch_output_offset / broadcast_scalar(q_features, tile_shape);
-        let feature = batch_output_offset - query_index * broadcast_scalar(q_features, tile_shape);
-        let head = feature / broadcast_scalar(head_dim, tile_shape);
-        let dim = feature - head * broadcast_scalar(head_dim, tile_shape);
-        let query_group_size = heads / kv_heads;
-        let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-
-        let query_batch_base = batch_index * broadcast_scalar(query_len * q_features, tile_shape);
-        let query_pe_batch_base =
-            batch_index * broadcast_scalar(query_len * qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * kv_features, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * kpe_features, tile_shape);
-        let value_batch_base = key_batch_base;
-
-        // First pass computes the causal row maximum.
-        // The score combines content and positional terms.
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    query_index,
-                    predicate::LessThanOrEqual,
-                );
-            let score = mla_score_f32(
-                query,
-                query_pe,
-                key,
-                key_pe,
-                query_batch_base,
-                query_pe_batch_base,
-                key_batch_base,
-                key_pe_batch_base,
-                query_index,
-                key_index,
-                head,
-                kv_head,
-                q_features,
-                kv_features,
-                qpe_features,
-                kpe_features,
-                head_dim,
-                pe_dim,
-                key_valid,
-                scale,
-            );
-            max_score = select(
-                key_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        // Second pass turns those scores into probabilities.
-        // It accumulates the value vector for this output dimension.
-        for key_index in 0i32..key_len {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    query_index,
-                    predicate::LessThanOrEqual,
-                );
-            let score = mla_score_f32(
-                query,
-                query_pe,
-                key,
-                key_pe,
-                query_batch_base,
-                query_pe_batch_base,
-                key_batch_base,
-                key_pe_batch_base,
-                query_index,
-                key_index,
-                head,
-                kv_head,
-                q_features,
-                kv_features,
-                qpe_features,
-                kpe_features,
-                head_dim,
-                pe_dim,
-                key_valid,
-                scale,
-            );
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(key_valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets = value_batch_base
-                + broadcast_scalar(key_index * kv_features, tile_shape)
-                + kv_head * broadcast_scalar(head_dim, tile_shape)
-                + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
-            sum = sum + weight * value_tile;
-        }
-
-        let output = sum / denom;
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let output = select(valid, output, zero);
-        store_vector(out, offsets, output, valid);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn mla_prefill_f16(
-        out: *mut f16,
-        query: *mut f16,
-        query_pe: *mut f16,
-        key: *mut f16,
-        key_pe: *mut f16,
-        value: *mut f16,
-        batch: i32,
-        query_len: i32,
-        key_len: i32,
-        heads: i32,
-        kv_heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let kv_features = kv_heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let kpe_features = kv_heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let query_index = batch_output_offset / broadcast_scalar(q_features, tile_shape);
-        let feature = batch_output_offset - query_index * broadcast_scalar(q_features, tile_shape);
-        let head = feature / broadcast_scalar(head_dim, tile_shape);
-        let dim = feature - head * broadcast_scalar(head_dim, tile_shape);
-        let query_group_size = heads / kv_heads;
-        let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-
-        let query_batch_base = batch_index * broadcast_scalar(query_len * q_features, tile_shape);
-        let query_pe_batch_base =
-            batch_index * broadcast_scalar(query_len * qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * kv_features, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * kpe_features, tile_shape);
-        let value_batch_base = key_batch_base;
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    query_index,
-                    predicate::LessThanOrEqual,
-                );
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + query_index * broadcast_scalar(q_features, tile_shape)
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + broadcast_scalar(key_index * kv_features, tile_shape)
-                    + kv_head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + query_index * broadcast_scalar(qpe_features, tile_shape)
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + broadcast_scalar(key_index * kpe_features, tile_shape)
-                    + kv_head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query_pe, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key_pe, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            max_score = select(
-                key_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    query_index,
-                    predicate::LessThanOrEqual,
-                );
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + query_index * broadcast_scalar(q_features, tile_shape)
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + broadcast_scalar(key_index * kv_features, tile_shape)
-                    + kv_head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + query_index * broadcast_scalar(qpe_features, tile_shape)
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + broadcast_scalar(key_index * kpe_features, tile_shape)
-                    + kv_head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query_pe, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key_pe, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(key_valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets = value_batch_base
-                + broadcast_scalar(key_index * kv_features, tile_shape)
-                + kv_head * broadcast_scalar(head_dim, tile_shape)
-                + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
-            sum = sum + weight * value_tile;
-        }
-
-        let output = sum / denom;
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let output = select(valid, output, zero);
-        store_vector_f16_from_f32(out, offsets, output, valid);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn mla_prefill_bf16(
-        out: *mut bf16,
-        query: *mut bf16,
-        query_pe: *mut bf16,
-        key: *mut bf16,
-        key_pe: *mut bf16,
-        value: *mut bf16,
-        batch: i32,
-        query_len: i32,
-        key_len: i32,
-        heads: i32,
-        kv_heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let kv_features = kv_heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let kpe_features = kv_heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let query_index = batch_output_offset / broadcast_scalar(q_features, tile_shape);
-        let feature = batch_output_offset - query_index * broadcast_scalar(q_features, tile_shape);
-        let head = feature / broadcast_scalar(head_dim, tile_shape);
-        let dim = feature - head * broadcast_scalar(head_dim, tile_shape);
-        let query_group_size = heads / kv_heads;
-        let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-
-        let query_batch_base = batch_index * broadcast_scalar(query_len * q_features, tile_shape);
-        let query_pe_batch_base =
-            batch_index * broadcast_scalar(query_len * qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * kv_features, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * kpe_features, tile_shape);
-        let value_batch_base = key_batch_base;
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    query_index,
-                    predicate::LessThanOrEqual,
-                );
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + query_index * broadcast_scalar(q_features, tile_shape)
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + broadcast_scalar(key_index * kv_features, tile_shape)
-                    + kv_head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + query_index * broadcast_scalar(qpe_features, tile_shape)
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + broadcast_scalar(key_index * kpe_features, tile_shape)
-                    + kv_head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query_pe, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key_pe, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            max_score = select(
-                key_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    query_index,
-                    predicate::LessThanOrEqual,
-                );
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + query_index * broadcast_scalar(q_features, tile_shape)
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + broadcast_scalar(key_index * kv_features, tile_shape)
-                    + kv_head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + query_index * broadcast_scalar(qpe_features, tile_shape)
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + broadcast_scalar(key_index * kpe_features, tile_shape)
-                    + kv_head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query_pe, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key_pe, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(key_valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets = value_batch_base
-                + broadcast_scalar(key_index * kv_features, tile_shape)
-                + kv_head * broadcast_scalar(head_dim, tile_shape)
-                + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
-            sum = sum + weight * value_tile;
-        }
-
-        let output = sum / denom;
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let output = select(valid, output, zero);
-        store_vector_bf16_from_f32(out, offsets, output, valid);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn sparse_mla_prefill_f32(
-        out: *mut f32,
-        query: *mut f32,
-        query_pe: *mut f32,
-        key: *mut f32,
-        key_pe: *mut f32,
-        value: *mut f32,
-        indices: *mut i32,
-        batch: i32,
-        query_len: i32,
-        key_len: i32,
-        heads: i32,
-        kv_heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        topk: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let kv_features = kv_heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let query_index = batch_output_offset / broadcast_scalar(q_features, tile_shape);
-        let feature = batch_output_offset - query_index * broadcast_scalar(q_features, tile_shape);
-        let head = feature / broadcast_scalar(head_dim, tile_shape);
-        let dim = feature - head * broadcast_scalar(head_dim, tile_shape);
-        let query_group_size = heads / kv_heads;
-        let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-
-        let query_batch_base = batch_index * broadcast_scalar(query_len * q_features, tile_shape);
-        let query_pe_batch_base =
-            batch_index * broadcast_scalar(query_len * qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * kv_features, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * pe_dim, tile_shape);
-        let indices_batch_base =
-            batch_index * broadcast_scalar(query_len * kv_heads * topk, tile_shape);
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for topk_index in 0i32..topk {
-            let index_offsets = indices_batch_base
-                + query_index * broadcast_scalar(kv_heads * topk, tile_shape)
-                + kv_head * broadcast_scalar(topk, tile_shape)
-                + broadcast_scalar(topk_index, tile_shape);
-            let key_index = load_i32_vector(indices, index_offsets, valid, -1i32);
-            let key_valid = valid
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(0i32, tile_shape),
-                    predicate::GreaterThanOrEqual,
-                )
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(key_len, tile_shape),
-                    predicate::LessThan,
-                )
-                & cmpi(key_index, query_index, predicate::LessThanOrEqual);
-            let score = sparse_mla_score_f32(
-                query,
-                query_pe,
-                key,
-                key_pe,
-                query_batch_base,
-                query_pe_batch_base,
-                key_batch_base,
-                key_pe_batch_base,
-                query_index,
-                key_index,
-                head,
-                kv_head,
-                q_features,
-                kv_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                key_valid,
-                scale,
-            );
-            max_score = select(
-                key_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for topk_index in 0i32..topk {
-            let index_offsets = indices_batch_base
-                + query_index * broadcast_scalar(kv_heads * topk, tile_shape)
-                + kv_head * broadcast_scalar(topk, tile_shape)
-                + broadcast_scalar(topk_index, tile_shape);
-            let key_index = load_i32_vector(indices, index_offsets, valid, -1i32);
-            let key_valid = valid
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(0i32, tile_shape),
-                    predicate::GreaterThanOrEqual,
-                )
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(key_len, tile_shape),
-                    predicate::LessThan,
-                )
-                & cmpi(key_index, query_index, predicate::LessThanOrEqual);
-            let score = sparse_mla_score_f32(
-                query,
-                query_pe,
-                key,
-                key_pe,
-                query_batch_base,
-                query_pe_batch_base,
-                key_batch_base,
-                key_pe_batch_base,
-                query_index,
-                key_index,
-                head,
-                kv_head,
-                q_features,
-                kv_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                key_valid,
-                scale,
-            );
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(key_valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets = key_batch_base
-                + key_index * broadcast_scalar(kv_features, tile_shape)
-                + kv_head * broadcast_scalar(head_dim, tile_shape)
-                + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
-            sum = sum + weight * value_tile;
-        }
-
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let has_values = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
-        let output = select(valid & has_values, sum / denom, zero);
-        store_vector(out, offsets, output, valid);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn mla_decode_lse_f32(
-        out: *mut f32,
-        lse: *mut f32,
-        query: *mut f32,
-        query_pe: *mut f32,
-        key_value: *mut f32,
-        key_pe: *mut f32,
-        batch: i32,
-        key_len: i32,
-        heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head = batch_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = batch_output_offset - head * broadcast_scalar(head_dim, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * head_dim, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * pe_dim, tile_shape);
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let score = mla_decode_score_f32(
-                query,
-                query_pe,
-                key_value,
-                key_pe,
-                query_batch_base,
-                query_pe_batch_base,
-                key_batch_base,
-                key_pe_batch_base,
-                key_index,
-                head,
-                q_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                valid,
-                scale,
-            );
-            max_score = select(
-                valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let score = mla_decode_score_f32(
-                query,
-                query_pe,
-                key_value,
-                key_pe,
-                query_batch_base,
-                query_pe_batch_base,
-                key_batch_base,
-                key_pe_batch_base,
-                key_index,
-                head,
-                q_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                valid,
-                scale,
-            );
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets =
-                key_batch_base + broadcast_scalar(key_index * head_dim, tile_shape) + dim;
-            let value_tile = load_vector(key_value, value_offsets, valid, 0.0f32);
-            sum = sum + weight * value_tile;
-        }
-
-        let output = sum / denom;
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let output = select(valid, output, zero);
-        store_vector(out, offsets, output, valid);
-
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn paged_mla_decode_attention_f32(
-        out: *mut f32,
-        lse: *mut f32,
-        query: *mut f32,
-        query_pe: *mut f32,
-        key_value_cache: *mut f32,
-        key_pe_cache: *mut f32,
-        actual_seq_lens: *mut i32,
-        block_table: *mut u32,
-        batch: i32,
-        heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        block_size: i32,
-        physical_blocks: i32,
-        block_table_batch_stride: i32,
-        scale: f32,
-        output_scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head = batch_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = batch_output_offset - head * broadcast_scalar(head_dim, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
-        let key_value_cache_block_stride = block_size * head_dim;
-        let key_pe_cache_block_stride = block_size * pe_dim;
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..(block_table_batch_stride * block_size) {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    seq_len,
-                    predicate::LessThan,
-                );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
-            let block_valid = key_valid
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(0i32, tile_shape),
-                    predicate::GreaterThanOrEqual,
-                )
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(physical_blocks, tile_shape),
-                    predicate::LessThan,
-                );
-            let score = mla_decode_score_paged_f32(
-                query,
-                query_pe,
-                key_value_cache,
-                key_pe_cache,
-                query_batch_base,
-                query_pe_batch_base,
-                physical_block,
-                block_token,
-                head,
-                q_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                key_value_cache_block_stride,
-                key_pe_cache_block_stride,
-                block_valid,
-                scale,
-            );
-            max_score = select(
-                block_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let mut denom = zero;
-        let mut sum = zero;
-        for key_index in 0i32..(block_table_batch_stride * block_size) {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    seq_len,
-                    predicate::LessThan,
-                );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
-            let block_valid = key_valid
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(0i32, tile_shape),
-                    predicate::GreaterThanOrEqual,
-                )
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(physical_blocks, tile_shape),
-                    predicate::LessThan,
-                );
-            let score = mla_decode_score_paged_f32(
-                query,
-                query_pe,
-                key_value_cache,
-                key_pe_cache,
-                query_batch_base,
-                query_pe_batch_base,
-                physical_block,
-                block_token,
-                head,
-                q_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                key_value_cache_block_stride,
-                key_pe_cache_block_stride,
-                block_valid,
-                scale,
-            );
-            let weight = select(block_valid, exp(score - max_score), zero);
-            denom = denom + weight;
-            let value_offsets = physical_block
-                * broadcast_scalar(key_value_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(head_dim, tile_shape)
-                + dim;
-            let value_tile = load_vector(key_value_cache, value_offsets, block_valid, 0.0f32);
-            sum = sum + weight * value_tile;
-        }
-
-        let one: Tile<f32, { [128] }> = constant(1.0f32, tile_shape);
-        let has_denominator = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
-        let output = select(
-            valid & has_denominator,
-            (sum / select(has_denominator, denom, one))
-                * broadcast_scalar(output_scale, tile_shape),
-            zero,
-        );
-        store_vector(out, offsets, output, valid);
-
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
-        let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
-        let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn paged_mla_decode_attention_f16(
-        out: *mut f16,
-        lse: *mut f32,
-        query: *mut f16,
-        query_pe: *mut f16,
-        key_value_cache: *mut f16,
-        key_pe_cache: *mut f16,
-        actual_seq_lens: *mut i32,
-        block_table: *mut u32,
-        batch: i32,
-        heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        block_size: i32,
-        physical_blocks: i32,
-        block_table_batch_stride: i32,
-        scale: f32,
-        output_scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head = batch_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = batch_output_offset - head * broadcast_scalar(head_dim, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
-        let key_value_cache_block_stride = block_size * head_dim;
-        let key_pe_cache_block_stride = block_size * pe_dim;
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..(block_table_batch_stride * block_size) {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    seq_len,
-                    predicate::LessThan,
-                );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
-            let block_valid = key_valid
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(0i32, tile_shape),
-                    predicate::GreaterThanOrEqual,
-                )
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(physical_blocks, tile_shape),
-                    predicate::LessThan,
-                );
-            let score = mla_decode_score_paged_f16(
-                query,
-                query_pe,
-                key_value_cache,
-                key_pe_cache,
-                query_batch_base,
-                query_pe_batch_base,
-                physical_block,
-                block_token,
-                head,
-                q_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                key_value_cache_block_stride,
-                key_pe_cache_block_stride,
-                block_valid,
-                scale,
-            );
-            max_score = select(
-                block_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let mut denom = zero;
-        let mut sum = zero;
-        for key_index in 0i32..(block_table_batch_stride * block_size) {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    seq_len,
-                    predicate::LessThan,
-                );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
-            let block_valid = key_valid
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(0i32, tile_shape),
-                    predicate::GreaterThanOrEqual,
-                )
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(physical_blocks, tile_shape),
-                    predicate::LessThan,
-                );
-            let score = mla_decode_score_paged_f16(
-                query,
-                query_pe,
-                key_value_cache,
-                key_pe_cache,
-                query_batch_base,
-                query_pe_batch_base,
-                physical_block,
-                block_token,
-                head,
-                q_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                key_value_cache_block_stride,
-                key_pe_cache_block_stride,
-                block_valid,
-                scale,
-            );
-            let weight = select(block_valid, exp(score - max_score), zero);
-            denom = denom + weight;
-            let value_offsets = physical_block
-                * broadcast_scalar(key_value_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(head_dim, tile_shape)
-                + dim;
-            let value_tile = load_vector_f16_as_f32(key_value_cache, value_offsets, block_valid);
-            sum = sum + weight * value_tile;
-        }
-
-        let one: Tile<f32, { [128] }> = constant(1.0f32, tile_shape);
-        let has_denominator = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
-        let output = select(
-            valid & has_denominator,
-            (sum / select(has_denominator, denom, one))
-                * broadcast_scalar(output_scale, tile_shape),
-            zero,
-        );
-        store_vector_f16_from_f32(out, offsets, output, valid);
-
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
-        let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
-        let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn paged_mla_decode_attention_bf16(
-        out: *mut bf16,
-        lse: *mut f32,
-        query: *mut bf16,
-        query_pe: *mut bf16,
-        key_value_cache: *mut bf16,
-        key_pe_cache: *mut bf16,
-        actual_seq_lens: *mut i32,
-        block_table: *mut u32,
-        batch: i32,
-        heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        block_size: i32,
-        physical_blocks: i32,
-        block_table_batch_stride: i32,
-        scale: f32,
-        output_scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head = batch_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = batch_output_offset - head * broadcast_scalar(head_dim, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
-        let key_value_cache_block_stride = block_size * head_dim;
-        let key_pe_cache_block_stride = block_size * pe_dim;
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..(block_table_batch_stride * block_size) {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    seq_len,
-                    predicate::LessThan,
-                );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
-            let block_valid = key_valid
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(0i32, tile_shape),
-                    predicate::GreaterThanOrEqual,
-                )
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(physical_blocks, tile_shape),
-                    predicate::LessThan,
-                );
-            let score = mla_decode_score_paged_bf16(
-                query,
-                query_pe,
-                key_value_cache,
-                key_pe_cache,
-                query_batch_base,
-                query_pe_batch_base,
-                physical_block,
-                block_token,
-                head,
-                q_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                key_value_cache_block_stride,
-                key_pe_cache_block_stride,
-                block_valid,
-                scale,
-            );
-            max_score = select(
-                block_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let mut denom = zero;
-        let mut sum = zero;
-        for key_index in 0i32..(block_table_batch_stride * block_size) {
-            let key_valid = valid
-                & cmpi(
-                    broadcast_scalar(key_index, tile_shape),
-                    seq_len,
-                    predicate::LessThan,
-                );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
-            let block_valid = key_valid
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(0i32, tile_shape),
-                    predicate::GreaterThanOrEqual,
-                )
-                & cmpi(
-                    physical_block,
-                    broadcast_scalar(physical_blocks, tile_shape),
-                    predicate::LessThan,
-                );
-            let score = mla_decode_score_paged_bf16(
-                query,
-                query_pe,
-                key_value_cache,
-                key_pe_cache,
-                query_batch_base,
-                query_pe_batch_base,
-                physical_block,
-                block_token,
-                head,
-                q_features,
-                qpe_features,
-                head_dim,
-                pe_dim,
-                key_value_cache_block_stride,
-                key_pe_cache_block_stride,
-                block_valid,
-                scale,
-            );
-            let weight = select(block_valid, exp(score - max_score), zero);
-            denom = denom + weight;
-            let value_offsets = physical_block
-                * broadcast_scalar(key_value_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(head_dim, tile_shape)
-                + dim;
-            let value_tile = load_vector_bf16_as_f32(key_value_cache, value_offsets, block_valid);
-            sum = sum + weight * value_tile;
-        }
-
-        let one: Tile<f32, { [128] }> = constant(1.0f32, tile_shape);
-        let has_denominator = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
-        let output = select(
-            valid & has_denominator,
-            (sum / select(has_denominator, denom, one))
-                * broadcast_scalar(output_scale, tile_shape),
-            zero,
-        );
-        store_vector_bf16_from_f32(out, offsets, output, valid);
-
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
-        let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
-        let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn mla_decode_lse_f16(
-        out: *mut f16,
-        lse: *mut f32,
-        query: *mut f16,
-        query_pe: *mut f16,
-        key_value: *mut f16,
-        key_pe: *mut f16,
-        batch: i32,
-        key_len: i32,
-        heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head = batch_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = batch_output_offset - head * broadcast_scalar(head_dim, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * head_dim, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * pe_dim, tile_shape);
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + broadcast_scalar(key_index * head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_f16_as_f32(key_value, key_offsets, valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + broadcast_scalar(key_index * pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query_pe, query_offsets, valid);
-                let key_tile = load_vector_f16_as_f32(key_pe, key_offsets, valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            max_score = select(
-                valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + broadcast_scalar(key_index * head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_f16_as_f32(key_value, key_offsets, valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + broadcast_scalar(key_index * pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query_pe, query_offsets, valid);
-                let key_tile = load_vector_f16_as_f32(key_pe, key_offsets, valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets =
-                key_batch_base + broadcast_scalar(key_index * head_dim, tile_shape) + dim;
-            let value_tile = load_vector_f16_as_f32(key_value, value_offsets, valid);
-            sum = sum + weight * value_tile;
-        }
-
-        let output = sum / denom;
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let output = select(valid, output, zero);
-        store_vector_f16_from_f32(out, offsets, output, valid);
-
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn mla_decode_lse_bf16(
-        out: *mut bf16,
-        lse: *mut f32,
-        query: *mut bf16,
-        query_pe: *mut bf16,
-        key_value: *mut bf16,
-        key_pe: *mut bf16,
-        batch: i32,
-        key_len: i32,
-        heads: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head = batch_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = batch_output_offset - head * broadcast_scalar(head_dim, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * head_dim, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * pe_dim, tile_shape);
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + broadcast_scalar(key_index * head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_bf16_as_f32(key_value, key_offsets, valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + broadcast_scalar(key_index * pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query_pe, query_offsets, valid);
-                let key_tile = load_vector_bf16_as_f32(key_pe, key_offsets, valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            max_score = select(
-                valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for key_index in 0i32..key_len {
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + broadcast_scalar(key_index * head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_bf16_as_f32(key_value, key_offsets, valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + broadcast_scalar(key_index * pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query_pe, query_offsets, valid);
-                let key_tile = load_vector_bf16_as_f32(key_pe, key_offsets, valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets =
-                key_batch_base + broadcast_scalar(key_index * head_dim, tile_shape) + dim;
-            let value_tile = load_vector_bf16_as_f32(key_value, value_offsets, valid);
-            sum = sum + weight * value_tile;
-        }
-
-        let output = sum / denom;
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let output = select(valid, output, zero);
-        store_vector_bf16_from_f32(out, offsets, output, valid);
-
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn mla_decode_splitk_f32(
-        out: *mut f32,
-        lse: *mut f32,
-        query: *mut f32,
-        query_pe: *mut f32,
-        key_value: *mut f32,
-        key_pe: *mut f32,
-        batch: i32,
-        key_len: i32,
-        heads: i32,
-        splits: i32,
-        kv_len_per_split: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head_split_values = splits * head_dim;
-        let head = batch_output_offset / broadcast_scalar(head_split_values, tile_shape);
-        let head_output_offset =
-            batch_output_offset - head * broadcast_scalar(head_split_values, tile_shape);
-        let split = head_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = head_output_offset - split * broadcast_scalar(head_dim, tile_shape);
-        let split_start = split * broadcast_scalar(kv_len_per_split, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * head_dim, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * pe_dim, tile_shape);
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for split_offset in 0i32..kv_len_per_split {
-            let key_index = split_start + broadcast_scalar(split_offset, tile_shape);
-            let key_valid = valid
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(key_len, tile_shape),
-                    predicate::LessThan,
-                );
-            let score = mla_decode_split_score_f32(
-                query,
-                query_pe,
-                key_value,
-                key_pe,
-                query_batch_base,
-                query_pe_batch_base,
-                key_batch_base,
-                key_pe_batch_base,
-                key_index,
-                head,
-                head_dim,
-                pe_dim,
-                key_valid,
-                scale,
-            );
-            max_score = select(
-                key_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for split_offset in 0i32..kv_len_per_split {
-            let key_index = split_start + broadcast_scalar(split_offset, tile_shape);
-            let key_valid = valid
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(key_len, tile_shape),
-                    predicate::LessThan,
-                );
-            let score = mla_decode_split_score_f32(
-                query,
-                query_pe,
-                key_value,
-                key_pe,
-                query_batch_base,
-                query_pe_batch_base,
-                key_batch_base,
-                key_pe_batch_base,
-                key_index,
-                head,
-                head_dim,
-                pe_dim,
-                key_valid,
-                scale,
-            );
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(key_valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets =
-                key_batch_base + key_index * broadcast_scalar(head_dim, tile_shape) + dim;
-            let value_tile = load_vector(key_value, value_offsets, key_valid, 0.0f32);
-            sum = sum + weight * value_tile;
-        }
-
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let has_keys = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
-        let output = sum / denom;
-        let output = select(valid & has_keys, output, zero);
-        store_vector(out, offsets, output, valid);
-
-        let lse_offsets = batch_index * broadcast_scalar(heads * splits, tile_shape)
-            + head * broadcast_scalar(splits, tile_shape)
-            + split;
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
-        let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn mla_decode_splitk_f16(
-        out: *mut f32,
-        lse: *mut f32,
-        query: *mut f16,
-        query_pe: *mut f16,
-        key_value: *mut f16,
-        key_pe: *mut f16,
-        batch: i32,
-        key_len: i32,
-        heads: i32,
-        splits: i32,
-        kv_len_per_split: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head_split_values = splits * head_dim;
-        let head = batch_output_offset / broadcast_scalar(head_split_values, tile_shape);
-        let head_output_offset =
-            batch_output_offset - head * broadcast_scalar(head_split_values, tile_shape);
-        let split = head_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = head_output_offset - split * broadcast_scalar(head_dim, tile_shape);
-        let split_start = split * broadcast_scalar(kv_len_per_split, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * head_dim, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * pe_dim, tile_shape);
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for split_offset in 0i32..kv_len_per_split {
-            let key_index = split_start + broadcast_scalar(split_offset, tile_shape);
-            let key_valid = valid
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(key_len, tile_shape),
-                    predicate::LessThan,
-                );
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + key_index * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key_value, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + key_index * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query_pe, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key_pe, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            max_score = select(
-                key_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for split_offset in 0i32..kv_len_per_split {
-            let key_index = split_start + broadcast_scalar(split_offset, tile_shape);
-            let key_valid = valid
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(key_len, tile_shape),
-                    predicate::LessThan,
-                );
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + key_index * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key_value, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + key_index * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query_pe, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key_pe, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(key_valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets =
-                key_batch_base + key_index * broadcast_scalar(head_dim, tile_shape) + dim;
-            let value_tile = load_vector_f16_as_f32(key_value, value_offsets, key_valid);
-            sum = sum + weight * value_tile;
-        }
-
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let has_keys = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
-        let output = sum / denom;
-        let output = select(valid & has_keys, output, zero);
-        store_vector(out, offsets, output, valid);
-
-        let lse_offsets = batch_index * broadcast_scalar(heads * splits, tile_shape)
-            + head * broadcast_scalar(splits, tile_shape)
-            + split;
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
-        let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
-        let _ = batch;
-    }
-
-    #[cutile::entry()]
-    pub unsafe fn mla_decode_splitk_bf16(
-        out: *mut f32,
-        lse: *mut f32,
-        query: *mut bf16,
-        query_pe: *mut bf16,
-        key_value: *mut bf16,
-        key_pe: *mut bf16,
-        batch: i32,
-        key_len: i32,
-        heads: i32,
-        splits: i32,
-        kv_len_per_split: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        scale: f32,
-        output_len: i32,
-        output_values_per_batch: i32,
-    ) {
-        let tile_shape = const_shape![128];
-        let pid: (i32, i32, i32) = get_tile_block_id();
-        let offsets: Tile<i32, { [128] }> =
-            iota(tile_shape) + broadcast_scalar(pid.0 * VECTOR_TILE_SIZE, tile_shape);
-        let valid = cmpi(
-            offsets,
-            broadcast_scalar(output_len, tile_shape),
-            predicate::LessThan,
-        );
-        let q_features = heads * head_dim;
-        let qpe_features = heads * pe_dim;
-        let batch_index = offsets / broadcast_scalar(output_values_per_batch, tile_shape);
-        let batch_output_offset =
-            offsets - batch_index * broadcast_scalar(output_values_per_batch, tile_shape);
-        let head_split_values = splits * head_dim;
-        let head = batch_output_offset / broadcast_scalar(head_split_values, tile_shape);
-        let head_output_offset =
-            batch_output_offset - head * broadcast_scalar(head_split_values, tile_shape);
-        let split = head_output_offset / broadcast_scalar(head_dim, tile_shape);
-        let dim = head_output_offset - split * broadcast_scalar(head_dim, tile_shape);
-        let split_start = split * broadcast_scalar(kv_len_per_split, tile_shape);
-        let query_batch_base = batch_index * broadcast_scalar(q_features, tile_shape);
-        let query_pe_batch_base = batch_index * broadcast_scalar(qpe_features, tile_shape);
-        let key_batch_base = batch_index * broadcast_scalar(key_len * head_dim, tile_shape);
-        let key_pe_batch_base = batch_index * broadcast_scalar(key_len * pe_dim, tile_shape);
-
-        let mut max_score = constant(-1.0e20f32, tile_shape);
-        for split_offset in 0i32..kv_len_per_split {
-            let key_index = split_start + broadcast_scalar(split_offset, tile_shape);
-            let key_valid = valid
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(key_len, tile_shape),
-                    predicate::LessThan,
-                );
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + key_index * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key_value, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + key_index * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query_pe, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key_pe, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            max_score = select(
-                key_valid
-                    & cmpf(
-                        score,
-                        max_score,
-                        predicate::GreaterThan,
-                        cmp_ordering::Ordered,
-                    ),
-                score,
-                max_score,
-            );
-        }
-
-        let mut denom = constant(0.0f32, tile_shape);
-        let mut sum = constant(0.0f32, tile_shape);
-        for split_offset in 0i32..kv_len_per_split {
-            let key_index = split_start + broadcast_scalar(split_offset, tile_shape);
-            let key_valid = valid
-                & cmpi(
-                    key_index,
-                    broadcast_scalar(key_len, tile_shape),
-                    predicate::LessThan,
-                );
-            let mut score = constant(0.0f32, tile_shape);
-            for dim_index in 0i32..head_dim {
-                let query_offsets = query_batch_base
-                    + head * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_batch_base
-                    + key_index * broadcast_scalar(head_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key_value, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            for dim_index in 0i32..pe_dim {
-                let query_offsets = query_pe_batch_base
-                    + head * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let key_offsets = key_pe_batch_base
-                    + key_index * broadcast_scalar(pe_dim, tile_shape)
-                    + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query_pe, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key_pe, key_offsets, key_valid);
-                score = score + query_tile * key_tile;
-            }
-            score = score * broadcast_scalar(scale, tile_shape);
-            let weight = exp(score - max_score);
-            let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-            let weight = select(key_valid, weight, zero);
-            denom = denom + weight;
-            let value_offsets =
-                key_batch_base + key_index * broadcast_scalar(head_dim, tile_shape) + dim;
-            let value_tile = load_vector_bf16_as_f32(key_value, value_offsets, key_valid);
-            sum = sum + weight * value_tile;
-        }
-
-        let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
-        let has_keys = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
-        let output = sum / denom;
-        let output = select(valid & has_keys, output, zero);
-        store_vector(out, offsets, output, valid);
-
-        let lse_offsets = batch_index * broadcast_scalar(heads * splits, tile_shape)
-            + head * broadcast_scalar(splits, tile_shape)
-            + split;
-        let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
-        let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
-        let _ = batch;
-    }
-
-    fn sliding_window_attention_f32<const HEAD_DIM: i32, const WINDOW: i32>(
+    unsafe fn sliding_window_attention_f32<const HEAD_DIM: i32, const WINDOW: i32>(
         out: *mut f32,
         query: *mut f32,
         key: *mut f32,
@@ -2105,7 +147,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
@@ -2115,10 +157,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn fmha_prefill_lse_f32<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_lse_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -2251,7 +293,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -2262,359 +304,15 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let lse_offsets = lse_offsets * broadcast_scalar(_query_len, tile_shape) + query_index;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn mla_score_f32(
-        query: *mut f32,
-        query_pe: *mut f32,
-        key: *mut f32,
-        key_pe: *mut f32,
-        query_batch_base: Tile<i32, { [128] }>,
-        query_pe_batch_base: Tile<i32, { [128] }>,
-        key_batch_base: Tile<i32, { [128] }>,
-        key_pe_batch_base: Tile<i32, { [128] }>,
-        query_index: Tile<i32, { [128] }>,
-        key_index: i32,
-        head: Tile<i32, { [128] }>,
-        kv_head: Tile<i32, { [128] }>,
-        q_features: i32,
-        kv_features: i32,
-        qpe_features: i32,
-        kpe_features: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        valid: Tile<bool, { [128] }>,
-        scale: f32,
-    ) -> Tile<f32, { [128] }> {
-        let tile_shape = const_shape![128];
-        let mut score = constant(0.0f32, tile_shape);
-        // Content contribution: Q and K use grouped-query head mapping.
-        for dim_index in 0i32..head_dim {
-            let query_offsets = query_batch_base
-                + query_index * broadcast_scalar(q_features, tile_shape)
-                + head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = key_batch_base
-                + broadcast_scalar(key_index * kv_features, tile_shape)
-                + kv_head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        // Positional contribution is added to the same score before scaling.
-        for dim_index in 0i32..pe_dim {
-            let query_offsets = query_pe_batch_base
-                + query_index * broadcast_scalar(qpe_features, tile_shape)
-                + head * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = key_pe_batch_base
-                + broadcast_scalar(key_index * kpe_features, tile_shape)
-                + kv_head * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        score * broadcast_scalar(scale, tile_shape)
-    }
-
-    fn sparse_mla_score_f32(
-        query: *mut f32,
-        query_pe: *mut f32,
-        key: *mut f32,
-        key_pe: *mut f32,
-        query_batch_base: Tile<i32, { [128] }>,
-        query_pe_batch_base: Tile<i32, { [128] }>,
-        key_batch_base: Tile<i32, { [128] }>,
-        key_pe_batch_base: Tile<i32, { [128] }>,
-        query_index: Tile<i32, { [128] }>,
-        key_index: Tile<i32, { [128] }>,
-        head: Tile<i32, { [128] }>,
-        kv_head: Tile<i32, { [128] }>,
-        q_features: i32,
-        kv_features: i32,
-        qpe_features: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        valid: Tile<bool, { [128] }>,
-        scale: f32,
-    ) -> Tile<f32, { [128] }> {
-        let tile_shape = const_shape![128];
-        let mut score = constant(0.0f32, tile_shape);
-        for dim_index in 0i32..head_dim {
-            let query_offsets = query_batch_base
-                + query_index * broadcast_scalar(q_features, tile_shape)
-                + head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = key_batch_base
-                + key_index * broadcast_scalar(kv_features, tile_shape)
-                + kv_head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        for dim_index in 0i32..pe_dim {
-            let query_offsets = query_pe_batch_base
-                + query_index * broadcast_scalar(qpe_features, tile_shape)
-                + head * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = key_pe_batch_base
-                + key_index * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        score * broadcast_scalar(scale, tile_shape)
-    }
-
-    fn mla_decode_split_score_f32(
-        query: *mut f32,
-        query_pe: *mut f32,
-        key_value: *mut f32,
-        key_pe: *mut f32,
-        query_batch_base: Tile<i32, { [128] }>,
-        query_pe_batch_base: Tile<i32, { [128] }>,
-        key_batch_base: Tile<i32, { [128] }>,
-        key_pe_batch_base: Tile<i32, { [128] }>,
-        key_index: Tile<i32, { [128] }>,
-        head: Tile<i32, { [128] }>,
-        head_dim: i32,
-        pe_dim: i32,
-        valid: Tile<bool, { [128] }>,
-        scale: f32,
-    ) -> Tile<f32, { [128] }> {
-        let tile_shape = const_shape![128];
-        let mut score = constant(0.0f32, tile_shape);
-        for dim_index in 0i32..head_dim {
-            let query_offsets = query_batch_base
-                + head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = key_batch_base
-                + key_index * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_value, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        for dim_index in 0i32..pe_dim {
-            let query_offsets = query_pe_batch_base
-                + head * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = key_pe_batch_base
-                + key_index * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        score * broadcast_scalar(scale, tile_shape)
-    }
-
-    fn mla_decode_score_f32(
-        query: *mut f32,
-        query_pe: *mut f32,
-        key_value: *mut f32,
-        key_pe: *mut f32,
-        query_batch_base: Tile<i32, { [128] }>,
-        query_pe_batch_base: Tile<i32, { [128] }>,
-        key_batch_base: Tile<i32, { [128] }>,
-        key_pe_batch_base: Tile<i32, { [128] }>,
-        key_index: i32,
-        head: Tile<i32, { [128] }>,
-        q_features: i32,
-        qpe_features: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        valid: Tile<bool, { [128] }>,
-        scale: f32,
-    ) -> Tile<f32, { [128] }> {
-        let tile_shape = const_shape![128];
-        let mut score = constant(0.0f32, tile_shape);
-        for dim_index in 0i32..head_dim {
-            let query_offsets = query_batch_base
-                + head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets =
-                key_batch_base + broadcast_scalar(key_index * head_dim + dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_value, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        for dim_index in 0i32..pe_dim {
-            let query_offsets = query_pe_batch_base
-                + head * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets =
-                key_pe_batch_base + broadcast_scalar(key_index * pe_dim + dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        let _ = q_features;
-        let _ = qpe_features;
-        score * broadcast_scalar(scale, tile_shape)
-    }
-
-    fn mla_decode_score_paged_f32(
-        query: *mut f32,
-        query_pe: *mut f32,
-        key_value_cache: *mut f32,
-        key_pe_cache: *mut f32,
-        query_batch_base: Tile<i32, { [128] }>,
-        query_pe_batch_base: Tile<i32, { [128] }>,
-        physical_block: Tile<i32, { [128] }>,
-        block_token: Tile<i32, { [128] }>,
-        head: Tile<i32, { [128] }>,
-        q_features: i32,
-        qpe_features: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        key_value_cache_block_stride: i32,
-        key_pe_cache_block_stride: i32,
-        valid: Tile<bool, { [128] }>,
-        scale: f32,
-    ) -> Tile<f32, { [128] }> {
-        let tile_shape = const_shape![128];
-        let mut score = constant(0.0f32, tile_shape);
-        for dim_index in 0i32..head_dim {
-            let query_offsets = query_batch_base
-                + head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = physical_block
-                * broadcast_scalar(key_value_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_value_cache, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        for dim_index in 0i32..pe_dim {
-            let query_offsets = query_pe_batch_base
-                + head * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = physical_block
-                * broadcast_scalar(key_pe_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector(query_pe, query_offsets, valid, 0.0f32);
-            let key_values = load_vector(key_pe_cache, key_offsets, valid, 0.0f32);
-            score = score + query_values * key_values;
-        }
-        let _ = q_features;
-        let _ = qpe_features;
-        score * broadcast_scalar(scale, tile_shape)
-    }
-
-    fn mla_decode_score_paged_f16(
-        query: *mut f16,
-        query_pe: *mut f16,
-        key_value_cache: *mut f16,
-        key_pe_cache: *mut f16,
-        query_batch_base: Tile<i32, { [128] }>,
-        query_pe_batch_base: Tile<i32, { [128] }>,
-        physical_block: Tile<i32, { [128] }>,
-        block_token: Tile<i32, { [128] }>,
-        head: Tile<i32, { [128] }>,
-        q_features: i32,
-        qpe_features: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        key_value_cache_block_stride: i32,
-        key_pe_cache_block_stride: i32,
-        valid: Tile<bool, { [128] }>,
-        scale: f32,
-    ) -> Tile<f32, { [128] }> {
-        let tile_shape = const_shape![128];
-        let mut score = constant(0.0f32, tile_shape);
-        for dim_index in 0i32..head_dim {
-            let query_offsets = query_batch_base
-                + head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = physical_block
-                * broadcast_scalar(key_value_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector_f16_as_f32(query, query_offsets, valid);
-            let key_values = load_vector_f16_as_f32(key_value_cache, key_offsets, valid);
-            score = score + query_values * key_values;
-        }
-        for dim_index in 0i32..pe_dim {
-            let query_offsets = query_pe_batch_base
-                + head * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = physical_block
-                * broadcast_scalar(key_pe_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector_f16_as_f32(query_pe, query_offsets, valid);
-            let key_values = load_vector_f16_as_f32(key_pe_cache, key_offsets, valid);
-            score = score + query_values * key_values;
-        }
-        let _ = q_features;
-        let _ = qpe_features;
-        score * broadcast_scalar(scale, tile_shape)
-    }
-
-    fn mla_decode_score_paged_bf16(
-        query: *mut bf16,
-        query_pe: *mut bf16,
-        key_value_cache: *mut bf16,
-        key_pe_cache: *mut bf16,
-        query_batch_base: Tile<i32, { [128] }>,
-        query_pe_batch_base: Tile<i32, { [128] }>,
-        physical_block: Tile<i32, { [128] }>,
-        block_token: Tile<i32, { [128] }>,
-        head: Tile<i32, { [128] }>,
-        q_features: i32,
-        qpe_features: i32,
-        head_dim: i32,
-        pe_dim: i32,
-        key_value_cache_block_stride: i32,
-        key_pe_cache_block_stride: i32,
-        valid: Tile<bool, { [128] }>,
-        scale: f32,
-    ) -> Tile<f32, { [128] }> {
-        let tile_shape = const_shape![128];
-        let mut score = constant(0.0f32, tile_shape);
-        for dim_index in 0i32..head_dim {
-            let query_offsets = query_batch_base
-                + head * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = physical_block
-                * broadcast_scalar(key_value_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(head_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector_bf16_as_f32(query, query_offsets, valid);
-            let key_values = load_vector_bf16_as_f32(key_value_cache, key_offsets, valid);
-            score = score + query_values * key_values;
-        }
-        for dim_index in 0i32..pe_dim {
-            let query_offsets = query_pe_batch_base
-                + head * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let key_offsets = physical_block
-                * broadcast_scalar(key_pe_cache_block_stride, tile_shape)
-                + block_token * broadcast_scalar(pe_dim, tile_shape)
-                + broadcast_scalar(dim_index, tile_shape);
-            let query_values = load_vector_bf16_as_f32(query_pe, query_offsets, valid);
-            let key_values = load_vector_bf16_as_f32(key_pe_cache, key_offsets, valid);
-            score = score + query_values * key_values;
-        }
-        let _ = q_features;
-        let _ = qpe_features;
-        score * broadcast_scalar(scale, tile_shape)
-    }
-
-    fn fmha_prefill_f32<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         query: *mut f32,
         key: *mut f32,
@@ -2746,7 +444,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -2757,10 +455,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn attention_sink_prefill_f32<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_prefill_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         query: *mut f32,
         key: *mut f32,
@@ -2824,7 +522,7 @@ mod kernels {
                 zero_i32,
             )
         };
-        let sink = load_vector(sinks, head, valid, 0.0f32);
+        let sink = unsafe { load_vector(sinks, head, valid, 0.0f32) };
 
         let mut max_score = sink;
         for key_index in 0i32..key_len {
@@ -2924,7 +622,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -2935,10 +633,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn softcapped_window_attention_f32<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_attention_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         query: *mut f32,
         key: *mut f32,
@@ -3059,7 +757,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -3070,10 +768,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn softcapped_window_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key: *mut f16,
@@ -3190,7 +888,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -3201,10 +899,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn softcapped_window_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key: *mut bf16,
@@ -3321,7 +1019,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -3332,7 +1030,7 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
     }
 
     fn softcapped_window_key_valid(
@@ -3380,7 +1078,7 @@ mod kernels {
         }
     }
 
-    fn fmha_decode_lse_f32<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_lse_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -3435,8 +1133,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -3465,8 +1163,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -3478,7 +1176,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -3488,14 +1186,14 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn softcapped_window_decode_lse_f32<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_lse_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -3556,8 +1254,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3592,8 +1290,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3609,7 +1307,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -3619,19 +1317,21 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(
-            lse,
-            lse_offsets,
-            max_score + log(denom),
-            valid & has_values & first_dim,
-        );
+        unsafe {
+            store_vector(
+                lse,
+                lse_offsets,
+                max_score + log(denom),
+                valid & has_values & first_dim,
+            )
+        };
     }
 
-    fn softcapped_window_decode_lse_f16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_lse_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -3692,8 +1392,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3728,8 +1428,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3745,7 +1445,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -3755,19 +1455,21 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(
-            lse,
-            lse_offsets,
-            max_score + log(denom),
-            valid & has_values & first_dim,
-        );
+        unsafe {
+            store_vector(
+                lse,
+                lse_offsets,
+                max_score + log(denom),
+                valid & has_values & first_dim,
+            )
+        };
     }
 
-    fn softcapped_window_decode_lse_bf16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_lse_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -3828,8 +1530,9 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3864,8 +1567,9 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -3881,7 +1585,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -3891,16 +1595,18 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(
-            lse,
-            lse_offsets,
-            max_score + log(denom),
-            valid & has_values & first_dim,
-        );
+        unsafe {
+            store_vector(
+                lse,
+                lse_offsets,
+                max_score + log(denom),
+                valid & has_values & first_dim,
+            )
+        };
     }
 
     fn softcapped_window_decode_key_valid(
@@ -3922,7 +1628,7 @@ mod kernels {
         key_valid
     }
 
-    fn fmha_decode_splitk_f32<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_splitk_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -3994,8 +1700,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -4031,8 +1737,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -4044,7 +1750,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -4056,7 +1762,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -4064,10 +1770,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn softcapped_window_decode_splitk_f32<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_splitk_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -4144,8 +1850,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -4186,8 +1892,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -4203,7 +1909,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -4214,7 +1920,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -4222,10 +1928,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn softcapped_window_decode_splitk_f16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_splitk_f16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f16,
@@ -4302,8 +2008,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -4344,8 +2050,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -4361,7 +2067,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4372,7 +2078,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -4380,10 +2086,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn softcapped_window_decode_splitk_bf16<const HEAD_DIM: i32>(
+    unsafe fn softcapped_window_decode_splitk_bf16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut bf16,
@@ -4460,8 +2166,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -4502,8 +2209,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = softcapped_attention_score(
@@ -4519,7 +2227,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4530,7 +2238,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -4538,7 +2246,7 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
     fn softcapped_window_decode_split_key_valid(
@@ -4566,7 +2274,7 @@ mod kernels {
         key_valid
     }
 
-    fn attention_sink_decode_splitk_f32<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_decode_splitk_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -4649,8 +2357,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -4668,7 +2376,7 @@ mod kernels {
         }
 
         let first_split = cmpi(split, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let sink = load_vector(sinks, head, valid & first_split, -1.0e20f32);
+        let sink = unsafe { load_vector(sinks, head, valid & first_split, -1.0e20f32) };
         max_score = select(
             valid
                 & first_split
@@ -4703,8 +2411,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector(query, query_offsets, key_valid, 0.0f32);
-                let key_tile = load_vector(key, key_offsets, key_valid, 0.0f32);
+                let query_tile = unsafe { load_vector(query, query_offsets, key_valid, 0.0f32) };
+                let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -4716,7 +2424,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -4732,7 +2440,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -4740,10 +2448,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_terms, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn attention_sink_decode_splitk_f16<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_decode_splitk_f16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f16,
@@ -4826,8 +2534,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -4845,7 +2553,7 @@ mod kernels {
         }
 
         let first_split = cmpi(split, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let sink = load_vector(sinks, head, valid & first_split, -1.0e20f32);
+        let sink = unsafe { load_vector(sinks, head, valid & first_split, -1.0e20f32) };
         max_score = select(
             valid
                 & first_split
@@ -4880,8 +2588,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -4893,7 +2601,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -4909,7 +2617,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -4917,10 +2625,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_terms, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn attention_sink_decode_splitk_bf16<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_decode_splitk_bf16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut bf16,
@@ -5003,8 +2711,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5022,7 +2731,7 @@ mod kernels {
         }
 
         let first_split = cmpi(split, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        let sink = load_vector(sinks, head, valid & first_split, -1.0e20f32);
+        let sink = unsafe { load_vector(sinks, head, valid & first_split, -1.0e20f32) };
         max_score = select(
             valid
                 & first_split
@@ -5057,8 +2766,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -5070,7 +2780,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5086,7 +2796,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -5094,10 +2804,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_terms, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn fmha_prefill_lse_f16<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_lse_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -5226,7 +2936,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5237,15 +2947,15 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let lse_offsets = lse_offsets * broadcast_scalar(_query_len, tile_shape) + query_index;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn fmha_prefill_lse_bf16<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_lse_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -5374,7 +3084,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5385,15 +3095,15 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let lse_offsets = lse_offsets * broadcast_scalar(_query_len, tile_shape) + query_index;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn fmha_prefill_f16<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key: *mut f16,
@@ -5521,7 +3231,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5532,10 +3242,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn fmha_prefill_bf16<const HEAD_DIM: i32>(
+    unsafe fn fmha_prefill_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key: *mut bf16,
@@ -5663,7 +3373,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5674,10 +3384,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn attention_sink_prefill_f16<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_prefill_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key: *mut f16,
@@ -5741,7 +3451,7 @@ mod kernels {
                 zero_i32,
             )
         };
-        let sink = load_vector(sinks, head, valid, 0.0f32);
+        let sink = unsafe { load_vector(sinks, head, valid, 0.0f32) };
 
         let mut max_score = sink;
         for key_index in 0i32..key_len {
@@ -5837,7 +3547,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -5848,10 +3558,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn attention_sink_prefill_bf16<const HEAD_DIM: i32>(
+    unsafe fn attention_sink_prefill_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key: *mut bf16,
@@ -5915,7 +3625,7 @@ mod kernels {
                 zero_i32,
             )
         };
-        let sink = load_vector(sinks, head, valid, 0.0f32);
+        let sink = unsafe { load_vector(sinks, head, valid, 0.0f32) };
 
         let mut max_score = sink;
         for key_index in 0i32..key_len {
@@ -6011,7 +3721,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -6022,10 +3732,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn fmha_decode_lse_f16<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_lse_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -6080,8 +3790,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -6110,8 +3820,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -6123,7 +3833,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -6133,14 +3843,14 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn fmha_decode_lse_bf16<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_lse_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -6195,8 +3905,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, valid);
+                let query_tile = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -6225,8 +3935,8 @@ mod kernels {
                     + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, valid);
+                let query_tile = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -6238,7 +3948,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -6248,14 +3958,14 @@ mod kernels {
         let output_offsets = batch_index * broadcast_scalar(output_batch_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(heads, tile_shape) + head;
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
-        store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, max_score + log(denom), valid & first_dim) };
     }
 
-    fn fmha_decode_splitk_f16<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_splitk_f16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f16,
@@ -6327,8 +4037,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -6364,8 +4074,8 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_f16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_f16_as_f32(key, key_offsets, key_valid);
+                let query_tile = unsafe { load_vector_f16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -6377,7 +4087,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -6389,7 +4099,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -6397,10 +4107,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn fmha_decode_splitk_bf16<const HEAD_DIM: i32>(
+    unsafe fn fmha_decode_splitk_bf16<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut bf16,
@@ -6472,8 +4182,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -6509,8 +4220,9 @@ mod kernels {
                     + key_index * broadcast_scalar(key_sequence_stride, tile_shape)
                     + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                     + broadcast_scalar(dim_index, tile_shape);
-                let query_tile = load_vector_bf16_as_f32(query, query_offsets, key_valid);
-                let key_tile = load_vector_bf16_as_f32(key, key_offsets, key_valid);
+                let query_tile =
+                    unsafe { load_vector_bf16_as_f32(query, query_offsets, key_valid) };
+                let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
             score = score * broadcast_scalar(scale, tile_shape);
@@ -6522,7 +4234,7 @@ mod kernels {
                 + key_index * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -6534,7 +4246,7 @@ mod kernels {
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + split * broadcast_scalar(output_split_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
 
         let lse_offsets = batch_index * broadcast_scalar(lse_batch_stride, tile_shape)
             + head * broadcast_scalar(lse_head_stride, tile_shape)
@@ -6542,10 +4254,10 @@ mod kernels {
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_keys, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid & first_dim) };
     }
 
-    fn sliding_window_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn sliding_window_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key: *mut f16,
@@ -6681,7 +4393,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
@@ -6691,10 +4403,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_f16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn sliding_window_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn sliding_window_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key: *mut bf16,
@@ -6830,7 +4542,7 @@ mod kernels {
                 + broadcast_scalar(key_index * value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
@@ -6840,10 +4552,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector_bf16_from_f32(out, output_offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, output, valid) };
     }
 
-    fn attention_score_f16<const HEAD_DIM: i32>(
+    unsafe fn attention_score_f16<const HEAD_DIM: i32>(
         query: *mut f16,
         key: *mut f16,
         query_batch_base: Tile<i32, { [128] }>,
@@ -6870,14 +4582,14 @@ mod kernels {
                 + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector_f16_as_f32(query, query_offsets, valid);
-            let k = load_vector_f16_as_f32(key, key_offsets, valid);
+            let q = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+            let k = unsafe { load_vector_f16_as_f32(key, key_offsets, valid) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn attention_score_bf16<const HEAD_DIM: i32>(
+    unsafe fn attention_score_bf16<const HEAD_DIM: i32>(
         query: *mut bf16,
         key: *mut bf16,
         query_batch_base: Tile<i32, { [128] }>,
@@ -6904,14 +4616,14 @@ mod kernels {
                 + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector_bf16_as_f32(query, query_offsets, valid);
-            let k = load_vector_bf16_as_f32(key, key_offsets, valid);
+            let q = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+            let k = unsafe { load_vector_bf16_as_f32(key, key_offsets, valid) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn sliding_window_attention_paged_kv_f32<const HEAD_DIM: i32, const WINDOW: i32>(
+    unsafe fn sliding_window_attention_paged_kv_f32<const HEAD_DIM: i32, const WINDOW: i32>(
         out: *mut f32,
         query: *mut f32,
         key_cache: *mut f32,
@@ -6982,14 +4694,16 @@ mod kernels {
                     query_abs,
                     predicate::GreaterThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7046,14 +4760,16 @@ mod kernels {
                     query_abs,
                     predicate::GreaterThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7091,7 +4807,8 @@ mod kernels {
                 + block_token * broadcast_scalar(value_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(value_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value_cache, value_offsets, block_valid, 0.0f32);
+            let value_tile =
+                unsafe { load_vector(value_cache, value_offsets, block_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
@@ -7101,10 +4818,10 @@ mod kernels {
             + query_index * broadcast_scalar(output_sequence_stride, tile_shape)
             + head * broadcast_scalar(output_head_stride, tile_shape)
             + dim;
-        store_vector(out, output_offsets, output, valid);
+        unsafe { store_vector(out, output_offsets, output, valid) };
     }
 
-    fn paged_kv_decode_attention_f32<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_decode_attention_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         query: *mut f32,
         key_cache: *mut f32,
@@ -7136,7 +4853,7 @@ mod kernels {
         let dim = batch_output_offset - head * broadcast_scalar(HEAD_DIM, tile_shape);
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
+        let seq_len = unsafe { load_i32_vector(actual_seq_lens, batch_index, valid, 0i32) };
         let key_sequence_stride = kv_heads * HEAD_DIM;
         let key_head_stride = HEAD_DIM;
         let key_cache_block_stride = block_size * key_sequence_stride;
@@ -7150,14 +4867,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7208,14 +4927,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7252,7 +4973,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value_cache, value_offsets, block_valid, 0.0f32);
+            let value_tile =
+                unsafe { load_vector(value_cache, value_offsets, block_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -7263,10 +4985,10 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector(out, offsets, output, valid);
+        unsafe { store_vector(out, offsets, output, valid) };
     }
 
-    fn paged_kv_decode_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_decode_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         query: *mut f16,
         key_cache: *mut f16,
@@ -7298,7 +5020,7 @@ mod kernels {
         let dim = batch_output_offset - head * broadcast_scalar(HEAD_DIM, tile_shape);
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
+        let seq_len = unsafe { load_i32_vector(actual_seq_lens, batch_index, valid, 0i32) };
         let key_sequence_stride = kv_heads * HEAD_DIM;
         let key_head_stride = HEAD_DIM;
         let key_cache_block_stride = block_size * key_sequence_stride;
@@ -7312,14 +5034,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7370,14 +5094,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7414,7 +5140,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value_cache, value_offsets, block_valid);
+            let value_tile =
+                unsafe { load_vector_f16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -7425,10 +5152,10 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_f16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, offsets, output, valid) };
     }
 
-    fn paged_kv_decode_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_decode_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         query: *mut bf16,
         key_cache: *mut bf16,
@@ -7460,7 +5187,7 @@ mod kernels {
         let dim = batch_output_offset - head * broadcast_scalar(HEAD_DIM, tile_shape);
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
-        let seq_len = load_i32_vector(actual_seq_lens, batch_index, valid, 0i32);
+        let seq_len = unsafe { load_i32_vector(actual_seq_lens, batch_index, valid, 0i32) };
         let key_sequence_stride = kv_heads * HEAD_DIM;
         let key_head_stride = HEAD_DIM;
         let key_cache_block_stride = block_size * key_sequence_stride;
@@ -7474,14 +5201,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7532,14 +5261,16 @@ mod kernels {
                     seq_len,
                     predicate::LessThan,
                 );
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7576,7 +5307,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value_cache, value_offsets, block_valid);
+            let value_tile =
+                unsafe { load_vector_bf16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -7587,10 +5319,10 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_bf16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, offsets, output, valid) };
     }
 
-    fn paged_kv_prefill_attention_f32<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_prefill_attention_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -7631,8 +5363,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let seq_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let seq_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(global_token, seq_offset, predicate::GreaterThanOrEqual)
                 & cmpi(
@@ -7651,7 +5385,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let key_sequence_stride = kv_heads * HEAD_DIM;
@@ -7676,14 +5411,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7743,14 +5480,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7786,7 +5525,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector(value_cache, value_offsets, block_valid, 0.0f32);
+            let value_tile =
+                unsafe { load_vector(value_cache, value_offsets, block_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -7797,16 +5537,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector(out, offsets, output, valid);
+        unsafe { store_vector(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn paged_kv_prefill_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_prefill_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -7847,8 +5587,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let seq_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let seq_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(global_token, seq_offset, predicate::GreaterThanOrEqual)
                 & cmpi(
@@ -7867,7 +5609,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let key_sequence_stride = kv_heads * HEAD_DIM;
@@ -7892,14 +5635,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -7959,14 +5704,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -8002,7 +5749,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value_cache, value_offsets, block_valid);
+            let value_tile =
+                unsafe { load_vector_f16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -8013,16 +5761,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_f16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn paged_kv_prefill_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn paged_kv_prefill_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -8063,8 +5811,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let seq_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let seq_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(global_token, seq_offset, predicate::GreaterThanOrEqual)
                 & cmpi(
@@ -8083,7 +5833,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let key_sequence_stride = kv_heads * HEAD_DIM;
@@ -8108,14 +5859,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -8175,14 +5928,16 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
-            let (physical_block, block_token) = paged_block_lookup(
-                block_table,
-                batch_index,
-                key_index,
-                block_size,
-                block_table_batch_stride,
-                key_valid,
-            );
+            let (physical_block, block_token) = unsafe {
+                paged_block_lookup(
+                    block_table,
+                    batch_index,
+                    key_index,
+                    block_size,
+                    block_table_batch_stride,
+                    key_valid,
+                )
+            };
             let block_valid = key_valid
                 & cmpi(
                     physical_block,
@@ -8218,7 +5973,8 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value_cache, value_offsets, block_valid);
+            let value_tile =
+                unsafe { load_vector_bf16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -8229,16 +5985,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_bf16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn ragged_kv_prefill_attention_f32<const HEAD_DIM: i32>(
+    unsafe fn ragged_kv_prefill_attention_f32<const HEAD_DIM: i32>(
         out: *mut f32,
         lse: *mut f32,
         query: *mut f32,
@@ -8278,8 +6034,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let candidate_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let candidate_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(
                     global_token,
@@ -8303,7 +6061,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let query_batch_base = global_token * broadcast_scalar(features, tile_shape);
@@ -8397,7 +6156,7 @@ mod kernels {
                 * broadcast_scalar(kv_features, tile_shape)
                 + kv_head * broadcast_scalar(HEAD_DIM, tile_shape)
                 + dim;
-            let value_tile = load_vector(value, value_offsets, key_valid, 0.0f32);
+            let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
 
@@ -8408,16 +6167,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector(out, offsets, output, valid);
+        unsafe { store_vector(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn ragged_kv_prefill_attention_f16<const HEAD_DIM: i32>(
+    unsafe fn ragged_kv_prefill_attention_f16<const HEAD_DIM: i32>(
         out: *mut f16,
         lse: *mut f32,
         query: *mut f16,
@@ -8457,8 +6216,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let candidate_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let candidate_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(
                     global_token,
@@ -8482,7 +6243,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let query_batch_base = global_token * broadcast_scalar(features, tile_shape);
@@ -8572,7 +6334,7 @@ mod kernels {
                 * broadcast_scalar(kv_features, tile_shape)
                 + kv_head * broadcast_scalar(HEAD_DIM, tile_shape)
                 + dim;
-            let value_tile = load_vector_f16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -8583,16 +6345,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_f16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_f16_from_f32(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn ragged_kv_prefill_attention_bf16<const HEAD_DIM: i32>(
+    unsafe fn ragged_kv_prefill_attention_bf16<const HEAD_DIM: i32>(
         out: *mut bf16,
         lse: *mut f32,
         query: *mut bf16,
@@ -8632,8 +6394,10 @@ mod kernels {
         let mut seq_len_q = broadcast_scalar(0i32, tile_shape);
         for candidate in 0i32..batch {
             let candidate_tile = broadcast_scalar(candidate, tile_shape);
-            let candidate_offset = load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32);
-            let candidate_seq_len = load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32);
+            let candidate_offset =
+                unsafe { load_i32_vector(actual_seq_offsets, candidate_tile, valid, 0i32) };
+            let candidate_seq_len =
+                unsafe { load_i32_vector(actual_seq_lens_q, candidate_tile, valid, 0i32) };
             let in_batch = valid
                 & cmpi(
                     global_token,
@@ -8657,7 +6421,8 @@ mod kernels {
                 predicate::GreaterThanOrEqual,
             )
             & cmpi(query_index, seq_len_q, predicate::LessThan);
-        let seq_len_kv = load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32);
+        let seq_len_kv =
+            unsafe { load_i32_vector(actual_seq_lens_kv, batch_index, valid_query, 0i32) };
         let query_group_size = heads / kv_heads;
         let kv_head = head / broadcast_scalar(query_group_size, tile_shape);
         let query_batch_base = global_token * broadcast_scalar(features, tile_shape);
@@ -8747,7 +6512,7 @@ mod kernels {
                 * broadcast_scalar(kv_features, tile_shape)
                 + kv_head * broadcast_scalar(HEAD_DIM, tile_shape)
                 + dim;
-            let value_tile = load_vector_bf16_as_f32(value, value_offsets, key_valid);
+            let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
 
@@ -8758,16 +6523,16 @@ mod kernels {
             sum / select(has_denominator, denom, one),
             zero,
         );
-        store_vector_bf16_from_f32(out, offsets, output, valid);
+        unsafe { store_vector_bf16_from_f32(out, offsets, output, valid) };
 
         let first_dim = cmpi(dim, broadcast_scalar(0i32, tile_shape), predicate::Equal);
         let lse_offsets = global_token * broadcast_scalar(heads, tile_shape) + head;
         let invalid_lse: Tile<f32, { [128] }> = constant(-1.0e20f32, tile_shape);
         let lse_value = select(has_denominator, max_score + log(denom), invalid_lse);
-        store_vector(lse, lse_offsets, lse_value, valid_query & first_dim);
+        unsafe { store_vector(lse, lse_offsets, lse_value, valid_query & first_dim) };
     }
 
-    fn attention_score<const HEAD_DIM: i32>(
+    unsafe fn attention_score<const HEAD_DIM: i32>(
         query: *mut f32,
         key: *mut f32,
         query_batch_base: Tile<i32, { [128] }>,
@@ -8796,14 +6561,14 @@ mod kernels {
                 + broadcast_scalar(key_index * key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector(query, query_offsets, valid, 0.0f32);
-            let k = load_vector(key, key_offsets, valid, 0.0f32);
+            let q = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let k = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn attention_score_paged<const HEAD_DIM: i32>(
+    unsafe fn attention_score_paged<const HEAD_DIM: i32>(
         query: *mut f32,
         key_cache: *mut f32,
         query_batch_base: Tile<i32, { [128] }>,
@@ -8831,14 +6596,14 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector(query, query_offsets, valid, 0.0f32);
-            let k = load_vector(key_cache, key_offsets, valid, 0.0f32);
+            let q = unsafe { load_vector(query, query_offsets, valid, 0.0f32) };
+            let k = unsafe { load_vector(key_cache, key_offsets, valid, 0.0f32) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn attention_score_paged_f16<const HEAD_DIM: i32>(
+    unsafe fn attention_score_paged_f16<const HEAD_DIM: i32>(
         query: *mut f16,
         key_cache: *mut f16,
         query_batch_base: Tile<i32, { [128] }>,
@@ -8866,14 +6631,14 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector_f16_as_f32(query, query_offsets, valid);
-            let k = load_vector_f16_as_f32(key_cache, key_offsets, valid);
+            let q = unsafe { load_vector_f16_as_f32(query, query_offsets, valid) };
+            let k = unsafe { load_vector_f16_as_f32(key_cache, key_offsets, valid) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn attention_score_paged_bf16<const HEAD_DIM: i32>(
+    unsafe fn attention_score_paged_bf16<const HEAD_DIM: i32>(
         query: *mut bf16,
         key_cache: *mut bf16,
         query_batch_base: Tile<i32, { [128] }>,
@@ -8901,14 +6666,14 @@ mod kernels {
                 + block_token * broadcast_scalar(key_sequence_stride, tile_shape)
                 + kv_head * broadcast_scalar(key_head_stride, tile_shape)
                 + broadcast_scalar(dim, tile_shape);
-            let q = load_vector_bf16_as_f32(query, query_offsets, valid);
-            let k = load_vector_bf16_as_f32(key_cache, key_offsets, valid);
+            let q = unsafe { load_vector_bf16_as_f32(query, query_offsets, valid) };
+            let k = unsafe { load_vector_bf16_as_f32(key_cache, key_offsets, valid) };
             score = score + q * k;
         }
         score * broadcast_scalar(scale, tile_shape)
     }
 
-    fn paged_block_lookup(
+    unsafe fn paged_block_lookup(
         block_table: *mut u32,
         batch_index: Tile<i32, { [128] }>,
         key_index: i32,
@@ -8922,12 +6687,13 @@ mod kernels {
         let block_table_offsets = batch_index
             * broadcast_scalar(block_table_batch_stride, tile_shape)
             + broadcast_scalar(logical_block, tile_shape);
-        let physical_block_u32 = load_u32_vector(block_table, block_table_offsets, valid, 0u32);
+        let physical_block_u32 =
+            unsafe { load_u32_vector(block_table, block_table_offsets, valid, 0u32) };
         let physical_block: Tile<i32, { [128] }> = bitcast(physical_block_u32);
         (physical_block, broadcast_scalar(block_token, tile_shape))
     }
 
-    fn softmax_probability_f32(
+    unsafe fn softmax_probability_f32(
         scores: *mut f32,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -8943,7 +6709,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32);
+            let score =
+                unsafe { load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32) };
             max_score = select(
                 valid_score
                     & cmpf(
@@ -8962,7 +6729,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32);
+            let score =
+                unsafe { load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32) };
             denom = denom + select(valid_score, exp(score - max_score), zero_values);
         }
         select(
@@ -8972,7 +6740,7 @@ mod kernels {
         )
     }
 
-    fn softmax_probability_f16(
+    unsafe fn softmax_probability_f16(
         scores: *mut f16,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -8988,7 +6756,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score =
+                unsafe { load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score) };
             max_score = select(
                 valid_score
                     & cmpf(
@@ -9007,7 +6776,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score =
+                unsafe { load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score) };
             denom = denom + select(valid_score, exp(score - max_score), zero_values);
         }
         select(
@@ -9017,7 +6787,7 @@ mod kernels {
         )
     }
 
-    fn softmax_probability_bf16(
+    unsafe fn softmax_probability_bf16(
         scores: *mut bf16,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -9033,7 +6803,9 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score = unsafe {
+                load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score)
+            };
             max_score = select(
                 valid_score
                     & cmpf(
@@ -9052,7 +6824,9 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score = unsafe {
+                load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score)
+            };
             denom = denom + select(valid_score, exp(score - max_score), zero_values);
         }
         select(
@@ -9062,7 +6836,7 @@ mod kernels {
         )
     }
 
-    fn sparsemax_probability_f32(
+    unsafe fn sparsemax_probability_f32(
         scores: *mut f32,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -9082,7 +6856,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32);
+            let score =
+                unsafe { load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32) };
             x_sum = x_sum + select(valid_score, score, zero_values);
             support_count = support_count + select(valid_score, one_values, zero_values);
             x_max = select(
@@ -9101,7 +6876,9 @@ mod kernels {
                 let score_col_tile = broadcast_scalar(score_col, tile_shape);
                 let valid_score =
                     valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-                let score = load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32);
+                let score = unsafe {
+                    load_vector(scores, score_base + score_col_tile, valid_score, 0.0f32)
+                };
                 let active = valid_score
                     & cmpf(
                         score,
@@ -9136,7 +6913,7 @@ mod kernels {
         )
     }
 
-    fn sparsemax_probability_f16(
+    unsafe fn sparsemax_probability_f16(
         scores: *mut f16,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -9156,7 +6933,8 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score =
+                unsafe { load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score) };
             x_sum = x_sum + select(valid_score, score, zero_values);
             support_count = support_count + select(valid_score, one_values, zero_values);
             x_max = select(
@@ -9175,8 +6953,9 @@ mod kernels {
                 let score_col_tile = broadcast_scalar(score_col, tile_shape);
                 let valid_score =
                     valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-                let score =
-                    load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score);
+                let score = unsafe {
+                    load_vector_f16_as_f32(scores, score_base + score_col_tile, valid_score)
+                };
                 let active = valid_score
                     & cmpf(
                         score,
@@ -9211,7 +6990,7 @@ mod kernels {
         )
     }
 
-    fn sparsemax_probability_bf16(
+    unsafe fn sparsemax_probability_bf16(
         scores: *mut bf16,
         score_base: Tile<i32, { [128] }>,
         score_value: Tile<f32, { [128] }>,
@@ -9231,7 +7010,9 @@ mod kernels {
             let score_col_tile = broadcast_scalar(score_col, tile_shape);
             let valid_score =
                 valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-            let score = load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score);
+            let score = unsafe {
+                load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score)
+            };
             x_sum = x_sum + select(valid_score, score, zero_values);
             support_count = support_count + select(valid_score, one_values, zero_values);
             x_max = select(
@@ -9250,8 +7031,9 @@ mod kernels {
                 let score_col_tile = broadcast_scalar(score_col, tile_shape);
                 let valid_score =
                     valid_row & cmpi(score_col_tile, input_row, predicate::LessThanOrEqual);
-                let score =
-                    load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score);
+                let score = unsafe {
+                    load_vector_bf16_as_f32(scores, score_base + score_col_tile, valid_score)
+                };
                 let active = valid_score
                     & cmpf(
                         score,
@@ -9286,7 +7068,7 @@ mod kernels {
         )
     }
 
-    fn store_i32_vector(
+    unsafe fn store_i32_vector(
         out: *mut i32,
         offsets: Tile<i32, { [128] }>,
         values: Tile<i32, { [128] }>,
@@ -9298,15 +7080,17 @@ mod kernels {
         let out_base: PointerTile<*mut i32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut i32, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut i32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 

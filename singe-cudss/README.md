@@ -1,96 +1,55 @@
-singe-cudss
-===
+# singe-cudss
 
 <!-- [![Rust](https://github.com/tinrab/singe/workflows/Rust/badge.svg)](https://github.com/tinrab/singe/actions) -->
+
 [![Latest version](https://img.shields.io/crates/v/singe-cudss.svg)](https://crates.io/crates/singe-cudss)
 [![Documentation](https://docs.rs/singe-cudss/badge.svg)](https://docs.rs/singe-cudss)
 ![License](https://img.shields.io/crates/l/singe-cudss.svg)
 
-`singe-cudss` provides safe Rust wrappers for [NVIDIA cuDSS](https://docs.nvidia.com/cuda/cudss/), the CUDA Direct Sparse Solver library.
+Safe Rust wrappers for NVIDIA cuDSS, the CUDA direct sparse solver library.
 
-## Examples
+This crate provides:
 
-Runnable examples are available under [`examples/`](examples/).
+- Sparse direct solves with separate analysis, factorization, and solve phases.
+- Real, complex, and extended-precision inputs.
+- Batched systems, Schur complements, and solver configuration.
+- Hybrid CPU/GPU execution, multi-GPU modes, and custom allocators.
 
-Examples were ported from NVIDIA's [CUDALibrarySamples](https://github.com/NVIDIA/CUDALibrarySamples/tree/241afd3c7a8d1d756100139a3f629df5475fcf5c/cuDSS) repository.
+## Example
 
-### Example: 5x5 symmetric positive-definite sparse system
+Solve a sparse linear system in three phases: analysis, factorization, and solve.
+Assume `a` is a CSR matrix, `b` is the right-hand side, and `x` will hold the solution:
 
-This example is based on the official C++ sample [cuDSS/simple/simple.cpp](https://github.com/NVIDIA/CUDALibrarySamples/blob/241afd3c7a8d1d756100139a3f629df5475fcf5c/cuDSS/simple/simple.cpp).
+```rust,ignore
+use singe_cuda::stream::StreamBinding;
+use singe_cudss::{config::Config, types::Phase};
 
-```rust
-use singe_cuda::{
-    context::Context as CudaContext,
-    memory::DeviceMemory,
-};
-use singe_cudss::{
-    config::Config,
-    context::Context,
-    error::Result,
-    matrix::*,
-    types::*,
-};
-
-fn main() -> Result<()> {
-    let cuda = CudaContext::create()?;
-    let stream = cuda.create_stream()?;
-    let context = Context::create(&cuda)?;
-    context.set_stream(&stream)?;
-
-    let n = 5i64;
-    let nrhs = 1i64;
-    let nnz = 8i64;
-
-    let row_offsets = DeviceMemory::from_slice(&[0_i32, 2, 4, 6, 7, 8])?;
-    let col_indices = DeviceMemory::from_slice(&[0_i32, 2, 1, 2, 2, 4, 3, 4])?;
-    let a_values = DeviceMemory::from_slice(&[
-        4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0,
-    ])?;
-    let b_values = DeviceMemory::from_slice(&[7.0f64, 12.0, 25.0, 4.0, 13.0])?;
-    let x_values = DeviceMemory::<f64>::zeroes((n * nrhs) as usize)?;
-
-    let a = Matrix::create_csr(
-        CsrMatrixDescriptor {
-            rows: n,
-            columns: n,
-            nnz,
-            matrix_type: MatrixType::Spd,
-            view_type: MatrixViewType::Upper,
-            index_base: IndexBase::Zero,
-        },
-        &row_offsets,
-        None,
-        &col_indices,
-        &a_values,
-    )?;
-    let b = Matrix::create_dense(
-        DenseMatrixDescriptor::new(n, nrhs, n),
-        &b_values,
-    )?;
-    let mut x = Matrix::create_dense(
-        DenseMatrixDescriptor::new(n, nrhs, n),
-        &x_values,
-    )?;
-
-    let config = Config::create()?;
-    let mut data = context.create_data()?;
-
-    context.execute(Phase::ANALYSIS, &config, &mut data, &a, &mut x, &b)?;
-    context.execute(Phase::FACTORIZATION, &config, &mut data, &a, &mut x, &b)?;
-    context.execute(Phase::SOLVE, &config, &mut data, &a, &mut x, &b)?;
-
-    stream.synchronize()?;
-
-    let x = x_values.copy_to_host_vec()?;
-    for (index, value) in x.iter().copied().enumerate() {
-        let expected = (index + 1) as f64;
-        assert!((value - expected).abs() <= 2.0e-15);
-    }
-
-    Ok(())
-}
+context.set_stream(&stream)?;
+let config = Config::create()?;
+let mut data = context.create_data()?;
+StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| -> singe_cudss::error::Result<()> {
+	for phase in [Phase::ANALYSIS, Phase::FACTORIZATION, Phase::SOLVE] {
+		// SAFETY: descriptors match their buffers, sparse indices are valid,
+		// and all solver resources survive completion on the selected stream.
+		unsafe {
+			context.execute(phase, &config, &mut data, &a, &mut x, &b)?;
+		}
+	}
+	Ok(())
+})?;
+assert_eq!(data.info()?, 0);
 ```
 
-## Notes
+`Config` holds the solver settings, and the data object carries state from one phase to the next.
+Check `data.info()` before reading the solution.
+The [complete example](examples/simple.rs) builds a 5x5 symmetric positive-definite system and checks its solution.
 
-cuDSS 0.8 is documented as a preview release, so upstream APIs and behavior may change.
+## More examples
+
+- [Complex solve](examples/simple_complex.rs): solve a complex-valued system.
+- [Batch solve](examples/simple_batch.rs): process multiple systems.
+- [Schur complement](examples/simple_schur_complement.rs): extract a reduced system.
+- [Hybrid execution](examples/simple_hybrid_execute_mode.rs): configure CPU/GPU execution.
+- [Custom allocator](examples/simple_memory_handler.rs): install allocation callbacks.
+
+See the [API reference](https://docs.rs/singe-cudss).

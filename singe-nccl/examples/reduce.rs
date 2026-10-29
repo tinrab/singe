@@ -1,5 +1,7 @@
 mod common;
 
+use std::process;
+
 use singe_cuda::memory::DeviceMemory;
 use singe_nccl::{
     local::{LocalCommunicatorGroup, RootRank},
@@ -18,16 +20,25 @@ fn run() -> ExampleResult {
 
     let send_buffers = group.map_ranks(|rank| {
         rank.bind()?;
-        Ok(DeviceMemory::from_slice(&rank_indexed_values(
-            rank.id().get(),
-            ELEMENT_COUNT,
-        ))?)
+        Ok(DeviceMemory::from_slice(
+            rank.communicator().cuda_context(),
+            &rank_indexed_values(rank.id().get(), ELEMENT_COUNT),
+        )?)
     })?;
 
     group.rank(root.id())?.bind()?;
-    let mut recv = DeviceMemory::<f32>::zeroes(ELEMENT_COUNT)?;
-    group.reduce_into(&send_buffers, root, &mut recv, ReductionOperator::Sum)?;
-    group.synchronize()?;
+    let mut recv = DeviceMemory::<f32>::create_uninit(
+        group.rank(root.id())?.communicator().cuda_context(),
+        ELEMENT_COUNT,
+    )?;
+    group.reduce_into(
+        &send_buffers.map(DeviceMemory::view),
+        root,
+        recv.output(),
+        ReductionOperator::Sum,
+    )?;
+    // SAFETY: the completed collective wrote the entire compact root output.
+    let recv = unsafe { recv.assume_init() };
 
     let rank_sum = (0..rank_count)
         .map(|rank| rank as f32 * 1000.0)
@@ -48,8 +59,8 @@ fn run() -> ExampleResult {
 }
 
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("{err}");
-        std::process::exit(1);
+    if let Err(error) = run() {
+        eprintln!("{error}");
+        process::exit(1);
     }
 }

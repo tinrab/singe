@@ -1,0 +1,77 @@
+{
+  "NVCOMP_TYPE_CHAR": {
+    "doc": "8-bit signed character",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "NVCOMP_TYPE_FLOAT16": {
+    "doc": "Little-endian 2-byte float",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "NVCOMP_TYPE_INT": {
+    "doc": "Little-endian 4-byte signed integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "NVCOMP_TYPE_LONGLONG": {
+    "doc": "Little-endian 8-byte signed integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "NVCOMP_TYPE_SHORT": {
+    "doc": "Little-endian 2-byte signed integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "NVCOMP_TYPE_UCHAR": {
+    "doc": "8-bit unsigned character",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "NVCOMP_TYPE_UINT": {
+    "doc": "Little-endian 4-byte unsigned integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "NVCOMP_TYPE_ULONGLONG": {
+    "doc": "Little-endian 8-byte unsigned integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "NVCOMP_TYPE_USHORT": {
+    "doc": "Little-endian 2-byte unsigned integer",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvcomp/v6.0.0"
+  },
+  "nvcompCRC32BlockKernel": {
+    "doc": "Let one or more blocks process each chunk of input data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvcomp/c_api.html#_CPPv423nvcompCRC32KernelKind_t"
+  },
+  "nvcompCRC32FirstSegment": {
+    "doc": "First segment of a message that may be followed by further segments.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvcomp/c_api.html#_CPPv424nvcompCRC32SegmentKind_t"
+  },
+  "nvcompCRC32LastSegment": {
+    "doc": "Last segment of a message.\n\nIf the segment is also the first segment, nvcompCRC32OnlySegment should be used instead.\n\nThis enumerator can also be used to retroactively mark the last processed segment as the last segment of a message. For details, see nvcompBatchedCRC32Async.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvcomp/c_api.html#_CPPv424nvcompCRC32SegmentKind_t"
+  },
+  "nvcompCRC32MidSegment": {
+    "doc": "Non-first segment of a message that may be followed by further segments.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvcomp/c_api.html#_CPPv424nvcompCRC32SegmentKind_t"
+  },
+  "nvcompCRC32OnlySegment": {
+    "doc": "Single segment (complete message).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvcomp/c_api.html#_CPPv424nvcompCRC32SegmentKind_t"
+  },
+  "nvcompCRC32WarpKernel": {
+    "doc": "Let each warp process its own chunk of input data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvcomp/c_api.html#_CPPv423nvcompCRC32KernelKind_t"
+  }
+}

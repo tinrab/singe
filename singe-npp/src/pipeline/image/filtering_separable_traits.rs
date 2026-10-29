@@ -1,15 +1,20 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{ImageView, ImageViewMut},
+    image::view::{ImageOutputView, ImageView, ImageWindow},
     types::{BorderType, Point},
 };
 
-pub trait IntegerSeparableFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait IntegerSeparableFilterImage<T, L> {
     fn filter_column_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[i32],
         anchor: i32,
         divisor: i32,
@@ -17,74 +22,94 @@ pub trait IntegerSeparableFilterImage<T, L> {
 
     fn filter_row_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[i32],
         anchor: i32,
         divisor: i32,
     ) -> Result<()>;
 }
 
-pub trait FloatSeparableFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait FloatSeparableFilterImage<T, L> {
     fn filter_column32f_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[f32],
         anchor: i32,
     ) -> Result<()>;
 
     fn filter_row32f_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[f32],
         anchor: i32,
     ) -> Result<()>;
 }
 
-pub trait DoubleSeparableFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait DoubleSeparableFilterImage<T, L> {
     fn filter_column64f_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[f64],
         anchor: i32,
     ) -> Result<()>;
 
     fn filter_row64f_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[f64],
         anchor: i32,
     ) -> Result<()>;
 }
 
-pub trait SumWindowFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait SumWindowFilterImage<T, L> {
     fn sum_window_column_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, f32, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, f32, L>,
         mask_size: i32,
         anchor: i32,
     ) -> Result<()>;
 
     fn sum_window_row_image(
         stream_context: &StreamContext,
-        source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, f32, L>,
+        source: &ImageWindow<'_, T, L>,
+        destination: &mut ImageOutputView<'_, f32, L>,
         mask_size: i32,
         anchor: i32,
     ) -> Result<()>;
 }
 
-pub trait IntegerSeparableBorderFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait IntegerSeparableBorderFilterImage<T, L> {
     fn filter_column_border_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[i32],
         anchor: i32,
         divisor: i32,
@@ -95,7 +120,7 @@ pub trait IntegerSeparableBorderFilterImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[i32],
         anchor: i32,
         divisor: i32,
@@ -103,12 +128,17 @@ pub trait IntegerSeparableBorderFilterImage<T, L> {
     ) -> Result<()>;
 }
 
-pub trait FloatSeparableBorderFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait FloatSeparableBorderFilterImage<T, L> {
     fn filter_column_border32f_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[f32],
         anchor: i32,
         border_type: BorderType,
@@ -118,19 +148,24 @@ pub trait FloatSeparableBorderFilterImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         kernel: &[f32],
         anchor: i32,
         border_type: BorderType,
     ) -> Result<()>;
 }
 
-pub trait SumWindowBorderFilterImage<T, L> {
+/// # Safety
+/// Preserve the native element/layout ABI and validate the complete initialized source footprint.
+/// Complete borrowed native work on success, error, and unwind.
+/// On success, initialize every output ROI sample except alpha for explicitly alpha-ignoring operations.
+/// In-place operations preserve initialized values in every sample they leave untouched.
+pub unsafe trait SumWindowBorderFilterImage<T, L> {
     fn sum_window_column_border_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, f32, L>,
+        destination: &mut ImageOutputView<'_, f32, L>,
         mask_size: i32,
         anchor: i32,
         border_type: BorderType,
@@ -140,7 +175,7 @@ pub trait SumWindowBorderFilterImage<T, L> {
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
         source_offset: Point,
-        destination: &mut ImageViewMut<'_, f32, L>,
+        destination: &mut ImageOutputView<'_, f32, L>,
         mask_size: i32,
         anchor: i32,
         border_type: BorderType,

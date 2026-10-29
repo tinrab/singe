@@ -1,6 +1,6 @@
 mod common;
 
-use singe_cuda::{memory::DeviceMemory, types::DevicePtr};
+use singe_cuda::{context::Context, memory::DeviceMemory, types::DevicePtr};
 use singe_cudss::{
     error::Result,
     matrix::{BatchCsrMatrixDescriptor, BatchDenseMatrixDescriptor, Matrix},
@@ -9,6 +9,7 @@ use singe_cudss::{
 };
 
 fn main() -> Result<()> {
+    let cuda = Context::create()?;
     println!("cuDSS example: batch sparse and dense matrix helper APIs");
 
     let rows = [5_i32, 6];
@@ -17,92 +18,123 @@ fn main() -> Result<()> {
     let nrhs = [1_i32, 1];
 
     let row_offsets = [
-        DeviceMemory::from_slice(&[0_i32, 2, 4, 6, 7, 8])?,
-        DeviceMemory::from_slice(&[0_i32, 2, 4, 7, 8, 10, 11])?,
+        DeviceMemory::from_slice(&cuda, &[0_i32, 2, 4, 6, 7, 8])?,
+        DeviceMemory::from_slice(&cuda, &[0_i32, 2, 4, 7, 8, 10, 11])?,
     ];
     let col_indices = [
-        DeviceMemory::from_slice(&[0_i32, 2, 1, 2, 2, 4, 3, 4])?,
-        DeviceMemory::from_slice(&[0_i32, 5, 1, 4, 2, 4, 5, 3, 4, 5, 5])?,
+        DeviceMemory::from_slice(&cuda, &[0_i32, 2, 1, 2, 2, 4, 3, 4])?,
+        DeviceMemory::from_slice(&cuda, &[0_i32, 5, 1, 4, 2, 4, 5, 3, 4, 5, 5])?,
     ];
     let values = [
-        DeviceMemory::from_slice(&[4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0])?,
-        DeviceMemory::from_slice(&[3.0f64, 1.0, 2.0, 1.0, 6.0, 2.0, 2.0, 5.0, 7.0, 3.0, 8.0])?,
+        DeviceMemory::from_slice(&cuda, &[4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0])?,
+        DeviceMemory::from_slice(
+            &cuda,
+            &[3.0f64, 1.0, 2.0, 1.0, 6.0, 2.0, 2.0, 5.0, 7.0, 3.0, 8.0],
+        )?,
     ];
     let rhs = [
-        DeviceMemory::from_slice(&[7.0f64, 12.0, 25.0, 4.0, 13.0])?,
-        DeviceMemory::from_slice(&[9.0f64, 9.0, 40.0, 20.0, 61.0, 70.0])?,
+        DeviceMemory::from_slice(&cuda, &[7.0f64, 12.0, 25.0, 4.0, 13.0])?,
+        DeviceMemory::from_slice(&cuda, &[9.0f64, 9.0, 40.0, 20.0, 61.0, 70.0])?,
     ];
 
     let replacement_row_offsets = [
-        DeviceMemory::from_slice(&[0_i32, 2, 4, 5, 6, 7])?,
-        DeviceMemory::from_slice(&[0_i32, 2, 4, 6, 7, 9, 10])?,
+        DeviceMemory::from_slice(&cuda, &[0_i32, 2, 4, 5, 6, 7])?,
+        DeviceMemory::from_slice(&cuda, &[0_i32, 2, 4, 6, 7, 9, 10])?,
     ];
     let replacement_col_indices = [
-        DeviceMemory::from_slice(&[0_i32, 2, 1, 2, 2, 3, 4])?,
-        DeviceMemory::from_slice(&[0_i32, 5, 1, 4, 2, 4, 3, 4, 5, 5])?,
+        DeviceMemory::from_slice(&cuda, &[0_i32, 2, 1, 2, 2, 3, 4])?,
+        DeviceMemory::from_slice(&cuda, &[0_i32, 5, 1, 4, 2, 4, 3, 4, 5, 5])?,
     ];
     let replacement_values = [
-        DeviceMemory::from_slice(&[-4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 2.0, 0.0])?,
-        DeviceMemory::from_slice(&[-3.0f64, 1.0, 2.0, 1.0, 6.0, 2.0, 5.0, 7.0, 3.0, 8.0, 0.0])?,
+        DeviceMemory::from_slice(&cuda, &[-4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 2.0, 0.0])?,
+        DeviceMemory::from_slice(
+            &cuda,
+            &[-3.0f64, 1.0, 2.0, 1.0, 6.0, 2.0, 5.0, 7.0, 3.0, 8.0, 0.0],
+        )?,
     ];
     let replacement_rhs = [
-        DeviceMemory::from_slice(&[-2.0f64, 12.0, 25.0, 4.0, 13.0])?,
-        DeviceMemory::from_slice(&[-5.0f64, 9.0, 40.0, 20.0, 61.0, 70.0])?,
+        DeviceMemory::from_slice(&cuda, &[-2.0f64, 12.0, 25.0, 4.0, 13.0])?,
+        DeviceMemory::from_slice(&cuda, &[-5.0f64, 9.0, 40.0, 20.0, 61.0, 70.0])?,
     ];
 
     let row_offset_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &row_offsets
             .each_ref()
+            // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
             .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let col_index_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &col_indices
             .each_ref()
+            // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
             .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let value_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &values
             .each_ref()
+            // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
             .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let rhs_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &rhs.each_ref()
+            // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
             .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
 
     let replacement_row_offset_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &replacement_row_offsets
             .each_ref()
+            // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
             .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let replacement_col_index_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &replacement_col_indices
             .each_ref()
+            // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
             .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let replacement_value_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &replacement_values
             .each_ref()
+            // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
             .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
     let replacement_rhs_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &replacement_rhs
             .each_ref()
+            // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
             .map(|memory| unsafe { DevicePtr::from_raw(memory.as_mut_ptr().cast()) }),
     )?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     let row_offset_table =
-        unsafe { DevicePointerTable::<i32>::from_device_memory(&row_offset_ptrs) };
-    let col_index_table = unsafe { DevicePointerTable::<i32>::from_device_memory(&col_index_ptrs) };
-    let value_table = unsafe { DevicePointerTable::<f64>::from_device_memory(&value_ptrs) };
-    let rhs_table = unsafe { DevicePointerTable::<f64>::from_device_memory(&rhs_ptrs) };
+        unsafe { DevicePointerTable::<i32>::from_device_memory(&row_offset_ptrs) }?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
+    let col_index_table =
+        unsafe { DevicePointerTable::<i32>::from_device_memory(&col_index_ptrs) }?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
+    let value_table = unsafe { DevicePointerTable::<f64>::from_device_memory(&value_ptrs) }?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
+    let rhs_table = unsafe { DevicePointerTable::<f64>::from_device_memory(&rhs_ptrs) }?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     let replacement_row_offset_table =
-        unsafe { DevicePointerTable::<i32>::from_device_memory(&replacement_row_offset_ptrs) };
+        unsafe { DevicePointerTable::<i32>::from_device_memory(&replacement_row_offset_ptrs) }?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     let replacement_col_index_table =
-        unsafe { DevicePointerTable::<i32>::from_device_memory(&replacement_col_index_ptrs) };
+        unsafe { DevicePointerTable::<i32>::from_device_memory(&replacement_col_index_ptrs) }?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     let replacement_value_table =
-        unsafe { DevicePointerTable::<f64>::from_device_memory(&replacement_value_ptrs) };
+        unsafe { DevicePointerTable::<f64>::from_device_memory(&replacement_value_ptrs) }?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     let replacement_rhs_table =
-        unsafe { DevicePointerTable::<f64>::from_device_memory(&replacement_rhs_ptrs) };
+        unsafe { DevicePointerTable::<f64>::from_device_memory(&replacement_rhs_ptrs) }?;
 
     let mut b = Matrix::create_batch_dense(
         BatchDenseMatrixDescriptor {
@@ -133,12 +165,15 @@ fn main() -> Result<()> {
     assert_eq!(a_info.rows, rows.map(i64::from));
     assert_eq!(a_info.columns, cols.map(i64::from));
     assert_eq!(a_info.nnz, nnz.map(i64::from));
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(a_info.row_start, unsafe {
         DevicePtr::from_raw(row_offset_ptrs.as_mut_ptr().cast())
     });
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(a_info.column_indices, unsafe {
         DevicePtr::from_raw(col_index_ptrs.as_mut_ptr().cast())
     });
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(a_info.values, unsafe {
         DevicePtr::from_raw(value_ptrs.as_mut_ptr().cast())
     });
@@ -147,6 +182,7 @@ fn main() -> Result<()> {
     assert_eq!(b_info.rows, rows.map(i64::from));
     assert_eq!(b_info.columns, nrhs.map(i64::from));
     assert_eq!(b_info.leading_dim, rows.map(i64::from));
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(b_info.values, unsafe {
         DevicePtr::from_raw(rhs_ptrs.as_mut_ptr().cast())
     });
@@ -154,9 +190,11 @@ fn main() -> Result<()> {
 
     a.set_batch_values(replacement_value_table)?;
     b.set_batch_values(replacement_rhs_table)?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(a.batch_csr_info()?.values, unsafe {
         DevicePtr::from_raw(replacement_value_ptrs.as_mut_ptr().cast())
     });
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(b.batch_dense_info()?.values, unsafe {
         DevicePtr::from_raw(replacement_rhs_ptrs.as_mut_ptr().cast())
     });
@@ -173,12 +211,15 @@ fn main() -> Result<()> {
         replacement_value_table,
     )?;
     let a_info = a.batch_csr_info()?;
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(a_info.row_start, unsafe {
         DevicePtr::from_raw(replacement_row_offset_ptrs.as_mut_ptr().cast())
     });
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(a_info.column_indices, unsafe {
         DevicePtr::from_raw(replacement_col_index_ptrs.as_mut_ptr().cast())
     });
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     assert_eq!(a_info.values, unsafe {
         DevicePtr::from_raw(replacement_value_ptrs.as_mut_ptr().cast())
     });

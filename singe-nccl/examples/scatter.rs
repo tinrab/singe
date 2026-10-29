@@ -1,7 +1,9 @@
 mod common;
 
+use std::process;
+
 use singe_cuda::memory::DeviceMemory;
-use singe_nccl::local::{LocalCommunicatorGroup, RootRank};
+use singe_nccl::local::{LocalCommunicatorGroup, RankVec, RootRank};
 
 use crate::common::{ExampleResult, check_all_equal, rank_indexed_values};
 
@@ -17,14 +19,32 @@ fn run() -> ExampleResult {
         .collect();
 
     group.rank(root.id())?.bind()?;
-    let root_send = DeviceMemory::from_slice(&root_values)?;
+    let root_send = DeviceMemory::from_slice(
+        group.rank(root.id())?.communicator().cuda_context(),
+        &root_values,
+    )?;
     let mut recv_buffers = group.map_ranks(|rank| {
         rank.bind()?;
-        Ok(DeviceMemory::<f32>::zeroes(ELEMENTS_PER_RANK)?)
+        Ok(DeviceMemory::<f32>::create_uninit(
+            rank.communicator().cuda_context(),
+            ELEMENTS_PER_RANK,
+        )?)
     })?;
 
-    group.scatter_from(&root_send, &mut recv_buffers, root)?;
-    group.synchronize()?;
+    group.scatter_from(
+        root_send.view(),
+        &mut recv_buffers.map_mut(DeviceMemory::output),
+        root,
+    )?;
+    // SAFETY: the completed collective wrote every compact receive output.
+    let recv_buffers = RankVec::from_vec(
+        recv_buffers
+            .into_vec()
+            .into_iter()
+            // SAFETY: the call above completed and wrote every element.
+            .map(|buffer| unsafe { buffer.assume_init() })
+            .collect(),
+    );
 
     for (index, (rank, recv)) in group.ranks().zip(&recv_buffers).enumerate() {
         let expected = rank_indexed_values(index as i32, ELEMENTS_PER_RANK);
@@ -41,8 +61,8 @@ fn run() -> ExampleResult {
 }
 
 fn main() {
-    if let Err(err) = run() {
-        eprintln!("{err}");
-        std::process::exit(1);
+    if let Err(error) = run() {
+        eprintln!("{error}");
+        process::exit(1);
     }
 }

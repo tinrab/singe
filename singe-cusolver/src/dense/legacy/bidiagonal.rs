@@ -1,27 +1,43 @@
+#![expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "BLAS and factorization operand names follow the standard mathematical API"
+)]
+use std::ptr;
+
 use singe_cuda::{
-    memory::DeviceMemory,
     types::{Complex32, Complex64},
+    view::{DeviceOutputView, DeviceView, DeviceViewMut},
 };
 
 use crate::{
     context::Context,
     dense::validation::{
         require_info_buffer, require_workspace, validate_bidiagonal_buffers,
-        validate_bidiagonal_dims, validate_orgbr_inputs,
+        validate_bidiagonal_dims, validate_orgbr_inputs, validate_orgbr_shape,
     },
     error::Result,
+    layout::MatrixLayout,
     sys, try_ffi,
     types::SideMode,
     utility::{to_i32, to_usize},
 };
 
-pub fn sgebrd_buffer_size(ctx: &Context, m: usize, n: usize) -> Result<usize> {
-    ctx.bind()?;
+/// Queries device workspace capacity in elements for `f32` bidiagonal reduction.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, `m < n`, a dimension or returned workspace size cannot be represented by the required integer type, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn sgebrd_buffer_size(context: &Context, m: usize, n: usize) -> Result<usize> {
+    context.bind()?;
     validate_bidiagonal_dims(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnSgebrd_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSgebrd_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             &raw mut lwork,
@@ -30,13 +46,21 @@ pub fn sgebrd_buffer_size(ctx: &Context, m: usize, n: usize) -> Result<usize> {
     to_usize(lwork, "lwork")
 }
 
-pub fn dgebrd_buffer_size(ctx: &Context, m: usize, n: usize) -> Result<usize> {
-    ctx.bind()?;
+/// Queries device workspace capacity in elements for `f64` bidiagonal reduction.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, `m < n`, a dimension or returned workspace size cannot be represented by the required integer type, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn dgebrd_buffer_size(context: &Context, m: usize, n: usize) -> Result<usize> {
+    context.bind()?;
     validate_bidiagonal_dims(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnDgebrd_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDgebrd_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             &raw mut lwork,
@@ -45,13 +69,21 @@ pub fn dgebrd_buffer_size(ctx: &Context, m: usize, n: usize) -> Result<usize> {
     to_usize(lwork, "lwork")
 }
 
-pub fn cgebrd_buffer_size(ctx: &Context, m: usize, n: usize) -> Result<usize> {
-    ctx.bind()?;
+/// Queries device workspace capacity in elements for complex single-precision bidiagonal reduction.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, `m < n`, a dimension or returned workspace size cannot be represented by the required integer type, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn cgebrd_buffer_size(context: &Context, m: usize, n: usize) -> Result<usize> {
+    context.bind()?;
     validate_bidiagonal_dims(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnCgebrd_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCgebrd_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             &raw mut lwork,
@@ -60,13 +92,21 @@ pub fn cgebrd_buffer_size(ctx: &Context, m: usize, n: usize) -> Result<usize> {
     to_usize(lwork, "lwork")
 }
 
-pub fn zgebrd_buffer_size(ctx: &Context, m: usize, n: usize) -> Result<usize> {
-    ctx.bind()?;
+/// Queries device workspace capacity in elements for complex double-precision bidiagonal reduction.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, `m < n`, a dimension or returned workspace size cannot be represented by the required integer type, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn zgebrd_buffer_size(context: &Context, m: usize, n: usize) -> Result<usize> {
+    context.bind()?;
     validate_bidiagonal_dims(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnZgebrd_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZgebrd_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             &raw mut lwork,
@@ -111,27 +151,38 @@ pub fn zgebrd_buffer_size(ctx: &Context, m: usize, n: usize) -> Result<usize> {
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn sgebrd(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn sgebrd(
+    context: &Context,
     m: usize,
     n: usize,
-    a: &mut DeviceMemory<f32>,
+    mut a: DeviceViewMut<'_, f32>,
     lda: usize,
-    d: &mut DeviceMemory<f32>,
-    e: &mut DeviceMemory<f32>,
-    tauq: &mut DeviceMemory<f32>,
-    taup: &mut DeviceMemory<f32>,
-    workspace: &mut DeviceMemory<f32>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut d: DeviceOutputView<'_, f32>,
+    mut e: DeviceOutputView<'_, f32>,
+    mut tauq: DeviceOutputView<'_, f32>,
+    mut taup: DeviceOutputView<'_, f32>,
+    mut workspace: DeviceOutputView<'_, f32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&d)?;
+    context.validate_region(&e)?;
+    context.validate_region(&tauq)?;
+    context.validate_region(&taup)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_bidiagonal_buffers(m, n, a.len(), lda, d.len(), e.len(), tauq.len(), taup.len())?;
-    require_info_buffer(dev_info)?;
-    let lwork = sgebrd_buffer_size(ctx, m, n)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = sgebrd_buffer_size(context, m, n)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnSgebrd` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSgebrd(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -184,27 +235,38 @@ pub fn sgebrd(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn dgebrd(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn dgebrd(
+    context: &Context,
     m: usize,
     n: usize,
-    a: &mut DeviceMemory<f64>,
+    mut a: DeviceViewMut<'_, f64>,
     lda: usize,
-    d: &mut DeviceMemory<f64>,
-    e: &mut DeviceMemory<f64>,
-    tauq: &mut DeviceMemory<f64>,
-    taup: &mut DeviceMemory<f64>,
-    workspace: &mut DeviceMemory<f64>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut d: DeviceOutputView<'_, f64>,
+    mut e: DeviceOutputView<'_, f64>,
+    mut tauq: DeviceOutputView<'_, f64>,
+    mut taup: DeviceOutputView<'_, f64>,
+    mut workspace: DeviceOutputView<'_, f64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&d)?;
+    context.validate_region(&e)?;
+    context.validate_region(&tauq)?;
+    context.validate_region(&taup)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_bidiagonal_buffers(m, n, a.len(), lda, d.len(), e.len(), tauq.len(), taup.len())?;
-    require_info_buffer(dev_info)?;
-    let lwork = dgebrd_buffer_size(ctx, m, n)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = dgebrd_buffer_size(context, m, n)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnDgebrd` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDgebrd(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -257,27 +319,38 @@ pub fn dgebrd(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn cgebrd(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn cgebrd(
+    context: &Context,
     m: usize,
     n: usize,
-    a: &mut DeviceMemory<Complex32>,
+    mut a: DeviceViewMut<'_, Complex32>,
     lda: usize,
-    d: &mut DeviceMemory<f32>,
-    e: &mut DeviceMemory<f32>,
-    tauq: &mut DeviceMemory<Complex32>,
-    taup: &mut DeviceMemory<Complex32>,
-    workspace: &mut DeviceMemory<Complex32>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut d: DeviceOutputView<'_, f32>,
+    mut e: DeviceOutputView<'_, f32>,
+    mut tauq: DeviceOutputView<'_, Complex32>,
+    mut taup: DeviceOutputView<'_, Complex32>,
+    mut workspace: DeviceOutputView<'_, Complex32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&d)?;
+    context.validate_region(&e)?;
+    context.validate_region(&tauq)?;
+    context.validate_region(&taup)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_bidiagonal_buffers(m, n, a.len(), lda, d.len(), e.len(), tauq.len(), taup.len())?;
-    require_info_buffer(dev_info)?;
-    let lwork = cgebrd_buffer_size(ctx, m, n)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = cgebrd_buffer_size(context, m, n)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnCgebrd` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCgebrd(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -330,27 +403,38 @@ pub fn cgebrd(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn zgebrd(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn zgebrd(
+    context: &Context,
     m: usize,
     n: usize,
-    a: &mut DeviceMemory<Complex64>,
+    mut a: DeviceViewMut<'_, Complex64>,
     lda: usize,
-    d: &mut DeviceMemory<f64>,
-    e: &mut DeviceMemory<f64>,
-    tauq: &mut DeviceMemory<Complex64>,
-    taup: &mut DeviceMemory<Complex64>,
-    workspace: &mut DeviceMemory<Complex64>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut d: DeviceOutputView<'_, f64>,
+    mut e: DeviceOutputView<'_, f64>,
+    mut tauq: DeviceOutputView<'_, Complex64>,
+    mut taup: DeviceOutputView<'_, Complex64>,
+    mut workspace: DeviceOutputView<'_, Complex64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&d)?;
+    context.validate_region(&e)?;
+    context.validate_region(&tauq)?;
+    context.validate_region(&taup)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_bidiagonal_buffers(m, n, a.len(), lda, d.len(), e.len(), tauq.len(), taup.len())?;
-    require_info_buffer(dev_info)?;
-    let lwork = zgebrd_buffer_size(ctx, m, n)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = zgebrd_buffer_size(context, m, n)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnZgebrd` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZgebrd(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
@@ -367,116 +451,144 @@ pub fn zgebrd(
     Ok(())
 }
 
+/// Queries device workspace capacity in elements for `f32` generation of orthogonal bidiagonalization factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn sorgbr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<f32>,
     lda: usize,
-    tau: &DeviceMemory<f32>,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_orgbr_inputs(side, m, n, k, a.len(), lda, tau.len())?;
+    context.bind()?;
+    validate_orgbr_shape(side, m, n, k)?;
+    MatrixLayout::new(lda).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnSorgbr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSorgbr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             &raw mut lwork,
         ))?;
     }
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for `f64` generation of orthogonal bidiagonalization factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn dorgbr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<f64>,
     lda: usize,
-    tau: &DeviceMemory<f64>,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_orgbr_inputs(side, m, n, k, a.len(), lda, tau.len())?;
+    context.bind()?;
+    validate_orgbr_shape(side, m, n, k)?;
+    MatrixLayout::new(lda).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnDorgbr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDorgbr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             &raw mut lwork,
         ))?;
     }
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for complex single-precision generation of unitary bidiagonalization factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn cungbr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<Complex32>,
     lda: usize,
-    tau: &DeviceMemory<Complex32>,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_orgbr_inputs(side, m, n, k, a.len(), lda, tau.len())?;
+    context.bind()?;
+    validate_orgbr_shape(side, m, n, k)?;
+    MatrixLayout::new(lda).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnCungbr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCungbr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             &raw mut lwork,
         ))?;
     }
     to_usize(lwork, "lwork")
 }
 
+/// Queries device workspace capacity in elements for complex double-precision generation of unitary bidiagonalization factors.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
 pub fn zungbr_buffer_size(
-    ctx: &Context,
+    context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
     k: usize,
-    a: &DeviceMemory<Complex64>,
     lda: usize,
-    tau: &DeviceMemory<Complex64>,
 ) -> Result<usize> {
-    ctx.bind()?;
-    validate_orgbr_inputs(side, m, n, k, a.len(), lda, tau.len())?;
+    context.bind()?;
+    validate_orgbr_shape(side, m, n, k)?;
+    MatrixLayout::new(lda).validate(m, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnZungbr_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZungbr_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(k, "k")?,
-            a.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
-            tau.as_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             &raw mut lwork,
         ))?;
     }
@@ -507,26 +619,34 @@ pub fn zungbr_buffer_size(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn sorgbr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn sorgbr(
+    context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
     k: usize,
-    a: &mut DeviceMemory<f32>,
+    mut a: DeviceViewMut<'_, f32>,
     lda: usize,
-    tau: &DeviceMemory<f32>,
-    workspace: &mut DeviceMemory<f32>,
-    dev_info: &mut DeviceMemory<i32>,
+    tau: DeviceView<'_, f32>,
+    mut workspace: DeviceOutputView<'_, f32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_orgbr_inputs(side, m, n, k, a.len(), lda, tau.len())?;
-    require_info_buffer(dev_info)?;
-    let lwork = sorgbr_buffer_size(ctx, side, m, n, k, a, lda, tau)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = sorgbr_buffer_size(context, side, m, n, k, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnSorgbr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnSorgbr(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
@@ -566,26 +686,34 @@ pub fn sorgbr(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn dorgbr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn dorgbr(
+    context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
     k: usize,
-    a: &mut DeviceMemory<f64>,
+    mut a: DeviceViewMut<'_, f64>,
     lda: usize,
-    tau: &DeviceMemory<f64>,
-    workspace: &mut DeviceMemory<f64>,
-    dev_info: &mut DeviceMemory<i32>,
+    tau: DeviceView<'_, f64>,
+    mut workspace: DeviceOutputView<'_, f64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_orgbr_inputs(side, m, n, k, a.len(), lda, tau.len())?;
-    require_info_buffer(dev_info)?;
-    let lwork = dorgbr_buffer_size(ctx, side, m, n, k, a, lda, tau)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = dorgbr_buffer_size(context, side, m, n, k, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnDorgbr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnDorgbr(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
@@ -601,26 +729,38 @@ pub fn dorgbr(
     Ok(())
 }
 
-pub fn cungbr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn cungbr(
+    context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
     k: usize,
-    a: &mut DeviceMemory<Complex32>,
+    mut a: DeviceViewMut<'_, Complex32>,
     lda: usize,
-    tau: &DeviceMemory<Complex32>,
-    workspace: &mut DeviceMemory<Complex32>,
-    dev_info: &mut DeviceMemory<i32>,
+    tau: DeviceView<'_, Complex32>,
+    mut workspace: DeviceOutputView<'_, Complex32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_orgbr_inputs(side, m, n, k, a.len(), lda, tau.len())?;
-    require_info_buffer(dev_info)?;
-    let lwork = cungbr_buffer_size(ctx, side, m, n, k, a, lda, tau)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = cungbr_buffer_size(context, side, m, n, k, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnCungbr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnCungbr(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
@@ -636,26 +776,38 @@ pub fn cungbr(
     Ok(())
 }
 
-pub fn zungbr(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, a device buffer belongs to another CUDA context, matrix dimensions, leading dimensions, or storage capacities are invalid, checked size arithmetic or native integer conversion fails, the status output capacity is insufficient, a pivot, reflector, or numerical output buffer is too small, device scratch capacity is smaller than the queried requirement, or cuSOLVER rejects the configuration or returns an error while querying workspace or submitting execution.
+pub unsafe fn zungbr(
+    context: &Context,
     side: SideMode,
     m: usize,
     n: usize,
     k: usize,
-    a: &mut DeviceMemory<Complex64>,
+    mut a: DeviceViewMut<'_, Complex64>,
     lda: usize,
-    tau: &DeviceMemory<Complex64>,
-    workspace: &mut DeviceMemory<Complex64>,
-    dev_info: &mut DeviceMemory<i32>,
+    tau: DeviceView<'_, Complex64>,
+    mut workspace: DeviceOutputView<'_, Complex64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&tau)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
     validate_orgbr_inputs(side, m, n, k, a.len(), lda, tau.len())?;
-    require_info_buffer(dev_info)?;
-    let lwork = zungbr_buffer_size(ctx, side, m, n, k, a, lda, tau)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = zungbr_buffer_size(context, side, m, n, k, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnZungbr` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnZungbr(
-            ctx.as_raw(),
+            context.as_raw(),
             side.into(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,

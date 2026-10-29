@@ -1,10 +1,15 @@
 use std::error::Error;
 
 use singe_cuda::{
-    context::Context as CudaContext, device::Device, memory::DeviceMemory, stream::StreamFlags,
+    context::Context as CudaContext,
+    device::Device,
+    memory::DeviceMemory,
+    stream::{StreamBinding, StreamFlags},
     types::Complex32,
+    view::DeviceOutputView,
 };
 use singe_cufft::{
+    error::Result as CufftResult,
     plan::{ManyPlanConfig, ManyPlanConfigI32, PlanBuilder},
     types::{Direction, TransformType},
 };
@@ -21,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input = (0..element_count)
         .map(|index| Complex32::new(index as f32, -(index as f32)))
         .collect::<Vec<_>>();
-    let mut device_data = DeviceMemory::from_slice(&input)?;
+    let mut device_data = DeviceMemory::from_slice(&context, &input)?;
 
     let plan = PlanBuilder::new(&context)
         .many(ManyPlanConfig::I32(ManyPlanConfigI32 {
@@ -37,9 +42,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         }))
         .create()?;
 
-    plan.execute_c2c_f32_in_place(&mut device_data, Direction::Forward, Some(&stream))?;
-    plan.execute_c2c_f32_in_place(&mut device_data, Direction::Inverse, Some(&stream))?;
-    stream.synchronize()?;
+    // The configured transform covers this complete initialized buffer.
+    // Both queued accesses remain ordered on this stream and borrowed until the scope drains.
+    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| -> CufftResult<()> {
+        // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            plan.execute_c2c_f32_in_place_async(
+                DeviceOutputView::from_output(&mut device_data),
+                Direction::Forward,
+                Some(&stream),
+            )?;
+            plan.execute_c2c_f32_in_place_async(
+                DeviceOutputView::from_output(&mut device_data),
+                Direction::Inverse,
+                Some(&stream),
+            )?;
+        }
+        Ok(())
+    })?;
 
     let output = device_data.copy_to_host_vec()?;
     for (actual, expected) in output.iter().zip(input.iter()) {

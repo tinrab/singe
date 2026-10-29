@@ -1,8 +1,13 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+
 use singe_core::{impl_enum_conversion, impl_enum_display};
+
+use singe_cuda::view::NoUninitDeviceRepr;
+
 use singe_cusparse_sys as sys;
 
 /// Indicates whether scalar values are read from host memory or device memory.
+///
 /// If an operation uses several scalar values, all of them use the same pointer mode.
 /// The pointer mode can be set and retrieved with [`Context::set_scalar_pointer_mode`](crate::context::Context::set_scalar_pointer_mode) and [`Context::scalar_pointer_mode`](crate::context::Context::scalar_pointer_mode), respectively.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
@@ -33,14 +38,14 @@ impl_enum_conversion!(sys::cusparseAction_t, Action);
 /// Describes the matrix kind stored in sparse storage.
 /// For symmetric, Hermitian, and triangular matrices, only their lower or upper part is assumed to be stored.
 ///
-/// Matrix type and fill mode minimize storage for symmetric or Hermitian matrices and let SpMV operations use symmetry when useful.
+/// Matrix type and fill mode minimize storage for symmetric or Hermitian matrices and let `SpMV` operations use symmetry when useful.
 /// To compute `y=A*x` when `A` is symmetric and only lower triangular part is stored, two steps are needed.
 /// First step is to compute `y=(L+D)*x` and second step is to compute `y=L^T*x + y`.
 /// Because the transpose operation `y=L^T*x` is much slower than the non-transpose version `y=L*x`, the symmetric property does not always improve performance.
 /// It is usually more efficient to expand the symmetric matrix to a general matrix and
 /// apply `y=A*x` with matrix type [`MatrixType::General`].
 ///
-/// In general, SpMV, preconditioners (incomplete Cholesky or incomplete LU) and triangular solver are combined together in iterative solvers, for example PCG and GMRES.
+/// In general, `SpMV`, preconditioners (incomplete Cholesky or incomplete LU) and triangular solver are combined together in iterative solvers, for example PCG and GMRES.
 /// If applications use general matrices instead of symmetric matrices, preconditioners
 /// only need to support general matrices.
 /// Therefore the newer `\[bsr|csr\]sv2` (triangular solver), `\[bsr|csr\]ilu02` (incomplete LU), and `\[bsr|csr\]ic02` (incomplete Cholesky) operations only support matrix type [`MatrixType::General`].
@@ -74,6 +79,7 @@ pub enum FillMode {
 impl_enum_conversion!(sys::cusparseFillMode_t, FillMode);
 
 /// Selects whether matrix diagonal entries are treated as unity.
+///
 /// The diagonal elements are always assumed to be present, but if
 /// [`DiagonalType::Unit`] is passed to an operation, the operation assumes that
 /// all diagonal entries are one and does not read or modify them.
@@ -117,6 +123,7 @@ pub enum Operation {
 }
 
 impl Operation {
+    /// Alias for [`Self::ConjugateTranspose`].
     pub const HERMITIAN: Self = Self::ConjugateTranspose;
 }
 
@@ -136,20 +143,25 @@ pub enum Direction {
 
 impl_enum_conversion!(sys::cusparseDirection_t, Direction);
 
+/// Native sparse graph-coloring algorithm selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum ColorAlgorithm {
+    /// default
     Algorithm0 = sys::cusparseColorAlg_t::CUSPARSE_COLOR_ALG0 as _,
+    /// Selects native coloring algorithm variant 1.
     Algorithm1 = sys::cusparseColorAlg_t::CUSPARSE_COLOR_ALG1 as _,
 }
 
 impl_enum_conversion!(sys::cusparseColorAlg_t, ColorAlgorithm);
 
+/// Algorithm for converting compressed sparse row storage to compressed sparse column storage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum CsrToCscAlgorithm {
+    /// Uses the native default CSR-to-CSC conversion algorithm.
     Default = sys::cusparseCsr2CscAlg_t::CUSPARSE_CSR2CSC_ALG_DEFAULT as _,
 }
 
@@ -164,12 +176,13 @@ pub enum Format {
     Csr = sys::cusparseFormat_t::CUSPARSE_FORMAT_CSR as _,
     /// The matrix is stored in Compressed Sparse Column (CSC) format.
     Csc = sys::cusparseFormat_t::CUSPARSE_FORMAT_CSC as _,
-    /// The matrix is stored in Coordinate (COO) format organized in *Structure of Arrays (SoA)* layout.
+    /// The matrix is stored in Coordinate (COO) format organized in *Structure of Arrays (`SoA`)* layout.
     Coo = sys::cusparseFormat_t::CUSPARSE_FORMAT_COO as _,
     /// The matrix is stored in Blocked-Ellpack (Blocked-ELL) format.
     BlockedEll = sys::cusparseFormat_t::CUSPARSE_FORMAT_BLOCKED_ELL as _,
     /// The matrix is stored in Block Sparse Row (BSR) format.
     Bsr = sys::cusparseFormat_t::CUSPARSE_FORMAT_BSR as _,
+    /// Sliced ELL
     SlicedEllpack = sys::cusparseFormat_t::CUSPARSE_FORMAT_SLICED_ELLPACK as _,
 }
 
@@ -193,7 +206,8 @@ impl_enum_conversion!(sys::cusparseOrder_t, Order);
 #[repr(u32)]
 #[non_exhaustive]
 pub enum IndexType {
-    I16 = sys::cusparseIndexType_t::CUSPARSE_INDEX_16U as _,
+    /// 16-bit unsigned integer.
+    U16 = sys::cusparseIndexType_t::CUSPARSE_INDEX_16U as _,
     /// 32-bit signed integer \[0, 2^31 - 1\].
     I32 = sys::cusparseIndexType_t::CUSPARSE_INDEX_32I as _,
     /// 64-bit signed integer \[0, 2^63 - 1\].
@@ -202,154 +216,211 @@ pub enum IndexType {
 
 impl_enum_conversion!(sys::cusparseIndexType_t, IndexType);
 
+/// Sparse matrix attributes configuring the stored triangle and implicit unit diagonal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SparseMatrixAttribute {
+    /// Indicates if the lower or upper part of a matrix is stored in sparse storage
     FillMode = sys::cusparseSpMatAttribute_t::CUSPARSE_SPMAT_FILL_MODE as _,
+    /// Indicates if the matrix diagonal entries are unity
     DiagonalType = sys::cusparseSpMatAttribute_t::CUSPARSE_SPMAT_DIAG_TYPE as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpMatAttribute_t, SparseMatrixAttribute);
 
-pub trait IndexTypeLike: Copy + 'static {
+/// Associates a device index representation with its native cuSPARSE datatype.
+///
+/// # Safety
+///
+/// The type must have the size, alignment, and integer representation selected
+/// by `index_type`, with no padding or restricted integer bit patterns.
+pub unsafe trait IndexTypeLike: NoUninitDeviceRepr {
+    /// Returns the cuSPARSE index representation associated with this Rust integer type.
     fn index_type() -> IndexType;
 }
 
-impl IndexTypeLike for u16 {
+// SAFETY: u16 has the native unsigned 16-bit index representation.
+unsafe impl IndexTypeLike for u16 {
     fn index_type() -> IndexType {
-        IndexType::I16
+        IndexType::U16
     }
 }
 
-impl IndexTypeLike for i32 {
+// SAFETY: i32 has the native signed 32-bit index representation.
+unsafe impl IndexTypeLike for i32 {
     fn index_type() -> IndexType {
         IndexType::I32
     }
 }
 
-impl IndexTypeLike for i64 {
+// SAFETY: i64 has the native signed 64-bit index representation.
+unsafe impl IndexTypeLike for i64 {
     fn index_type() -> IndexType {
         IndexType::I64
     }
 }
 
+/// Algorithm for multiplying a sparse matrix by a dense vector.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SpMvAlgorithm {
+    /// Default algorithm for any sparse matrix format.
     Default = sys::cusparseSpMVAlg_t::CUSPARSE_SPMV_ALG_DEFAULT as _,
+    /// Default algorithm for CSR/CSC sparse matrix format. May produce slightly different results during different runs with the same input parameters.
     Csr1 = sys::cusparseSpMVAlg_t::CUSPARSE_SPMV_CSR_ALG1 as _,
+    /// Provides deterministic (bit-wise) results for each run. If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to `CUSPARSE_SPMV_CSR_ALG1`.
     Csr2 = sys::cusparseSpMVAlg_t::CUSPARSE_SPMV_CSR_ALG2 as _,
+    /// Default algorithm for COO sparse matrix format. May produce slightly different results during different runs with the same input parameters.
     Coo1 = sys::cusparseSpMVAlg_t::CUSPARSE_SPMV_COO_ALG1 as _,
+    /// Provides deterministic (bit-wise) results for each run. If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to `CUSPARSE_SPMV_COO_ALG1`.
     Coo2 = sys::cusparseSpMVAlg_t::CUSPARSE_SPMV_COO_ALG2 as _,
+    /// Default algorithm for Sliced Ellpack sparse matrix format. Provides deterministic (bit-wise) results for each run.
     Sell1 = sys::cusparseSpMVAlg_t::CUSPARSE_SPMV_SELL_ALG1 as _,
+    /// Default algorithm for BSR sparse matrix format. Provides deterministic (bit-wise) results for each run. Supports only `opA == CUSPARSE_OPERATION_NON_TRANSPOSE`. Supports both row-major and column-major block layouts in `A`.
     Bsr1 = sys::cusparseSpMVAlg_t::CUSPARSE_SPMV_BSR_ALG1 as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpMVAlg_t, SpMvAlgorithm);
 
+/// Algorithm for solving a sparse triangular system with one right-hand side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SpSvAlgorithm {
+    /// Uses the default sparse triangular vector-solve algorithm.
     Default = sys::cusparseSpSVAlg_t::CUSPARSE_SPSV_ALG_DEFAULT as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpSVAlg_t, SpSvAlgorithm);
 
+/// Selects whether a sparse triangular vector-solve update replaces all matrix values or only diagonal values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SpSvUpdate {
+    /// Updates the sparse matrix values with values of `newValues` array
     General = sys::cusparseSpSVUpdate_t::CUSPARSE_SPSV_UPDATE_GENERAL as _,
+    /// Updates the diagonal part of the matrix with diagonal values stored in `newValues` array. That is, `newValues` has the new diagonal values only
     Diagonal = sys::cusparseSpSVUpdate_t::CUSPARSE_SPSV_UPDATE_DIAGONAL as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpSVUpdate_t, SpSvUpdate);
 
+/// Algorithm for solving a sparse triangular system with a dense matrix of right-hand sides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SpSMAlgorithm {
+    /// Uses the default sparse triangular matrix-solve algorithm.
     Default = sys::cusparseSpSMAlg_t::CUSPARSE_SPSM_ALG_DEFAULT as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpSMAlg_t, SpSMAlgorithm);
 
+/// Selects whether a sparse triangular matrix-solve update replaces all matrix values or only diagonal values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SpSmUpdate {
+    /// Updates the sparse matrix values with values of `newValues` array
     General = sys::cusparseSpSMUpdate_t::CUSPARSE_SPSM_UPDATE_GENERAL as _,
+    /// Updates the diagonal part of the matrix with diagonal values stored in `newValues` array. That is, `newValues` has the new diagonal values only
     Diagonal = sys::cusparseSpSMUpdate_t::CUSPARSE_SPSM_UPDATE_DIAGONAL as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpSMUpdate_t, SpSmUpdate);
 
+/// Algorithm for expanding sparse matrix storage into a dense matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SparseToDenseAlgorithm {
+    /// Uses the default sparse-to-dense conversion algorithm.
     Default = sys::cusparseSparseToDenseAlg_t::CUSPARSE_SPARSETODENSE_ALG_DEFAULT as _,
 }
 
 impl_enum_conversion!(sys::cusparseSparseToDenseAlg_t, SparseToDenseAlgorithm);
 
+/// Algorithm for selecting and storing nonzero entries of a dense matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum DenseToSparseAlgorithm {
+    /// Uses the default dense-to-sparse conversion algorithm.
     Default = sys::cusparseDenseToSparseAlg_t::CUSPARSE_DENSETOSPARSE_ALG_DEFAULT as _,
 }
 
 impl_enum_conversion!(sys::cusparseDenseToSparseAlg_t, DenseToSparseAlgorithm);
 
+/// Algorithm for multiplying a sparse matrix by a dense matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SpMmAlgorithm {
+    /// Default algorithm for any sparse matrix format
     Default = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_ALG_DEFAULT as _,
+    /// Algorithm 1 for COO sparse matrix format * May provide better performance for small number of nnz * Provides the best performance with column-major layout * It supports batched computation * May produce slightly different results during different runs with the same input parameters
     Coo1 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_COO_ALG1 as _,
+    /// Algorithm 2 for COO sparse matrix format * It provides deterministic result * Provides the best performance with column-major layout * In general, slower than Algorithm 1 * It supports batched computation * It requires additional memory * If `opA != CUSPARSE_OPERATION_NON_TRANSPOSE`, it is identical to `CUSPARSE_SPMM_COO_ALG1`
     Coo2 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_COO_ALG2 as _,
+    /// Algorithm 3 for COO sparse matrix format * May provide better performance for large number of nnz * May produce slightly different results during different runs with the same input parameters
     Coo3 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_COO_ALG3 as _,
+    /// Algorithm 4 for COO sparse matrix format * Provides better performance with row-major layout * It supports batched computation * May produce slightly different results during different runs with the same input parameters
     Coo4 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_COO_ALG4 as _,
+    /// Algorithm 1 for CSR/CSC sparse matrix format * Provides the best performance with column-major layout * It supports batched computation * It requires additional memory * May produce slightly different results during different runs with the same input parameters
     Csr1 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_CSR_ALG1 as _,
+    /// Algorithm 2 for CSR/CSC sparse matrix format * Provides the best performance with row-major layout * It supports batched computation * It requires additional memory * May produce slightly different results during different runs with the same input parameters
     Csr2 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_CSR_ALG2 as _,
+    /// Algorithm 3 for CSR sparse matrix format * It provides deterministic result * It requires additional memory * It supports only CSR matrix and `opA == CUSPARSE_OPERATION_NON_TRANSPOSE` * It does not support `opB == CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE` * It does not support `CUDA_C_16F and CUDA_C_16BF` data types
     Csr3 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_CSR_ALG3 as _,
+    /// Default algorithm for Blocked-ELL format
     BlockedEll1 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_BLOCKED_ELL_ALG1 as _,
+    /// Algorithm 1 for BSR sparse matrix format * It provides deterministic result * It requires no additional memory * It supports only `opA == CUSPARSE_OPERATION_NON_TRANSPOSE` * It does not support `CUDA_C_16F` and `CUDA_C_16BF` data types * It does not support column-major blocks in `A`
     Bsr1 = sys::cusparseSpMMAlg_t::CUSPARSE_SPMM_BSR_ALG1 as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpMMAlg_t, SpMmAlgorithm);
 
+/// Algorithm selection for sparse-dense multiplication with custom device operators.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SpMmOpAlgorithm {
+    /// Default algorithm for any sparse matrix format
     Default = sys::cusparseSpMMOpAlg_t::CUSPARSE_SPMM_OP_ALG_DEFAULT as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpMMOpAlg_t, SpMmOpAlgorithm);
 
+/// Algorithm for multiplying two sparse matrices, including workspace and determinism choices.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SpGemmAlgorithm {
+    /// Default algorithm. Currently, it is `CUSPARSE_SPGEMM_ALG1`.
     Default = sys::cusparseSpGEMMAlg_t::CUSPARSE_SPGEMM_DEFAULT as _,
+    /// Provides deterministic (bit-wise) structure for the output matrix and value computation for each run.
     CsrDeterministic = sys::cusparseSpGEMMAlg_t::CUSPARSE_SPGEMM_CSR_ALG_DETERMINITIC as _,
+    /// Selects the native non-deterministic CSR sparse matrix multiplication algorithm.
     CsrNondeterministic = sys::cusparseSpGEMMAlg_t::CUSPARSE_SPGEMM_CSR_ALG_NONDETERMINITIC as _,
+    /// Algorithm 1 * Invokes `cusparseSpGEMM_compute` twice. The first invocation provides an upper bound of the memory required for the computation. * The required memory is generally several times larger of the actual memory used. * The user can provide an arbitrary buffer size bufferSize2 in the second invocation. If it is not sufficient, the routine will returns `CUSPARSE_STATUS_INSUFFICIENT_RESOURCES` status. * Provides better performance than other algorithms. * Provides deterministic (bit-wise) results for each run.
     Algorithm1 = sys::cusparseSpGEMMAlg_t::CUSPARSE_SPGEMM_ALG1 as _,
+    /// Algorithm 2 * Invokes `cusparseSpGEMM_estimateMemory` to get the amount of the memory required for the computation. * Requires less memory for the computation than Algorithm 1. * Performance is lower than Algorithm 1, higher than Algorithm 3. * Provides deterministic (bit-wise) results for each run.
     Algorithm2 = sys::cusparseSpGEMMAlg_t::CUSPARSE_SPGEMM_ALG2 as _,
+    /// Algorithm 3 * Computes the intermediate products in chunks, one chunk at a time. * Invokes `cusparseSpGEMM_estimateMemory` to get the amount of the memory required for the computation. * The user can control the amount of required memory by changing the chunk size via `chunk_fraction`. * The chunk size is a fraction of total intermediate products: `chunk_fraction * (*num_prods)`. * Provides deterministic (bit-wise) results for each run.
     Algorithm3 = sys::cusparseSpGEMMAlg_t::CUSPARSE_SPGEMM_ALG3 as _,
 }
 
 impl_enum_conversion!(sys::cusparseSpGEMMAlg_t, SpGemmAlgorithm);
 
+/// Algorithm for dense matrix multiplication sampled at the nonzero positions of a sparse matrix.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SddmmAlgorithm {
+    /// Default algorithm. It supports batched computation.
     Default = sys::cusparseSDDMMAlg_t::CUSPARSE_SDDMM_ALG_DEFAULT as _,
 }
 
@@ -422,7 +493,7 @@ impl_enum_display!(Order, {
 });
 
 impl_enum_display!(IndexType, {
-    IndexType::I16 => "CUSPARSE_INDEX_16U",
+    IndexType::U16 => "CUSPARSE_INDEX_16U",
     IndexType::I32 => "CUSPARSE_INDEX_32I",
     IndexType::I64 => "CUSPARSE_INDEX_64I",
 });

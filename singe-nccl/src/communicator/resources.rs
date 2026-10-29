@@ -1,6 +1,26 @@
-use super::*;
+use std::{mem, process};
 
-impl RegisteredBuffer<'_> {
+use singe_cuda::view::DeviceView;
+
+use crate::communicator::{
+    CommunicatorState, CustomReductionOperator, DeviceRepr, DeviceViewMut, Handle, Ordering,
+    RegisteredBuffer, Result, Window, operations, sys, try_ffi,
+};
+
+impl<T: DeviceRepr> RegisteredBuffer<'_, T> {
+    /// Borrows the registered allocation for a collective input.
+    #[must_use]
+    pub fn buffer(&self) -> DeviceView<'_, T> {
+        self.buffer.as_view()
+    }
+
+    /// Borrows the registered allocation for a collective output.
+    pub fn buffer_mut(&mut self) -> DeviceViewMut<'_, T> {
+        self.buffer.reborrow()
+    }
+
+    /// Returns the borrowed native registration or operator handle.
+    #[must_use]
     pub const fn as_raw(&self) -> *mut () {
         self.raw
     }
@@ -13,6 +33,8 @@ impl RegisteredBuffer<'_> {
     /// deregister the buffer.
     pub fn deregister(self) -> Result<()> {
         self.communicator.bind()?;
+        self.communicator.cuda_context().synchronize()?;
+        // SAFETY: `ncclCommDeregister` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::ncclCommDeregister(
                 self.communicator.as_raw(),
@@ -20,36 +42,45 @@ impl RegisteredBuffer<'_> {
             ))?;
         }
         self.communicator.set_state(self.communicator.state());
-        std::mem::forget(self);
+        mem::forget(self);
         Ok(())
     }
 }
 
-impl Drop for RegisteredBuffer<'_> {
+impl<T: DeviceRepr> Drop for RegisteredBuffer<'_, T> {
     fn drop(&mut self) {
-        if self.communicator.state() == CommunicatorState::Destroyed {
+        if matches!(
+            self.communicator.state(),
+            CommunicatorState::Destroyed | CommunicatorState::Aborted
+        ) {
             return;
         }
 
-        if let Err(err) = self.communicator.bind() {
+        if let Err(error) = self.communicator.bind() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before deregistering nccl buffer: {err}");
+            eprintln!("failed to bind cuda context before deregistering nccl buffer: {error}");
             return;
         }
 
+        if self.communicator.cuda_context().synchronize().is_err() {
+            return;
+        }
+        // SAFETY: `ncclCommDeregister` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::ncclCommDeregister(
+            if let Err(error) = try_ffi!(sys::ncclCommDeregister(
                 self.communicator.as_raw(),
                 self.raw.cast(),
             )) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to deregister nccl buffer: {err}");
+                eprintln!("failed to deregister nccl buffer: {error}");
             }
         }
     }
 }
 
 impl Window<'_> {
+    /// Returns the borrowed native registration or operator handle.
+    #[must_use]
     pub const fn as_raw(&self) -> sys::ncclWindow_t {
         self.raw
     }
@@ -63,48 +94,59 @@ impl Window<'_> {
     /// deregister the window.
     pub fn deregister(self) -> Result<()> {
         self.communicator.bind()?;
+        self.communicator.cuda_context().synchronize()?;
+        // SAFETY: `ncclCommWindowDeregister` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::ncclCommWindowDeregister(
                 self.communicator.as_raw(),
                 self.raw,
             ))?;
         }
-        std::mem::forget(self);
+        mem::forget(self);
         Ok(())
     }
 }
 
 impl Drop for Window<'_> {
     fn drop(&mut self) {
-        if self.communicator.state() == CommunicatorState::Destroyed {
+        if matches!(
+            self.communicator.state(),
+            CommunicatorState::Destroyed | CommunicatorState::Aborted
+        ) {
             return;
         }
 
-        if let Err(err) = self.communicator.bind() {
+        if let Err(error) = self.communicator.bind() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before deregistering nccl window: {err}");
+            eprintln!("failed to bind cuda context before deregistering nccl window: {error}");
             return;
         }
 
+        if self.communicator.cuda_context().synchronize().is_err() {
+            return;
+        }
+        // SAFETY: `ncclCommWindowDeregister` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::ncclCommWindowDeregister(
+            if let Err(error) = try_ffi!(sys::ncclCommWindowDeregister(
                 self.communicator.as_raw(),
                 self.raw,
             )) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to deregister nccl window: {err}");
+                eprintln!("failed to deregister nccl window: {error}");
             }
         }
     }
 }
 
 impl CustomReductionOperator<'_> {
-    pub const fn as_raw(&self) -> sys::ncclRedOp_t {
+    /// Returns the borrowed native registration or operator handle.
+    #[must_use]
+    pub const fn as_raw(&self) -> i32 {
         self.raw
     }
 
     /// Destroys this custom reduction operator.
-    /// The operator must have been created by [`Communicator::create_custom_pre_mul_sum`] on the same communicator.
+    /// The operator must have been created by [`Communicator::create_custom_pre_mul_sum`](crate::communicator::Communicator::create_custom_pre_mul_sum) on the same communicator.
     /// It may be destroyed as soon as the last NCCL call using it has returned.
     ///
     /// # Errors
@@ -113,31 +155,41 @@ impl CustomReductionOperator<'_> {
     /// destroy the operator.
     pub fn destroy(self) -> Result<()> {
         self.communicator.bind()?;
+        // SAFETY: `self.raw` is the live operator registered on this communicator; `destroy` consumes `self`, so it is destroyed once.
         unsafe {
-            try_ffi!(sys::ncclRedOpDestroy(self.raw, self.communicator.as_raw()))?;
+            try_ffi!(operations::custom_ops::destroy_dynamic_operator(
+                self.raw,
+                self.communicator.as_raw()
+            ))?;
         }
-        std::mem::forget(self);
+        mem::forget(self);
         Ok(())
     }
 }
 
 impl Drop for CustomReductionOperator<'_> {
     fn drop(&mut self) {
-        if self.communicator.state() == CommunicatorState::Destroyed {
+        if matches!(
+            self.communicator.state(),
+            CommunicatorState::Destroyed | CommunicatorState::Aborted
+        ) {
             return;
         }
 
-        if let Err(err) = self.communicator.bind() {
+        if let Err(error) = self.communicator.bind() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying nccl reduction op: {err}");
+            eprintln!("failed to bind cuda context before destroying nccl reduction op: {error}");
             return;
         }
 
+        // SAFETY: this owner destroys its live operator exactly once.
         unsafe {
-            if let Err(err) = try_ffi!(sys::ncclRedOpDestroy(self.raw, self.communicator.as_raw()))
-            {
+            if let Err(error) = try_ffi!(operations::custom_ops::destroy_dynamic_operator(
+                self.raw,
+                self.communicator.as_raw()
+            )) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy nccl reduction op: {err}");
+                eprintln!("failed to destroy nccl reduction op: {error}");
             }
         }
     }
@@ -149,29 +201,41 @@ impl Drop for Handle {
             return;
         }
 
-        if let Err(err) = self.cuda_ctx.bind() {
+        if let Err(error) = self.cuda_context.bind() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying nccl communicator: {err}");
+            eprintln!("failed to bind cuda context before destroying nccl communicator: {error}");
         }
 
-        if let Err(err) = self.destroy_raw() {
+        if let Err(error) = self.destroy_raw() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to destroy nccl communicator: {err}");
+            eprintln!("failed to destroy nccl communicator: {error}");
+            // Native grow may still write this slot. It cannot be released if
+            // destruction or cancellation failed to establish completion.
+            if self.initialization_output.is_some() {
+                process::abort();
+            }
         }
     }
 }
 
 impl Handle {
-    pub(super) fn destroy_raw(&self) -> Result<()> {
+    pub(crate) fn destroy_raw(&self) -> Result<()> {
         let previous = self
             .state
             .swap(CommunicatorState::Destroyed.into_raw(), Ordering::AcqRel);
-        if previous == CommunicatorState::Destroyed.into_raw() {
+        if previous == CommunicatorState::Destroyed.into_raw()
+            || previous == CommunicatorState::Aborted.into_raw()
+        {
             return Ok(());
         }
 
+        // SAFETY: `ncclCommAbort`, `ncclCommDestroy` receive live handles owned by the wrappers.
         unsafe {
-            try_ffi!(sys::ncclCommDestroy(self.raw))?;
+            if previous == CommunicatorState::Initializing.into_raw() {
+                try_ffi!(sys::ncclCommAbort(self.raw))?;
+            } else {
+                try_ffi!(sys::ncclCommDestroy(self.raw))?;
+            }
         }
         Ok(())
     }

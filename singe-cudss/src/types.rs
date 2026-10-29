@@ -1,19 +1,39 @@
-use std::ops::{Add, Sub};
+use std::{
+    fmt::{self, Display, Formatter},
+    ops::{Add, Sub},
+};
 
+use bitflags::parser;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_core::{impl_enum_conversion, impl_enum_display};
-use singe_cuda::types::{Complex32, Complex64};
+use singe_cuda::{
+    types::{Complex32, Complex64},
+    view::{AnyBitPatternDeviceRepr, NoUninitDeviceRepr},
+};
 use singe_cudss_sys as sys;
 
 /// Extended-precision real value stored as a double-double pair.
 ///
 /// This type maps to [`DataType::F64F64`] and has the same layout as cuDSS'
 /// double-double scalar type.
-#[derive(Debug, Clone, Copy, Default, PartialEq, PartialOrd)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    PartialOrd,
+    singe_cuda::DeviceRepr,
+    singe_cuda::ZeroableDeviceRepr,
+    singe_cuda::AnyBitPatternDeviceRepr,
+    singe_cuda::NoUninitDeviceRepr,
+)]
 #[repr(C)]
 #[repr(align(16))]
 pub struct Fp64Mp2 {
+    /// Leading component of the unevaluated sum.
     pub hi: f64,
+    /// Trailing correction to the leading component.
     pub lo: f64,
 }
 
@@ -23,18 +43,26 @@ const _: () = {
 };
 
 impl Fp64Mp2 {
+    /// Stores the high and low components without renormalizing them.
+    #[must_use]
     pub const fn new(hi: f64, lo: f64) -> Self {
         Self { hi, lo }
     }
 
+    /// Represents `value` exactly with a zero trailing component.
+    #[must_use]
     pub const fn from_f64(value: f64) -> Self {
         Self { hi: value, lo: 0.0 }
     }
 
+    /// Returns the absolute value after rounding `hi + lo` to `f64`.
+    #[must_use]
     pub fn abs(self) -> f64 {
         (self.hi + self.lo).abs()
     }
 
+    /// Copies both components from the native cuDSS representation.
+    #[must_use]
     pub const fn from_raw(raw: sys::cudss_fp64mp2_t) -> Self {
         Self {
             hi: raw.hi,
@@ -42,6 +70,8 @@ impl Fp64Mp2 {
         }
     }
 
+    /// Copies both components into the native cuDSS representation.
+    #[must_use]
     pub const fn into_raw(self) -> sys::cudss_fp64mp2_t {
         sys::cudss_fp64mp2_t {
             hi: self.hi,
@@ -63,7 +93,7 @@ impl From<Fp64Mp2> for sys::cudss_fp64mp2_t {
 }
 
 impl Add for Fp64Mp2 {
-    type Output = Fp64Mp2;
+    type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
         let hi = self.hi + rhs.hi;
@@ -79,7 +109,7 @@ impl Add for Fp64Mp2 {
 }
 
 impl Sub for Fp64Mp2 {
-    type Output = Fp64Mp2;
+    type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
         self + Self::new(-rhs.hi, -rhs.lo)
@@ -130,19 +160,27 @@ impl_enum_display!(DataType, {
 });
 
 /// Rust element types that map directly to a cuDSS value data type.
-pub trait DataTypeLike: private::Sealed + Copy + 'static {
+pub trait DataTypeLike: private::Sealed + AnyBitPatternDeviceRepr + NoUninitDeviceRepr {
     /// cuDSS data type used for this Rust element type.
     const DATA_TYPE: DataType;
 }
 
 mod private {
+    use singe_cuda::types::{Complex32, Complex64};
+
+    use crate::types::Fp64Mp2;
+
     pub trait Sealed {}
 
     impl Sealed for f32 {}
+
     impl Sealed for f64 {}
-    impl Sealed for singe_cuda::types::Complex32 {}
-    impl Sealed for singe_cuda::types::Complex64 {}
-    impl Sealed for super::Fp64Mp2 {}
+
+    impl Sealed for Complex32 {}
+
+    impl Sealed for Complex64 {}
+
+    impl Sealed for Fp64Mp2 {}
 }
 
 impl DataTypeLike for f32 {
@@ -167,9 +205,10 @@ impl DataTypeLike for Fp64Mp2 {
 
 /// Solver configuration parameter names.
 ///
-/// These values identify settings passed to [`Config::set`](crate::config::Config::set)
-/// or [`Config::get`](crate::config::Config::get). Prefer the named
-/// `Config` methods when one exists.
+/// These values identify settings passed to [`Config::set_raw`](crate::config::Config::set_raw)
+/// or [`Config::get_raw`](crate::config::Config::get_raw). Prefer the named
+/// `Config` methods when one exists. Raw access requires the exact native value
+/// representation documented for the selected parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -375,9 +414,11 @@ impl_enum_conversion!(sys::cudssConfigParam_t, ConfigParameter);
 
 /// Solver data parameter names.
 ///
-/// These values identify data slots passed to [`Data::set`](crate::data::Data::set),
-/// [`Data::get`](crate::data::Data::get), or the slice/device variants on
-/// [`Data`](crate::data::Data). Prefer the named `Data` methods when one exists.
+/// These values identify data slots passed to [`SolverState::set_raw`](crate::data::SolverState::set_raw),
+/// [`SolverState::get_raw`](crate::data::SolverState::get_raw), or the slice/device variants on
+/// [`SolverState`](crate::data::SolverState). Prefer the named `SolverState` methods when one exists.
+/// Raw access requires the native value representation and memory space
+/// documented for the selected parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -389,17 +430,17 @@ pub enum DataParameter {
     /// matrix types, a nonzero value may be the 1-based index of the first
     /// non-positive minor in the reordered matrix.
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type: `i32`.
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type: `i32`.
     Info = sys::cudssDataParam_t::CUDSS_DATA_INFO as _,
     /// Number of nonzero entries in LU factors.
     ///
     /// For non-uniform batches, this is accumulated across the batch.
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type: `i64`.
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type: `i64`.
     LuNnz = sys::cudssDataParam_t::CUDSS_DATA_LU_NNZ as _,
     /// Number of pivots encountered during factorization.
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type:
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type:
     /// the system matrix index type.
     NumberOfPivots = sys::cudssDataParam_t::CUDSS_DATA_NPIVOTS as _,
     /// Positive and negative indices of inertia for the system matrix `A` (two integer values). Valid only for symmetric/Hermitian non positive-definite matrix types.
@@ -407,23 +448,23 @@ pub enum DataParameter {
     /// For non-uniform batches, cuDSS returns the accumulated counts across the
     /// batch.
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice). Memory: host.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice). Memory: host.
     /// Value type: two values of the system matrix index type.
     Inertia = sys::cudssDataParam_t::CUDSS_DATA_INERTIA as _,
     /// Row permutation `P` after reordering, such that `A[P,Q]` is factorized.
     ///
     /// Not supported for non-uniform batches.
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: the system matrix index type.
     PermutationReorderRow = sys::cudssDataParam_t::CUDSS_DATA_PERM_REORDER_ROW as _,
     /// Column permutation `Q` after reordering, such that `A[P,Q]` is factorized.
     ///
     /// Not supported for non-uniform batches.
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: the system matrix index type.
     PermutationReorderColumn = sys::cudssDataParam_t::CUDSS_DATA_PERM_REORDER_COL as _,
     /// Final row permutation `P`, including reordering and pivoting.
@@ -431,8 +472,8 @@ pub enum DataParameter {
     /// Not supported for non-uniform batches. Only supported with
     /// [`ReorderingAlgorithm::BtfColamd`] or [`ReorderingAlgorithm::Colamd`].
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: the system matrix index type.
     PermutationRow = sys::cudssDataParam_t::CUDSS_DATA_PERM_ROW as _,
     /// Final column permutation `Q`, including reordering and pivoting.
@@ -440,8 +481,8 @@ pub enum DataParameter {
     /// Not supported for non-uniform batches. Only supported with
     /// [`ReorderingAlgorithm::BtfColamd`] or [`ReorderingAlgorithm::Colamd`].
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: the system matrix index type.
     PermutationColumn = sys::cudssDataParam_t::CUDSS_DATA_PERM_COL as _,
     /// Diagonal of the factorized matrix in original matrix order.
@@ -451,8 +492,8 @@ pub enum DataParameter {
     /// Only supported with [`ReorderingAlgorithm::BtfColamd`] or
     /// [`ReorderingAlgorithm::Colamd`].
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: the system matrix value type.
     Diagonal = sys::cudssDataParam_t::CUDSS_DATA_DIAG as _,
     /// User permutation used instead of running a reordering algorithm.
@@ -468,7 +509,7 @@ pub enum DataParameter {
     /// Not supported for non-uniform batches or with
     /// [`ReorderingAlgorithm::BtfColamd`] or [`ReorderingAlgorithm::Colamd`].
     ///
-    /// Set with [`Data::set_slice`](crate::data::Data::set_slice). Memory: host or
+    /// Set with [`SolverState::set_raw_slice`](crate::data::SolverState::set_raw_slice). Memory: host or
     /// device. Value type: the system matrix index type.
     UserPermutation = sys::cudssDataParam_t::CUDSS_DATA_USER_PERM as _,
     /// Minimum device memory, in bytes, required by hybrid memory mode.
@@ -476,21 +517,21 @@ pub enum DataParameter {
     /// Query this after analysis. In multi-GPU mode, the value is reported for
     /// the current CUDA device.
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type: `i64`.
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type: `i64`.
     HybridDeviceMemoryMin = sys::cudssDataParam_t::CUDSS_DATA_HYBRID_DEVICE_MEMORY_MIN as _,
     /// Device communicator for [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
     /// The concrete communicator type must match the device backend selected by
     /// [`Context::set_communication_layer`](crate::context::Context::set_communication_layer).
     /// This communicator is used for communication involving device memory buffers.
     ///
-    /// Set with [`Data::set`](crate::data::Data::set). Memory: host. Value type: `*mut c_void`.
+    /// Set with [`SolverState::set_raw`](crate::data::SolverState::set_raw). Memory: host. Value type: `*mut c_void`.
     CommunicationDevice = sys::cudssDataParam_t::CUDSS_DATA_COMM_DEVICE as _,
     /// Host communicator for [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).
     /// The concrete communicator type must match the host backend selected by
     /// [`Context::set_communication_layer`](crate::context::Context::set_communication_layer).
     /// This communicator is used for communication involving host memory buffers.
     ///
-    /// Set with [`Data::set`](crate::data::Data::set). Memory: host. Value type: `*mut c_void`.
+    /// Set with [`SolverState::set_raw`](crate::data::SolverState::set_raw). Memory: host. Value type: `*mut c_void`.
     CommunicationHost = sys::cudssDataParam_t::CUDSS_DATA_COMM_HOST as _,
     /// Host and device memory estimates, in bytes, for the analyzed solve.
     ///
@@ -510,13 +551,13 @@ pub enum DataParameter {
     ///
     /// In multi-GPU mode, the estimate is reported for the current CUDA device.
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type:
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type:
     /// `[i64; 16]`.
     MemoryEstimates = sys::cudssDataParam_t::CUDSS_DATA_MEMORY_ESTIMATES as _,
     /// Matching column permutation `Q`, such that `A[:,Q]` is reordered and then factorized.
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: the system matrix index type.
     PermutationMatching = sys::cudssDataParam_t::CUDSS_DATA_PERM_MATCHING as _,
     /// Row scaling for the factorized matrix, in original row order.
@@ -524,8 +565,8 @@ pub enum DataParameter {
     /// Only supported when matching is enabled and the chosen matching algorithm
     /// computes scaling.
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: real `f32` or `f64`, matching the absolute value type of the
     /// system matrix.
     ScaleRow = sys::cudssDataParam_t::CUDSS_DATA_SCALE_ROW as _,
@@ -534,14 +575,14 @@ pub enum DataParameter {
     /// Only supported when matching is enabled and the chosen matching algorithm
     /// computes scaling.
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: real `f32` or `f64`, matching the absolute value type of the
     /// system matrix.
     ScaleColumn = sys::cudssDataParam_t::CUDSS_DATA_SCALE_COL as _,
     /// Number of superpanels in the matrix.
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type:
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type:
     /// the system matrix index type.
     SuperpanelCount = sys::cudssDataParam_t::CUDSS_DATA_NSUPERPANELS as _,
     /// User-provided Schur complement indices.
@@ -551,7 +592,7 @@ pub enum DataParameter {
     /// that belong to the Schur complement; `0` marks the rest. cuDSS copies the
     /// data into an internal buffer.
     ///
-    /// Set with [`Data::set_slice`](crate::data::Data::set_slice). Memory: host or
+    /// Set with [`SolverState::set_raw_slice`](crate::data::SolverState::set_raw_slice). Memory: host or
     /// device. Value type: the system matrix index type.
     UserSchurIndices = sys::cudssDataParam_t::CUDSS_DATA_USER_SCHUR_INDICES as _,
     /// Schur complement shape as `(rows, columns, sparse_nnz)`.
@@ -560,7 +601,7 @@ pub enum DataParameter {
     /// [`Matrix`](crate::matrix::Matrix), then pass that matrix with
     /// [`Self::SchurMatrix`] for cuDSS to fill.
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type:
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type:
     /// `[i64; 3]`.
     SchurShape = sys::cudssDataParam_t::CUDSS_DATA_SCHUR_SHAPE as _,
     /// Schur complement matrix to be filled by cuDSS.
@@ -570,7 +611,7 @@ pub enum DataParameter {
     /// batched. Dense Schur complements must be column-major. Sparse Schur
     /// complements must use [`MatrixType::General`] and [`MatrixViewType::Full`].
     ///
-    /// Set with [`Data::set`](crate::data::Data::set). Memory: host, with matrix
+    /// Set with [`SolverState::set_raw`](crate::data::SolverState::set_raw). Memory: host, with matrix
     /// buffers on host or device. Value type: [`Matrix`](crate::matrix::Matrix)
     /// handle.
     SchurMatrix = sys::cudssDataParam_t::CUDSS_DATA_SCHUR_MATRIX as _,
@@ -582,7 +623,7 @@ pub enum DataParameter {
     /// Prefer reusing a tree returned by [`Self::NestedDissectionPartitionTree`]
     /// rather than constructing one manually.
     ///
-    /// Set with [`Data::set_slice`](crate::data::Data::set_slice). Memory: host or
+    /// Set with [`SolverState::set_raw_slice`](crate::data::SolverState::set_raw_slice). Memory: host or
     /// device. Value type: the system matrix index type.
     UserNestedDissectionPartitionTree =
         sys::cudssDataParam_t::CUDSS_DATA_USER_ND_PARTITION_TREE as _,
@@ -593,8 +634,8 @@ pub enum DataParameter {
     /// [`Self::UserPermutation`] and [`Self::UserNestedDissectionPartitionTree`]
     /// for another matrix with the same sparsity structure.
     ///
-    /// Read with [`Data::get_slice`](crate::data::Data::get_slice) or
-    /// [`Data::get_device`](crate::data::Data::get_device). Memory: host or device.
+    /// Read with [`SolverState::get_raw_slice`](crate::data::SolverState::get_raw_slice) or
+    /// [`SolverState::get_device`](crate::data::SolverState::get_device). Memory: host or device.
     /// Value type: the system matrix index type.
     NestedDissectionPartitionTree = sys::cudssDataParam_t::CUDSS_DATA_ND_PARTITION_TREE as _,
     /// User-provided host interrupt pointer.
@@ -609,7 +650,7 @@ pub enum DataParameter {
     /// Since most device kernels inside cuDSS are launched asynchronously,
     /// execution on the GPU may continue some time after the host execution has been interrupted.
     ///
-    /// Set with [`Data::set`](crate::data::Data::set). Memory: host. Default:
+    /// Set with [`SolverState::set_raw`](crate::data::SolverState::set_raw). Memory: host. Default:
     /// null pointer. Value type: pointer to a 4-byte integer.
     ///
     /// When setting the flag from another thread, use an atomic store with
@@ -626,7 +667,7 @@ pub enum DataParameter {
     /// is reached.
     /// The value is 0 if iterative refinement is disabled or if the initial solution already satisfies the tolerance.
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type: `i32`.
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type: `i32`.
     IterativeRefinementSteps = sys::cudssDataParam_t::CUDSS_DATA_IR_N_STEPS as _,
     /// A bitmask specifying the subset of problems to be factorized or solved in the uniform batch case. Each bit position corresponds to the index of a matrix in the uniform batch; setting a bit to `1` includes that matrix in the operation.
     ///
@@ -636,7 +677,7 @@ pub enum DataParameter {
     /// This may be set after [`Phase::FACTORIZATION`] to solve only a subset of
     /// systems.
     ///
-    /// Set with [`Data::set`](crate::data::Data::set). Memory: host. Value type: `i64`. Default: `-1`, which
+    /// Set with [`SolverState::set_raw`](crate::data::SolverState::set_raw). Memory: host. Value type: `i64`. Default: `-1`, which
     /// selects all systems. Not supported with hybrid modes, MGMN mode,
     /// [`ReorderingAlgorithm::BtfColamd`], or [`ReorderingAlgorithm::Colamd`].
     UniformBatchMask = sys::cudssDataParam_t::CUDSS_DATA_UBATCH_MASK as _,
@@ -644,7 +685,7 @@ pub enum DataParameter {
     ///
     /// Available after [`Phase::ANALYSIS`].
     ///
-    /// Read with [`Data::get`](crate::data::Data::get). Memory: host. Value type: `f64`.
+    /// Read with [`SolverState::get_raw`](crate::data::SolverState::get_raw). Memory: host. Value type: `f64`.
     Flops = sys::cudssDataParam_t::CUDSS_DATA_FLOPS as _,
 }
 
@@ -726,6 +767,12 @@ bitflags::bitflags! {
         ///
         /// Combining solve sub-phases is preferred over calling them separately.
         const SOLVE = sys::cudssPhase_t::CUDSS_PHASE_SOLVE as _;
+    }
+}
+
+impl Display for Phase {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        parser::to_writer(self, f)
     }
 }
 
@@ -1011,3 +1058,138 @@ bitflags::bitflags! {
         const DISTRIBUTED = sys::cudssMatrixFormat_t::CUDSS_MFORMAT_DISTRIBUTED as _;
     }
 }
+
+impl Display for MatrixFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        parser::to_writer(self, f)
+    }
+}
+
+impl_enum_display!(ConfigParameter, {
+    ConfigParameter::ReorderingAlgorithm => "CUDSS_CONFIG_REORDERING_ALG",
+    ConfigParameter::FactorizationAlgorithm => "CUDSS_CONFIG_FACTORIZATION_ALG",
+    ConfigParameter::SolveAlgorithm => "CUDSS_CONFIG_SOLVE_ALG",
+    ConfigParameter::MatchingAlgorithm => "CUDSS_CONFIG_MATCHING_ALG",
+    ConfigParameter::SolveMode => "CUDSS_CONFIG_SOLVE_MODE",
+    ConfigParameter::IterativeRefinementSteps => "CUDSS_CONFIG_IR_N_STEPS",
+    ConfigParameter::IterativeRefinementTolerance => "CUDSS_CONFIG_IR_TOL",
+    ConfigParameter::PivotType => "CUDSS_CONFIG_PIVOT_TYPE",
+    ConfigParameter::PivotThreshold => "CUDSS_CONFIG_PIVOT_THRESHOLD",
+    ConfigParameter::PivotEpsilon => "CUDSS_CONFIG_PIVOT_EPSILON",
+    ConfigParameter::MaxLuNnz => "CUDSS_CONFIG_MAX_LU_NNZ",
+    ConfigParameter::HybridMemoryMode => "CUDSS_CONFIG_HYBRID_MEMORY_MODE",
+    ConfigParameter::HybridDeviceMemoryLimit => "CUDSS_CONFIG_HYBRID_DEVICE_MEMORY_LIMIT",
+    ConfigParameter::UseCudaRegisterMemory => "CUDSS_CONFIG_USE_CUDA_REGISTER_MEMORY",
+    ConfigParameter::HostThreads => "CUDSS_CONFIG_HOST_NTHREADS",
+    ConfigParameter::HybridExecuteMode => "CUDSS_CONFIG_HYBRID_EXECUTE_MODE",
+    ConfigParameter::PivotEpsilonAlgorithm => "CUDSS_CONFIG_PIVOT_EPSILON_ALG",
+    ConfigParameter::NestedDissectionLevels => "CUDSS_CONFIG_ND_NLEVELS",
+    ConfigParameter::UniformBatchSize => "CUDSS_CONFIG_UBATCH_SIZE",
+    ConfigParameter::UniformBatchIndex => "CUDSS_CONFIG_UBATCH_INDEX",
+    ConfigParameter::UseSuperpanels => "CUDSS_CONFIG_USE_SUPERPANELS",
+    ConfigParameter::DeviceCount => "CUDSS_CONFIG_DEVICE_COUNT",
+    ConfigParameter::DeviceIndices => "CUDSS_CONFIG_DEVICE_INDICES",
+    ConfigParameter::SchurMode => "CUDSS_CONFIG_SCHUR_MODE",
+    ConfigParameter::DeterministicMode => "CUDSS_CONFIG_DETERMINISTIC_MODE",
+    ConfigParameter::NestedDissectionUnbalanceFactor => "CUDSS_CONFIG_ND_UBFACTOR",
+});
+
+impl_enum_display!(DataParameter, {
+    DataParameter::Info => "CUDSS_DATA_INFO",
+    DataParameter::LuNnz => "CUDSS_DATA_LU_NNZ",
+    DataParameter::NumberOfPivots => "CUDSS_DATA_NPIVOTS",
+    DataParameter::Inertia => "CUDSS_DATA_INERTIA",
+    DataParameter::PermutationReorderRow => "CUDSS_DATA_PERM_REORDER_ROW",
+    DataParameter::PermutationReorderColumn => "CUDSS_DATA_PERM_REORDER_COL",
+    DataParameter::PermutationRow => "CUDSS_DATA_PERM_ROW",
+    DataParameter::PermutationColumn => "CUDSS_DATA_PERM_COL",
+    DataParameter::Diagonal => "CUDSS_DATA_DIAG",
+    DataParameter::UserPermutation => "CUDSS_DATA_USER_PERM",
+    DataParameter::HybridDeviceMemoryMin => "CUDSS_DATA_HYBRID_DEVICE_MEMORY_MIN",
+    DataParameter::CommunicationDevice => "CUDSS_DATA_COMM_DEVICE",
+    DataParameter::CommunicationHost => "CUDSS_DATA_COMM_HOST",
+    DataParameter::MemoryEstimates => "CUDSS_DATA_MEMORY_ESTIMATES",
+    DataParameter::PermutationMatching => "CUDSS_DATA_PERM_MATCHING",
+    DataParameter::ScaleRow => "CUDSS_DATA_SCALE_ROW",
+    DataParameter::ScaleColumn => "CUDSS_DATA_SCALE_COL",
+    DataParameter::SuperpanelCount => "CUDSS_DATA_NSUPERPANELS",
+    DataParameter::UserSchurIndices => "CUDSS_DATA_USER_SCHUR_INDICES",
+    DataParameter::SchurShape => "CUDSS_DATA_SCHUR_SHAPE",
+    DataParameter::SchurMatrix => "CUDSS_DATA_SCHUR_MATRIX",
+    DataParameter::UserNestedDissectionPartitionTree => "CUDSS_DATA_USER_ND_PARTITION_TREE",
+    DataParameter::NestedDissectionPartitionTree => "CUDSS_DATA_ND_PARTITION_TREE",
+    DataParameter::UserHostInterrupt => "CUDSS_DATA_USER_HOST_INTERRUPT",
+    DataParameter::IterativeRefinementSteps => "CUDSS_DATA_IR_N_STEPS",
+    DataParameter::UniformBatchMask => "CUDSS_DATA_UBATCH_MASK",
+    DataParameter::Flops => "CUDSS_DATA_FLOPS",
+});
+
+impl_enum_display!(MatrixType, {
+    MatrixType::General => "CUDSS_MTYPE_GENERAL",
+    MatrixType::Symmetric => "CUDSS_MTYPE_SYMMETRIC",
+    MatrixType::Hermitian => "CUDSS_MTYPE_HERMITIAN",
+    MatrixType::Spd => "CUDSS_MTYPE_SPD",
+    MatrixType::Hpd => "CUDSS_MTYPE_HPD",
+});
+
+impl_enum_display!(MatrixViewType, {
+    MatrixViewType::Full => "CUDSS_MVIEW_FULL",
+    MatrixViewType::Lower => "CUDSS_MVIEW_LOWER",
+    MatrixViewType::Upper => "CUDSS_MVIEW_UPPER",
+});
+
+impl_enum_display!(IndexBase, {
+    IndexBase::Zero => "CUDSS_BASE_ZERO",
+    IndexBase::One => "CUDSS_BASE_ONE",
+});
+
+impl_enum_display!(Layout, {
+    Layout::ColumnMajor => "CUDSS_LAYOUT_COL_MAJOR",
+    Layout::RowMajor => "CUDSS_LAYOUT_ROW_MAJOR",
+});
+
+impl_enum_display!(ReorderingAlgorithm, {
+    ReorderingAlgorithm::Default => "CUDSS_REORDERING_ALG_DEFAULT",
+    ReorderingAlgorithm::BtfColamd => "CUDSS_REORDERING_ALG_BTF_COLAMD",
+    ReorderingAlgorithm::Colamd => "CUDSS_REORDERING_ALG_COLAMD",
+    ReorderingAlgorithm::Amd => "CUDSS_REORDERING_ALG_AMD",
+    ReorderingAlgorithm::NestedDissection => "CUDSS_REORDERING_ALG_NESTED_DISSECTION",
+    ReorderingAlgorithm::None => "CUDSS_REORDERING_ALG_NONE",
+});
+
+impl_enum_display!(FactorizationAlgorithm, {
+    FactorizationAlgorithm::Default => "CUDSS_FACTORIZATION_ALG_DEFAULT",
+    FactorizationAlgorithm::Multiblock => "CUDSS_FACTORIZATION_ALG_MULTIBLOCK",
+    FactorizationAlgorithm::General => "CUDSS_FACTORIZATION_ALG_GENERAL",
+});
+
+impl_enum_display!(PivotEpsilonAlgorithm, {
+    PivotEpsilonAlgorithm::Default => "CUDSS_PIVOT_EPSILON_ALG_DEFAULT",
+    PivotEpsilonAlgorithm::Scaled => "CUDSS_PIVOT_EPSILON_ALG_SCALED",
+    PivotEpsilonAlgorithm::Static => "CUDSS_PIVOT_EPSILON_ALG_STATIC",
+});
+
+impl_enum_display!(SolveAlgorithm, {
+    SolveAlgorithm::Default => "CUDSS_SOLVE_ALG_DEFAULT",
+    SolveAlgorithm::General => "CUDSS_SOLVE_ALG_GENERAL",
+});
+
+impl_enum_display!(MatchingAlgorithm, {
+    MatchingAlgorithm::None => "CUDSS_MATCHING_ALG_NONE",
+    MatchingAlgorithm::MaxDiagonalCount => "CUDSS_MATCHING_ALG_MAX_DIAG_COUNT",
+    MatchingAlgorithm::MaxMinDiagonal => "CUDSS_MATCHING_ALG_MAX_MIN_DIAG",
+    MatchingAlgorithm::MaxMinDiagonalAlternate => "CUDSS_MATCHING_ALG_MAX_MIN_DIAG_ALT",
+    MatchingAlgorithm::MaxDiagSum => "CUDSS_MATCHING_ALG_MAX_DIAG_SUM",
+    MatchingAlgorithm::MaxDiagProduct => "CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT",
+    MatchingAlgorithm::Auto => "CUDSS_MATCHING_ALG_AUTO",
+});
+
+impl_enum_display!(PivotType, {
+    PivotType::Auto => "CUDSS_PIVOT_AUTO",
+    PivotType::None => "CUDSS_PIVOT_NONE",
+    PivotType::GlobalColumn => "CUDSS_PIVOT_GLOBAL_COL",
+    PivotType::GlobalRow => "CUDSS_PIVOT_GLOBAL_ROW",
+    PivotType::Diagonal => "CUDSS_PIVOT_DIAGONAL",
+    PivotType::LocalBlock => "CUDSS_PIVOT_LOCAL_BLOCK",
+    PivotType::BunchKaufman => "CUDSS_PIVOT_BUNCH_KAUFMAN",
+});

@@ -1,6 +1,31 @@
-use super::*;
+use std::sync::Arc;
 
-pub fn fmha_prefill_lse_f32(
+#[cfg(feature = "dtype_bf16")]
+use cutile::half::bf16;
+#[cfg(feature = "dtype_f16")]
+use cutile::half::f16;
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
+
+use crate::{
+    cuda::{
+        attention::FmhaPrefillConfig,
+        cutile::{
+            DeviceOpExt,
+            adapter::TensorAdapter,
+            attention::{FmhaDecode, FmhaPrefill},
+            kernel::attention as kernel_attention,
+            runtime::tile_kernel::TileKernel,
+            utility::checked_device_pointer,
+        },
+    },
+    error::{Error, Result},
+    utility::{checked_element_count, checked_i32_value},
+};
+
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fmha_prefill_lse_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -28,11 +53,11 @@ pub fn fmha_prefill_lse_f32(
     scale: f32,
     causal: bool,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     let params = FmhaPrefill::create(
         batch,
@@ -57,6 +82,7 @@ pub fn fmha_prefill_lse_f32(
         causal,
     )?;
     match head_dim {
+        // SAFETY: the caller upholds this function's safety contract.
         4 => unsafe {
             kernel_attention::fmha_prefill_lse_f32_hd4(
                 out,
@@ -89,6 +115,7 @@ pub fn fmha_prefill_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_attention::fmha_prefill_lse_f32_hd8(
                 out,
@@ -121,6 +148,7 @@ pub fn fmha_prefill_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_attention::fmha_prefill_lse_f32_hd16(
                 out,
@@ -153,6 +181,7 @@ pub fn fmha_prefill_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_attention::fmha_prefill_lse_f32_hd32(
                 out,
@@ -185,6 +214,7 @@ pub fn fmha_prefill_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         64 => unsafe {
             kernel_attention::fmha_prefill_lse_f32_hd64(
                 out,
@@ -217,6 +247,7 @@ pub fn fmha_prefill_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         128 => unsafe {
             kernel_attention::fmha_prefill_lse_f32_hd128(
                 out,
@@ -249,6 +280,7 @@ pub fn fmha_prefill_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         256 => unsafe {
             kernel_attention::fmha_prefill_lse_f32_hd256(
                 out,
@@ -292,7 +324,10 @@ pub fn fmha_prefill_lse_f32(
     Ok(())
 }
 
-pub fn fmha_prefill_lse_mma_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fmha_prefill_lse_mma_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -320,11 +355,11 @@ pub fn fmha_prefill_lse_mma_f32(
     scale: f32,
     causal: bool,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     FmhaPrefill::create(
         batch,
@@ -386,6 +421,7 @@ pub fn fmha_prefill_lse_mma_f32(
             });
         }
     };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::fmha_prefill_lse_mma_f32(
             out,
@@ -406,7 +442,10 @@ pub fn fmha_prefill_lse_mma_f32(
     Ok(())
 }
 
-pub fn fmha_prefill_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fmha_prefill_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -433,10 +472,10 @@ pub fn fmha_prefill_f32(
     scale: f32,
     causal: bool,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     let params = FmhaPrefill::create(
         batch,
@@ -461,6 +500,7 @@ pub fn fmha_prefill_f32(
         causal,
     )?;
     match head_dim {
+        // SAFETY: the caller upholds this function's safety contract.
         4 => unsafe {
             kernel_attention::fmha_prefill_f32_hd4(
                 out,
@@ -492,6 +532,7 @@ pub fn fmha_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_attention::fmha_prefill_f32_hd8(
                 out,
@@ -523,6 +564,7 @@ pub fn fmha_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_attention::fmha_prefill_f32_hd16(
                 out,
@@ -554,6 +596,7 @@ pub fn fmha_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_attention::fmha_prefill_f32_hd32(
                 out,
@@ -585,6 +628,7 @@ pub fn fmha_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         64 => unsafe {
             kernel_attention::fmha_prefill_f32_hd64(
                 out,
@@ -616,6 +660,7 @@ pub fn fmha_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         128 => unsafe {
             kernel_attention::fmha_prefill_f32_hd128(
                 out,
@@ -647,6 +692,7 @@ pub fn fmha_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         256 => unsafe {
             kernel_attention::fmha_prefill_f32_hd256(
                 out,
@@ -689,7 +735,10 @@ pub fn fmha_prefill_f32(
     Ok(())
 }
 
-pub fn attention_sink_prefill_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn attention_sink_prefill_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -719,11 +768,11 @@ pub fn attention_sink_prefill_f32(
     scale: f32,
     causal: bool,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
-    checked_device_pointer(sinks)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
+    checked_device_pointer(&sinks)?;
 
     let params = FmhaPrefill::create(
         batch,
@@ -750,6 +799,7 @@ pub fn attention_sink_prefill_f32(
     let start_q = checked_i32_value(start_q)?;
     let window = checked_i32_value(window)?;
     match head_dim {
+        // SAFETY: the caller upholds this function's safety contract.
         4 => unsafe {
             kernel_attention::attention_sink_prefill_f32_hd4(
                 out,
@@ -784,6 +834,7 @@ pub fn attention_sink_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_attention::attention_sink_prefill_f32_hd8(
                 out,
@@ -818,6 +869,7 @@ pub fn attention_sink_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_attention::attention_sink_prefill_f32_hd16(
                 out,
@@ -852,6 +904,7 @@ pub fn attention_sink_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_attention::attention_sink_prefill_f32_hd32(
                 out,
@@ -886,6 +939,7 @@ pub fn attention_sink_prefill_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         64 => unsafe {
             kernel_attention::attention_sink_prefill_f32_hd64(
                 out,
@@ -931,7 +985,10 @@ pub fn attention_sink_prefill_f32(
     Ok(())
 }
 
-pub fn softcapped_window_attention_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn softcapped_window_attention_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -960,10 +1017,10 @@ pub fn softcapped_window_attention_f32(
     window_size: usize,
     soft_cap: Option<f32>,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     if let Some(soft_cap) = soft_cap
         && (!soft_cap.is_finite() || soft_cap <= 0.0)
@@ -998,6 +1055,7 @@ pub fn softcapped_window_attention_f32(
     let window_size = checked_i32_value(window_size)?;
     macro_rules! launch {
         ($kernel:ident) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -1051,9 +1109,13 @@ pub fn softcapped_window_attention_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! softcapped_window_attention_half_fn {
     ($name:ident, $dtype:ty, $op:literal, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$dtype>,
             query: DevicePointer<$dtype>,
@@ -1082,10 +1144,10 @@ macro_rules! softcapped_window_attention_half_fn {
             window_size: usize,
             soft_cap: Option<f32>,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             if let Some(soft_cap) = soft_cap
                 && (!soft_cap.is_finite() || soft_cap <= 0.0)
@@ -1120,6 +1182,7 @@ macro_rules! softcapped_window_attention_half_fn {
             let window_size = checked_i32_value(window_size)?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -1175,7 +1238,7 @@ macro_rules! softcapped_window_attention_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 softcapped_window_attention_half_fn!(
     softcapped_window_attention_f16,
     f16,
@@ -1187,7 +1250,7 @@ softcapped_window_attention_half_fn!(
     softcapped_window_attention_f16_hd64
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 softcapped_window_attention_half_fn!(
     softcapped_window_attention_bf16,
     bf16,
@@ -1199,7 +1262,10 @@ softcapped_window_attention_half_fn!(
     softcapped_window_attention_bf16_hd64
 );
 
-pub fn fmha_decode_lse_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fmha_decode_lse_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -1223,11 +1289,11 @@ pub fn fmha_decode_lse_f32(
     value_head_stride: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     let params = FmhaDecode::create(
         batch,
@@ -1248,6 +1314,7 @@ pub fn fmha_decode_lse_f32(
         scale,
     )?;
     match head_dim {
+        // SAFETY: the caller upholds this function's safety contract.
         4 => unsafe {
             kernel_attention::fmha_decode_lse_f32_hd4(
                 out,
@@ -1276,6 +1343,7 @@ pub fn fmha_decode_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_attention::fmha_decode_lse_f32_hd8(
                 out,
@@ -1304,6 +1372,7 @@ pub fn fmha_decode_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_attention::fmha_decode_lse_f32_hd16(
                 out,
@@ -1332,6 +1401,7 @@ pub fn fmha_decode_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_attention::fmha_decode_lse_f32_hd32(
                 out,
@@ -1360,6 +1430,7 @@ pub fn fmha_decode_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         64 => unsafe {
             kernel_attention::fmha_decode_lse_f32_hd64(
                 out,
@@ -1388,6 +1459,7 @@ pub fn fmha_decode_lse_f32(
         }
         .grid(params.grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         128 => unsafe {
             kernel_attention::fmha_decode_lse_f32_hd128(
                 out,
@@ -1427,7 +1499,10 @@ pub fn fmha_decode_lse_f32(
     Ok(())
 }
 
-pub fn softcapped_window_decode_lse_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn softcapped_window_decode_lse_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     lse: DevicePointer<f32>,
@@ -1453,11 +1528,11 @@ pub fn softcapped_window_decode_lse_f32(
     window_size: usize,
     soft_cap: Option<f32>,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     if let Some(soft_cap) = soft_cap
         && (!soft_cap.is_finite() || soft_cap <= 0.0)
@@ -1488,6 +1563,7 @@ pub fn softcapped_window_decode_lse_f32(
     let window_size = checked_i32_value(window_size)?;
     macro_rules! launch {
         ($kernel:ident) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -1538,9 +1614,13 @@ pub fn softcapped_window_decode_lse_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! softcapped_window_decode_lse_half_fn {
     ($name:ident, $dtype:ty, $op:literal, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$dtype>,
             lse: DevicePointer<f32>,
@@ -1566,11 +1646,11 @@ macro_rules! softcapped_window_decode_lse_half_fn {
             window_size: usize,
             soft_cap: Option<f32>,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(lse)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&lse)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             if let Some(soft_cap) = soft_cap
                 && (!soft_cap.is_finite() || soft_cap <= 0.0)
@@ -1601,6 +1681,7 @@ macro_rules! softcapped_window_decode_lse_half_fn {
             let window_size = checked_i32_value(window_size)?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -1653,7 +1734,7 @@ macro_rules! softcapped_window_decode_lse_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 softcapped_window_decode_lse_half_fn!(
     softcapped_window_decode_lse_f16,
     f16,
@@ -1665,7 +1746,7 @@ softcapped_window_decode_lse_half_fn!(
     softcapped_window_decode_lse_f16_hd64
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 softcapped_window_decode_lse_half_fn!(
     softcapped_window_decode_lse_bf16,
     bf16,
@@ -1677,10 +1758,13 @@ softcapped_window_decode_lse_half_fn!(
     softcapped_window_decode_lse_bf16_hd64
 );
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! fmha_prefill_lse_half_fn {
     ($name:ident, $ty:ty, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident, $hd128:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             lse: DevicePointer<f32>,
@@ -1708,11 +1792,11 @@ macro_rules! fmha_prefill_lse_half_fn {
             scale: f32,
             causal: bool,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(lse)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&lse)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             let params = FmhaPrefill::create(
                 batch,
@@ -1737,6 +1821,7 @@ macro_rules! fmha_prefill_lse_half_fn {
                 causal,
             )?;
             match head_dim {
+                // SAFETY: the caller upholds this function's safety contract.
                 4 => unsafe {
                     kernel_attention::$hd4(
                         out,
@@ -1769,6 +1854,7 @@ macro_rules! fmha_prefill_lse_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 8 => unsafe {
                     kernel_attention::$hd8(
                         out,
@@ -1801,6 +1887,7 @@ macro_rules! fmha_prefill_lse_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 16 => unsafe {
                     kernel_attention::$hd16(
                         out,
@@ -1833,6 +1920,7 @@ macro_rules! fmha_prefill_lse_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 32 => unsafe {
                     kernel_attention::$hd32(
                         out,
@@ -1865,6 +1953,7 @@ macro_rules! fmha_prefill_lse_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 64 => unsafe {
                     kernel_attention::$hd64(
                         out,
@@ -1897,6 +1986,7 @@ macro_rules! fmha_prefill_lse_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 128 => unsafe {
                     kernel_attention::$hd128(
                         out,
@@ -1942,7 +2032,7 @@ macro_rules! fmha_prefill_lse_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 fmha_prefill_lse_half_fn!(
     fmha_prefill_lse_f16,
     f16,
@@ -1953,7 +2043,8 @@ fmha_prefill_lse_half_fn!(
     fmha_prefill_lse_f16_hd64,
     fmha_prefill_lse_f16_hd128
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 fmha_prefill_lse_half_fn!(
     fmha_prefill_lse_bf16,
     bf16,
@@ -1965,10 +2056,13 @@ fmha_prefill_lse_half_fn!(
     fmha_prefill_lse_bf16_hd128
 );
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! fmha_prefill_half_fn {
     ($name:ident, $ty:ty, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident, $hd128:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             query: DevicePointer<$ty>,
@@ -1995,10 +2089,10 @@ macro_rules! fmha_prefill_half_fn {
             scale: f32,
             causal: bool,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             let params = FmhaPrefill::create(
                 batch,
@@ -2023,6 +2117,7 @@ macro_rules! fmha_prefill_half_fn {
                 causal,
             )?;
             match head_dim {
+                // SAFETY: the caller upholds this function's safety contract.
                 4 => unsafe {
                     kernel_attention::$hd4(
                         out,
@@ -2054,6 +2149,7 @@ macro_rules! fmha_prefill_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 8 => unsafe {
                     kernel_attention::$hd8(
                         out,
@@ -2085,6 +2181,7 @@ macro_rules! fmha_prefill_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 16 => unsafe {
                     kernel_attention::$hd16(
                         out,
@@ -2116,6 +2213,7 @@ macro_rules! fmha_prefill_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 32 => unsafe {
                     kernel_attention::$hd32(
                         out,
@@ -2147,6 +2245,7 @@ macro_rules! fmha_prefill_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 64 => unsafe {
                     kernel_attention::$hd64(
                         out,
@@ -2178,6 +2277,7 @@ macro_rules! fmha_prefill_half_fn {
                 }
                 .grid(params.grid)
                 .enqueue_on(stream)?,
+                // SAFETY: the caller upholds this function's safety contract.
                 128 => unsafe {
                     kernel_attention::$hd128(
                         out,
@@ -2222,7 +2322,7 @@ macro_rules! fmha_prefill_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 fmha_prefill_half_fn!(
     fmha_prefill_f16,
     f16,
@@ -2233,7 +2333,8 @@ fmha_prefill_half_fn!(
     fmha_prefill_f16_hd64,
     fmha_prefill_f16_hd128
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 fmha_prefill_half_fn!(
     fmha_prefill_bf16,
     bf16,
@@ -2245,10 +2346,13 @@ fmha_prefill_half_fn!(
     fmha_prefill_bf16_hd128
 );
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! attention_sink_prefill_half_fn {
     ($name:ident, $ty:ty, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             query: DevicePointer<$ty>,
@@ -2278,11 +2382,11 @@ macro_rules! attention_sink_prefill_half_fn {
             scale: f32,
             causal: bool,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
-            checked_device_pointer(sinks)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
+            checked_device_pointer(&sinks)?;
 
             let params = FmhaPrefill::create(
                 batch,
@@ -2310,6 +2414,7 @@ macro_rules! attention_sink_prefill_half_fn {
             let window = checked_i32_value(window)?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -2365,7 +2470,7 @@ macro_rules! attention_sink_prefill_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 attention_sink_prefill_half_fn!(
     attention_sink_prefill_f16,
     f16,
@@ -2375,7 +2480,8 @@ attention_sink_prefill_half_fn!(
     attention_sink_prefill_f16_hd32,
     attention_sink_prefill_f16_hd64
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 attention_sink_prefill_half_fn!(
     attention_sink_prefill_bf16,
     bf16,
@@ -2386,10 +2492,13 @@ attention_sink_prefill_half_fn!(
     attention_sink_prefill_bf16_hd64
 );
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! fmha_decode_lse_half_fn {
     ($name:ident, $ty:ty, $hd4:ident, $hd8:ident, $hd16:ident, $hd32:ident, $hd64:ident, $hd128:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             lse: DevicePointer<f32>,
@@ -2413,11 +2522,11 @@ macro_rules! fmha_decode_lse_half_fn {
             value_head_stride: usize,
             scale: f32,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(lse)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&lse)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
 
             let params = FmhaDecode::create(
                 batch,
@@ -2439,6 +2548,7 @@ macro_rules! fmha_decode_lse_half_fn {
             )?;
             macro_rules! launch {
                 ($kernel:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         kernel_attention::$kernel(
                             out,
@@ -2489,7 +2599,7 @@ macro_rules! fmha_decode_lse_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 fmha_decode_lse_half_fn!(
     fmha_decode_lse_f16,
     f16,
@@ -2500,7 +2610,8 @@ fmha_decode_lse_half_fn!(
     fmha_decode_lse_f16_hd64,
     fmha_decode_lse_f16_hd128
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 fmha_decode_lse_half_fn!(
     fmha_decode_lse_bf16,
     bf16,
@@ -2512,9 +2623,11 @@ fmha_decode_lse_half_fn!(
     fmha_decode_lse_bf16_hd128
 );
 
-#[cfg(feature = "dtype-f16")]
-
-pub fn fmha_decode_lse_dynpos_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fmha_decode_lse_dynpos_f16(
     stream: &Arc<Stream>,
     out: DevicePointer<f16>,
     lse: DevicePointer<f32>,
@@ -2539,12 +2652,12 @@ pub fn fmha_decode_lse_dynpos_f16(
     value_head_stride: usize,
     scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(lse)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
-    checked_device_pointer(position_start)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&lse)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
+    checked_device_pointer(&position_start)?;
 
     let params = FmhaDecode::create(
         batch,
@@ -2566,6 +2679,7 @@ pub fn fmha_decode_lse_dynpos_f16(
     )?;
     macro_rules! launch {
         ($kernel:ident) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -2611,5 +2725,92 @@ pub fn fmha_decode_lse_dynpos_f16(
             });
         }
     };
+    Ok(())
+}
+
+/// Returns whether the tiled prefill kernel supports this contiguous layout.
+pub fn supports_fmha_prefill_mma(config: FmhaPrefillConfig) -> bool {
+    let c = config;
+    matches!(c.head_dim, 16 | 32 | 64 | 128)
+        && c.heads > 0
+        && c.kv_heads > 0
+        && c.heads.is_multiple_of(c.kv_heads)
+        && c.query_len > 0
+        && c.key_len > 0
+        && c.batch > 0
+        && c.query_head_stride == c.head_dim
+        && c.key_head_stride == c.head_dim
+        && c.value_head_stride == c.head_dim
+        && c.output_head_stride == c.head_dim
+        && c.query_sequence_stride == c.heads.saturating_mul(c.head_dim)
+        && c.output_sequence_stride == c.query_sequence_stride
+        && c.key_sequence_stride == c.kv_heads.saturating_mul(c.head_dim)
+        && c.value_sequence_stride == c.key_sequence_stride
+        && c.query_batch_stride == c.query_len.saturating_mul(c.query_sequence_stride)
+        && c.output_batch_stride == c.query_batch_stride
+        && c.key_batch_stride == c.key_len.saturating_mul(c.key_sequence_stride)
+        && c.value_batch_stride == c.key_batch_stride
+}
+
+/// Enqueues tiled half-precision attention with optional natural-log LSE output.
+///
+/// # Safety
+/// All pointers must reference allocations large enough for `config` on the stream's device.
+/// Allocations must remain valid and their accesses ordered until completion, including graph replay.
+pub unsafe fn fmha_prefill_mma<T: cutile::DType + Sync>(
+    stream: &Arc<Stream>,
+    out: DevicePointer<T>,
+    lse: Option<DevicePointer<f32>>,
+    query: DevicePointer<T>,
+    key: DevicePointer<T>,
+    value: DevicePointer<T>,
+    config: FmhaPrefillConfig,
+) -> Result<()> {
+    let c = config;
+    if !supports_fmha_prefill_mma(c) || !matches!(T::DTYPE.as_str(), "f16" | "bf16") {
+        return Err(Error::InvalidLength);
+    }
+    checked_i32_value(checked_element_count(c.batch, c.output_batch_stride)?)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
+    if let Some(lse) = lse {
+        checked_device_pointer(&lse)?;
+    }
+    let query = TensorAdapter::contiguous_4d(query, c.batch, c.query_len, c.heads, c.head_dim)?;
+    let key = TensorAdapter::contiguous_4d(key, c.batch, c.key_len, c.kv_heads, c.head_dim)?;
+    let value = TensorAdapter::contiguous_4d(value, c.batch, c.key_len, c.kv_heads, c.head_dim)?;
+    let save_lse = i32::from(lse.is_some());
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
+    let lse = lse.unwrap_or_else(|| unsafe { DevicePointer::from_cu_deviceptr(0) });
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        kernel_attention::fmha_prefill_mma(
+            out,
+            lse,
+            query,
+            key,
+            value,
+            checked_i32_value(c.output_batch_stride)?,
+            checked_i32_value(c.output_sequence_stride)?,
+            checked_i32_value(c.output_head_stride)?,
+            c.scale,
+            i32::from(c.causal),
+            checked_i32_value(c.heads / c.kv_heads)?,
+        )
+    }
+    .generics(vec![
+        T::DTYPE.as_str().into(),
+        "32".into(),
+        c.head_dim.to_string(),
+        save_lse.to_string(),
+    ])
+    .grid((
+        u32::try_from(checked_element_count(c.batch, c.heads)?).map_err(|_| Error::SizeOverflow)?,
+        u32::try_from(c.query_len.div_ceil(16)).map_err(|_| Error::SizeOverflow)?,
+        1,
+    ))
+    .enqueue_on(stream)?;
     Ok(())
 }

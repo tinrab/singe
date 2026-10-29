@@ -1,30 +1,44 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{
-        C1, ChannelLayout, ImageView, ImageViewMut, PlanarImageView, PlanarImageViewMut,
+    image::{
+        Image, SupportedImage,
+        view::{
+            C1, ChannelLayout, ImageOutputView, ImageView, ImageViewMut, PlanarImageOutputView,
+            PlanarImageView, PlanarImageViewMut,
+        },
     },
-    pipeline::{ImageAllocator, Workspace},
+    pipeline::image::{
+        ColorTwistMatrix, ImageBacking, ImagePipeline,
+        color::{ColorTwistImage, PlanarColorTwistImage},
+    },
 };
 
-use super::color::{ColorTwistImage, PlanarColorTwistImage};
-use super::{ColorTwistMatrix, ImageBacking, ImagePipeline};
-
-#[path = "color_adjust_batch_methods.rs"]
 mod batch_methods;
-#[path = "color_adjust_constants_methods.rs"]
 mod constants_methods;
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
     T: Copy,
     L: ChannelLayout,
     Self: ColorTwistImage<T, L>,
 {
+    /// Applies the native color transform specified by the three-row, four-column `twist` matrix.
+    /// Matrix coefficients are forwarded without numerical validation.
+    /// Writes into the equally sized destination image.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// All participating image dimensions must match.
     pub fn color_twist_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
-        destination: &mut ImageViewMut<'_, T, L>,
+        destination: &mut ImageOutputView<'_, T, L>,
         twist: ColorTwistMatrix,
     ) -> Result<()> {
         <Self as ColorTwistImage<T, L>>::color_twist_image(
@@ -35,6 +49,16 @@ where
         )
     }
 
+    /// Applies the native color transform specified by the three-row, four-column `twist` matrix.
+    /// Matrix coefficients are forwarded without numerical validation.
+    /// Updates the supplied image in place. AC4 alpha remains unchanged.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
     pub fn color_twist_in_place(
         stream_context: &StreamContext,
         image: &mut ImageViewMut<'_, T, L>,
@@ -44,15 +68,28 @@ where
     }
 }
 
-impl<'a, T> ImagePipeline<'a, T, C1>
+impl<T> ImagePipeline<'_, T, C1>
 where
     T: Copy,
     Self: PlanarColorTwistImage<T>,
 {
+    /// Applies the native color transform specified by the three-row, four-column `twist` matrix.
+    /// Matrix coefficients are forwarded without numerical validation.
+    /// Processes three separate image planes using the native plane ordering and common-stride
+    /// requirements.
+    /// Writes into the equally sized destination planes.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// All participating image dimensions must match.
     pub fn color_twist_planar_into(
         stream_context: &StreamContext,
         source: &PlanarImageView<'_, T, 3>,
-        destination: &mut PlanarImageViewMut<'_, T, 3>,
+        destination: &mut PlanarImageOutputView<'_, T, 3>,
         twist: ColorTwistMatrix,
     ) -> Result<()> {
         <Self as PlanarColorTwistImage<T>>::color_twist_planar_image(
@@ -63,6 +100,18 @@ where
         )
     }
 
+    /// Applies the native color transform specified by the three-row, four-column `twist` matrix.
+    /// Matrix coefficients are forwarded without numerical validation.
+    /// Processes three separate image planes using the native plane ordering and common-stride
+    /// requirements.
+    /// Updates the three supplied planes in place.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
     pub fn color_twist_planar_in_place(
         stream_context: &StreamContext,
         image: &mut PlanarImageViewMut<'_, T, 3>,
@@ -76,14 +125,26 @@ where
     }
 }
 
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
-    T: Copy,
+    T: Copy + SupportedImage<L>,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
     Self: ColorTwistImage<T, L>,
 {
+    /// Applies the native color transform specified by the three-row, four-column `twist` matrix.
+    /// Matrix coefficients are forwarded without numerical validation.
+    /// Reuses owned image storage, or allocates owned output for borrowed input.
+    /// For AC4, preserves the pipeline source alpha, copying it before out-of-place execution.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture,
+    /// and returns after successful stream completion. Row padding remains unwritten.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer
+    /// waits, native execution, or stream synchronization fail.
+    /// Allocating output, constructing views, or preserving source alpha can also fail.
     pub fn color_twist(mut self, twist: ColorTwistMatrix) -> Result<Self> {
+        self.ensure_eager()?;
         match &mut self.backing {
             ImageBacking::Owned(image) => {
                 let mut image_view = image.view_mut()?;
@@ -94,15 +155,22 @@ where
                 )?;
             }
             ImageBacking::Borrowed(source) => {
-                let mut destination = self.workspace.image::<T, L>(source.size())?;
-                let mut destination_view = destination.view_mut()?;
+                let mut destination = Image::<T, L>::create_uninit(
+                    self.stream_context.cuda_context(),
+                    source.size(),
+                )?;
+                let mut destination_view = destination.output()?;
+                if L::IGNORES_ALPHA {
+                    destination_view.copy_from(source)?;
+                }
                 <Self as ColorTwistImage<T, L>>::color_twist_image(
                     self.stream_context,
                     source,
                     &mut destination_view,
                     twist,
                 )?;
-                self.backing = ImageBacking::Owned(destination);
+                // SAFETY: completed pointwise dispatch initialized active channels, and ignored alpha was preserved.
+                self.backing = ImageBacking::Owned(unsafe { destination.assume_init() });
             }
         }
 

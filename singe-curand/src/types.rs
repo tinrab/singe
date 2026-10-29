@@ -1,162 +1,12 @@
-use std::fmt;
-
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+
 use singe_core::{impl_enum_conversion, impl_enum_display};
+
 use singe_curand_sys as sys;
 
-/// Result status returned by cuRAND host API calls.
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Status {
-    /// The operation completed successfully.
-    Success,
-    /// The cuRAND header version does not match the linked library version.
-    VersionMismatch,
-    /// The generator has not been initialized.
-    NotInitialized,
-    /// cuRAND could not allocate required memory.
-    AllocationFailed,
-    /// The generator or argument has the wrong type.
-    TypeError,
-    /// An argument is outside the range accepted by cuRAND.
-    OutOfRange,
-    /// The requested length is not a multiple of the quasirandom dimension.
-    LengthNotMultiple,
-    /// The selected operation requires GPU double-precision support.
-    DoublePrecisionRequired,
-    /// A cuRAND kernel launch failed.
-    LaunchFailure,
-    /// A previous CUDA failure was already pending when cuRAND was entered.
-    PreexistingFailure,
-    /// cuRAND could not initialize CUDA.
-    InitializationFailed,
-    /// The GPU architecture does not support the requested feature.
-    ArchitectureMismatch,
-    /// cuRAND reported an internal library error.
-    InternalError,
-    /// cuRAND returned a status code not known to this wrapper.
-    Unknown(u32),
-}
-
-impl Status {
-    pub const fn raw(self) -> u32 {
-        match self {
-            Self::Success => sys::curandStatus_t::CURAND_STATUS_SUCCESS as _,
-            Self::VersionMismatch => sys::curandStatus_t::CURAND_STATUS_VERSION_MISMATCH as _,
-            Self::NotInitialized => sys::curandStatus_t::CURAND_STATUS_NOT_INITIALIZED as _,
-            Self::AllocationFailed => sys::curandStatus_t::CURAND_STATUS_ALLOCATION_FAILED as _,
-            Self::TypeError => sys::curandStatus_t::CURAND_STATUS_TYPE_ERROR as _,
-            Self::OutOfRange => sys::curandStatus_t::CURAND_STATUS_OUT_OF_RANGE as _,
-            Self::LengthNotMultiple => sys::curandStatus_t::CURAND_STATUS_LENGTH_NOT_MULTIPLE as _,
-            Self::DoublePrecisionRequired => {
-                sys::curandStatus_t::CURAND_STATUS_DOUBLE_PRECISION_REQUIRED as _
-            }
-            Self::LaunchFailure => sys::curandStatus_t::CURAND_STATUS_LAUNCH_FAILURE as _,
-            Self::PreexistingFailure => sys::curandStatus_t::CURAND_STATUS_PREEXISTING_FAILURE as _,
-            Self::InitializationFailed => {
-                sys::curandStatus_t::CURAND_STATUS_INITIALIZATION_FAILED as _
-            }
-            Self::ArchitectureMismatch => sys::curandStatus_t::CURAND_STATUS_ARCH_MISMATCH as _,
-            Self::InternalError => sys::curandStatus_t::CURAND_STATUS_INTERNAL_ERROR as _,
-            Self::Unknown(code) => code,
-        }
-    }
-}
-
-impl From<sys::curandStatus_t> for Status {
-    fn from(status: sys::curandStatus_t) -> Self {
-        Self::from(status as u32)
-    }
-}
-
-impl From<u32> for Status {
-    fn from(code: u32) -> Self {
-        match code {
-            x if x == sys::curandStatus_t::CURAND_STATUS_SUCCESS as u32 => Self::Success,
-            x if x == sys::curandStatus_t::CURAND_STATUS_VERSION_MISMATCH as u32 => {
-                Self::VersionMismatch
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_NOT_INITIALIZED as u32 => {
-                Self::NotInitialized
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_ALLOCATION_FAILED as u32 => {
-                Self::AllocationFailed
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_TYPE_ERROR as u32 => Self::TypeError,
-            x if x == sys::curandStatus_t::CURAND_STATUS_OUT_OF_RANGE as u32 => Self::OutOfRange,
-            x if x == sys::curandStatus_t::CURAND_STATUS_LENGTH_NOT_MULTIPLE as u32 => {
-                Self::LengthNotMultiple
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_DOUBLE_PRECISION_REQUIRED as u32 => {
-                Self::DoublePrecisionRequired
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_LAUNCH_FAILURE as u32 => {
-                Self::LaunchFailure
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_PREEXISTING_FAILURE as u32 => {
-                Self::PreexistingFailure
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_INITIALIZATION_FAILED as u32 => {
-                Self::InitializationFailed
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_ARCH_MISMATCH as u32 => {
-                Self::ArchitectureMismatch
-            }
-            x if x == sys::curandStatus_t::CURAND_STATUS_INTERNAL_ERROR as u32 => {
-                Self::InternalError
-            }
-            code => Self::Unknown(code),
-        }
-    }
-}
-
-impl TryFrom<Status> for sys::curandStatus_t {
-    type Error = Status;
-
-    fn try_from(status: Status) -> Result<Self, Self::Error> {
-        match status {
-            Status::Success => Ok(Self::CURAND_STATUS_SUCCESS),
-            Status::VersionMismatch => Ok(Self::CURAND_STATUS_VERSION_MISMATCH),
-            Status::NotInitialized => Ok(Self::CURAND_STATUS_NOT_INITIALIZED),
-            Status::AllocationFailed => Ok(Self::CURAND_STATUS_ALLOCATION_FAILED),
-            Status::TypeError => Ok(Self::CURAND_STATUS_TYPE_ERROR),
-            Status::OutOfRange => Ok(Self::CURAND_STATUS_OUT_OF_RANGE),
-            Status::LengthNotMultiple => Ok(Self::CURAND_STATUS_LENGTH_NOT_MULTIPLE),
-            Status::DoublePrecisionRequired => Ok(Self::CURAND_STATUS_DOUBLE_PRECISION_REQUIRED),
-            Status::LaunchFailure => Ok(Self::CURAND_STATUS_LAUNCH_FAILURE),
-            Status::PreexistingFailure => Ok(Self::CURAND_STATUS_PREEXISTING_FAILURE),
-            Status::InitializationFailed => Ok(Self::CURAND_STATUS_INITIALIZATION_FAILED),
-            Status::ArchitectureMismatch => Ok(Self::CURAND_STATUS_ARCH_MISMATCH),
-            Status::InternalError => Ok(Self::CURAND_STATUS_INTERNAL_ERROR),
-            Status::Unknown(_) => Err(status),
-        }
-    }
-}
-
-impl fmt::Display for Status {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Success => f.write_str("CURAND_STATUS_SUCCESS"),
-            Self::VersionMismatch => f.write_str("CURAND_STATUS_VERSION_MISMATCH"),
-            Self::NotInitialized => f.write_str("CURAND_STATUS_NOT_INITIALIZED"),
-            Self::AllocationFailed => f.write_str("CURAND_STATUS_ALLOCATION_FAILED"),
-            Self::TypeError => f.write_str("CURAND_STATUS_TYPE_ERROR"),
-            Self::OutOfRange => f.write_str("CURAND_STATUS_OUT_OF_RANGE"),
-            Self::LengthNotMultiple => f.write_str("CURAND_STATUS_LENGTH_NOT_MULTIPLE"),
-            Self::DoublePrecisionRequired => f.write_str("CURAND_STATUS_DOUBLE_PRECISION_REQUIRED"),
-            Self::LaunchFailure => f.write_str("CURAND_STATUS_LAUNCH_FAILURE"),
-            Self::PreexistingFailure => f.write_str("CURAND_STATUS_PREEXISTING_FAILURE"),
-            Self::InitializationFailed => f.write_str("CURAND_STATUS_INITIALIZATION_FAILED"),
-            Self::ArchitectureMismatch => f.write_str("CURAND_STATUS_ARCH_MISMATCH"),
-            Self::InternalError => f.write_str("CURAND_STATUS_INTERNAL_ERROR"),
-            Self::Unknown(code) => write!(f, "unknown curand status ({code})"),
-        }
-    }
-}
-
 /// cuRAND random number generator kind.
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum RngType {
     /// Internal test generator type.
@@ -165,7 +15,7 @@ pub enum RngType {
     PseudoDefault = sys::curandRngType_t::CURAND_RNG_PSEUDO_DEFAULT as _,
     /// XORWOW pseudorandom generator.
     PseudoXorwow = sys::curandRngType_t::CURAND_RNG_PSEUDO_XORWOW as _,
-    /// MRG32k3a pseudorandom generator.
+    /// `MRG32k3a` pseudorandom generator.
     PseudoMrg32k3a = sys::curandRngType_t::CURAND_RNG_PSEUDO_MRG32K3A as _,
     /// Mersenne Twister MTGP32 pseudorandom generator.
     PseudoMtgp32 = sys::curandRngType_t::CURAND_RNG_PSEUDO_MTGP32 as _,
@@ -203,8 +53,8 @@ impl_enum_display!(RngType, {
 });
 
 /// Memory ordering used by generated cuRAND results.
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum Ordering {
     /// Best ordering for pseudorandom results.
@@ -233,8 +83,8 @@ impl_enum_display!(Ordering, {
 });
 
 /// Direction-vector table used for Sobol quasirandom generation.
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum DirectionVectorSet {
     /// 32-bit Joe-Kuo direction vectors for up to 20,000 dimensions.
@@ -259,8 +109,8 @@ impl_enum_display!(DirectionVectorSet, {
 });
 
 /// Algorithm choice for cuRAND discrete distribution generation.
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum Method {
     /// Let cuRAND choose the method based on the distribution parameters.

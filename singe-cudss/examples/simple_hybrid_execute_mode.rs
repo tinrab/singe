@@ -1,4 +1,8 @@
+use std::mem::MaybeUninit;
+
 mod common;
+
+use std::slice;
 
 use singe_cuda::types::DevicePtr;
 use singe_cudss::{
@@ -8,17 +12,20 @@ use singe_cudss::{
     types::{ConfigParameter, DataType, IndexBase, Layout, MatrixType, MatrixViewType},
 };
 
-use crate::common::*;
+use crate::common::{create_context, solve};
 
 fn host_ptr<T>(values: &[T]) -> DevicePtr {
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     unsafe { DevicePtr::from_raw(values.as_ptr().cast_mut().cast()) }
 }
 
 fn host_mut_ptr<T>(values: &mut [T]) -> DevicePtr {
+    // SAFETY: the address comes from a live allocation; wrapping it does not dereference it.
     unsafe { DevicePtr::from_raw(values.as_mut_ptr().cast()) }
 }
 
 fn main() -> Result<()> {
+    let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solving with hybrid execute mode and host buffers");
 
     let n = 5i64;
@@ -29,16 +36,18 @@ fn main() -> Result<()> {
     let col_indices = [0_i32, 2, 1, 2, 2, 4, 3, 4];
     let a_values = [4.0f64, 1.0, 3.0, 2.0, 5.0, 1.0, 1.0, 2.0];
     let b_values = [7.0f64, 12.0, 25.0, 4.0, 13.0];
-    let mut x_values = vec![0.0f64; (n * nrhs) as usize];
+    let mut x_values = vec![MaybeUninit::<f64>::uninit(); (n * nrhs) as usize];
 
-    let (_cuda, stream, context) = create_context()?;
     let mut config = Config::create()?;
     let hybrid_execute_mode = 1i32;
-    config.set(ConfigParameter::HybridExecuteMode, &hybrid_execute_mode)?;
+    // SAFETY: the value pointer and size describe a local of the parameter type.
+    unsafe { config.set_raw(ConfigParameter::HybridExecuteMode, &hybrid_execute_mode) }?;
     let mut data = context.create_data()?;
 
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     let b = unsafe {
         Matrix::create_dense_raw(
+            &cuda,
             DenseMatrixDescriptor {
                 rows: n,
                 columns: nrhs,
@@ -49,8 +58,10 @@ fn main() -> Result<()> {
             DataType::F64,
         )
     }?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     let mut x = unsafe {
         Matrix::create_dense_raw(
+            &cuda,
             DenseMatrixDescriptor {
                 rows: n,
                 columns: nrhs,
@@ -61,8 +72,10 @@ fn main() -> Result<()> {
             DataType::F64,
         )
     }?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     let a = unsafe {
         Matrix::create_csr_raw(
+            &cuda,
             CsrMatrixDescriptor {
                 rows: n,
                 columns: n,
@@ -81,9 +94,26 @@ fn main() -> Result<()> {
         )
     }?;
 
-    solve(&context, &config, &mut data, &a, &mut x, &b)?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        solve(
+            slice::from_ref(&stream),
+            &context,
+            &config,
+            &mut data,
+            &a,
+            &mut x,
+            &b,
+        )
+    }?;
     stream.synchronize()?;
 
+    drop(x);
+    // SAFETY: the completed full solve produced every compact host element.
+    let x_values: Vec<_> = x_values
+        .into_iter()
+        .map(|value| unsafe { value.assume_init() })
+        .collect();
     for (index, value) in x_values.iter().copied().enumerate() {
         let expected = (index + 1) as f64;
         println!("x[{index}] = {value:.4}, expected {expected:.4}");

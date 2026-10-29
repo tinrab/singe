@@ -70,7 +70,6 @@ generate:
         $nvml_enum_args \
         --allowlist-item "^nvml.*" \
         --allowlist-item "^NVML.*" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -80,6 +79,7 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -fparse-all-comments \
             -I {{ nvml_include_path }} \
         > bindings.rs
 

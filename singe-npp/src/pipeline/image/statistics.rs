@@ -1,27 +1,46 @@
-use singe_cuda::memory::DeviceMemory;
-
-use crate::{
-    context::StreamContext,
-    error::Result,
-    image::{statistics, view::ImageView},
-};
-
-use super::ImagePipeline;
+use singe_cuda::view::DeviceOutputView;
 
 pub use self::outputs::{
     ContiguousImage, ImageHistograms, ImageIndexedMinMax, ImageIndexedStatistic,
     ImageMeanStandardDeviation, ImageMinMax, ImageSquaredIntegral, ImageStatistic,
 };
-pub(super) use super::statistics_dispatch::*;
+pub use crate::pipeline::image::statistics_dispatch::*;
+use crate::{
+    context::StreamContext,
+    error::Result,
+    image::{statistics, view::ImageView},
+    pipeline::image::ImagePipeline,
+};
 
-#[path = "statistics_outputs.rs"]
 mod outputs;
 
-impl<'a, T, L> ImagePipeline<'a, T, L> {
+impl<T, L> ImagePipeline<'_, T, L> {
+    /// Fills a host slice with evenly distributed integer histogram boundaries.
+    ///
+    /// `lower_level` and `upper_level` specify the lowest and greatest boundaries. The
+    /// provided implementation uses `i32` and calls the native host routine directly,
+    /// without a CUDA stream. NPP requires at least two entries; the wrapper forwards
+    /// the count and bounds without additional validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the slice length cannot fit `i32` or NPP rejects the level
+    /// count or boundary parameters.
     pub fn even_levels_i32(levels: &mut [i32], lower_level: i32, upper_level: i32) -> Result<()> {
         statistics::even_levels_i32(levels, lower_level, upper_level)
     }
 
+    /// Fills a host slice with evenly distributed integer histogram boundaries.
+    ///
+    /// `lower_level` and `upper_level` specify the lowest and greatest boundaries. The
+    /// provided implementation uses `i32` and calls the native host routine directly,
+    /// without a CUDA stream. NPP requires at least two entries; the wrapper forwards
+    /// the count and bounds without additional validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the slice length cannot fit `i32` or NPP rejects the level
+    /// count or boundary parameters.
     pub fn even_levels<U: statistics::EvenLevels>(
         levels: &mut [U],
         lower_level: U,
@@ -31,9 +50,9 @@ impl<'a, T, L> ImagePipeline<'a, T, L> {
     }
 }
 
-pub(super) type BatchQualityMetric<T, L> = for<'source_0, 'source_1> fn(
+pub type BatchQualityMetric<T, L> = for<'source_0, 'source_1> unsafe fn(
     &StreamContext,
     &[ImageView<'source_0, T, L>],
     &[ImageView<'source_1, T, L>],
-    &mut DeviceMemory<f32>,
+    &mut DeviceOutputView<'_, f32>,
 ) -> Result<()>;

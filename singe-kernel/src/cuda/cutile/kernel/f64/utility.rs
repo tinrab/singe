@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     pub fn activation_unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f64, { [B] }>,
         input: &Tensor<f64, { [-1] }>,
@@ -13,7 +15,7 @@ mod kernels {
         let third = constant(0.3333333333333333f64, out.shape());
         let three = constant(3.0f64, out.shape());
         let six = constant(6.0f64, out.shape());
-        let pi = constant(std::f64::consts::PI, out.shape());
+        let pi = constant(3.141592653589793f64, out.shape());
         let one_eighty = constant(180.0f64, out.shape());
         let selu_alpha = constant(1.6732632423543772f64, out.shape());
         let selu_scale = constant(1.0507009873554805f64, out.shape());
@@ -70,7 +72,8 @@ mod kernels {
         } else if OP == 22 {
             half * log((one + x) / (one - x))
         } else if OP == 23 {
-            max_tile(x, zero)
+            let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
+            select(negative, zero, x)
         } else if OP == 24 {
             one / (one + exp(zero - x))
         } else if OP == 25 {
@@ -92,7 +95,7 @@ mod kernels {
         } else if OP == 31 {
             log2(x)
         } else if OP == 32 {
-            let ln_10 = constant(std::f64::consts::LN_10, out.shape());
+            let ln_10 = constant(2.302585092994046f64, out.shape());
             log(x) / ln_10
         } else if OP == 33 {
             let root = pow(absf(x), third);
@@ -157,9 +160,35 @@ mod kernels {
         } else if OP == 3 {
             lhs_tile / rhs_tile
         } else if OP == 4 {
-            maxf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::LessThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 5 {
-            minf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::GreaterThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 6 {
             atan2(lhs_tile, rhs_tile)
         } else if OP == 7 {
@@ -313,15 +342,17 @@ mod kernels {
         let input_base: PointerTile<*mut u8, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut u8, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut u8, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<u8, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0u8),
-            None,
-            Latency::<0>,
-        );
+        let input_result: (Tile<u8, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0u8),
+                None,
+                Latency::<0>,
+            )
+        };
         let input_f64: Tile<f64, { [128] }> = convert_tile(input_result.0);
         let values = (input_f64 - broadcast_scalar(zero_point, tile_shape))
             * broadcast_scalar(scale, tile_shape);
@@ -330,15 +361,17 @@ mod kernels {
         let out_base: PointerTile<*mut f64, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -362,15 +395,17 @@ mod kernels {
         let input_base: PointerTile<*mut i8, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut i8, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut i8, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<i8, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0i8),
-            None,
-            Latency::<0>,
-        );
+        let input_result: (Tile<i8, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0i8),
+                None,
+                Latency::<0>,
+            )
+        };
         let input_f64: Tile<f64, { [128] }> = convert_tile(input_result.0);
         let values = (input_f64 - broadcast_scalar(zero_point, tile_shape))
             * broadcast_scalar(scale, tile_shape);
@@ -379,15 +414,17 @@ mod kernels {
         let out_base: PointerTile<*mut f64, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     pub fn reduce_impl<const OP: i32, const BN: i32>(
@@ -396,7 +433,7 @@ mod kernels {
         divisor: f64,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f64, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -447,7 +484,7 @@ mod kernels {
         input: &Tensor<f64, { [-1, -1] }>,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f64, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -463,7 +500,7 @@ mod kernels {
         );
         let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
         let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
-        let numeric_i32 = select(valid_cols & numeric, one_i32, zero_i32);
+        let numeric_i32: Tile<i32, { [1, BN] }> = select(valid_cols & numeric, one_i32, zero_i32);
         let numeric_count: Tile<i32, { [1] }> = reduce_sum(numeric_i32, 1i32);
         let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
         let has_numeric = cmpi(
@@ -502,7 +539,7 @@ mod kernels {
         let best_nan = no_numeric & valid_cols;
         let best = (has_numeric & valid_cols & numeric & best_numeric) | best_nan;
         let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
-        let best_indices = select(best, col_iota, sentinel);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
         let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
         let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
         let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);
@@ -626,9 +663,7 @@ mod kernels {
             input_tile_raw
         };
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
-        let col_iota = col_iota
-            .reshape(const_shape![1i32, BN])
-            .broadcast(out.shape());
+        let col_iota = col_iota.reshape(const_shape![1, BN]).broadcast(out.shape());
         let input_shape: [i32; 2] = get_tensor_shape(input);
         let cols_tile = broadcast_scalar(input_shape[1], out.shape());
         let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
@@ -656,7 +691,7 @@ mod kernels {
         out: &mut Tensor<f64, { [1, 1] }>,
         input: &Tensor<f64, { [-1, -1] }>,
     ) {
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f64, { [1, BN] }> = input
             .partition(tile_shape)
             .load([get_tile_block_id().0, 0i32]);
@@ -691,7 +726,7 @@ mod kernels {
         let third = constant(0.3333333333333333f64, out.shape());
         let three = constant(3.0f64, out.shape());
         let six = constant(6.0f64, out.shape());
-        let pi = constant(std::f64::consts::PI, out.shape());
+        let pi = constant(3.141592653589793f64, out.shape());
         let one_eighty = constant(180.0f64, out.shape());
         let selu_alpha = constant(1.6732632423543772f64, out.shape());
         let selu_scale = constant(1.0507009873554805f64, out.shape());
@@ -748,7 +783,8 @@ mod kernels {
         } else if OP == 22 {
             half * log((one + x) / (one - x))
         } else if OP == 23 {
-            max_tile(x, zero)
+            let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
+            select(negative, zero, x)
         } else if OP == 24 {
             one / (one + exp(zero - x))
         } else if OP == 25 {
@@ -770,7 +806,7 @@ mod kernels {
         } else if OP == 31 {
             log2(x)
         } else if OP == 32 {
-            let ln_10 = constant(std::f64::consts::LN_10, out.shape());
+            let ln_10 = constant(2.302585092994046f64, out.shape());
             log(x) / ln_10
         } else if OP == 33 {
             let root = pow(absf(x), third);

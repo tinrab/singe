@@ -1,10 +1,15 @@
 use std::error::Error;
 
 use singe_cuda::{
-    context::Context as CudaContext, device::Device, memory::DeviceMemory, stream::StreamFlags,
+    context::Context as CudaContext,
+    device::Device,
+    memory::DeviceMemory,
+    stream::{StreamBinding, StreamFlags},
     types::Complex32,
+    view::DeviceOutputView,
 };
 use singe_cufft::{
+    error::Result as CufftResult,
     plan::{ManyPlanConfig, ManyPlanConfigI32, PlanBuilder},
     types::TransformType,
 };
@@ -22,8 +27,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input_spectrum = (0..spectrum_count)
         .map(|index| Complex32::new(index as f32, 0.0))
         .collect::<Vec<_>>();
-    let mut device_spectrum = DeviceMemory::from_slice(&input_spectrum)?;
-    let mut device_real = DeviceMemory::<f32>::zeroes(real_count)?;
+    let mut device_spectrum = DeviceMemory::from_slice(&context, &input_spectrum)?;
+    let mut device_real = DeviceMemory::<f32>::create_uninit(&context, real_count)?;
 
     let plan_c2r = PlanBuilder::new(&context)
         .many(ManyPlanConfig::I32(ManyPlanConfigI32 {
@@ -52,9 +57,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         }))
         .create()?;
 
-    plan_c2r.execute_c2r_f32(&device_spectrum, &mut device_real, Some(&stream))?;
-    plan_r2c.execute_r2c_f32(&device_real, &mut device_spectrum, Some(&stream))?;
-    stream.synchronize()?;
+    // The inverse may overwrite its input spectrum; both arrays cover the configured batches.
+    // The real samples become readable by the forward transform through stream ordering.
+    StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| -> CufftResult<()> {
+        // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            plan_c2r.execute_c2r_f32_async(
+                DeviceOutputView::from_output(&mut device_spectrum),
+                device_real.output(),
+                Some(&stream),
+            )?;
+            plan_r2c.execute_r2c_f32_async(
+                &device_real,
+                DeviceOutputView::from_output(&mut device_spectrum),
+                Some(&stream),
+            )?;
+        }
+        Ok(())
+    })?;
 
     // For 2D transforms, the round-trip scale is rows * cols for each batch.
     let output_spectrum = device_spectrum.copy_to_host_vec()?;

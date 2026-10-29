@@ -1,8 +1,8 @@
 //! Recurrent/state-space preprocessing helpers.
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use half::f16;
 
 /// Prepares Gated Delta Rule recurrent inputs after projection.
@@ -10,6 +10,7 @@ use half::f16;
 /// `b` and `a` are `[rows, hidden]`; `a_log` and `dt_bias` are `[hidden]`.
 /// The returned beta is `sigmoid(b)`.
 /// The returned gate is `-exp(a_log) * softplus(a + dt_bias)`, using the same stable softplus threshold as the Triton reference.
+#[must_use]
 pub fn gated_delta_rule_preprocess(
     b: &[f32],
     a: &[f32],
@@ -38,17 +39,17 @@ fn stable_softplus(value: f32) -> f32 {
     }
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 pub fn half_vec(values: &[f32]) -> Vec<f16> {
     values.iter().copied().map(f16::from_f32).collect()
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 pub fn half_to_f32(values: &[f16]) -> Vec<f32> {
     values.iter().map(|value| value.to_f32()).collect()
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 pub fn round_half_vec(values: &[f32]) -> Vec<f32> {
     values
         .iter()
@@ -58,17 +59,17 @@ pub fn round_half_vec(values: &[f32]) -> Vec<f32> {
         .collect()
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 pub fn bfloat_vec(values: &[f32]) -> Vec<bf16> {
     values.iter().copied().map(bf16::from_f32).collect()
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 pub fn bfloat_to_f32(values: &[bf16]) -> Vec<f32> {
     values.iter().map(|value| value.to_f32()).collect()
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 pub fn round_bfloat_vec(values: &[f32]) -> Vec<f32> {
     values
         .iter()
@@ -78,6 +79,11 @@ pub fn round_bfloat_vec(values: &[f32]) -> Vec<f32> {
         .collect()
 }
 
+#[must_use]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
 pub fn recurrent_gated_delta_rule(
     query: &[f32],
     key: &[f32],
@@ -133,7 +139,7 @@ pub fn recurrent_gated_delta_rule(
                     let value_t = value[((b * time + t) * value_heads + hv) * value_dim + v];
                     let delta = (value_t - kv_memory) * beta_t;
                     for k in 0..qk_dim {
-                        state[k] += key_t[k] * delta;
+                        state[k] = key_t[k].mul_add(delta, state[k]);
                     }
                     out[((b * time + t) * value_heads + hv) * value_dim + v] =
                         dot(&state, &query_t);
@@ -168,7 +174,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn gdr_preprocess_uses_stable_softplus_for_large_values() {
+    fn test_gdr_preprocess_uses_stable_softplus_for_large_values() {
         let b = vec![0.0; 4];
         let a = vec![-50.0, 0.0, 25.0, 100.0];
         let a_log = vec![0.0, 0.25, -0.5, 0.5];

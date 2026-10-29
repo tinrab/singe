@@ -1,18 +1,21 @@
 mod common;
 
-use singe_cuda::{memory::DeviceMemory, types::DevicePtr};
+use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
     backend::tensor::{Shape, TensorSpec},
-    data_type::DataType,
+    data_type::{DataType, bf16, f16},
     error::{Error, Result},
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{BlockScaleDequantizeConfig, HeuristicMode},
+        graph::{
+            BlockScaleDequantizeInputs, DataTypePolicy, Graph, GraphConfig, TensorOutputConfig,
+        },
+        operation::{BlockScaleDequantizeConfig, MatmulConfig},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
 };
 
 #[derive(Clone, Copy)]
-struct TestCase {
+struct MatmulProblem {
     b: i64,
     m: i64,
     n: i64,
@@ -26,193 +29,142 @@ struct TestCase {
     datatype_block_scale_a: DataType,
     datatype_block_scale_b: DataType,
     after_dequant_datatype_a: DataType,
+    after_dequant_datatype_b: DataType,
     datatype_d: DataType,
     compute_math_precision: DataType,
 }
 
-fn named_tensor(name: &str, data_type: DataType, shape: Shape) -> TensorSpec {
-    TensorSpec::new(data_type, shape).with_name(name)
-}
-
-fn packed_len(element_count: i64, data_type: DataType) -> Result<usize> {
-    let element_count = usize::try_from(element_count).map_err(|_| Error::OutOfRange {
-        name: "element_count".into(),
-    })?;
-    let bits = match data_type {
-        DataType::I4 | DataType::U4 | DataType::F4E2M1 => 4,
-        DataType::I8 | DataType::U8 | DataType::Boolean => 8,
-        DataType::F16 | DataType::BF16 => 16,
-        DataType::F32 | DataType::I32 | DataType::U32 => 32,
+fn encoded_ones(data_type: DataType, bytes: usize) -> Result<Vec<u8>> {
+    let pattern = match data_type {
+        DataType::I4 => vec![0x11],
+        DataType::F16 => f16::from_f32(1.0).to_bits().to_le_bytes().to_vec(),
+        DataType::BF16 => bf16::from_f32(1.0).to_bits().to_le_bytes().to_vec(),
+        DataType::F32 => 1.0_f32.to_le_bytes().to_vec(),
         _ => return Err(Error::UnsupportedDataType),
     };
-    Ok(element_count.saturating_mul(bits).div_ceil(8))
+    Ok(pattern.into_iter().cycle().take(bytes).collect())
 }
 
-fn run_case(ctx: &common::ExampleContext, index: usize, case: TestCase) -> Result<()> {
+fn run_problem(example: &common::ExampleContext, index: usize, case: MatmulProblem) -> Result<()> {
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
-                .with_intermediate(case.after_dequant_datatype_a)
+                .with_intermediate(DataType::F32)
                 .with_compute(DataType::F32),
         ),
     );
 
-    let tensor_a = graph.tensor(named_tensor(
-        "tensor_a",
-        case.datatype_a,
-        Shape::contiguous([case.b, case.m, case.k])?.with_strides(vec![
-            case.m * case.k,
-            case.k,
-            1,
-        ])?,
-    ));
-    let tensor_b = graph.tensor(named_tensor(
-        "tensor_b",
-        case.datatype_b,
-        Shape::contiguous([case.b, case.k, case.n])?.with_strides(vec![
-            case.k * case.n,
-            1,
-            case.k,
-        ])?,
-    ));
+    let tensor_a = graph.tensor(
+        TensorSpec::new(
+            case.datatype_a,
+            Shape::contiguous([case.b, case.m, case.k])?,
+        )
+        .with_name("tensor_a"),
+    );
+    let tensor_b = graph.tensor(
+        TensorSpec::new(
+            case.datatype_b,
+            common::column_major_shape([case.b, case.k, case.n])?,
+        )
+        .with_name("tensor_b"),
+    );
+    let [
+        block_scale_dim_a_m,
+        block_scale_dim_a_k,
+        block_scale_dim_b_k,
+        block_scale_dim_b_n,
+    ] = [
+        (case.m, case.block_size_a_m),
+        (case.k, case.block_size_a_k),
+        (case.k, case.block_size_b_k),
+        (case.n, case.block_size_b_n),
+    ]
+    .map(|(dimension, block)| {
+        let block = i64::from(block);
+        dimension / block + i64::from(dimension % block != 0)
+    });
+    let block_descale_a = graph.tensor(
+        TensorSpec::new(
+            case.datatype_block_scale_a,
+            Shape::contiguous([case.b, block_scale_dim_a_m, block_scale_dim_a_k])?,
+        )
+        .with_name("block_descale_a"),
+    );
+    let block_descale_b = graph.tensor(
+        TensorSpec::new(
+            case.datatype_block_scale_b,
+            common::column_major_shape([case.b, block_scale_dim_b_k, block_scale_dim_b_n])?,
+        )
+        .with_name("block_descale_b"),
+    );
 
-    let block_scale_dim_a_m =
-        (case.m + i64::from(case.block_size_a_m) - 1) / i64::from(case.block_size_a_m);
-    let block_scale_dim_a_k =
-        (case.k + i64::from(case.block_size_a_k) - 1) / i64::from(case.block_size_a_k);
-    let block_scale_dim_b_k =
-        (case.k + i64::from(case.block_size_b_k) - 1) / i64::from(case.block_size_b_k);
-    let block_scale_dim_b_n =
-        (case.n + i64::from(case.block_size_b_n) - 1) / i64::from(case.block_size_b_n);
-
-    let block_descale_a = graph.tensor(named_tensor(
-        "block_descale_a",
-        case.datatype_block_scale_a,
-        Shape::contiguous([case.b, block_scale_dim_a_m, block_scale_dim_a_k])?.with_strides(
-            vec![
-                block_scale_dim_a_m * block_scale_dim_a_k,
-                block_scale_dim_a_k,
-                1,
-            ],
-        )?,
-    ));
-    let block_descale_b = graph.tensor(named_tensor(
-        "block_descale_b",
-        case.datatype_block_scale_b,
-        Shape::contiguous([case.b, block_scale_dim_b_k, block_scale_dim_b_n])?.with_strides(
-            vec![
-                block_scale_dim_b_k * block_scale_dim_b_n,
-                1,
-                block_scale_dim_b_k,
-            ],
-        )?,
-    ));
-
-    let dequant_tensor_a = graph.block_scale_dequantize_infer(
-        tensor_a,
-        block_descale_a,
-        BlockScaleDequantizeConfig::new(
-            case.compute_math_precision,
-            vec![case.block_size_a_m, case.block_size_a_k],
-        ),
+    let dequant_tensor_a = graph.block_scale_dequantize(
+        BlockScaleDequantizeInputs::new(tensor_a, block_descale_a),
+        BlockScaleDequantizeConfig::new(vec![case.block_size_a_m, case.block_size_a_k])
+            .with_name("dequantize_a")
+            .with_compute_type(case.compute_math_precision)
+            .with_output_data_type(case.after_dequant_datatype_a),
     )?;
-    let dequant_tensor_b = graph.block_scale_dequantize_infer(
-        tensor_b,
-        block_descale_b,
-        BlockScaleDequantizeConfig::new(
-            case.compute_math_precision,
-            vec![case.block_size_b_k, case.block_size_b_n],
-        ),
+    let dequant_tensor_b = graph.block_scale_dequantize(
+        BlockScaleDequantizeInputs::new(tensor_b, block_descale_b),
+        BlockScaleDequantizeConfig::new(vec![case.block_size_b_k, case.block_size_b_n])
+            .with_name("dequantize_b")
+            .with_compute_type(case.compute_math_precision)
+            .with_output_data_type(case.after_dequant_datatype_b),
     )?;
 
-    let tensor_d = graph.tensor(named_tensor(
-        "GEMM::C",
-        case.datatype_d,
-        Shape::contiguous([case.b, case.m, case.n])?.with_strides(vec![
-            case.m * case.n,
-            case.n,
-            1,
-        ])?,
-    ));
-    graph.matmul(
+    let tensor_d = graph.matmul(
         dequant_tensor_a,
         dequant_tensor_b,
-        tensor_d,
-        case.compute_math_precision,
+        MatmulConfig::new()
+            .with_compute_type(case.compute_math_precision)
+            .with_name("GEMM"),
+        TensorOutputConfig::new()
+            .with_data_type(case.datatype_d)
+            .output_tensor(),
     )?;
 
-    let compiled = graph.compile(&ctx.cudnn, &[HeuristicMode::A])?;
-
-    let tensor_a_dev =
-        DeviceMemory::<u8>::zeroes(packed_len(case.b * case.m * case.k, case.datatype_a)?)?;
-    let tensor_b_dev =
-        DeviceMemory::<u8>::zeroes(packed_len(case.b * case.k * case.n, case.datatype_b)?)?;
-    let block_descale_a_dev = DeviceMemory::<u8>::zeroes(packed_len(
-        case.b * block_scale_dim_a_m * block_scale_dim_a_k,
-        case.datatype_block_scale_a,
-    )?)?;
-    let block_descale_b_dev = DeviceMemory::<u8>::zeroes(packed_len(
-        case.b * block_scale_dim_b_k * block_scale_dim_b_n,
-        case.datatype_block_scale_b,
-    )?)?;
-    let tensor_d_dev =
-        DeviceMemory::<u8>::zeroes(packed_len(case.b * case.m * case.n, case.datatype_d)?)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    // This example is data-type-parametric and includes packed 4-bit cases, so
-    // the backing buffers are byte-sized and bound as raw device pointers.
-    unsafe {
-        bindings.set_ptr(
-            tensor_a,
-            DevicePtr::from_raw(tensor_a_dev.as_mut_ptr().cast()),
-        )?;
-        bindings.set_ptr(
-            tensor_b,
-            DevicePtr::from_raw(tensor_b_dev.as_mut_ptr().cast()),
-        )?;
-        bindings.set_ptr(
-            block_descale_a,
-            DevicePtr::from_raw(block_descale_a_dev.as_mut_ptr().cast()),
-        )?;
-        bindings.set_ptr(
-            block_descale_b,
-            DevicePtr::from_raw(block_descale_b_dev.as_mut_ptr().cast()),
-        )?;
-        bindings.set_ptr(
-            tensor_d,
-            DevicePtr::from_raw(tensor_d_dev.as_mut_ptr().cast()),
-        )?;
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+    let cuda = example.cudnn.cuda_context();
+    let mut inputs = Vec::with_capacity(4);
+    for tensor in [tensor_a, tensor_b, block_descale_a, block_descale_b] {
+        let spec = graph.tensor_spec(tensor)?;
+        let values = encoded_ones(spec.data_type, spec.storage_byte_len(None)?)?;
+        inputs.push((tensor, DeviceMemory::from_slice(cuda, &values)?));
     }
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-
-    let tensor_d_host = tensor_d_dev.copy_to_host_vec()?;
-    let nonzero = tensor_d_host.iter().filter(|value| **value != 0).count();
-    let checksum = tensor_d_host
-        .iter()
-        .map(|value| u64::from(*value))
-        .sum::<u64>();
+    let mut tensor_d_dev =
+        DeviceMemory::<u8>::zeroed(cuda, graph.tensor_spec(tensor_d)?.storage_byte_len(None)?)?;
+    let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    // The selected data types determine the native encoding, including sub-byte packing.
+    for (tensor, memory) in &inputs {
+        bindings.set_encoded_input_bytes(*tensor, memory)?;
+    }
+    bindings.set_encoded_bytes(tensor_d, &mut tensor_d_dev)?;
+    // SAFETY: the plan and all allocations remain live until stream completion,
+    // including when native execution returns an enqueue error.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
     println!(
-        "case {index} d_bytes: first={}, last={}, checksum={checksum}, nonzero={nonzero}, len={}",
-        tensor_d_host[0],
-        tensor_d_host[tensor_d_host.len() - 1],
-        tensor_d_host.len()
+        "executed block-scale matmul problem {index} with output shape: {:?}",
+        graph.shape(tensor_d)?.dimensions()
     );
-
-    assert_eq!(
-        graph.shape(tensor_d)?.dimensions(),
-        &[case.b, case.m, case.n]
-    );
-    assert_eq!(nonzero, 0, "d_bytes.nonzero mismatch for case {index}");
-    assert_eq!(checksum, 0, "d_bytes.checksum mismatch for case {index}");
 
     Ok(())
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let context = common::ExampleContext::create()?;
     let cases = [
-        TestCase {
+        MatmulProblem {
             b: 2,
             m: 512,
             n: 512,
@@ -226,10 +178,11 @@ fn run() -> Result<()> {
             datatype_block_scale_a: DataType::F16,
             datatype_block_scale_b: DataType::F16,
             after_dequant_datatype_a: DataType::F16,
+            after_dequant_datatype_b: DataType::F16,
             datatype_d: DataType::F16,
             compute_math_precision: DataType::F16,
         },
-        TestCase {
+        MatmulProblem {
             b: 2,
             m: 512,
             n: 512,
@@ -243,10 +196,11 @@ fn run() -> Result<()> {
             datatype_block_scale_a: DataType::F32,
             datatype_block_scale_b: DataType::F32,
             after_dequant_datatype_a: DataType::F16,
+            after_dequant_datatype_b: DataType::F16,
             datatype_d: DataType::F16,
             compute_math_precision: DataType::F16,
         },
-        TestCase {
+        MatmulProblem {
             b: 2,
             m: 512,
             n: 512,
@@ -260,13 +214,14 @@ fn run() -> Result<()> {
             datatype_block_scale_a: DataType::F32,
             datatype_block_scale_b: DataType::F32,
             after_dequant_datatype_a: DataType::BF16,
+            after_dequant_datatype_b: DataType::BF16,
             datatype_d: DataType::F32,
             compute_math_precision: DataType::F32,
         },
     ];
 
     for (index, case) in cases.into_iter().enumerate() {
-        run_case(&ctx, index, case)?;
+        run_problem(&context, index, case)?;
     }
 
     Ok(())

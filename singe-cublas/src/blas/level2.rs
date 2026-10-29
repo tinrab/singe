@@ -1,3 +1,8 @@
+#![expect(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    reason = "BLAS and factorization operand names follow the standard mathematical API"
+)]
 use std::ptr;
 
 use singe_cuda::{memory::DeviceMemory, types::Complex64};
@@ -7,7 +12,7 @@ use crate::{
     error::{Error, Result},
     sys, try_ffi,
     types::{DiagonalType, FillMode, Operation},
-    utility::{required_matrix_len, required_vector_len, to_i32},
+    utility::{required_matrix_len, required_vector_len, to_i64},
 };
 
 /// Supports the 64-bit integer interface.
@@ -19,7 +24,7 @@ use crate::{
 /// Here $A$ is a banded matrix with $kl$ subdiagonals and $ku$ superdiagonals, $\mathbf{x}$ and $\mathbf{y}$ are vectors, and $\alpha$ and $\beta$ are scalars.
 /// For matrix $A$:
 ///
-/// $$ \text{ op}(A) = \begin{cases} A & \text{ if } \texttt{trans = Operation::NonTranspose} \\\\ A^{T} & \text{ if } \texttt{trans = Operation::Transpose} \\\\ A^{H} & \text{ if } \texttt{trans = Operation::ConjugateTranspose} \\\\ \end{cases} $$
+/// $$ \text{ op}(A) = \begin{cases} A & \text{ if } \texttt{trans = `Operation::NonTranspose`} \\\\ A^{T} & \text{ if } \texttt{trans = `Operation::Transpose`} \\\\ A^{H} & \text{ if } \texttt{trans = `Operation::ConjugateTranspose`} \\\\ \end{cases} $$
 ///
 /// The banded matrix $A$ is stored column by column, with the main diagonal stored in row $ku + 1$ (starting in first position), the first superdiagonal stored in row $ku$ (starting in second position), the first subdiagonal stored in row $ku + 2$ (starting in first position), etc.
 /// In general, the element $A\left( {i,j} \right)$ is stored in the memory location `A(ku+1+i-j,j)` for $j = 1,\ldots,n$ and $i \in \left\lbrack {\max\left( {1,j - ku} \right),\min\left( {m,j + kl} \right)} \right\rbrack$.
@@ -36,8 +41,12 @@ use crate::{
 /// large for cuBLAS, `a`, `x`, or `y` is too small for the requested banded
 /// matrix-vector operation, a dimension is too large for cuBLAS, or cuBLAS
 /// rejects the operation.
+#[allow(
+    clippy::doc_markdown,
+    reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
+)]
 pub fn sgbmv(
-    ctx: &Context,
+    context: &Context,
     trans: Operation,
     m: usize,
     n: usize,
@@ -52,8 +61,8 @@ pub fn sgbmv(
     y: &mut DeviceMemory<f32>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
 
     if lda < kl + ku + 1 {
         return Err(Error::InvalidLeadingDimension);
@@ -74,17 +83,18 @@ pub fn sgbmv(
         return Err(Error::InvalidVectorShape);
     }
 
-    let m = to_i32(m, "m")?;
-    let n = to_i32(n, "n")?;
-    let kl = to_i32(kl, "kl")?;
-    let ku = to_i32(ku, "ku")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let m = to_i64(m, "m")?;
+    let n = to_i64(n, "n")?;
+    let kl = to_i64(kl, "kl")?;
+    let ku = to_i64(ku, "ku")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasSgbmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasSgbmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasSgbmv_v2_64(
+            context.as_raw(),
             trans.into(),
             m,
             n,
@@ -113,7 +123,7 @@ pub fn sgbmv(
 /// Here $A$ is a banded matrix with $kl$ subdiagonals and $ku$ superdiagonals, $\mathbf{x}$ and $\mathbf{y}$ are vectors, and $\alpha$ and $\beta$ are scalars.
 /// For matrix $A$:
 ///
-/// $$ \text{ op}(A) = \begin{cases} A & \text{ if } \texttt{trans = Operation::NonTranspose} \\\\ A^{T} & \text{ if } \texttt{trans = Operation::Transpose} \\\\ A^{H} & \text{ if } \texttt{trans = Operation::ConjugateTranspose} \\\\ \end{cases} $$
+/// $$ \text{ op}(A) = \begin{cases} A & \text{ if } \texttt{trans = `Operation::NonTranspose`} \\\\ A^{T} & \text{ if } \texttt{trans = `Operation::Transpose`} \\\\ A^{H} & \text{ if } \texttt{trans = `Operation::ConjugateTranspose`} \\\\ \end{cases} $$
 ///
 /// The banded matrix $A$ is stored column by column, with the main diagonal stored in row $ku + 1$ (starting in first position), the first superdiagonal stored in row $ku$ (starting in second position), the first subdiagonal stored in row $ku + 2$ (starting in first position), etc.
 /// In general, the element $A\left( {i,j} \right)$ is stored in the memory location `A(ku+1+i-j,j)` for $j = 1,\ldots,n$ and $i \in \left\lbrack {\max\left( {1,j - ku} \right),\min\left( {m,j + kl} \right)} \right\rbrack$.
@@ -130,8 +140,12 @@ pub fn sgbmv(
 /// large for cuBLAS, `a`, `x`, or `y` is too small for the requested banded
 /// matrix-vector operation, a dimension is too large for cuBLAS, or cuBLAS
 /// rejects the operation.
+#[allow(
+    clippy::doc_markdown,
+    reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
+)]
 pub fn dgbmv(
-    ctx: &Context,
+    context: &Context,
     trans: Operation,
     m: usize,
     n: usize,
@@ -146,8 +160,8 @@ pub fn dgbmv(
     y: &mut DeviceMemory<f64>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
 
     if lda < kl + ku + 1 {
         return Err(Error::InvalidLeadingDimension);
@@ -168,17 +182,18 @@ pub fn dgbmv(
         return Err(Error::InvalidVectorShape);
     }
 
-    let m = to_i32(m, "m")?;
-    let n = to_i32(n, "n")?;
-    let kl = to_i32(kl, "kl")?;
-    let ku = to_i32(ku, "ku")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let m = to_i64(m, "m")?;
+    let n = to_i64(n, "n")?;
+    let kl = to_i64(kl, "kl")?;
+    let ku = to_i64(ku, "ku")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDgbmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDgbmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDgbmv_v2_64(
+            context.as_raw(),
             trans.into(),
             m,
             n,
@@ -198,8 +213,17 @@ pub fn dgbmv(
     Ok(())
 }
 
+/// Computes `y = alpha * op(A) * x + beta * y` in double precision.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dgemv(
-    ctx: &Context,
+    context: &Context,
     trans: Operation,
     m: usize,
     n: usize,
@@ -212,19 +236,20 @@ pub fn dgemv(
     y: &mut DeviceMemory<f64>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_general_matrix_vector(trans, m, n, a.len(), lda, x.len(), incx, y.len(), incy)?;
 
-    let m = to_i32(m, "m")?;
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let m = to_i64(m, "m")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDgemv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDgemv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDgemv_v2_64(
+            context.as_raw(),
             trans.into(),
             m,
             n,
@@ -242,8 +267,17 @@ pub fn dgemv(
     Ok(())
 }
 
+/// Updates a double-precision general matrix with `A = alpha * x * y^T + A`.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dger(
-    ctx: &Context,
+    context: &Context,
     m: usize,
     n: usize,
     alpha: &f64,
@@ -254,19 +288,20 @@ pub fn dger(
     a: &mut DeviceMemory<f64>,
     lda: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_rank1_update(m, n, x.len(), incx, y.len(), incy, a.len(), lda)?;
 
-    let m = to_i32(m, "m")?;
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let m = to_i64(m, "m")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDger_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDger_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDger_v2_64(
+            context.as_raw(),
             m,
             n,
             alpha,
@@ -282,8 +317,19 @@ pub fn dger(
     Ok(())
 }
 
+/// Multiplies a double-precision symmetric matrix by a vector and updates `y`.
+///
+/// Computes `y = alpha * A * x + beta * y` using the triangle selected by `fill_mode`.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dsymv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &f64,
@@ -295,18 +341,19 @@ pub fn dsymv(
     y: &mut DeviceMemory<f64>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_square_matrix_vector(n, a.len(), lda, x.len(), incx, y.len(), incy)?;
 
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDsymv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDsymv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDsymv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             alpha,
@@ -323,8 +370,19 @@ pub fn dsymv(
     Ok(())
 }
 
+/// Multiplies a complex double-precision Hermitian matrix by a vector and updates `y`.
+///
+/// Computes `y = alpha * A * x + beta * y` using the triangle selected by `fill_mode`.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn zhemv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &Complex64,
@@ -336,18 +394,19 @@ pub fn zhemv(
     y: &mut DeviceMemory<Complex64>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_square_matrix_vector(n, a.len(), lda, x.len(), incx, y.len(), incy)?;
 
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasZhemv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasZhemv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasZhemv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             ptr::from_ref(alpha).cast(),
@@ -364,8 +423,19 @@ pub fn zhemv(
     Ok(())
 }
 
+/// Multiplies a double-precision symmetric band matrix by a vector and updates `y`.
+///
+/// Computes `y = alpha * A * x + beta * y` using the triangle selected by `fill_mode`.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dsbmv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     k: usize,
@@ -378,19 +448,20 @@ pub fn dsbmv(
     y: &mut DeviceMemory<f64>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_symmetric_banded_matrix_vector(n, k, a.len(), lda, x.len(), incx, y.len(), incy)?;
 
-    let n = to_i32(n, "n")?;
-    let k = to_i32(k, "k")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let k = to_i64(k, "k")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDsbmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDsbmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDsbmv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             k,
@@ -408,8 +479,19 @@ pub fn dsbmv(
     Ok(())
 }
 
+/// Multiplies a complex double-precision Hermitian band matrix by a vector and updates `y`.
+///
+/// Computes `y = alpha * A * x + beta * y` using the triangle selected by `fill_mode`.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn zhbmv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     k: usize,
@@ -422,19 +504,20 @@ pub fn zhbmv(
     y: &mut DeviceMemory<Complex64>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_symmetric_banded_matrix_vector(n, k, a.len(), lda, x.len(), incx, y.len(), incy)?;
 
-    let n = to_i32(n, "n")?;
-    let k = to_i32(k, "k")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let k = to_i64(k, "k")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasZhbmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasZhbmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasZhbmv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             k,
@@ -452,8 +535,19 @@ pub fn zhbmv(
     Ok(())
 }
 
+/// Multiplies a packed double-precision symmetric matrix by a vector and updates `y`.
+///
+/// Computes `y = alpha * A * x + beta * y` using the triangle selected by `fill_mode`.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dspmv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &f64,
@@ -464,17 +558,18 @@ pub fn dspmv(
     y: &mut DeviceMemory<f64>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_packed_matrix_vector(n, ap.len(), x.len(), incx, y.len(), incy)?;
 
-    let n = to_i32(n, "n")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDspmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDspmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDspmv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             alpha,
@@ -490,8 +585,19 @@ pub fn dspmv(
     Ok(())
 }
 
+/// Multiplies a packed complex double-precision Hermitian matrix by a vector and updates `y`.
+///
+/// Computes `y = alpha * A * x + beta * y` using the triangle selected by `fill_mode`.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn zhpmv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &Complex64,
@@ -502,17 +608,18 @@ pub fn zhpmv(
     y: &mut DeviceMemory<Complex64>,
     incy: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_packed_matrix_vector(n, ap.len(), x.len(), incx, y.len(), incy)?;
 
-    let n = to_i32(n, "n")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasZhpmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasZhpmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasZhpmv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             ptr::from_ref(alpha).cast(),
@@ -528,8 +635,19 @@ pub fn zhpmv(
     Ok(())
 }
 
+/// Applies the symmetric rank-1 update `A = alpha * x * x^T + A` in double precision.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dsyr(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &f64,
@@ -538,17 +656,18 @@ pub fn dsyr(
     a: &mut DeviceMemory<f64>,
     lda: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_square_rank1_update(n, x.len(), incx, a.len(), lda)?;
 
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasDsyr_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDsyr_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDsyr_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             alpha,
@@ -562,8 +681,19 @@ pub fn dsyr(
     Ok(())
 }
 
+/// Applies the Hermitian rank-1 update `A = alpha * x * x^H + A` in complex double precision.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn zher(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &f64,
@@ -572,17 +702,18 @@ pub fn zher(
     a: &mut DeviceMemory<Complex64>,
     lda: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_square_rank1_update(n, x.len(), incx, a.len(), lda)?;
 
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasZher_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasZher_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasZher_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             alpha,
@@ -596,8 +727,19 @@ pub fn zher(
     Ok(())
 }
 
+/// Applies a double-precision symmetric rank-1 update to a packed matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dspr(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &f64,
@@ -605,16 +747,17 @@ pub fn dspr(
     incx: usize,
     ap: &mut DeviceMemory<f64>,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_packed_rank1_update(n, x.len(), incx, ap.len())?;
 
-    let n = to_i32(n, "n")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasDspr_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDspr_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDspr_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             alpha,
@@ -627,8 +770,19 @@ pub fn dspr(
     Ok(())
 }
 
+/// Applies a complex double-precision Hermitian rank-1 update to a packed matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn zhpr(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &f64,
@@ -636,16 +790,17 @@ pub fn zhpr(
     incx: usize,
     ap: &mut DeviceMemory<Complex64>,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_packed_rank1_update(n, x.len(), incx, ap.len())?;
 
-    let n = to_i32(n, "n")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasZhpr_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasZhpr_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasZhpr_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             alpha,
@@ -658,8 +813,19 @@ pub fn zhpr(
     Ok(())
 }
 
+/// Applies `A = alpha * (x * y^T + y * x^T) + A` in double precision.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dsyr2(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &f64,
@@ -670,18 +836,19 @@ pub fn dsyr2(
     a: &mut DeviceMemory<f64>,
     lda: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_square_rank2_update(n, x.len(), incx, y.len(), incy, a.len(), lda)?;
 
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDsyr2_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDsyr2_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDsyr2_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             alpha,
@@ -697,8 +864,19 @@ pub fn dsyr2(
     Ok(())
 }
 
+/// Applies `A = alpha * x * y^H + conj(alpha) * y * x^H + A` in complex double precision.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn zher2(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &Complex64,
@@ -709,18 +887,19 @@ pub fn zher2(
     a: &mut DeviceMemory<Complex64>,
     lda: usize,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_square_rank2_update(n, x.len(), incx, y.len(), incy, a.len(), lda)?;
 
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasZher2_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasZher2_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasZher2_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             ptr::from_ref(alpha).cast(),
@@ -736,8 +915,19 @@ pub fn zher2(
     Ok(())
 }
 
+/// Applies a double-precision symmetric rank-2 update to a packed matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dspr2(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &f64,
@@ -747,17 +937,18 @@ pub fn dspr2(
     incy: usize,
     ap: &mut DeviceMemory<f64>,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_packed_rank2_update(n, x.len(), incx, y.len(), incy, ap.len())?;
 
-    let n = to_i32(n, "n")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasDspr2_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDspr2_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDspr2_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             alpha,
@@ -772,8 +963,19 @@ pub fn dspr2(
     Ok(())
 }
 
+/// Applies a complex double-precision Hermitian rank-2 update to a packed matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// Returns an error if the handle is not in host pointer mode.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn zhpr2(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
     alpha: &Complex64,
@@ -783,17 +985,18 @@ pub fn zhpr2(
     incy: usize,
     ap: &mut DeviceMemory<Complex64>,
 ) -> Result<()> {
-    ctx.bind()?;
-    ctx.require_host_pointer_mode()?;
+    context.bind()?;
+    context.require_host_pointer_mode()?;
     validate_packed_rank2_update(n, x.len(), incx, y.len(), incy, ap.len())?;
 
-    let n = to_i32(n, "n")?;
-    let incx = to_i32(incx, "incx")?;
-    let incy = to_i32(incy, "incy")?;
+    let n = to_i64(n, "n")?;
+    let incx = to_i64(incx, "incx")?;
+    let incy = to_i64(incy, "incy")?;
 
+    // SAFETY: `cublasZhpr2_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasZhpr2_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasZhpr2_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             n,
             ptr::from_ref(alpha).cast(),
@@ -808,8 +1011,18 @@ pub fn zhpr2(
     Ok(())
 }
 
+/// Replaces `x` with `op(A) * x` for a double-precision triangular matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dtrmv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     trans: Operation,
     diag: DiagonalType,
@@ -819,16 +1032,17 @@ pub fn dtrmv(
     x: &mut DeviceMemory<f64>,
     incx: usize,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     validate_triangular_matrix_vector(n, a.len(), lda, x.len(), incx)?;
 
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasDtrmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDtrmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDtrmv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             trans.into(),
             diag.into(),
@@ -843,8 +1057,18 @@ pub fn dtrmv(
     Ok(())
 }
 
+/// Replaces `x` with `op(A) * x` for a double-precision triangular band matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dtbmv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     trans: Operation,
     diag: DiagonalType,
@@ -855,17 +1079,18 @@ pub fn dtbmv(
     x: &mut DeviceMemory<f64>,
     incx: usize,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     validate_triangular_banded_matrix_vector(n, k, a.len(), lda, x.len(), incx)?;
 
-    let n = to_i32(n, "n")?;
-    let k = to_i32(k, "k")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let k = to_i64(k, "k")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasDtbmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDtbmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDtbmv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             trans.into(),
             diag.into(),
@@ -881,8 +1106,18 @@ pub fn dtbmv(
     Ok(())
 }
 
+/// Replaces `x` with `op(A) * x` for a packed double-precision triangular matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dtpmv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     trans: Operation,
     diag: DiagonalType,
@@ -891,15 +1126,16 @@ pub fn dtpmv(
     x: &mut DeviceMemory<f64>,
     incx: usize,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     validate_packed_triangular_matrix_vector(n, ap.len(), x.len(), incx)?;
 
-    let n = to_i32(n, "n")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasDtpmv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDtpmv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDtpmv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             trans.into(),
             diag.into(),
@@ -913,8 +1149,18 @@ pub fn dtpmv(
     Ok(())
 }
 
+/// Solves `op(A) * x = b` in place for a double-precision triangular matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dtrsv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     trans: Operation,
     diag: DiagonalType,
@@ -924,16 +1170,17 @@ pub fn dtrsv(
     x: &mut DeviceMemory<f64>,
     incx: usize,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     validate_triangular_matrix_vector(n, a.len(), lda, x.len(), incx)?;
 
-    let n = to_i32(n, "n")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasDtrsv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDtrsv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDtrsv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             trans.into(),
             diag.into(),
@@ -948,8 +1195,18 @@ pub fn dtrsv(
     Ok(())
 }
 
+/// Solves `op(A) * x = b` in place for a packed double-precision triangular matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dtpsv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     trans: Operation,
     diag: DiagonalType,
@@ -958,15 +1215,16 @@ pub fn dtpsv(
     x: &mut DeviceMemory<f64>,
     incx: usize,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     validate_packed_triangular_matrix_vector(n, ap.len(), x.len(), incx)?;
 
-    let n = to_i32(n, "n")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasDtpsv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDtpsv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDtpsv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             trans.into(),
             diag.into(),
@@ -980,8 +1238,18 @@ pub fn dtpsv(
     Ok(())
 }
 
+/// Solves `op(A) * x = b` in place for a double-precision triangular band matrix.
+///
+/// Only the triangle selected by `fill_mode` is referenced.
+///
+/// Matrices use column-major storage; leading dimensions and vector increments are measured in elements.
+///
+/// # Errors
+///
+/// Returns an error if dimensions, leading dimensions, vector increments, or storage lengths are invalid, or a computed size exceeds the native integer range.
+/// CUDA context binding and cuBLAS operation errors are propagated.
 pub fn dtbsv(
-    ctx: &Context,
+    context: &Context,
     fill_mode: FillMode,
     trans: Operation,
     diag: DiagonalType,
@@ -992,17 +1260,18 @@ pub fn dtbsv(
     x: &mut DeviceMemory<f64>,
     incx: usize,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
     validate_triangular_banded_matrix_vector(n, k, a.len(), lda, x.len(), incx)?;
 
-    let n = to_i32(n, "n")?;
-    let k = to_i32(k, "k")?;
-    let lda = to_i32(lda, "lda")?;
-    let incx = to_i32(incx, "incx")?;
+    let n = to_i64(n, "n")?;
+    let k = to_i64(k, "k")?;
+    let lda = to_i64(lda, "lda")?;
+    let incx = to_i64(incx, "incx")?;
 
+    // SAFETY: `cublasDtbsv_v2_64` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
-        try_ffi!(sys::cublasDtbsv_v2(
-            ctx.as_raw(),
+        try_ffi!(sys::cublasDtbsv_v2_64(
+            context.as_raw(),
             fill_mode.into(),
             trans.into(),
             diag.into(),
@@ -1289,9 +1558,7 @@ fn validate_packed_triangular_matrix_vector(
 fn required_packed_matrix_len(n: usize) -> Result<usize> {
     n.checked_mul(n + 1)
         .and_then(|value| value.checked_div(2))
-        .ok_or_else(|| Error::OutOfRange {
-            name: "packed matrix length".into(),
-        })
+        .ok_or_else(|| Error::out_of_range("packed matrix length"))
 }
 
 fn vector_fits(length: usize, n: usize, inc: usize) -> Result<bool> {

@@ -1,242 +1,192 @@
 use crate::{
-    convolution::ConvolutionMode,
+    backend::tensor::{Shape, TensorId},
     error::{Error, Result},
     frontend::{
-        graph::Graph,
-        infer::{
-            infer_convolution_backward_data_output, infer_convolution_backward_filter_output,
-            infer_convolution_forward_output,
-        },
+        graph::{Graph, TensorOutputConfig},
         operation::{ConvolutionConfig, ConvolutionOperation, Operation},
-        shape::shape_with_nhwc_strides,
     },
-    tensor::{Shape, TensorId, TensorSpec},
-    utility::check_range,
+    utility::to_usize,
 };
 
 impl Graph {
     /// Adds a convolution forward operation with an explicit output tensor.
     ///
-    /// This computes the convolution response of input `x` with filter `w`.
-    /// This corresponds to the C++ frontend `conv_fprop` operation.
-    pub fn convolution_forward(
+    /// Groups follow the input and filter channel dimensions.
+    /// The output may have an independently selected data type and layout supported by cuDNN.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage. Also returns an error if a 2D or 3D filter’s scalar element count overflows or exceeds the signed 32-bit indexing limit.
+    pub fn convolution_forward_into(
         &mut self,
         x: TensorId,
         w: TensorId,
         y: TensorId,
         config: ConvolutionConfig,
     ) -> Result<()> {
-        let x_tensor = self.tensor_config(x)?.clone();
-        let w_tensor = self.tensor_config(w)?.clone();
-        self.validate_convolution_config(x, &x_tensor.shape, w, &w_tensor.shape, &config)?;
-        let expected = infer_convolution_forward_output(&x_tensor.shape, &w_tensor.shape, &config)?;
-        self.validate_tensor_data_type(
-            y,
-            self.effective_io_data_type(x_tensor.data_type),
-            "convolution output",
-        )?;
-        self.validate_tensor_dimensions(y, expected.dimensions(), "convolution output shape")?;
-        self.operations
-            .push(Operation::Convolution(ConvolutionOperation::Forward {
-                x,
-                w,
-                y,
-                config,
-            }));
-        Ok(())
+        self.add_convolution(ConvolutionOperation::Forward { x, w, y, config })
     }
 
-    /// Adds a convolution forward operation and creates the output tensor.
-    pub fn convolution_forward_infer(
+    /// Adds a convolution forward operation and creates an output with channels-last strides.
+    /// Equal-type vectorized outputs preserve the input's lane count, vector dimension and stride order.
+    /// Result placement selects I/O or intermediate precision unless an encoding is explicit.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage. Also returns an error for an unrepresentable output layout, a vectorized output extent incompatible with its lane count, or a forward filter exceeding the signed 32-bit indexing limit.
+    pub fn convolution_forward(
         &mut self,
         x: TensorId,
         w: TensorId,
         config: ConvolutionConfig,
+        output: TensorOutputConfig,
     ) -> Result<TensorId> {
-        let x_tensor = self.tensor_config(x)?.clone();
-        let w_tensor = self.tensor_config(w)?.clone();
-        self.validate_convolution_config(x, &x_tensor.shape, w, &w_tensor.shape, &config)?;
-        let output_data_type = self.effective_io_data_type(x_tensor.data_type);
-        let output_shape =
-            infer_convolution_forward_output(&x_tensor.shape, &w_tensor.shape, &config)?;
-        let output_shape = shape_with_nhwc_strides(output_shape.dimensions().to_vec())?;
-        let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
-        self.convolution_forward(x, w, output, config)?;
+        output.validate_accumulation(
+            config.reads_destination(self.config.data_type_policy),
+            "convolution",
+        )?;
+        let input = self.tensor_spec(x)?;
+        let filter = self.tensor_spec(w)?;
+        let output_data_type =
+            output.resolve_data_type(self.config.data_type_policy, input.data_type);
+        let dimensions = config.resolve_geometry()?.infer_forward_dimensions(
+            &input.logical_dimensions()?,
+            &filter.logical_dimensions()?,
+        )?;
+        let (shape, vectorization) = match input.vectorization()? {
+            Some((count, axis)) if output_data_type == input.data_type => {
+                let mut dimensions = dimensions;
+                let index = to_usize(axis, "convolution vector dimension")?;
+                let dimension = dimensions.get_mut(index).ok_or(Error::InvalidDataShape)?;
+                if *dimension % count != 0 {
+                    return Err(Error::InvalidDataShape);
+                }
+                *dimension /= count;
+                (
+                    input
+                        .shape
+                        .with_dimensions_preserving_stride_order(dimensions)?,
+                    Some((count, axis)),
+                )
+            }
+            _ => (Shape::channels_last(dimensions)?, None),
+        };
+        let spec = output.into_spec(self.config.data_type_policy, input.data_type, shape);
+        let spec = match vectorization {
+            Some((count, axis)) => spec.with_vectorization(count, axis)?,
+            None => spec,
+        };
+        let checkpoint = self.mutation_checkpoint();
+        let output = self.inferred_tensor(spec, config.name(), "Y");
+        if let Err(error) = self.convolution_forward_into(x, w, output, config) {
+            self.rollback_to(checkpoint);
+            return Err(error);
+        }
         Ok(output)
     }
 
-    /// Adds a convolution backward-data operation with an explicit output.
+    /// Adds a data-gradient convolution using the caller's input-gradient dimensions and strides.
     ///
-    /// This computes the data gradient during backpropagation and corresponds
-    /// to the C++ frontend `conv_dgrad` operation.
-    pub fn convolution_dgrad(
+    /// Strided convolution can have several valid inverse shapes.
+    /// Validate the response of `dx` and `w` against `dy` rather than choosing one inverse.
+    /// A nonzero effective beta requires a bindable `dx` accumulation destination.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage.
+    pub fn convolution_backward_data_into(
         &mut self,
         w: TensorId,
         dy: TensorId,
         dx: TensorId,
         config: ConvolutionConfig,
     ) -> Result<()> {
-        let w_tensor = self.tensor_config(w)?.clone();
-        let dy_tensor = self.tensor_config(dy)?.clone();
-        validate_convolution_tensor_rank(w, &w_tensor.shape, "convolution filter rank")?;
-        validate_convolution_tensor_rank(dy, &dy_tensor.shape, "convolution output-gradient rank")?;
-        let expected =
-            infer_convolution_backward_data_output(&w_tensor.shape, &dy_tensor.shape, &config)?;
-        self.validate_tensor_data_type(
-            dx,
-            self.effective_io_data_type(dy_tensor.data_type),
-            "convolution backward data output",
-        )?;
-        self.validate_tensor_dimensions(
-            dx,
-            expected.dimensions(),
-            "convolution backward data output shape",
-        )?;
-        self.operations
-            .push(Operation::Convolution(ConvolutionOperation::BackwardData {
-                w,
-                dy,
-                dx,
-                config,
-            }));
-        Ok(())
+        self.add_convolution(ConvolutionOperation::BackwardData { w, dy, dx, config })
     }
 
-    /// Adds a convolution backward-data operation and creates the output tensor.
-    pub fn convolution_dgrad_infer(
+    /// Creates a data-gradient output with the specified dimensions and channels-last strides.
+    ///
+    /// The input-gradient dimensions are required because the inverse mapping is ambiguous.
+    /// Result placement and encoding are independent of convolution math and geometry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage. Also returns an error if the requested gradient dimensions cannot form a valid channels-last layout.
+    pub fn convolution_backward_data(
         &mut self,
         w: TensorId,
         dy: TensorId,
+        input_dimensions: impl Into<Vec<i64>>,
         config: ConvolutionConfig,
+        output: TensorOutputConfig,
     ) -> Result<TensorId> {
-        let w_tensor = self.tensor_config(w)?.clone();
-        let dy_tensor = self.tensor_config(dy)?.clone();
-        validate_convolution_tensor_rank(w, &w_tensor.shape, "convolution filter rank")?;
-        validate_convolution_tensor_rank(dy, &dy_tensor.shape, "convolution output-gradient rank")?;
-        let output_data_type = self.effective_io_data_type(dy_tensor.data_type);
-        let output_shape =
-            infer_convolution_backward_data_output(&w_tensor.shape, &dy_tensor.shape, &config)?;
-        let output_shape = shape_with_nhwc_strides(output_shape.dimensions().to_vec())?;
-        let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
-        self.convolution_dgrad(w, dy, output, config)?;
+        output.validate_accumulation(
+            config.reads_destination(self.config.data_type_policy),
+            "convolution data gradient",
+        )?;
+        let fallback_type = self.tensor_spec(dy)?.data_type;
+        let shape = Shape::channels_last(input_dimensions.into())?;
+        let output = output.into_spec(self.config.data_type_policy, fallback_type, shape);
+        let checkpoint = self.mutation_checkpoint();
+        let output = self.inferred_tensor(output, config.name(), "DX");
+        if let Err(error) = self.convolution_backward_data_into(w, dy, output, config) {
+            self.rollback_to(checkpoint);
+            return Err(error);
+        }
         Ok(output)
     }
 
-    /// Adds a convolution backward-filter operation with an explicit output.
+    /// Adds a weight-gradient convolution using the caller's filter-gradient dimensions and strides.
+    /// A nonzero effective beta requires a bindable `dw` accumulation destination.
     ///
-    /// This computes the filter/weight gradient during backpropagation and
-    /// corresponds to the C++ frontend `conv_wgrad` operation.
-    pub fn convolution_wgrad(
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage.
+    pub fn convolution_backward_filter_into(
         &mut self,
         x: TensorId,
         dy: TensorId,
         dw: TensorId,
         config: ConvolutionConfig,
     ) -> Result<()> {
-        let x_tensor = self.tensor_config(x)?.clone();
-        let dy_tensor = self.tensor_config(dy)?.clone();
-        validate_convolution_tensor_rank(x, &x_tensor.shape, "convolution input rank")?;
-        validate_convolution_tensor_rank(dy, &dy_tensor.shape, "convolution output-gradient rank")?;
-        let expected =
-            infer_convolution_backward_filter_output(&x_tensor.shape, &dy_tensor.shape, &config)?;
-        self.validate_tensor_data_type(
-            dw,
-            self.effective_io_data_type(x_tensor.data_type),
-            "convolution backward filter output",
-        )?;
-        self.validate_tensor_dimensions(
-            dw,
-            expected.dimensions(),
-            "convolution backward filter output shape",
-        )?;
-        self.operations.push(Operation::Convolution(
-            ConvolutionOperation::BackwardFilter { x, dy, dw, config },
-        ));
-        Ok(())
+        self.add_convolution(ConvolutionOperation::BackwardFilter { x, dy, dw, config })
     }
 
-    /// Adds a convolution backward-filter operation and creates the output tensor.
-    pub fn convolution_wgrad_infer(
+    /// Creates a weight-gradient output with the specified dimensions and channels-last strides.
+    ///
+    /// The filter-gradient dimensions are required because the inverse mapping is ambiguous.
+    /// Result placement and encoding are independent of convolution math and geometry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage. Also returns an error if the requested gradient dimensions cannot form a valid channels-last layout.
+    pub fn convolution_backward_filter(
         &mut self,
         x: TensorId,
         dy: TensorId,
+        filter_dimensions: impl Into<Vec<i64>>,
         config: ConvolutionConfig,
+        output: TensorOutputConfig,
     ) -> Result<TensorId> {
-        let x_tensor = self.tensor_config(x)?.clone();
-        let dy_tensor = self.tensor_config(dy)?.clone();
-        validate_convolution_tensor_rank(x, &x_tensor.shape, "convolution input rank")?;
-        validate_convolution_tensor_rank(dy, &dy_tensor.shape, "convolution output-gradient rank")?;
-        let output_data_type = self.effective_io_data_type(x_tensor.data_type);
-        let output_shape =
-            infer_convolution_backward_filter_output(&x_tensor.shape, &dy_tensor.shape, &config)?;
-        let output_shape = shape_with_nhwc_strides(output_shape.dimensions().to_vec())?;
-        let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
-        self.convolution_wgrad(x, dy, output, config)?;
+        output.validate_accumulation(
+            config.reads_destination(self.config.data_type_policy),
+            "convolution weight gradient",
+        )?;
+        let fallback_type = self.tensor_spec(x)?.data_type;
+        let shape = Shape::channels_last(filter_dimensions.into())?;
+        let output = output.into_spec(self.config.data_type_policy, fallback_type, shape);
+        let checkpoint = self.mutation_checkpoint();
+        let output = self.inferred_tensor(output, config.name(), "DW");
+        if let Err(error) = self.convolution_backward_filter_into(x, dy, output, config) {
+            self.rollback_to(checkpoint);
+            return Err(error);
+        }
         Ok(output)
     }
 
-    fn validate_convolution_config(
-        &self,
-        x: TensorId,
-        x_shape: &Shape,
-        w: TensorId,
-        w_shape: &Shape,
-        config: &ConvolutionConfig,
-    ) -> Result<()> {
-        validate_convolution_tensor_rank(x, x_shape, "convolution input rank")?;
-        let x_rank = x_shape.dimensions().len();
-        if w_shape.dimensions().len() != x_rank {
-            return Err(Error::FrontendTensorRankMismatch {
-                tensor_id: w,
-                operation: "convolution filter rank".into(),
-                expected: x_rank.to_string(),
-                actual: w_shape.dimensions().len(),
-            });
-        }
-        let spatial_dims = x_shape
-            .dimensions()
-            .len()
-            .checked_sub(2)
-            .ok_or(Error::InvalidDataShape)?;
-        for values in [
-            config.pre_paddings(),
-            config.post_paddings(),
-            config.strides(),
-            config.dilations(),
-        ] {
-            if values.len() != spatial_dims {
-                return Err(Error::LengthMismatch {
-                    name: "convolution spatial dims".into(),
-                    expected: spatial_dims,
-                    actual: values.len(),
-                });
-            }
-            if values.iter().any(|value| *value < 0) {
-                check_range!("convolution values", false)?;
-            }
-        }
-        if config.mode() != ConvolutionMode::CrossCorrelation
-            && config.mode() != ConvolutionMode::Convolution
-        {
-            check_range!("convolution mode", false)?;
-        }
+    fn add_convolution(&mut self, operation: ConvolutionOperation) -> Result<()> {
+        operation.validate_graph(self)?;
+        self.operations.push(Operation::Convolution(operation));
         Ok(())
     }
-}
-
-fn validate_convolution_tensor_rank(
-    tensor: TensorId,
-    shape: &Shape,
-    operation: &str,
-) -> Result<()> {
-    let actual = shape.dimensions().len();
-    if actual != 4 {
-        return Err(Error::FrontendTensorRankMismatch {
-            tensor_id: tensor,
-            operation: operation.into(),
-            expected: "4".into(),
-            actual,
-        });
-    }
-    Ok(())
 }

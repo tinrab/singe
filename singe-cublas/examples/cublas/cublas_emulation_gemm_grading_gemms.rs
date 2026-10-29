@@ -4,6 +4,7 @@ use singe_cublas::{
     error::Result,
     types::{ComputeType, GemmAlgorithm, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
     types::Complex64,
@@ -17,10 +18,10 @@ fn main() -> Result<()> {
     let b = vec![5.0_f64, 7.0, 6.0, 8.0];
     let expected = cpu_gemm_f64(2, &a, &b);
 
-    let a_device = DeviceMemory::from_slice(&a)?;
-    let b_device = DeviceMemory::from_slice(&b)?;
+    let a_device = DeviceMemory::from_slice(&cuda, &a)?;
+    let b_device = DeviceMemory::from_slice(&cuda, &b)?;
 
-    let mut c_dgemm = DeviceMemory::<f64>::zeroes(4)?;
+    let mut c_dgemm = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
     dgemm(
         &cublas,
         Operation::NonTranspose,
@@ -38,7 +39,7 @@ fn main() -> Result<()> {
         2,
     )?;
 
-    let mut c_gemm_ex = DeviceMemory::<f64>::zeroes(4)?;
+    let mut c_gemm_ex = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
     gemm_ex(
         &cublas,
         Operation::NonTranspose,
@@ -61,19 +62,25 @@ fn main() -> Result<()> {
         GemmAlgorithm::Default,
     )?;
 
-    let za = DeviceMemory::from_slice(&[
-        Complex64::new(1.0, 0.0),
-        Complex64::new(3.0, 0.0),
-        Complex64::new(2.0, 0.0),
-        Complex64::new(4.0, 0.0),
-    ])?;
-    let zb = DeviceMemory::from_slice(&[
-        Complex64::new(5.0, 0.0),
-        Complex64::new(7.0, 0.0),
-        Complex64::new(6.0, 0.0),
-        Complex64::new(8.0, 0.0),
-    ])?;
-    let mut zc = DeviceMemory::<Complex64>::zeroes(4)?;
+    let za = DeviceMemory::from_slice(
+        &cuda,
+        &[
+            Complex64::new(1.0, 0.0),
+            Complex64::new(3.0, 0.0),
+            Complex64::new(2.0, 0.0),
+            Complex64::new(4.0, 0.0),
+        ],
+    )?;
+    let zb = DeviceMemory::from_slice(
+        &cuda,
+        &[
+            Complex64::new(5.0, 0.0),
+            Complex64::new(7.0, 0.0),
+            Complex64::new(6.0, 0.0),
+            Complex64::new(8.0, 0.0),
+        ],
+    )?;
+    let mut zc = DeviceMemory::<Complex64>::zeroed(&cuda, 4)?;
     zgemm(
         &cublas,
         Operation::NonTranspose,

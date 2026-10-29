@@ -1,6 +1,12 @@
-use std::{collections::HashMap, env, time::Instant};
+use std::{collections::HashMap, env, ops::Mul, time::Instant};
 
-use singe_cuda::{context::Context as CudaContext, data_type::DataType, device::Device};
+use singe_cuda::{
+    context::Context as CudaContext,
+    data_type::DataType,
+    device::Device,
+    error::Result as CudaResult,
+    stream::{Stream, StreamBinding},
+};
 use singe_cutensor::{
     error::Result,
     mg::{
@@ -17,7 +23,7 @@ use singe_cutensor::{
 
 fn product<T>(values: &[T]) -> T
 where
-    T: Copy + From<u8> + std::ops::Mul<Output = T>,
+    T: Copy + From<u8> + Mul<Output = T>,
 {
     values
         .iter()
@@ -58,12 +64,7 @@ fn mode_vec(modes: &[i32]) -> Vec<Mode> {
     modes.iter().copied().map(Mode::new).collect()
 }
 
-fn create_streams_for_devices(
-    devices: &[i32],
-) -> singe_cuda::error::Result<(
-    Vec<singe_cuda::stream::Stream>,
-    Vec<singe_cuda::stream::StreamBinding>,
-)> {
+fn create_streams_for_devices(devices: &[i32]) -> CudaResult<(Vec<Stream>, Vec<StreamBinding>)> {
     let mut streams = Vec::with_capacity(devices.len());
     for &device in devices {
         let cuda_context = CudaContext::retain_primary_for_device(Device::new(device))?;
@@ -72,7 +73,7 @@ fn create_streams_for_devices(
 
     let bindings = streams
         .iter()
-        .map(|stream| singe_cuda::stream::StreamBinding::Borrowed(stream.to_borrowed()))
+        .map(|stream| StreamBinding::Borrowed(stream.to_borrowed()))
         .collect();
     Ok((streams, bindings))
 }
@@ -219,9 +220,12 @@ fn main() -> Result<()> {
         &multiply_i64_i32(&block_size_c, &device_count_c),
     )) / i64::from(product(&device_count_c));
 
-    let memory_a = DistributedDeviceMemory::<f32>::create(&devices_a, elements_a as usize)?;
-    let memory_b = DistributedDeviceMemory::<f32>::create(&devices_b, elements_b as usize)?;
-    let mut memory_c = DistributedDeviceMemory::<f32>::create(&devices_c, elements_c as usize)?;
+    let memory_a =
+        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_a, elements_a as usize)?;
+    let memory_b =
+        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_b, elements_b as usize)?;
+    let mut memory_c =
+        DistributedDeviceMemory::<f32>::zeroed(&context, &devices_c, elements_c as usize)?;
     let mut workspace = plan.create_workspace_memory()?;
     let (streams, stream_bindings) = create_streams_for_devices(&devices)?;
 

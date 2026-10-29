@@ -1,55 +1,127 @@
-use std::ptr;
+use std::{mem::MaybeUninit, ptr, sync::Arc};
 
-use singe_cuda::memory::DeviceMemory;
+use singe_cuda::{
+    context::Context as CudaContext,
+    error::{Error as CudaError, Result as CudaResult},
+    memory::{DeviceMemory, HostAllocationFlags, PinnedHostMemory},
+};
 
-use crate::{error::Result, mp::plan::Workspace, utility::to_usize};
+use crate::{
+    error::{Error, Result},
+    mp::{
+        context::{ContextRef, validate_same_context},
+        plan::Workspace,
+    },
+    utility::to_usize,
+};
 
+/// Owns pending local device workspace and optional pinned host workspace.
+///
+/// First use retains the plan context and checks both capacities. Later uses must share that context. Dropping used workspace clears cached communication registrations before releasing its allocations.
 #[derive(Debug)]
-pub struct WorkspaceMemory {
-    device: DeviceMemory<u8>,
+pub struct WorkspaceMemory<'comm> {
+    context: Option<ContextRef<'comm>>,
+    device: DeviceMemory<MaybeUninit<u8>>,
     host: HostWorkspace,
 }
 
 #[derive(Debug)]
 struct HostWorkspace {
-    ptr: *mut (),
+    memory: Option<PinnedHostMemory<MaybeUninit<u8>>>,
 }
 
-impl WorkspaceMemory {
-    pub fn create(workspace: Workspace) -> Result<Self> {
+impl<'comm> WorkspaceMemory<'comm> {
+    /// Allocates local device and pinned host byte storage for the supplied workspace requirements.
+    ///
+    /// Zero host requirements use no pinned allocation. The allocation is not associated with a multi-process handle until prepared for execution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a workspace byte count does not fit `usize` or CUDA device or pinned host allocation fails.
+    pub fn create(allocation_context: &Arc<CudaContext>, workspace: Workspace) -> Result<Self> {
         Ok(Self {
-            device: DeviceMemory::create(to_usize(workspace.device_size(), "device workspace")?)?,
-            host: HostWorkspace::create(to_usize(workspace.host_size(), "host workspace")?)?,
+            context: None,
+            device: DeviceMemory::<u8>::create_uninit(
+                allocation_context,
+                to_usize(workspace.device_size(), "device workspace")?,
+            )?,
+            host: HostWorkspace::create(
+                allocation_context,
+                to_usize(workspace.host_size(), "host workspace")?,
+            )?,
         })
     }
 
+    pub(crate) fn prepare(
+        &mut self,
+        context: &ContextRef<'comm>,
+        required: Workspace,
+    ) -> Result<()> {
+        if self.device.context().as_ref() != context.cuda_context().as_ref() {
+            return Err(CudaError::MemoryContextMismatch.into());
+        }
+        if let Some(existing) = &self.context {
+            validate_same_context(existing, context, "workspace")?;
+        }
+        let actual = self.device.byte_len() as u64;
+        if actual < required.device_size() {
+            return Err(Error::InsufficientWorkspaceSize {
+                required: required.device_size(),
+                actual,
+            });
+        }
+        let actual = self.host.memory.as_ref().map_or(0, PinnedHostMemory::len) as u64;
+        if actual < required.host_size() {
+            return Err(Error::InsufficientWorkspaceSize {
+                required: required.host_size(),
+                actual,
+            });
+        }
+        self.context = Some(context.clone());
+        Ok(())
+    }
+
+    #[expect(
+        clippy::needless_pass_by_ref_mut,
+        reason = "writable native pointers require an exclusive workspace borrow"
+    )]
     pub(crate) fn device_mut_ptr(&mut self) -> *mut () {
         self.device.as_mut_ptr().cast()
     }
 
     pub(crate) fn host_mut_ptr(&self) -> *mut () {
-        self.host.ptr
+        self.host.as_mut_ptr()
     }
 }
 
 impl HostWorkspace {
-    fn create(size: usize) -> singe_cuda::error::Result<Self> {
-        let ptr = if size == 0 {
-            ptr::null_mut()
+    fn create(context: &Arc<CudaContext>, size: usize) -> CudaResult<Self> {
+        let memory = if size == 0 {
+            None
         } else {
-            unsafe { DeviceMemory::<u8>::alloc_host(size)? }
+            Some(PinnedHostMemory::<u8>::create_uninit(
+                context,
+                size,
+                HostAllocationFlags::DEFAULT,
+            )?)
         };
-        Ok(Self { ptr })
+        Ok(Self { memory })
+    }
+
+    fn as_mut_ptr(&self) -> *mut () {
+        self.memory
+            .as_ref()
+            .map_or_else(ptr::null_mut, |memory| memory.as_ptr().cast_mut().cast())
     }
 }
 
-impl Drop for HostWorkspace {
+impl Drop for WorkspaceMemory<'_> {
     fn drop(&mut self) {
-        if !self.ptr.is_null()
-            && let Err(err) = unsafe { DeviceMemory::<u8>::free_host(self.ptr) }
+        if let Some(context) = &self.context
+            && let Err(error) = context.clear_operation_cache()
         {
             #[cfg(debug_assertions)]
-            eprintln!("failed to free cutensormp host workspace: {err}");
+            eprintln!("failed to clear cutensormp workspace registrations: {error}");
         }
     }
 }

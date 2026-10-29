@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     const VECTOR_TILE_SIZE: i32 = 128;
 
     #[cutile::entry()]
@@ -59,7 +61,7 @@ mod kernels {
         let input_group_start = group * broadcast_scalar(channels_in_per_group, tile_shape);
         let input_batch_base = batch_index * broadcast_scalar(input_batch_stride, tile_shape);
 
-        let mut sum = load_vector(bias, out_channel, valid, 0.0f32);
+        let mut sum = unsafe { load_vector(bias, out_channel, valid, 0.0f32) };
         // Accumulate a grouped 2D convolution.
         // Taps that fall into padding or beyond the input bounds are masked.
         for group_input_channel in 0i32..channels_in_per_group {
@@ -107,8 +109,10 @@ mod kernels {
                                 + kernel_x,
                             tile_shape,
                         );
-                    let input_values = load_vector(input, input_offsets, input_valid, 0.0f32);
-                    let weight_values = load_vector(weight, weight_offsets, valid, 0.0f32);
+                    let input_values =
+                        unsafe { load_vector(input, input_offsets, input_valid, 0.0f32) };
+                    let weight_values =
+                        unsafe { load_vector(weight, weight_offsets, valid, 0.0f32) };
                     sum = sum + input_values * weight_values;
                 }
             }
@@ -122,7 +126,7 @@ mod kernels {
         let gelu = half * sum * (one + erf_approx_tile_128(sum * inv_sqrt_2));
         let output_offsets =
             batch_index * broadcast_scalar(output_batch_stride, tile_shape) + batch_offset;
-        store_vector(out, output_offsets, gelu, valid);
+        unsafe { store_vector(out, output_offsets, gelu, valid) };
     }
 
     #[cutile::entry()]
@@ -178,7 +182,7 @@ mod kernels {
         let input_group_start = group * broadcast_scalar(channels_in_per_group, tile_shape);
         let input_batch_base = batch_index * broadcast_scalar(input_batch_stride, tile_shape);
 
-        let mut sum = load_vector_f16_as_f32(bias, out_channel, valid);
+        let mut sum = unsafe { load_vector_f16_as_f32(bias, out_channel, valid) };
         for group_input_channel in 0i32..channels_in_per_group {
             let input_channel =
                 input_group_start + broadcast_scalar(group_input_channel, tile_shape);
@@ -224,8 +228,10 @@ mod kernels {
                                 + kernel_x,
                             tile_shape,
                         );
-                    let input_values = load_vector_f16_as_f32(input, input_offsets, input_valid);
-                    let weight_values = load_vector_f16_as_f32(weight, weight_offsets, valid);
+                    let input_values =
+                        unsafe { load_vector_f16_as_f32(input, input_offsets, input_valid) };
+                    let weight_values =
+                        unsafe { load_vector_f16_as_f32(weight, weight_offsets, valid) };
                     sum = sum + input_values * weight_values;
                 }
             }
@@ -237,7 +243,7 @@ mod kernels {
         let gelu = half * sum * (one + erf_approx_tile_128(sum * inv_sqrt_2));
         let output_offsets =
             batch_index * broadcast_scalar(output_batch_stride, tile_shape) + batch_offset;
-        store_vector_f16_from_f32(out, output_offsets, gelu, valid);
+        unsafe { store_vector_f16_from_f32(out, output_offsets, gelu, valid) };
     }
 
     #[cutile::entry()]
@@ -293,7 +299,7 @@ mod kernels {
         let input_group_start = group * broadcast_scalar(channels_in_per_group, tile_shape);
         let input_batch_base = batch_index * broadcast_scalar(input_batch_stride, tile_shape);
 
-        let mut sum = load_vector_bf16_as_f32(bias, out_channel, valid);
+        let mut sum = unsafe { load_vector_bf16_as_f32(bias, out_channel, valid) };
         for group_input_channel in 0i32..channels_in_per_group {
             let input_channel =
                 input_group_start + broadcast_scalar(group_input_channel, tile_shape);
@@ -339,8 +345,10 @@ mod kernels {
                                 + kernel_x,
                             tile_shape,
                         );
-                    let input_values = load_vector_bf16_as_f32(input, input_offsets, input_valid);
-                    let weight_values = load_vector_bf16_as_f32(weight, weight_offsets, valid);
+                    let input_values =
+                        unsafe { load_vector_bf16_as_f32(input, input_offsets, input_valid) };
+                    let weight_values =
+                        unsafe { load_vector_bf16_as_f32(weight, weight_offsets, valid) };
                     sum = sum + input_values * weight_values;
                 }
             }
@@ -352,7 +360,7 @@ mod kernels {
         let gelu = half * sum * (one + erf_approx_tile_128(sum * inv_sqrt_2));
         let output_offsets =
             batch_index * broadcast_scalar(output_batch_stride, tile_shape) + batch_offset;
-        store_vector_bf16_from_f32(out, output_offsets, gelu, valid);
+        unsafe { store_vector_bf16_from_f32(out, output_offsets, gelu, valid) };
     }
 
     #[cutile::entry()]
@@ -384,37 +392,43 @@ mod kernels {
         let one_offset = broadcast_scalar(1i32, tile_shape);
         let last_kernel = kernel_size - 1i32;
         let last_kernel_offset = broadcast_scalar(last_kernel, tile_shape);
-        let x = load_vector(input, offsets, mask, 0.0f32);
-        let mut dot = load_vector(bias, channel, mask, 0.0f32);
+        let x = unsafe { load_vector(input, offsets, mask, 0.0f32) };
+        let mut dot = unsafe { load_vector(bias, channel, mask, 0.0f32) };
         // Existing state slots provide the previous causal taps.
         // The current input supplies the newest tap.
         for kernel in 0i32..last_kernel {
             let kernel_offset = broadcast_scalar(kernel, tile_shape);
             let shifted_kernel_offset = kernel_offset + one_offset;
-            let value = load_vector(
-                conv_state,
-                state_offsets + shifted_kernel_offset,
-                mask,
-                0.0f32,
-            );
-            let weight_value = load_vector(weight, weight_offsets + kernel_offset, mask, 0.0f32);
+            let value = unsafe {
+                load_vector(
+                    conv_state,
+                    state_offsets + shifted_kernel_offset,
+                    mask,
+                    0.0f32,
+                )
+            };
+            let weight_value =
+                unsafe { load_vector(weight, weight_offsets + kernel_offset, mask, 0.0f32) };
             dot = dot + value * weight_value;
         }
-        let last_weight = load_vector(weight, weight_offsets + last_kernel_offset, mask, 0.0f32);
+        let last_weight =
+            unsafe { load_vector(weight, weight_offsets + last_kernel_offset, mask, 0.0f32) };
         dot = dot + x * last_weight;
 
         let one = constant(1.0f32, tile_shape);
         let zero = constant(0.0f32, tile_shape);
         let silu = dot * (one / (one + exp(zero - dot)));
 
-        store_vector(out, offsets, silu, mask);
+        unsafe { store_vector(out, offsets, silu, mask) };
         // Shift the rolling state left.
         // `append_state` can then place the current input in the newest slot.
         for kernel in 0i32..last_kernel {
             let kernel_offset = broadcast_scalar(kernel, tile_shape);
             let next_kernel_offset = kernel_offset + one_offset;
-            let shifted = load_vector(conv_state, state_offsets + next_kernel_offset, mask, 0.0f32);
-            store_vector(conv_state, state_offsets + kernel_offset, shifted, mask);
+            let shifted = unsafe {
+                load_vector(conv_state, state_offsets + next_kernel_offset, mask, 0.0f32)
+            };
+            unsafe { store_vector(conv_state, state_offsets + kernel_offset, shifted, mask) };
         }
     }
 
@@ -437,8 +451,8 @@ mod kernels {
         // `update_silu` has already shifted older taps forward.
         let state_offsets = offsets * broadcast_scalar(kernel_size, tile_shape);
         let last_kernel_offset = broadcast_scalar(kernel_size - 1i32, tile_shape);
-        let x = load_vector(input, offsets, mask, 0.0f32);
-        store_vector(conv_state, state_offsets + last_kernel_offset, x, mask);
+        let x = unsafe { load_vector(input, offsets, mask, 0.0f32) };
+        unsafe { store_vector(conv_state, state_offsets + last_kernel_offset, x, mask) };
     }
 
     #[cutile::entry()]
@@ -469,30 +483,36 @@ mod kernels {
         let one_offset = broadcast_scalar(1i32, tile_shape);
         let last_kernel = kernel_size - 1i32;
         let last_kernel_offset = broadcast_scalar(last_kernel, tile_shape);
-        let x = load_vector_f16_as_f32(input, offsets, mask);
-        let mut dot = load_vector_f16_as_f32(bias, channel, mask);
+        let x = unsafe { load_vector_f16_as_f32(input, offsets, mask) };
+        let mut dot = unsafe { load_vector_f16_as_f32(bias, channel, mask) };
         for kernel in 0i32..last_kernel {
             let kernel_offset = broadcast_scalar(kernel, tile_shape);
             let shifted_kernel_offset = kernel_offset + one_offset;
-            let value =
-                load_vector_f16_as_f32(conv_state, state_offsets + shifted_kernel_offset, mask);
-            let weight_value = load_vector_f16_as_f32(weight, weight_offsets + kernel_offset, mask);
+            let value = unsafe {
+                load_vector_f16_as_f32(conv_state, state_offsets + shifted_kernel_offset, mask)
+            };
+            let weight_value =
+                unsafe { load_vector_f16_as_f32(weight, weight_offsets + kernel_offset, mask) };
             dot = dot + value * weight_value;
         }
-        let last_weight = load_vector_f16_as_f32(weight, weight_offsets + last_kernel_offset, mask);
+        let last_weight =
+            unsafe { load_vector_f16_as_f32(weight, weight_offsets + last_kernel_offset, mask) };
         dot = dot + x * last_weight;
 
         let one = constant(1.0f32, tile_shape);
         let zero = constant(0.0f32, tile_shape);
         let silu = dot * (one / (one + exp(zero - dot)));
 
-        store_vector_f16_from_f32(out, offsets, silu, mask);
+        unsafe { store_vector_f16_from_f32(out, offsets, silu, mask) };
         for kernel in 0i32..last_kernel {
             let kernel_offset = broadcast_scalar(kernel, tile_shape);
             let next_kernel_offset = kernel_offset + one_offset;
-            let shifted =
-                load_vector_f16_as_f32(conv_state, state_offsets + next_kernel_offset, mask);
-            store_vector_f16_from_f32(conv_state, state_offsets + kernel_offset, shifted, mask);
+            let shifted = unsafe {
+                load_vector_f16_as_f32(conv_state, state_offsets + next_kernel_offset, mask)
+            };
+            unsafe {
+                store_vector_f16_from_f32(conv_state, state_offsets + kernel_offset, shifted, mask)
+            };
         }
     }
 
@@ -513,8 +533,10 @@ mod kernels {
         );
         let state_offsets = offsets * broadcast_scalar(kernel_size, tile_shape);
         let last_kernel_offset = broadcast_scalar(kernel_size - 1i32, tile_shape);
-        let x = load_vector_f16_as_f32(input, offsets, mask);
-        store_vector_f16_from_f32(conv_state, state_offsets + last_kernel_offset, x, mask);
+        let x = unsafe { load_vector_f16_as_f32(input, offsets, mask) };
+        unsafe {
+            store_vector_f16_from_f32(conv_state, state_offsets + last_kernel_offset, x, mask)
+        };
     }
 
     #[cutile::entry()]
@@ -545,32 +567,36 @@ mod kernels {
         let one_offset = broadcast_scalar(1i32, tile_shape);
         let last_kernel = kernel_size - 1i32;
         let last_kernel_offset = broadcast_scalar(last_kernel, tile_shape);
-        let x = load_vector_bf16_as_f32(input, offsets, mask);
-        let mut dot = load_vector_bf16_as_f32(bias, channel, mask);
+        let x = unsafe { load_vector_bf16_as_f32(input, offsets, mask) };
+        let mut dot = unsafe { load_vector_bf16_as_f32(bias, channel, mask) };
         for kernel in 0i32..last_kernel {
             let kernel_offset = broadcast_scalar(kernel, tile_shape);
             let shifted_kernel_offset = kernel_offset + one_offset;
-            let value =
-                load_vector_bf16_as_f32(conv_state, state_offsets + shifted_kernel_offset, mask);
+            let value = unsafe {
+                load_vector_bf16_as_f32(conv_state, state_offsets + shifted_kernel_offset, mask)
+            };
             let weight_value =
-                load_vector_bf16_as_f32(weight, weight_offsets + kernel_offset, mask);
+                unsafe { load_vector_bf16_as_f32(weight, weight_offsets + kernel_offset, mask) };
             dot = dot + value * weight_value;
         }
         let last_weight =
-            load_vector_bf16_as_f32(weight, weight_offsets + last_kernel_offset, mask);
+            unsafe { load_vector_bf16_as_f32(weight, weight_offsets + last_kernel_offset, mask) };
         dot = dot + x * last_weight;
 
         let one = constant(1.0f32, tile_shape);
         let zero = constant(0.0f32, tile_shape);
         let silu = dot * (one / (one + exp(zero - dot)));
 
-        store_vector_bf16_from_f32(out, offsets, silu, mask);
+        unsafe { store_vector_bf16_from_f32(out, offsets, silu, mask) };
         for kernel in 0i32..last_kernel {
             let kernel_offset = broadcast_scalar(kernel, tile_shape);
             let next_kernel_offset = kernel_offset + one_offset;
-            let shifted =
-                load_vector_bf16_as_f32(conv_state, state_offsets + next_kernel_offset, mask);
-            store_vector_bf16_from_f32(conv_state, state_offsets + kernel_offset, shifted, mask);
+            let shifted = unsafe {
+                load_vector_bf16_as_f32(conv_state, state_offsets + next_kernel_offset, mask)
+            };
+            unsafe {
+                store_vector_bf16_from_f32(conv_state, state_offsets + kernel_offset, shifted, mask)
+            };
         }
     }
 
@@ -591,8 +617,10 @@ mod kernels {
         );
         let state_offsets = offsets * broadcast_scalar(kernel_size, tile_shape);
         let last_kernel_offset = broadcast_scalar(kernel_size - 1i32, tile_shape);
-        let x = load_vector_bf16_as_f32(input, offsets, mask);
-        store_vector_bf16_from_f32(conv_state, state_offsets + last_kernel_offset, x, mask);
+        let x = unsafe { load_vector_bf16_as_f32(input, offsets, mask) };
+        unsafe {
+            store_vector_bf16_from_f32(conv_state, state_offsets + last_kernel_offset, x, mask)
+        };
     }
 
     #[cutile::entry()]
@@ -628,12 +656,14 @@ mod kernels {
         let channel_weight_offset = broadcast_scalar(channel * kernel_size, tile_shape);
         let zero_i32 = broadcast_scalar(0i32, tile_shape);
         let input_bound = broadcast_scalar(input_length, tile_shape);
-        let mut dot = load_vector(
-            bias,
-            broadcast_scalar(channel, tile_shape),
-            output_mask,
-            0.0f32,
-        );
+        let mut dot = unsafe {
+            load_vector(
+                bias,
+                broadcast_scalar(channel, tile_shape),
+                output_mask,
+                0.0f32,
+            )
+        };
         // Causal indexing aligns the last kernel tap with the current output time.
         // It masks taps before the sequence start.
         for kernel in 0i32..kernel_size {
@@ -643,18 +673,22 @@ mod kernels {
             let input_mask = output_mask
                 & cmpi(input_index, zero_i32, predicate::GreaterThanOrEqual)
                 & cmpi(input_index, input_bound, predicate::LessThan);
-            let value = load_vector(
-                input,
-                channel_input_offset + input_index,
-                input_mask,
-                0.0f32,
-            );
-            let weight_value = load_vector(
-                weight,
-                channel_weight_offset + kernel_offset,
-                output_mask,
-                0.0f32,
-            );
+            let value = unsafe {
+                load_vector(
+                    input,
+                    channel_input_offset + input_index,
+                    input_mask,
+                    0.0f32,
+                )
+            };
+            let weight_value = unsafe {
+                load_vector(
+                    weight,
+                    channel_weight_offset + kernel_offset,
+                    output_mask,
+                    0.0f32,
+                )
+            };
             dot = dot + value * weight_value;
         }
 
@@ -662,7 +696,7 @@ mod kernels {
         let zero = constant(0.0f32, tile_shape);
         let silu = dot * (one / (one + exp(zero - dot)));
 
-        store_vector(out, channel_output_offset + time_offsets, silu, output_mask);
+        unsafe { store_vector(out, channel_output_offset + time_offsets, silu, output_mask) };
     }
 
     #[cutile::entry()]
@@ -692,13 +726,15 @@ mod kernels {
                 broadcast_scalar(0i32, tile_shape),
                 predicate::GreaterThanOrEqual,
             );
-        let value = load_vector(
-            input,
-            input_token * broadcast_scalar(input_length, tile_shape) + input_time,
-            input_mask,
-            0.0f32,
-        );
-        store_vector(conv_state, offsets, value, mask);
+        let value = unsafe {
+            load_vector(
+                input,
+                input_token * broadcast_scalar(input_length, tile_shape) + input_time,
+                input_mask,
+                0.0f32,
+            )
+        };
+        unsafe { store_vector(conv_state, offsets, value, mask) };
     }
 
     #[cutile::entry()]
@@ -733,8 +769,9 @@ mod kernels {
         let channel_weight_offset = broadcast_scalar(channel * kernel_size, tile_shape);
         let zero_i32 = broadcast_scalar(0i32, tile_shape);
         let input_bound = broadcast_scalar(input_length, tile_shape);
-        let mut dot =
-            load_vector_f16_as_f32(bias, broadcast_scalar(channel, tile_shape), output_mask);
+        let mut dot = unsafe {
+            load_vector_f16_as_f32(bias, broadcast_scalar(channel, tile_shape), output_mask)
+        };
         for kernel in 0i32..kernel_size {
             let kernel_offset = broadcast_scalar(kernel, tile_shape);
             let input_index =
@@ -742,10 +779,12 @@ mod kernels {
             let input_mask = output_mask
                 & cmpi(input_index, zero_i32, predicate::GreaterThanOrEqual)
                 & cmpi(input_index, input_bound, predicate::LessThan);
-            let value =
-                load_vector_f16_as_f32(input, channel_input_offset + input_index, input_mask);
-            let weight_value =
-                load_vector_f16_as_f32(weight, channel_weight_offset + kernel_offset, output_mask);
+            let value = unsafe {
+                load_vector_f16_as_f32(input, channel_input_offset + input_index, input_mask)
+            };
+            let weight_value = unsafe {
+                load_vector_f16_as_f32(weight, channel_weight_offset + kernel_offset, output_mask)
+            };
             dot = dot + value * weight_value;
         }
 
@@ -753,7 +792,9 @@ mod kernels {
         let zero = constant(0.0f32, tile_shape);
         let silu = dot * (one / (one + exp(zero - dot)));
 
-        store_vector_f16_from_f32(out, channel_output_offset + time_offsets, silu, output_mask);
+        unsafe {
+            store_vector_f16_from_f32(out, channel_output_offset + time_offsets, silu, output_mask)
+        };
     }
 
     #[cutile::entry()]
@@ -781,12 +822,14 @@ mod kernels {
                 broadcast_scalar(0i32, tile_shape),
                 predicate::GreaterThanOrEqual,
             );
-        let value = load_vector_f16_as_f32(
-            input,
-            input_token * broadcast_scalar(input_length, tile_shape) + input_time,
-            input_mask,
-        );
-        store_vector_f16_from_f32(conv_state, offsets, value, mask);
+        let value = unsafe {
+            load_vector_f16_as_f32(
+                input,
+                input_token * broadcast_scalar(input_length, tile_shape) + input_time,
+                input_mask,
+            )
+        };
+        unsafe { store_vector_f16_from_f32(conv_state, offsets, value, mask) };
     }
 
     #[cutile::entry()]
@@ -821,8 +864,9 @@ mod kernels {
         let channel_weight_offset = broadcast_scalar(channel * kernel_size, tile_shape);
         let zero_i32 = broadcast_scalar(0i32, tile_shape);
         let input_bound = broadcast_scalar(input_length, tile_shape);
-        let mut dot =
-            load_vector_bf16_as_f32(bias, broadcast_scalar(channel, tile_shape), output_mask);
+        let mut dot = unsafe {
+            load_vector_bf16_as_f32(bias, broadcast_scalar(channel, tile_shape), output_mask)
+        };
         for kernel in 0i32..kernel_size {
             let kernel_offset = broadcast_scalar(kernel, tile_shape);
             let input_index =
@@ -830,10 +874,12 @@ mod kernels {
             let input_mask = output_mask
                 & cmpi(input_index, zero_i32, predicate::GreaterThanOrEqual)
                 & cmpi(input_index, input_bound, predicate::LessThan);
-            let value =
-                load_vector_bf16_as_f32(input, channel_input_offset + input_index, input_mask);
-            let weight_value =
-                load_vector_bf16_as_f32(weight, channel_weight_offset + kernel_offset, output_mask);
+            let value = unsafe {
+                load_vector_bf16_as_f32(input, channel_input_offset + input_index, input_mask)
+            };
+            let weight_value = unsafe {
+                load_vector_bf16_as_f32(weight, channel_weight_offset + kernel_offset, output_mask)
+            };
             dot = dot + value * weight_value;
         }
 
@@ -841,7 +887,9 @@ mod kernels {
         let zero = constant(0.0f32, tile_shape);
         let silu = dot * (one / (one + exp(zero - dot)));
 
-        store_vector_bf16_from_f32(out, channel_output_offset + time_offsets, silu, output_mask);
+        unsafe {
+            store_vector_bf16_from_f32(out, channel_output_offset + time_offsets, silu, output_mask)
+        };
     }
 
     #[cutile::entry()]
@@ -869,12 +917,14 @@ mod kernels {
                 broadcast_scalar(0i32, tile_shape),
                 predicate::GreaterThanOrEqual,
             );
-        let value = load_vector_bf16_as_f32(
-            input,
-            input_token * broadcast_scalar(input_length, tile_shape) + input_time,
-            input_mask,
-        );
-        store_vector_bf16_from_f32(conv_state, offsets, value, mask);
+        let value = unsafe {
+            load_vector_bf16_as_f32(
+                input,
+                input_token * broadcast_scalar(input_length, tile_shape) + input_time,
+                input_mask,
+            )
+        };
+        unsafe { store_vector_bf16_from_f32(conv_state, offsets, value, mask) };
     }
 
     #[cutile::entry()]
@@ -894,23 +944,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<1, false, false>(
-            out,
-            input,
-            weight,
-            input,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<1, false, false>(
+                out,
+                input,
+                weight,
+                input,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -930,23 +982,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<2, false, false>(
-            out,
-            input,
-            weight,
-            input,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<2, false, false>(
+                out,
+                input,
+                weight,
+                input,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -966,23 +1020,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<3, false, false>(
-            out,
-            input,
-            weight,
-            input,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<3, false, false>(
+                out,
+                input,
+                weight,
+                input,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1002,23 +1058,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<5, false, false>(
-            out,
-            input,
-            weight,
-            input,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<5, false, false>(
+                out,
+                input,
+                weight,
+                input,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1039,23 +1097,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_f32::<1>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_f32::<1>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1076,23 +1136,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_f32::<2>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_f32::<2>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1113,23 +1175,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_f32::<3>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_f32::<3>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1150,23 +1214,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_f32::<5>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_f32::<5>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1184,20 +1250,22 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_im2col_f32::<1>(
-            out,
-            input,
-            channels_in,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_im2col_f32::<1>(
+                out,
+                input,
+                channels_in,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1215,20 +1283,22 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_im2col_f32::<2>(
-            out,
-            input,
-            channels_in,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_im2col_f32::<2>(
+                out,
+                input,
+                channels_in,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1246,20 +1316,22 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_im2col_f32::<3>(
-            out,
-            input,
-            channels_in,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_im2col_f32::<3>(
+                out,
+                input,
+                channels_in,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1277,20 +1349,22 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_im2col_f32::<5>(
-            out,
-            input,
-            channels_in,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_im2col_f32::<5>(
+                out,
+                input,
+                channels_in,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1310,22 +1384,24 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f16_f32::<1>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f16_f32::<1>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1345,22 +1421,24 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f16_f32::<2>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f16_f32::<2>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1380,22 +1458,24 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f16_f32::<3>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f16_f32::<3>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1415,22 +1495,24 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f16_f32::<5>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f16_f32::<5>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1451,23 +1533,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_f16_f32::<1>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_f16_f32::<1>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1488,23 +1572,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_f16_f32::<2>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_f16_f32::<2>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1525,23 +1611,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_f16_f32::<3>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_f16_f32::<3>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1562,23 +1650,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_f16_f32::<5>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_f16_f32::<5>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1598,22 +1688,24 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_bf16_f32::<1>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_bf16_f32::<1>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1633,22 +1725,24 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_bf16_f32::<2>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_bf16_f32::<2>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1668,22 +1762,24 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_bf16_f32::<3>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_bf16_f32::<3>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1703,22 +1799,24 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_bf16_f32::<5>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_bf16_f32::<5>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1739,23 +1837,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_bf16_f32::<1>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_bf16_f32::<1>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1776,23 +1876,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_bf16_f32::<2>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_bf16_f32::<2>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1813,23 +1915,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_bf16_f32::<3>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_bf16_f32::<3>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1850,23 +1954,25 @@ mod kernels {
         output_values_per_batch: i32,
         output_len: i32,
     ) {
-        conv1d_batched_bf16_f32::<5>(
-            out,
-            input,
-            weight,
-            channels_in,
-            _channels_out,
-            input_length,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            input_batch_stride,
-            output_batch_stride,
-            output_values_per_batch,
-            output_len,
-        );
+        unsafe {
+            conv1d_batched_bf16_f32::<5>(
+                out,
+                input,
+                weight,
+                channels_in,
+                _channels_out,
+                input_length,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                input_batch_stride,
+                output_batch_stride,
+                output_values_per_batch,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1887,23 +1993,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<1, true, false>(
-            out,
-            input,
-            weight,
-            bias,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<1, true, false>(
+                out,
+                input,
+                weight,
+                bias,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1924,23 +2032,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<2, true, false>(
-            out,
-            input,
-            weight,
-            bias,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<2, true, false>(
+                out,
+                input,
+                weight,
+                bias,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1961,23 +2071,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<3, true, false>(
-            out,
-            input,
-            weight,
-            bias,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<3, true, false>(
+                out,
+                input,
+                weight,
+                bias,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -1998,23 +2110,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<5, true, false>(
-            out,
-            input,
-            weight,
-            bias,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<5, true, false>(
+                out,
+                input,
+                weight,
+                bias,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -2035,23 +2149,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<1, true, true>(
-            out,
-            input,
-            weight,
-            bias,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<1, true, true>(
+                out,
+                input,
+                weight,
+                bias,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -2072,23 +2188,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<2, true, true>(
-            out,
-            input,
-            weight,
-            bias,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<2, true, true>(
+                out,
+                input,
+                weight,
+                bias,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -2109,23 +2227,25 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<3, true, true>(
-            out,
-            input,
-            weight,
-            bias,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<3, true, true>(
+                out,
+                input,
+                weight,
+                bias,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -2146,26 +2266,28 @@ mod kernels {
         left_padding: i32,
         output_len: i32,
     ) {
-        conv1d_causal_f32::<5, true, true>(
-            out,
-            input,
-            weight,
-            bias,
-            channels_in,
-            _channels_out,
-            input_start,
-            input_length,
-            output_start,
-            output_length,
-            stride,
-            dilation,
-            groups,
-            left_padding,
-            output_len,
-        );
+        unsafe {
+            conv1d_causal_f32::<5, true, true>(
+                out,
+                input,
+                weight,
+                bias,
+                channels_in,
+                _channels_out,
+                input_start,
+                input_length,
+                output_start,
+                output_length,
+                stride,
+                dilation,
+                groups,
+                left_padding,
+                output_len,
+            )
+        };
     }
 
-    fn conv1d_causal_f32<const K: i32, const HAS_BIAS: bool, const GELU: bool>(
+    unsafe fn conv1d_causal_f32<const K: i32, const HAS_BIAS: bool, const GELU: bool>(
         out: *mut f32,
         input: *mut f32,
         weight: *mut f32,
@@ -2201,7 +2323,7 @@ mod kernels {
 
         let mut sum = constant(0.0f32, tile_shape);
         if HAS_BIAS {
-            sum = load_vector(bias, out_channel, valid, 0.0f32);
+            sum = unsafe { load_vector(bias, out_channel, valid, 0.0f32) };
         }
         // `input_start` and `output_start` let callers run causal convolution over sequence chunks.
         // They preserve absolute positions.
@@ -2226,11 +2348,12 @@ mod kernels {
                 let input_offsets = input_channel * broadcast_scalar(input_length, tile_shape)
                     + input_pos
                     - broadcast_scalar(input_start, tile_shape);
-                let input_values = load_vector(input, input_offsets, input_valid, 0.0f32);
+                let input_values =
+                    unsafe { load_vector(input, input_offsets, input_valid, 0.0f32) };
                 let weight_offsets = out_channel
                     * broadcast_scalar(channels_in_per_group * K, tile_shape)
                     + broadcast_scalar(group_input_channel * K + kernel_index, tile_shape);
-                let weight_values = load_vector(weight, weight_offsets, valid, 0.0f32);
+                let weight_values = unsafe { load_vector(weight, weight_offsets, valid, 0.0f32) };
                 sum = sum + input_values * weight_values;
             }
         }
@@ -2242,10 +2365,10 @@ mod kernels {
             let cubic_coeff = constant(0.044715f32, tile_shape);
             sum = half * sum * (one + tanh(sqrt_2_over_pi * (sum + cubic_coeff * sum * sum * sum)));
         }
-        store_vector(out, offsets, sum, valid);
+        unsafe { store_vector(out, offsets, sum, valid) };
     }
 
-    fn conv1d_batched_f32<const K: i32>(
+    unsafe fn conv1d_batched_f32<const K: i32>(
         out: *mut f32,
         input: *mut f32,
         weight: *mut f32,
@@ -2304,20 +2427,21 @@ mod kernels {
                 let input_offsets = batch * broadcast_scalar(input_batch_stride, tile_shape)
                     + input_channel * broadcast_scalar(input_length, tile_shape)
                     + input_pos;
-                let input_values = load_vector(input, input_offsets, input_valid, 0.0f32);
+                let input_values =
+                    unsafe { load_vector(input, input_offsets, input_valid, 0.0f32) };
                 let weight_offsets = out_channel
                     * broadcast_scalar(channels_in_per_group * K, tile_shape)
                     + broadcast_scalar(group_input_channel * K + kernel_index, tile_shape);
-                let weight_values = load_vector(weight, weight_offsets, valid, 0.0f32);
+                let weight_values = unsafe { load_vector(weight, weight_offsets, valid, 0.0f32) };
                 sum = sum + input_values * weight_values;
             }
         }
         let output_offsets =
             batch * broadcast_scalar(output_batch_stride, tile_shape) + batch_output_offset;
-        store_vector(out, output_offsets, sum, valid);
+        unsafe { store_vector(out, output_offsets, sum, valid) };
     }
 
-    fn conv1d_batched_im2col_f32<const K: i32>(
+    unsafe fn conv1d_batched_im2col_f32<const K: i32>(
         out: *mut f32,
         input: *mut f32,
         channels_in: i32,
@@ -2374,11 +2498,11 @@ mod kernels {
         let input_offsets = batch * broadcast_scalar(input_batch_stride, tile_shape)
             + input_channel * broadcast_scalar(input_length, tile_shape)
             + input_pos;
-        let values = load_vector(input, input_offsets, input_valid, 0.0f32);
-        store_vector(out, offsets, values, valid);
+        let values = unsafe { load_vector(input, input_offsets, input_valid, 0.0f32) };
+        unsafe { store_vector(out, offsets, values, valid) };
     }
 
-    fn conv1d_causal_f16_f32<const K: i32>(
+    unsafe fn conv1d_causal_f16_f32<const K: i32>(
         out: *mut f32,
         input: *mut f16,
         weight: *mut f16,
@@ -2433,18 +2557,20 @@ mod kernels {
                 let input_offsets = input_channel * broadcast_scalar(input_length, tile_shape)
                     + input_pos
                     - broadcast_scalar(input_start, tile_shape);
-                let input_values = load_vector_f16_as_f32(input, input_offsets, input_valid);
+                let input_values =
+                    unsafe { load_vector_f16_as_f32(input, input_offsets, input_valid) };
                 let weight_offsets = out_channel
                     * broadcast_scalar(channels_in_per_group * K, tile_shape)
                     + broadcast_scalar(group_input_channel * K + kernel_index, tile_shape);
-                let weight_values = load_vector_f16_as_f32(weight, weight_offsets, valid);
+                let weight_values =
+                    unsafe { load_vector_f16_as_f32(weight, weight_offsets, valid) };
                 sum = sum + input_values * weight_values;
             }
         }
-        store_vector(out, offsets, sum, valid);
+        unsafe { store_vector(out, offsets, sum, valid) };
     }
 
-    fn conv1d_batched_f16_f32<const K: i32>(
+    unsafe fn conv1d_batched_f16_f32<const K: i32>(
         out: *mut f32,
         input: *mut f16,
         weight: *mut f16,
@@ -2503,20 +2629,22 @@ mod kernels {
                 let input_offsets = batch * broadcast_scalar(input_batch_stride, tile_shape)
                     + input_channel * broadcast_scalar(input_length, tile_shape)
                     + input_pos;
-                let input_values = load_vector_f16_as_f32(input, input_offsets, input_valid);
+                let input_values =
+                    unsafe { load_vector_f16_as_f32(input, input_offsets, input_valid) };
                 let weight_offsets = out_channel
                     * broadcast_scalar(channels_in_per_group * K, tile_shape)
                     + broadcast_scalar(group_input_channel * K + kernel_index, tile_shape);
-                let weight_values = load_vector_f16_as_f32(weight, weight_offsets, valid);
+                let weight_values =
+                    unsafe { load_vector_f16_as_f32(weight, weight_offsets, valid) };
                 sum = sum + input_values * weight_values;
             }
         }
         let output_offsets =
             batch * broadcast_scalar(output_batch_stride, tile_shape) + batch_output_offset;
-        store_vector(out, output_offsets, sum, valid);
+        unsafe { store_vector(out, output_offsets, sum, valid) };
     }
 
-    fn conv1d_causal_bf16_f32<const K: i32>(
+    unsafe fn conv1d_causal_bf16_f32<const K: i32>(
         out: *mut f32,
         input: *mut bf16,
         weight: *mut bf16,
@@ -2571,18 +2699,20 @@ mod kernels {
                 let input_offsets = input_channel * broadcast_scalar(input_length, tile_shape)
                     + input_pos
                     - broadcast_scalar(input_start, tile_shape);
-                let input_values = load_vector_bf16_as_f32(input, input_offsets, input_valid);
+                let input_values =
+                    unsafe { load_vector_bf16_as_f32(input, input_offsets, input_valid) };
                 let weight_offsets = out_channel
                     * broadcast_scalar(channels_in_per_group * K, tile_shape)
                     + broadcast_scalar(group_input_channel * K + kernel_index, tile_shape);
-                let weight_values = load_vector_bf16_as_f32(weight, weight_offsets, valid);
+                let weight_values =
+                    unsafe { load_vector_bf16_as_f32(weight, weight_offsets, valid) };
                 sum = sum + input_values * weight_values;
             }
         }
-        store_vector(out, offsets, sum, valid);
+        unsafe { store_vector(out, offsets, sum, valid) };
     }
 
-    fn conv1d_batched_bf16_f32<const K: i32>(
+    unsafe fn conv1d_batched_bf16_f32<const K: i32>(
         out: *mut f32,
         input: *mut bf16,
         weight: *mut bf16,
@@ -2641,20 +2771,22 @@ mod kernels {
                 let input_offsets = batch * broadcast_scalar(input_batch_stride, tile_shape)
                     + input_channel * broadcast_scalar(input_length, tile_shape)
                     + input_pos;
-                let input_values = load_vector_bf16_as_f32(input, input_offsets, input_valid);
+                let input_values =
+                    unsafe { load_vector_bf16_as_f32(input, input_offsets, input_valid) };
                 let weight_offsets = out_channel
                     * broadcast_scalar(channels_in_per_group * K, tile_shape)
                     + broadcast_scalar(group_input_channel * K + kernel_index, tile_shape);
-                let weight_values = load_vector_bf16_as_f32(weight, weight_offsets, valid);
+                let weight_values =
+                    unsafe { load_vector_bf16_as_f32(weight, weight_offsets, valid) };
                 sum = sum + input_values * weight_values;
             }
         }
         let output_offsets =
             batch * broadcast_scalar(output_batch_stride, tile_shape) + batch_output_offset;
-        store_vector(out, output_offsets, sum, valid);
+        unsafe { store_vector(out, output_offsets, sum, valid) };
     }
 
-    fn load_vector(
+    unsafe fn load_vector(
         input: *mut f32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2666,19 +2798,21 @@ mod kernels {
         let input_base: PointerTile<*mut f32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    fn load_vector_f16_as_f32(
+    unsafe fn load_vector_f16_as_f32(
         input: *mut f16,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2689,21 +2823,23 @@ mod kernels {
         let input_base: PointerTile<*mut f16, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f16, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [128] }> = convert_tile(result.0);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, const_shape![128]);
         select(mask, values, zero)
     }
 
-    fn load_vector_bf16_as_f32(
+    unsafe fn load_vector_bf16_as_f32(
         input: *mut bf16,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2714,21 +2850,23 @@ mod kernels {
         let input_base: PointerTile<*mut bf16, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut bf16, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut bf16, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<bf16, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<bf16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [128] }> = convert_tile(result.0);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, const_shape![128]);
         select(mask, values, zero)
     }
 
-    fn store_vector(
+    unsafe fn store_vector(
         out: *mut f32,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -2740,18 +2878,20 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn store_vector_f16_from_f32(
+    unsafe fn store_vector_f16_from_f32(
         out: *mut f16,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -2764,18 +2904,20 @@ mod kernels {
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
         let output: Tile<f16, { [128] }> = convert_tile(values);
-        store_ptr_tko(
-            out_ptrs,
-            output,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                output,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn store_vector_bf16_from_f32(
+    unsafe fn store_vector_bf16_from_f32(
         out: *mut bf16,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -2788,15 +2930,17 @@ mod kernels {
         let out_ptrs: PointerTile<*mut bf16, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut bf16, { [128] }> = out_ptrs.offset_tile(offsets);
         let output: Tile<bf16, { [128] }> = convert_tile(values);
-        store_ptr_tko(
-            out_ptrs,
-            output,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                output,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     fn erf_approx_tile_128(x: Tile<f32, { [128] }>) -> Tile<f32, { [128] }> {

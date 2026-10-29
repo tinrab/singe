@@ -4,15 +4,16 @@ use singe_cublas::{
     error::Result,
     types::{FillMode, SideMode},
 };
+
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
 fn main() -> Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&[1.0_f64, 3.0, 3.0, 4.0])?;
-    let b = DeviceMemory::from_slice(&[5.0_f64, 7.0, 7.0, 8.0])?;
-    let mut c = DeviceMemory::<f64>::zeroes(4)?;
+    let a = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 3.0, 4.0])?;
+    let b = DeviceMemory::from_slice(&cuda, &[5.0_f64, 7.0, 7.0, 8.0])?;
+    let mut c = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
 
     dsymm(
         &cublas,

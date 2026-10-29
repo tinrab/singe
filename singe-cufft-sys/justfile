@@ -1,3 +1,4 @@
+cuda_path := "$CUDA_PATH"
 cufft_include_path := "$CUFFT_INCLUDE_PATH"
 
 generate:
@@ -20,7 +21,6 @@ generate:
         --blocklist-item "^cuda.*" \
         --blocklist-item "^CUDA.*" \
         --blocklist-item "^libraryPropertyType.*" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -30,6 +30,7 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -I {{cuda_path}}/include \
             -I {{cufft_include_path}} \
         > bindings.rs
 
@@ -41,6 +42,26 @@ generate:
 
     mv bindings.rs ./src/sys_${CUFFT_VERSION}.rs
 
+    bindgen {{cufft_include_path}}/cufft_device.h \
+        --allowlist-item "^(cufft(Device|Description).*|CUFFT_(DESC|DEVICE).*)$" \
+        --blocklist-item "^cufft(Result|Handle|Type).*" \
+        --blocklist-item "^cuda(Stream|DataType).*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-size_t-is-usize --no-layout-tests --with-derive-default \
+        --with-derive-eq --with-derive-hash --use-core --default-enum-style=rust \
+        -- -x c++ -DCUFFT_ENABLE_EXPERIMENTAL_API -I {{cuda_path}}/include -I {{cufft_include_path}} \
+        > ./src/device_${CUFFT_VERSION}.rs
+
+    bindgen {{cufft_include_path}}/cufftXt.h \
+        --allowlist-item "^(cufftXt.*|CUFFT_.*|cudaLibXt.*|cudaXt.*|CUDA_XT.*)$" \
+        --blocklist-item "^cufft(Result|Handle|Type).*" \
+        --blocklist-item "^cuda(Stream|DataType).*" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-size_t-is-usize --no-layout-tests --with-derive-default \
+        --with-derive-eq --with-derive-hash --use-core --default-enum-style=rust \
+        --  -I {{cuda_path}}/include -I {{cufft_include_path}} \
+        > ./src/xt_${CUFFT_VERSION}.rs
+
 clean:
     rm -rf ./dist
-    rm -f ./src/sys_*.rs
+    rm -f ./src/sys_*.rs ./src/device_*.rs ./src/xt_*.rs

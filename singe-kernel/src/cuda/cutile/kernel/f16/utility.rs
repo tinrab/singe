@@ -2,21 +2,31 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     pub fn activation_unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f16, { [B] }>,
         input: &Tensor<f16, { [-1] }>,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
-        let one = constant(f16::from_f32(1.0), out.shape());
-        let half = constant(f16::from_f32(0.5), out.shape());
-        let third = constant(f16::from_f32(0.33333334), out.shape());
-        let three = constant(f16::from_f32(3.0), out.shape());
-        let six = constant(f16::from_f32(6.0), out.shape());
-        let pi = constant(f16::from_f32(std::f32::consts::PI), out.shape());
-        let one_eighty = constant(f16::from_f32(180.0), out.shape());
-        let selu_alpha = constant(f16::from_f32(1.6732632), out.shape());
-        let selu_scale = constant(f16::from_f32(1.050701), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
+        let one: Tile<f16, { [B] }> = constant(f16::ONE, out.shape());
+        let half: Tile<f32, { [B] }> = constant(0.5f32, out.shape());
+        let half: Tile<f16, { [B] }> = convert_tile(half);
+        let third: Tile<f32, { [B] }> = constant(0.33333334f32, out.shape());
+        let third: Tile<f16, { [B] }> = convert_tile(third);
+        let three: Tile<f32, { [B] }> = constant(3.0f32, out.shape());
+        let three: Tile<f16, { [B] }> = convert_tile(three);
+        let six: Tile<f32, { [B] }> = constant(6.0f32, out.shape());
+        let six: Tile<f16, { [B] }> = convert_tile(six);
+        let pi: Tile<f32, { [B] }> = constant(3.1415927f32, out.shape());
+        let pi: Tile<f16, { [B] }> = convert_tile(pi);
+        let one_eighty: Tile<f32, { [B] }> = constant(180.0f32, out.shape());
+        let one_eighty: Tile<f16, { [B] }> = convert_tile(one_eighty);
+        let selu_alpha: Tile<f32, { [B] }> = constant(1.6732632f32, out.shape());
+        let selu_alpha: Tile<f16, { [B] }> = convert_tile(selu_alpha);
+        let selu_scale: Tile<f32, { [B] }> = constant(1.050701f32, out.shape());
+        let selu_scale: Tile<f16, { [B] }> = convert_tile(selu_scale);
         let value = if OP == 0 {
             zero - x
         } else if OP == 1 {
@@ -70,14 +80,17 @@ mod kernels {
         } else if OP == 22 {
             half * log((one + x) / (one - x))
         } else if OP == 23 {
-            max_tile(x, zero)
+            let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
+            select(negative, zero, x)
         } else if OP == 24 {
             one / (one + exp(zero - x))
         } else if OP == 25 {
             x / (one + exp(zero - x))
         } else if OP == 26 {
-            let sqrt_2_over_pi = constant(f16::from_f32(0.7978846), out.shape());
-            let cubic_coeff = constant(f16::from_f32(0.044715), out.shape());
+            let sqrt_2_over_pi: Tile<f32, { [B] }> = constant(0.7978846f32, out.shape());
+            let sqrt_2_over_pi: Tile<f16, { [B] }> = convert_tile(sqrt_2_over_pi);
+            let cubic_coeff: Tile<f32, { [B] }> = constant(0.044715f32, out.shape());
+            let cubic_coeff: Tile<f16, { [B] }> = convert_tile(cubic_coeff);
             half * x * (one + tanh(sqrt_2_over_pi * (x + cubic_coeff * x * x * x)))
         } else if OP == 27 {
             let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
@@ -92,7 +105,8 @@ mod kernels {
         } else if OP == 31 {
             log2(x)
         } else if OP == 32 {
-            let ln_10 = constant(f16::from_f32(std::f32::consts::LN_10), out.shape());
+            let ln_10: Tile<f32, { [B] }> = constant(2.3025851f32, out.shape());
+            let ln_10: Tile<f16, { [B] }> = convert_tile(ln_10);
             log(x) / ln_10
         } else if OP == 33 {
             let root = pow(absf(x), third);
@@ -157,9 +171,35 @@ mod kernels {
         } else if OP == 3 {
             lhs_tile / rhs_tile
         } else if OP == 4 {
-            maxf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::LessThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 5 {
-            minf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::GreaterThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 6 {
             atan2(lhs_tile, rhs_tile)
         } else if OP == 7 {
@@ -177,13 +217,13 @@ mod kernels {
             diff * diff
         } else if OP == 11 {
             let max = maxf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled);
-            let neg_inf = constant(f16::from_f32(f32::NEG_INFINITY), out.shape());
+            let neg_inf: Tile<f16, { [B] }> = constant(f16::NEG_INFINITY, out.shape());
             let both_neg_inf = cmpf(lhs_tile, neg_inf, predicate::Equal, cmp_ordering::Ordered)
                 & cmpf(rhs_tile, neg_inf, predicate::Equal, cmp_ordering::Ordered);
             let value = max + log(exp(lhs_tile - max) + exp(rhs_tile - max));
             select(both_neg_inf, neg_inf, value)
         } else if OP == 12 {
-            let zero = constant(f16::from_f32(0.0), out.shape());
+            let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
             let zero_lhs = cmpf(lhs_tile, zero, predicate::Equal, cmp_ordering::Ordered);
             select(zero_lhs, zero, lhs_tile * log(rhs_tile))
         } else {
@@ -199,8 +239,8 @@ mod kernels {
     ) {
         let lhs_tile: Tile<f16, { [B] }> = load_tile_like(lhs, out);
         let rhs_tile: Tile<f16, { [B] }> = load_tile_like(rhs, out);
-        let one = constant(f16::from_f32(1.0), out.shape());
-        let zero = constant(f16::from_f32(0.0), out.shape());
+        let one: Tile<f16, { [B] }> = constant(f16::ONE, out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
         let mask = if OP == 0 {
             cmpf(lhs_tile, rhs_tile, predicate::Equal, cmp_ordering::Ordered)
         } else if OP == 1 {
@@ -313,15 +353,17 @@ mod kernels {
         let input_base: PointerTile<*mut u8, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut u8, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut u8, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<u8, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0u8),
-            None,
-            Latency::<0>,
-        );
+        let input_result: (Tile<u8, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0u8),
+                None,
+                Latency::<0>,
+            )
+        };
         let input_f16: Tile<f16, { [128] }> = convert_tile(input_result.0);
         let values = (input_f16 - broadcast_scalar(zero_point, tile_shape))
             * broadcast_scalar(scale, tile_shape);
@@ -330,15 +372,17 @@ mod kernels {
         let out_base: PointerTile<*mut f16, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -362,15 +406,17 @@ mod kernels {
         let input_base: PointerTile<*mut i8, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut i8, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut i8, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<i8, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0i8),
-            None,
-            Latency::<0>,
-        );
+        let input_result: (Tile<i8, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0i8),
+                None,
+                Latency::<0>,
+            )
+        };
         let input_f16: Tile<f16, { [128] }> = convert_tile(input_result.0);
         let values = (input_f16 - broadcast_scalar(zero_point, tile_shape))
             * broadcast_scalar(scale, tile_shape);
@@ -379,15 +425,17 @@ mod kernels {
         let out_base: PointerTile<*mut f16, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     pub fn reduce_impl<const OP: i32, const BN: i32>(
@@ -396,7 +444,7 @@ mod kernels {
         divisor: f16,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f16, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let input_tile_raw_f32: Tile<f32, { [1, BN] }> = convert_tile(input_tile_raw);
@@ -451,7 +499,7 @@ mod kernels {
         input: &Tensor<f16, { [-1, -1] }>,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f16, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -467,7 +515,7 @@ mod kernels {
         );
         let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
         let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
-        let numeric_i32 = select(valid_cols & numeric, one_i32, zero_i32);
+        let numeric_i32: Tile<i32, { [1, BN] }> = select(valid_cols & numeric, one_i32, zero_i32);
         let numeric_count: Tile<i32, { [1] }> = reduce_sum(numeric_i32, 1i32);
         let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
         let has_numeric = cmpi(
@@ -506,7 +554,7 @@ mod kernels {
         let best_nan = no_numeric & valid_cols;
         let best = (has_numeric & valid_cols & numeric & best_numeric) | best_nan;
         let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
-        let best_indices = select(best, col_iota, sentinel);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
         let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
         let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
         let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);
@@ -564,17 +612,17 @@ mod kernels {
             diff * diff
         } else if OP == 16 {
             let max = maxf(x, scalar, nan::Enabled, ftz::Disabled);
-            let neg_inf = constant(f16::from_f32(f32::NEG_INFINITY), out.shape());
+            let neg_inf: Tile<f16, { [B] }> = constant(f16::NEG_INFINITY, out.shape());
             let both_neg_inf = cmpf(x, neg_inf, predicate::Equal, cmp_ordering::Ordered)
                 & cmpf(scalar, neg_inf, predicate::Equal, cmp_ordering::Ordered);
             let value = max + log(exp(x - max) + exp(scalar - max));
             select(both_neg_inf, neg_inf, value)
         } else if OP == 17 {
-            let zero = constant(f16::from_f32(0.0), out.shape());
+            let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
             let zero_x = cmpf(x, zero, predicate::Equal, cmp_ordering::Ordered);
             select(zero_x, zero, x * log(scalar))
         } else if OP == 18 {
-            let zero = constant(f16::from_f32(0.0), out.shape());
+            let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
             let zero_scalar = cmpf(scalar, zero, predicate::Equal, cmp_ordering::Ordered);
             select(zero_scalar, zero, scalar * log(x))
         } else {
@@ -631,9 +679,7 @@ mod kernels {
             input_tile_raw
         };
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
-        let col_iota = col_iota
-            .reshape(const_shape![1i32, BN])
-            .broadcast(out.shape());
+        let col_iota = col_iota.reshape(const_shape![1, BN]).broadcast(out.shape());
         let input_shape: [i32; 2] = get_tensor_shape(input);
         let cols_tile = broadcast_scalar(input_shape[1], out.shape());
         let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
@@ -661,7 +707,7 @@ mod kernels {
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f16, { [-1, -1] }>,
     ) {
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f16, { [1, BN] }> = input
             .partition(tile_shape)
             .load([get_tile_block_id().0, 0i32]);
@@ -691,16 +737,24 @@ mod kernels {
         input: &Tensor<f16, { [-1] }>,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
-        let one = constant(f16::from_f32(1.0), out.shape());
-        let half = constant(f16::from_f32(0.5), out.shape());
-        let third = constant(f16::from_f32(0.33333334), out.shape());
-        let three = constant(f16::from_f32(3.0), out.shape());
-        let six = constant(f16::from_f32(6.0), out.shape());
-        let pi = constant(f16::from_f32(std::f32::consts::PI), out.shape());
-        let one_eighty = constant(f16::from_f32(180.0), out.shape());
-        let selu_alpha = constant(f16::from_f32(1.6732632), out.shape());
-        let selu_scale = constant(f16::from_f32(1.050701), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
+        let one: Tile<f16, { [B] }> = constant(f16::ONE, out.shape());
+        let half: Tile<f32, { [B] }> = constant(0.5f32, out.shape());
+        let half: Tile<f16, { [B] }> = convert_tile(half);
+        let third: Tile<f32, { [B] }> = constant(0.33333334f32, out.shape());
+        let third: Tile<f16, { [B] }> = convert_tile(third);
+        let three: Tile<f32, { [B] }> = constant(3.0f32, out.shape());
+        let three: Tile<f16, { [B] }> = convert_tile(three);
+        let six: Tile<f32, { [B] }> = constant(6.0f32, out.shape());
+        let six: Tile<f16, { [B] }> = convert_tile(six);
+        let pi: Tile<f32, { [B] }> = constant(3.1415927f32, out.shape());
+        let pi: Tile<f16, { [B] }> = convert_tile(pi);
+        let one_eighty: Tile<f32, { [B] }> = constant(180.0f32, out.shape());
+        let one_eighty: Tile<f16, { [B] }> = convert_tile(one_eighty);
+        let selu_alpha: Tile<f32, { [B] }> = constant(1.6732632f32, out.shape());
+        let selu_alpha: Tile<f16, { [B] }> = convert_tile(selu_alpha);
+        let selu_scale: Tile<f32, { [B] }> = constant(1.050701f32, out.shape());
+        let selu_scale: Tile<f16, { [B] }> = convert_tile(selu_scale);
         let value = if OP == 0 {
             zero - x
         } else if OP == 1 {
@@ -754,14 +808,17 @@ mod kernels {
         } else if OP == 22 {
             half * log((one + x) / (one - x))
         } else if OP == 23 {
-            max_tile(x, zero)
+            let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
+            select(negative, zero, x)
         } else if OP == 24 {
             one / (one + exp(zero - x))
         } else if OP == 25 {
             x / (one + exp(zero - x))
         } else if OP == 26 {
-            let sqrt_2_over_pi = constant(f16::from_f32(0.7978846), out.shape());
-            let cubic_coeff = constant(f16::from_f32(0.044715), out.shape());
+            let sqrt_2_over_pi: Tile<f32, { [B] }> = constant(0.7978846f32, out.shape());
+            let sqrt_2_over_pi: Tile<f16, { [B] }> = convert_tile(sqrt_2_over_pi);
+            let cubic_coeff: Tile<f32, { [B] }> = constant(0.044715f32, out.shape());
+            let cubic_coeff: Tile<f16, { [B] }> = convert_tile(cubic_coeff);
             half * x * (one + tanh(sqrt_2_over_pi * (x + cubic_coeff * x * x * x)))
         } else if OP == 27 {
             let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
@@ -776,7 +833,8 @@ mod kernels {
         } else if OP == 31 {
             log2(x)
         } else if OP == 32 {
-            let ln_10 = constant(f16::from_f32(std::f32::consts::LN_10), out.shape());
+            let ln_10: Tile<f32, { [B] }> = constant(2.3025851f32, out.shape());
+            let ln_10: Tile<f16, { [B] }> = convert_tile(ln_10);
             log(x) / ln_10
         } else if OP == 33 {
             let root = pow(absf(x), third);
@@ -833,8 +891,8 @@ mod kernels {
         neginf: f16,
     ) {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
-        let zero = constant(f16::from_f32(0.0), out.shape());
-        let infinity = constant(f16::from_f32(f32::INFINITY), out.shape());
+        let zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
+        let infinity: Tile<f16, { [B] }> = constant(f16::INFINITY, out.shape());
         let abs_x = absf(x);
         let numeric = cmpf(x, x, predicate::Equal, cmp_ordering::Ordered);
         let infinite = cmpf(abs_x, infinity, predicate::Equal, cmp_ordering::Ordered);
@@ -853,8 +911,10 @@ mod kernels {
         let x: Tile<f16, { [B] }> = load_tile_like(input, out);
         let one = constant(1u8, out.shape());
         let zero = constant(0u8, out.shape());
-        let infinity = constant(f16::from_f32(f32::INFINITY), out.shape());
+        let infinity: Tile<f16, { [B] }> = constant(f16::INFINITY, out.shape());
         let abs_x = absf(x);
+        let half_negative_infinity: Tile<f16, { [B] }> = constant(f16::NEG_INFINITY, out.shape());
+        let half_zero: Tile<f16, { [B] }> = constant(f16::ZERO, out.shape());
         let mask = if OP == 0 {
             cmpf(x, x, predicate::NotEqual, cmp_ordering::Unordered)
         } else if OP == 1 {
@@ -864,7 +924,7 @@ mod kernels {
         } else if OP == 3 {
             cmpf(
                 x,
-                constant(f16::from_f32(f32::NEG_INFINITY), out.shape()),
+                half_negative_infinity,
                 predicate::Equal,
                 cmp_ordering::Ordered,
             )
@@ -875,7 +935,8 @@ mod kernels {
         } else if OP == 5 {
             let numeric = cmpf(x, x, predicate::Equal, cmp_ordering::Ordered);
             let not_infinite = cmpf(abs_x, infinity, predicate::NotEqual, cmp_ordering::Ordered);
-            let min_normal = constant(f16::from_f32(0.000_061_035_156), out.shape());
+            let min_normal: Tile<f32, { [B] }> = constant(0.000_061_035_156_25f32, out.shape());
+            let min_normal: Tile<f16, { [B] }> = convert_tile(min_normal);
             let normal_magnitude = cmpf(
                 abs_x,
                 min_normal,
@@ -885,13 +946,9 @@ mod kernels {
             numeric & not_infinite & normal_magnitude
         } else if OP == 10 {
             let numeric = cmpf(x, x, predicate::Equal, cmp_ordering::Ordered);
-            let nonzero = cmpf(
-                x,
-                constant(f16::from_f32(0.0), out.shape()),
-                predicate::NotEqual,
-                cmp_ordering::Ordered,
-            );
-            let min_normal = constant(f16::from_f32(0.000_061_035_156), out.shape());
+            let nonzero = cmpf(x, half_zero, predicate::NotEqual, cmp_ordering::Ordered);
+            let min_normal: Tile<f32, { [B] }> = constant(0.000_061_035_156_25f32, out.shape());
+            let min_normal: Tile<f16, { [B] }> = convert_tile(min_normal);
             let subnormal_magnitude = cmpf(
                 abs_x,
                 min_normal,
@@ -900,33 +957,13 @@ mod kernels {
             );
             numeric & nonzero & subnormal_magnitude
         } else if OP == 6 {
-            cmpf(
-                x,
-                constant(f16::from_f32(0.0), out.shape()),
-                predicate::Equal,
-                cmp_ordering::Ordered,
-            )
+            cmpf(x, half_zero, predicate::Equal, cmp_ordering::Ordered)
         } else if OP == 7 {
-            cmpf(
-                x,
-                constant(f16::from_f32(0.0), out.shape()),
-                predicate::GreaterThan,
-                cmp_ordering::Ordered,
-            )
+            cmpf(x, half_zero, predicate::GreaterThan, cmp_ordering::Ordered)
         } else if OP == 9 {
-            cmpf(
-                x,
-                constant(f16::from_f32(0.0), out.shape()),
-                predicate::NotEqual,
-                cmp_ordering::Unordered,
-            )
+            cmpf(x, half_zero, predicate::NotEqual, cmp_ordering::Unordered)
         } else {
-            cmpf(
-                x,
-                constant(f16::from_f32(0.0), out.shape()),
-                predicate::LessThan,
-                cmp_ordering::Ordered,
-            )
+            cmpf(x, half_zero, predicate::LessThan, cmp_ordering::Ordered)
         };
         out.store(select(mask, one, zero));
     }

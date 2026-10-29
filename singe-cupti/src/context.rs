@@ -1,34 +1,50 @@
 use std::sync::Arc;
 
-use singe_cuda::graph::{ExecutableGraph, Graph, GraphNode};
+use singe_cuda::{
+    context::Context as CudaContext,
+    graph::{ExecutableGraph, Graph, GraphNode},
+};
 use singe_cupti_sys as sys;
 
 use crate::{
     error::Result,
-    try_ffi,
+    profiler, try_ffi,
     types::{
         ActivityAutoBoostState, ActivityThreadIdType, ContextId, DeviceId, ExecutableGraphId,
         GraphId, GraphNodeId,
     },
 };
 
+/// A shared CUDA context used by CUPTI context-specific queries and profiling.
+///
+/// Clones retain the same CUDA context. CUPTI finalization remains process-wide and is independent of this owner.
 #[derive(Debug, Clone)]
 pub struct Context {
-    inner: Arc<singe_cuda::context::Context>,
+    inner: Arc<CudaContext>,
 }
 
 impl Context {
+    /// Creates and retains a CUDA context for CUPTI operations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA cannot initialize, select a device, or create the context.
     pub fn create() -> Result<Self> {
         Ok(Self {
-            inner: singe_cuda::context::Context::create()?,
+            inner: CudaContext::create()?,
         })
     }
 
     #[cfg(feature = "testing")]
-    pub(crate) fn from_cuda_context(inner: Arc<singe_cuda::context::Context>) -> Self {
+    pub(crate) fn from_cuda_context(inner: Arc<CudaContext>) -> Self {
         Self { inner }
     }
 
+    /// Makes the retained CUDA context current on this host thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA cannot bind the context.
     pub fn bind(&self) -> Result<()> {
         self.inner.bind()?;
         Ok(())
@@ -43,8 +59,9 @@ impl Context {
     /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
     pub fn id(&self) -> Result<ContextId> {
         let mut context_id = 0;
+        // SAFETY: `cuptiGetContextId` receives live handles owned by the wrappers and valid output locations.
         unsafe {
-            try_ffi!(sys::cuptiGetContextId(self.as_raw(), &mut context_id))?;
+            try_ffi!(sys::cuptiGetContextId(self.as_raw(), &raw mut context_id))?;
         }
         Ok(ContextId::from(context_id))
     }
@@ -60,8 +77,9 @@ impl Context {
     /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
     pub fn device_id(&self) -> Result<DeviceId> {
         let mut device_id = 0;
+        // SAFETY: `cuptiGetDeviceId` receives live handles owned by the wrappers and valid output locations.
         unsafe {
-            try_ffi!(sys::cuptiGetDeviceId(self.as_raw(), &mut device_id))?;
+            try_ffi!(sys::cuptiGetDeviceId(self.as_raw(), &raw mut device_id))?;
         }
         Ok(DeviceId::from(device_id))
     }
@@ -74,11 +92,12 @@ impl Context {
     ///
     /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the context or the request.
     /// - Returns [`crate::error::Status::NotSupported`] if the device does not support auto boost.
-    /// - Returns [`crate::error::Status::Unknown`] if CUPTI reports an internal error.
+    /// - Returns [`crate::error::Status::UnknownError`] if CUPTI reports an internal error.
     pub fn auto_boost_state(&self) -> Result<ActivityAutoBoostState> {
         let mut state = sys::CUpti_ActivityAutoBoostState::default();
+        // SAFETY: `cuptiGetAutoBoostState` receives live handles owned by the wrappers and valid output locations.
         unsafe {
-            try_ffi!(sys::cuptiGetAutoBoostState(self.as_raw(), &mut state))?;
+            try_ffi!(sys::cuptiGetAutoBoostState(self.as_raw(), &raw mut state))?;
         }
         Ok(state.into())
     }
@@ -95,14 +114,20 @@ impl Context {
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the request.
 pub fn runtime_version() -> Result<u32> {
     let mut version = 0u32;
+    // SAFETY: `cuptiGetVersion` receives valid output locations.
     unsafe {
-        try_ffi!(sys::cuptiGetVersion(&mut version))?;
+        try_ffi!(sys::cuptiGetVersion(&raw mut version))?;
     }
     Ok(version)
 }
 
 /// Returns and clears the last CUPTI error recorded for the current host thread.
-pub fn get_last_error() -> Result<()> {
+///
+/// # Errors
+///
+/// Returns the last non-success CUPTI status recorded for the current host thread; reading it clears that recorded error.
+pub fn last_error() -> Result<()> {
+    // SAFETY: `cuptiGetLastError` takes no arguments.
     unsafe {
         try_ffi!(sys::cuptiGetLastError())?;
     }
@@ -115,12 +140,13 @@ pub fn get_last_error() -> Result<()> {
 ///
 /// - Returns [`crate::error::Status::NotInitialized`] if CUPTI has not been initialized.
 /// - Returns [`crate::error::Status::InvalidParameter`] if the executable graph handle is invalid.
-pub fn get_executable_graph_id(executable_graph: &ExecutableGraph) -> Result<ExecutableGraphId> {
+pub fn executable_graph_id(executable_graph: &ExecutableGraph) -> Result<ExecutableGraphId> {
     let mut executable_graph_id = 0;
+    // SAFETY: `cuptiGetGraphExecId` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cuptiGetGraphExecId(
             executable_graph.as_raw() as sys::CUgraphExec,
-            &mut executable_graph_id,
+            &raw mut executable_graph_id,
         ))?;
     }
     Ok(ExecutableGraphId::from(executable_graph_id))
@@ -132,12 +158,13 @@ pub fn get_executable_graph_id(executable_graph: &ExecutableGraph) -> Result<Exe
 ///
 /// - Returns [`crate::error::Status::NotInitialized`] if CUPTI has not been initialized.
 /// - Returns [`crate::error::Status::InvalidParameter`] if the graph handle is invalid.
-pub fn get_graph_id(graph: &Graph) -> Result<GraphId> {
+pub fn graph_id(graph: &Graph) -> Result<GraphId> {
     let mut graph_id = 0;
+    // SAFETY: `cuptiGetGraphId` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cuptiGetGraphId(
             graph.as_raw() as sys::CUgraph,
-            &mut graph_id,
+            &raw mut graph_id,
         ))?;
     }
     Ok(GraphId::from(graph_id))
@@ -149,12 +176,13 @@ pub fn get_graph_id(graph: &Graph) -> Result<GraphId> {
 ///
 /// - Returns [`crate::error::Status::NotInitialized`] if CUPTI has not been initialized.
 /// - Returns [`crate::error::Status::InvalidParameter`] if the graph node handle is invalid.
-pub fn get_graph_node_id(node: GraphNode) -> Result<GraphNodeId> {
+pub fn graph_node_id(node: &GraphNode) -> Result<GraphNodeId> {
     let mut node_id = 0;
+    // SAFETY: `cuptiGetGraphNodeId` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cuptiGetGraphNodeId(
             node.as_raw() as sys::CUgraphNode,
-            &mut node_id,
+            &raw mut node_id,
         ))?;
     }
     Ok(GraphNodeId::from(node_id))
@@ -167,10 +195,11 @@ pub fn get_graph_node_id(node: GraphNode) -> Result<GraphNodeId> {
 /// # Errors
 ///
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the timestamp request.
-pub fn get_timestamp() -> Result<u64> {
+pub fn timestamp() -> Result<u64> {
     let mut timestamp = 0;
+    // SAFETY: `cuptiGetTimestamp` receives valid output locations.
     unsafe {
-        try_ffi!(sys::cuptiGetTimestamp(&mut timestamp))?;
+        try_ffi!(sys::cuptiGetTimestamp(&raw mut timestamp))?;
     }
     Ok(timestamp)
 }
@@ -182,10 +211,11 @@ pub fn get_timestamp() -> Result<u64> {
 /// # Errors
 ///
 /// - Returns [`crate::error::Status::InvalidParameter`] if CUPTI rejects the thread ID type.
-pub fn get_thread_id_type() -> Result<ActivityThreadIdType> {
+pub fn thread_id_type() -> Result<ActivityThreadIdType> {
     let mut thread_id_type = sys::CUpti_ActivityThreadIdType::CUPTI_ACTIVITY_THREAD_ID_TYPE_DEFAULT;
+    // SAFETY: `cuptiGetThreadIdType` receives valid output locations.
     unsafe {
-        try_ffi!(sys::cuptiGetThreadIdType(&mut thread_id_type))?;
+        try_ffi!(sys::cuptiGetThreadIdType(&raw mut thread_id_type))?;
     }
     Ok(ActivityThreadIdType::from(thread_id_type))
 }
@@ -198,6 +228,7 @@ pub fn get_thread_id_type() -> Result<ActivityThreadIdType> {
 ///
 /// - Returns [`crate::error::Status::NotSupported`] if the requested thread ID type is not supported on the platform.
 pub fn set_thread_id_type(thread_id_type: ActivityThreadIdType) -> Result<()> {
+    // SAFETY: `cuptiSetThreadIdType` receives only plain values.
     unsafe {
         try_ffi!(sys::cuptiSetThreadIdType(thread_id_type.into()))?;
     }
@@ -209,9 +240,10 @@ pub fn set_thread_id_type(thread_id_type: ActivityThreadIdType) -> Result<()> {
 /// CUPTI finalization is process-global. It is intentionally not tied to [`Context`] drop, because dropping one cloned CUDA context wrapper should not silently disable profiling for unrelated CUPTI users in the same process.
 ///
 /// Prefer unsubscribing individual [`crate::callback::Subscriber`] values when ending a tracing session. CUPTI may return before finalizing when multiple subscribers are active.
+///
+/// # Errors
+///
+/// Returns an error if the profiler-runtime mutex is poisoned or CUPTI cannot finalize the process-wide profiling state.
 pub fn finalize_process() -> Result<()> {
-    unsafe {
-        try_ffi!(sys::cuptiFinalize())?;
-    }
-    Ok(())
+    profiler::finalize_process()
 }

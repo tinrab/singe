@@ -1,23 +1,11 @@
-use std::mem::size_of;
+use singe_core::{checked_arithmetic, checked_conversions};
 
-use singe_core::checked_int;
+use crate::error::Error;
 
-use crate::error::{Error, Result};
+checked_conversions!(Error {
+    to_u64 -> u64,
+    to_u32 -> u32,
+    to_usize -> usize,
+});
 
-pub fn to_u64(value: impl TryInto<u64>, name: &str) -> Result<u64> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
-
-pub fn to_u32(value: impl TryInto<u32>, name: &str) -> Result<u32> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
-
-pub fn to_usize(value: impl TryInto<usize>, name: &str) -> Result<usize> {
-    checked_int(value, name, |name| Error::OutOfRange { name })
-}
-
-pub fn checked_byte_len<T>(count: usize, name: &str) -> Result<usize> {
-    count
-        .checked_mul(size_of::<T>())
-        .ok_or(Error::OutOfRange { name: name.into() })
-}
+checked_arithmetic!(Error { checked_byte_len });

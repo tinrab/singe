@@ -1,26 +1,54 @@
-//! Safe cuSPARSE wrappers for sparse descriptors and sparse GPU operations.
+//! cuSPARSE resource wrappers and public raw sparse GPU operations.
 //!
 //! This crate wraps cuSPARSE contexts, sparse and dense vector descriptors,
-//! sparse and dense matrix descriptors, SpMV, SpMM, SDDMM, SpGEMM, sparse
+//! sparse and dense matrix descriptors, `SpMV`, `SpMM`, SDDMM, `SpGEMM`, sparse
 //! triangular solve, vector-vector operations, and scalar helpers.
+//!
+//! # Raw execution
+//!
+//! Native operations are unsafe: descriptors do not establish initialized input
+//! values, valid sparse indices, matching compute layouts, or queued ownership.
+//! Order producers before reads, preserve initialized accumulators when beta is
+//! nonzero, and retain every participant with the required access through
+//! completion on success, error, and unwind, including captured graph replay.
+//! Analysis and preprocessing state may retain workspaces and bindings across
+//! later operations; keep them valid through the last dependent stage.
+//! Scratch and custom operation code must match the queried native ABI.
+//! Descriptor storage regions preserve actual allocation metadata and buffer
+//! borrows, without promoting pending storage or claiming initialized padding.
 
+/// cuSPARSE handle ownership, CUDA context association, streams, and scalar pointer modes.
 pub mod context;
+pub mod descriptor;
+/// Typed cuSPARSE statuses and Rust wrapper errors.
 pub mod error;
+pub mod logger;
+/// Sparse and dense matrix descriptors and storage-format conversions.
 pub mod matrix;
+/// Native analysis descriptors and custom sparse-matrix operation plans.
 pub mod operation;
 pub mod scalar;
+/// Sampled dense matrix multiplication using a sparse output pattern.
 pub mod sddmm;
+/// Sparse-sparse matrix multiplication and reusable multiplication analysis.
 pub mod spgemm;
+/// Sparse-dense matrix multiplication and custom operator plans.
 pub mod spmm;
+/// Sparse matrix-vector multiplication and preprocessing.
 pub mod spmv;
+/// Sparse triangular solves with multiple right-hand sides.
 pub mod spsm;
+/// Sparse triangular solves with one vector right-hand side.
 pub mod spsv;
+/// Sparse-dense vector dot products.
 pub mod spvv;
+/// Typed matrix formats, index representations, algorithms, and operation settings.
 pub mod types;
+pub(crate) mod utility;
+/// Sparse and dense vector descriptors and gather or scatter operations.
 pub mod vector;
 
-pub(crate) mod utility;
-
+/// Serialized GPU test setup for cuSPARSE operations.
 #[cfg(feature = "testing")]
 pub mod testing;
 
@@ -50,6 +78,7 @@ pub fn version() -> Result<LibraryVersion> {
 /// Returns an error if cuSPARSE cannot report the requested property.
 pub fn library_property(property: LibraryProperty) -> Result<i32> {
     let mut value = 0;
+    // SAFETY: `cusparseGetProperty` receives valid output locations.
     unsafe {
         try_ffi!(sys::cusparseGetProperty(property.into(), &raw mut value))?;
     }
@@ -58,25 +87,25 @@ pub fn library_property(property: LibraryProperty) -> Result<i32> {
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
-    use super::*;
-    use crate::testing::setup_context;
     use singe_cuda::error::Error as CudaError;
 
+    use super::*;
+    use crate::{error::Error, testing::setup_context};
+
     #[test]
-    fn it_works() -> Result<()> {
-        let ctx = match setup_context() {
-            Ok(ctx) => ctx,
-            Err(crate::error::Error::Cuda(CudaError::Cuda { message, .. }))
+    fn test_it_works() -> Result<()> {
+        let context = match setup_context() {
+            Ok(context) => context,
+            Err(Error::Cuda(CudaError::Cuda { message, .. }))
                 if message == "CUDA driver is a stub library" =>
             {
                 return Ok(());
             }
             Err(error) => return Err(error),
         };
-        let context_version = ctx.version()?;
+        let _context = context;
         let library_version = version()?;
-        println!("cuSPARSE version: {context_version}");
-        assert_ne!(context_version, 0);
+        println!("cuSPARSE version: {library_version}");
         assert_ne!(library_version, 0);
         assert_ne!(library_property(LibraryProperty::Major)?, 0);
         Ok(())

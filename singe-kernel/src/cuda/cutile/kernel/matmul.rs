@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     // Mirrors the tiled ct.mma path in
     // thirdparty/TileGym/src/tilegym/ops/cutile/matmul.py for compact row-major f32 inputs.
     #[cutile::entry()]
@@ -27,7 +29,7 @@ mod kernels {
 
     // Mirrors the tiled ct.mma path in
     // thirdparty/TileGym/src/tilegym/ops/cutile/matmul.py for compact row-major f16 inputs.
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub fn matmul_mma_f16_f32<const BM: i32, const BN: i32>(
         out: &mut Tensor<f32, { [BM, BN] }>,
@@ -49,7 +51,7 @@ mod kernels {
         out.store(accumulator);
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub fn matmul_mma_transposed_rhs_f16_f32<const BM: i32, const BN: i32>(
         out: &mut Tensor<f32, { [BM, BN] }>,
@@ -74,7 +76,7 @@ mod kernels {
 
     // Mirrors the tiled ct.mma path in
     // thirdparty/TileGym/src/tilegym/ops/cutile/matmul.py for compact row-major bf16 inputs.
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub fn matmul_mma_bf16_f32<const BM: i32, const BN: i32>(
         out: &mut Tensor<f32, { [BM, BN] }>,
@@ -145,16 +147,16 @@ mod kernels {
                     * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f32_vector(lhs, lhs_offsets, mask, 0.0f32);
-            let rhs_values = load_f32_vector(rhs, rhs_offsets, mask, 0.0f32);
+            let lhs_values = unsafe { load_f32_vector(lhs, lhs_offsets, mask, 0.0f32) };
+            let rhs_values = unsafe { load_f32_vector(rhs, rhs_offsets, mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f32_vector(out, output_offsets, sum, mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, mask) };
     }
 
-    #[cfg(feature = "dtype-f64")]
+    #[cfg(feature = "dtype_f64")]
     // Mirrors the row-major A[m, k] @ B[k, n] layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/matmul.py.
     #[cutile::entry()]
@@ -204,18 +206,18 @@ mod kernels {
                     * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f64_vector(lhs, lhs_offsets, mask, 0.0f64);
-            let rhs_values = load_f64_vector(rhs, rhs_offsets, mask, 0.0f64);
+            let lhs_values = unsafe { load_f64_vector(lhs, lhs_offsets, mask, 0.0f64) };
+            let rhs_values = unsafe { load_f64_vector(rhs, rhs_offsets, mask, 0.0f64) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f64_vector(out, output_offsets, sum, mask);
+        unsafe { store_f64_vector(out, output_offsets, sum, mask) };
     }
 
     // Mirrors the row-major A[m, k] @ B[k, n] layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/matmul.py, accumulating half inputs into f32.
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn matmul_f16_f32(
         out: *mut f32,
@@ -263,16 +265,16 @@ mod kernels {
                     * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f16_vector_as_f32(lhs, lhs_offsets, mask);
-            let rhs_values = load_f16_vector_as_f32(rhs, rhs_offsets, mask);
+            let lhs_values = unsafe { load_f16_vector_as_f32(lhs, lhs_offsets, mask) };
+            let rhs_values = unsafe { load_f16_vector_as_f32(rhs, rhs_offsets, mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f32_vector(out, output_offsets, sum, mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, mask) };
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn matvec_transposed_rhs_f16_f32_1024(
         out: *mut f32,
@@ -286,7 +288,7 @@ mod kernels {
         }
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn matvec_transposed_rhs_f16_f32_2048(
         out: *mut f32,
@@ -300,7 +302,7 @@ mod kernels {
         }
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn matvec_transposed_rhs_f16_f32_3072(
         out: *mut f32,
@@ -317,10 +319,12 @@ mod kernels {
             predicate::LessThan,
         );
         let offsets_2048: Tile<i32, { [2048] }> = iota(const_shape![2048]);
-        let lhs_values_2048 = load_f16_vector_as_f32_const(lhs, offsets_2048, active_2048);
+        let lhs_values_2048 =
+            unsafe { load_f16_vector_as_f32_const(lhs, offsets_2048, active_2048) };
         let rhs_offsets_2048 =
             broadcast_scalar(column * rhs_row_stride, const_shape![2048]) + offsets_2048;
-        let rhs_values_2048 = load_f16_vector_as_f32_const(rhs, rhs_offsets_2048, active_2048);
+        let rhs_values_2048 =
+            unsafe { load_f16_vector_as_f32_const(rhs, rhs_offsets_2048, active_2048) };
         let sum_2048: Tile<f32, { [] }> = reduce_sum(lhs_values_2048 * rhs_values_2048, 0i32);
 
         let active_1024 = cmpi(
@@ -330,16 +334,18 @@ mod kernels {
         );
         let offsets_1024: Tile<i32, { [1024] }> =
             iota(const_shape![1024]) + broadcast_scalar(2048i32, const_shape![1024]);
-        let lhs_values_1024 = load_f16_vector_as_f32_const(lhs, offsets_1024, active_1024);
+        let lhs_values_1024 =
+            unsafe { load_f16_vector_as_f32_const(lhs, offsets_1024, active_1024) };
         let rhs_offsets_1024 =
             broadcast_scalar(column * rhs_row_stride, const_shape![1024]) + offsets_1024;
-        let rhs_values_1024 = load_f16_vector_as_f32_const(rhs, rhs_offsets_1024, active_1024);
+        let rhs_values_1024 =
+            unsafe { load_f16_vector_as_f32_const(rhs, rhs_offsets_1024, active_1024) };
         let sum_1024: Tile<f32, { [] }> = reduce_sum(lhs_values_1024 * rhs_values_1024, 0i32);
 
-        store_f32_scalar(out, column, (sum_2048 + sum_1024).reshape(const_shape![1]));
+        unsafe { store_f32_scalar(out, column, (sum_2048 + sum_1024).reshape(const_shape![1])) };
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     unsafe fn matvec_transposed_rhs_f16_f32_const<const K: i32>(
         out: *mut f32,
         lhs: *mut f16,
@@ -357,16 +363,16 @@ mod kernels {
             predicate::LessThan,
         );
 
-        let lhs_values = load_f16_vector_as_f32_const(lhs, reduction_offsets, active);
+        let lhs_values = unsafe { load_f16_vector_as_f32_const(lhs, reduction_offsets, active) };
         let rhs_offsets = broadcast_scalar(column * rhs_row_stride, tile_shape) + reduction_offsets;
-        let rhs_values = load_f16_vector_as_f32_const(rhs, rhs_offsets, active);
+        let rhs_values = unsafe { load_f16_vector_as_f32_const(rhs, rhs_offsets, active) };
         let sum: Tile<f32, { [] }> = reduce_sum(lhs_values * rhs_values, 0i32);
-        store_f32_scalar(out, column, sum.reshape(const_shape![1]));
+        unsafe { store_f32_scalar(out, column, sum.reshape(const_shape![1])) };
     }
 
     // Mirrors the row-major A[m, k] @ B[k, n] layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/matmul.py, accumulating bf16 inputs into f32.
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub unsafe fn matmul_bf16_f32(
         out: *mut f32,
@@ -414,13 +420,13 @@ mod kernels {
                     * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_bf16_vector_as_f32(lhs, lhs_offsets, mask);
-            let rhs_values = load_bf16_vector_as_f32(rhs, rhs_offsets, mask);
+            let lhs_values = unsafe { load_bf16_vector_as_f32(lhs, lhs_offsets, mask) };
+            let rhs_values = unsafe { load_bf16_vector_as_f32(rhs, rhs_offsets, mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f32_vector(out, output_offsets, sum, mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, mask) };
     }
 
     // Mirrors the alpha/beta epilogue in
@@ -474,19 +480,19 @@ mod kernels {
                     * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f32_vector(lhs, lhs_offsets, mask, 0.0f32);
-            let rhs_values = load_f32_vector(rhs, rhs_offsets, mask, 0.0f32);
+            let lhs_values = unsafe { load_f32_vector(lhs, lhs_offsets, mask, 0.0f32) };
+            let rhs_values = unsafe { load_f32_vector(rhs, rhs_offsets, mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        let prior = load_f32_vector(out, output_offsets, mask, 0.0f32);
+        let prior = unsafe { load_f32_vector(out, output_offsets, mask, 0.0f32) };
         let result =
             broadcast_scalar(alpha, tile_shape) * sum + broadcast_scalar(beta, tile_shape) * prior;
-        store_f32_vector(out, output_offsets, result, mask);
+        unsafe { store_f32_vector(out, output_offsets, result, mask) };
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn matmul_alpha_beta_f16_f32(
         out: *mut f32,
@@ -536,19 +542,19 @@ mod kernels {
                     * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f16_vector_as_f32(lhs, lhs_offsets, mask);
-            let rhs_values = load_f16_vector_as_f32(rhs, rhs_offsets, mask);
+            let lhs_values = unsafe { load_f16_vector_as_f32(lhs, lhs_offsets, mask) };
+            let rhs_values = unsafe { load_f16_vector_as_f32(rhs, rhs_offsets, mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        let prior = load_f32_vector(out, output_offsets, mask, 0.0f32);
+        let prior = unsafe { load_f32_vector(out, output_offsets, mask, 0.0f32) };
         let result =
             broadcast_scalar(alpha, tile_shape) * sum + broadcast_scalar(beta, tile_shape) * prior;
-        store_f32_vector(out, output_offsets, result, mask);
+        unsafe { store_f32_vector(out, output_offsets, result, mask) };
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub unsafe fn matmul_alpha_beta_bf16_f32(
         out: *mut f32,
@@ -598,19 +604,19 @@ mod kernels {
                     * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_bf16_vector_as_f32(lhs, lhs_offsets, mask);
-            let rhs_values = load_bf16_vector_as_f32(rhs, rhs_offsets, mask);
+            let lhs_values = unsafe { load_bf16_vector_as_f32(lhs, lhs_offsets, mask) };
+            let rhs_values = unsafe { load_bf16_vector_as_f32(rhs, rhs_offsets, mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        let prior = load_f32_vector(out, output_offsets, mask, 0.0f32);
+        let prior = unsafe { load_f32_vector(out, output_offsets, mask, 0.0f32) };
         let result =
             broadcast_scalar(alpha, tile_shape) * sum + broadcast_scalar(beta, tile_shape) * prior;
-        store_f32_vector(out, output_offsets, result, mask);
+        unsafe { store_f32_vector(out, output_offsets, result, mask) };
     }
 
-    #[cfg(feature = "dtype-f64")]
+    #[cfg(feature = "dtype_f64")]
     // Mirrors the alpha/beta epilogue in
     // thirdparty/TileGym/src/tilegym/suites/flashinfer/cutile/gemm/gemm_alpha_beta.py.
     #[cutile::entry()]
@@ -662,16 +668,16 @@ mod kernels {
                     * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f64_vector(lhs, lhs_offsets, mask, 0.0f64);
-            let rhs_values = load_f64_vector(rhs, rhs_offsets, mask, 0.0f64);
+            let lhs_values = unsafe { load_f64_vector(lhs, lhs_offsets, mask, 0.0f64) };
+            let rhs_values = unsafe { load_f64_vector(rhs, rhs_offsets, mask, 0.0f64) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        let prior = load_f64_vector(out, output_offsets, mask, 0.0f64);
+        let prior = unsafe { load_f64_vector(out, output_offsets, mask, 0.0f64) };
         let result =
             broadcast_scalar(alpha, tile_shape) * sum + broadcast_scalar(beta, tile_shape) * prior;
-        store_f64_vector(out, output_offsets, result, mask);
+        unsafe { store_f64_vector(out, output_offsets, result, mask) };
     }
 
     // Mirrors the row-major (Q, M, K) @ (Q, K, N) layout in
@@ -733,15 +739,15 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f32_vector(lhs, lhs_offsets, mask, 0.0f32);
-            let rhs_values = load_f32_vector(rhs, rhs_offsets, mask, 0.0f32);
+            let lhs_values = unsafe { load_f32_vector(lhs, lhs_offsets, mask, 0.0f32) };
+            let rhs_values = unsafe { load_f32_vector(rhs, rhs_offsets, mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = batch * broadcast_scalar(output_batch_stride, tile_shape)
             + row * broadcast_scalar(output_row_stride, tile_shape)
             + column;
-        store_f32_vector(out, output_offsets, sum, mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, mask) };
     }
 
     // Mirrors the tiled ct.mma path in
@@ -846,7 +852,7 @@ mod kernels {
 
     // Mirrors the tiled ct.mma path in
     // thirdparty/TileGym/src/tilegym/ops/cutile/bmm.py for compact row-major f16 inputs.
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub fn bmm_mma_f16_f32<const BM: i32, const BN: i32>(
         out: &mut Tensor<f32, { [1, BM, BN] }>,
@@ -872,7 +878,7 @@ mod kernels {
 
     // Mirrors the transposed-B layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/bmm.py for compact row-major f16 inputs.
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub fn bmm_mma_transposed_rhs_f16_f32<const BM: i32, const BN: i32>(
         out: &mut Tensor<f32, { [1, BM, BN] }>,
@@ -898,7 +904,7 @@ mod kernels {
 
     // Mirrors the transposed-A and transposed-B layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/bmm.py for compact row-major f16 inputs.
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub fn bmm_mma_transposed_inputs_f16_f32<const BM: i32, const BN: i32>(
         out: &mut Tensor<f32, { [1, BM, BN] }>,
@@ -924,7 +930,7 @@ mod kernels {
 
     // Mirrors the tiled ct.mma path in
     // thirdparty/TileGym/src/tilegym/ops/cutile/bmm.py for compact row-major bf16 inputs.
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub fn bmm_mma_bf16_f32<const BM: i32, const BN: i32>(
         out: &mut Tensor<f32, { [1, BM, BN] }>,
@@ -950,7 +956,7 @@ mod kernels {
 
     // Mirrors the transposed-A and transposed-B layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/bmm.py for compact row-major bf16 inputs.
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub fn bmm_mma_transposed_inputs_bf16_f32<const BM: i32, const BN: i32>(
         out: &mut Tensor<f32, { [1, BM, BN] }>,
@@ -1011,7 +1017,7 @@ mod kernels {
         let matrix_offsets = safe_offsets - batch * matrix_len;
         let row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - row * broadcast_scalar(columns, tile_shape);
-        let valid_rows = load_i32_vector(masked_rows, batch, mask, 0i32);
+        let valid_rows = unsafe { load_i32_vector(masked_rows, batch, mask, 0i32) };
         let active_mask = mask & cmpi(row, valid_rows, predicate::LessThan);
 
         let mut sum: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -1036,18 +1042,18 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f32_vector(lhs, lhs_offsets, active_mask, 0.0f32);
-            let rhs_values = load_f32_vector(rhs, rhs_offsets, active_mask, 0.0f32);
+            let lhs_values = unsafe { load_f32_vector(lhs, lhs_offsets, active_mask, 0.0f32) };
+            let rhs_values = unsafe { load_f32_vector(rhs, rhs_offsets, active_mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = batch * broadcast_scalar(output_batch_stride, tile_shape)
             + row * broadcast_scalar(output_row_stride, tile_shape)
             + column;
-        store_f32_vector(out, output_offsets, sum, active_mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn masked_bmm_f16(
         out: *mut f16,
@@ -1083,7 +1089,7 @@ mod kernels {
         let matrix_offsets = safe_offsets - batch * matrix_len;
         let row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - row * broadcast_scalar(columns, tile_shape);
-        let valid_rows = load_i32_vector(masked_rows, batch, mask, 0i32);
+        let valid_rows = unsafe { load_i32_vector(masked_rows, batch, mask, 0i32) };
         let active_mask = mask & cmpi(row, valid_rows, predicate::LessThan);
 
         let mut sum: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -1108,18 +1114,18 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f16_vector_as_f32(lhs, lhs_offsets, active_mask);
-            let rhs_values = load_f16_vector_as_f32(rhs, rhs_offsets, active_mask);
+            let lhs_values = unsafe { load_f16_vector_as_f32(lhs, lhs_offsets, active_mask) };
+            let rhs_values = unsafe { load_f16_vector_as_f32(rhs, rhs_offsets, active_mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = batch * broadcast_scalar(output_batch_stride, tile_shape)
             + row * broadcast_scalar(output_row_stride, tile_shape)
             + column;
-        store_f16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_f16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub unsafe fn masked_bmm_bf16(
         out: *mut bf16,
@@ -1155,7 +1161,7 @@ mod kernels {
         let matrix_offsets = safe_offsets - batch * matrix_len;
         let row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - row * broadcast_scalar(columns, tile_shape);
-        let valid_rows = load_i32_vector(masked_rows, batch, mask, 0i32);
+        let valid_rows = unsafe { load_i32_vector(masked_rows, batch, mask, 0i32) };
         let active_mask = mask & cmpi(row, valid_rows, predicate::LessThan);
 
         let mut sum: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -1180,15 +1186,15 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_bf16_vector_as_f32(lhs, lhs_offsets, active_mask);
-            let rhs_values = load_bf16_vector_as_f32(rhs, rhs_offsets, active_mask);
+            let lhs_values = unsafe { load_bf16_vector_as_f32(lhs, lhs_offsets, active_mask) };
+            let rhs_values = unsafe { load_bf16_vector_as_f32(rhs, rhs_offsets, active_mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = batch * broadcast_scalar(output_batch_stride, tile_shape)
             + row * broadcast_scalar(output_row_stride, tile_shape)
             + column;
-        store_bf16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_bf16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
     // Mirrors flattened A/C segment offsets in
@@ -1227,13 +1233,15 @@ mod kernels {
         let local_row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - local_row * broadcast_scalar(columns, tile_shape);
 
-        let segment_start = load_i32_vector(row_indptr, batch, mask, 0i32);
-        let segment_end = load_i32_vector(
-            row_indptr,
-            batch + broadcast_scalar(1i32, tile_shape),
-            mask,
-            0i32,
-        );
+        let segment_start = unsafe { load_i32_vector(row_indptr, batch, mask, 0i32) };
+        let segment_end = unsafe {
+            load_i32_vector(
+                row_indptr,
+                batch + broadcast_scalar(1i32, tile_shape),
+                mask,
+                0i32,
+            )
+        };
         let valid_rows = segment_end - segment_start;
         let active_mask = mask & cmpi(local_row, valid_rows, predicate::LessThan);
         let global_row = segment_start + local_row;
@@ -1258,16 +1266,16 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f32_vector(lhs, lhs_offsets, active_mask, 0.0f32);
-            let rhs_values = load_f32_vector(rhs, rhs_offsets, active_mask, 0.0f32);
+            let lhs_values = unsafe { load_f32_vector(lhs, lhs_offsets, active_mask, 0.0f32) };
+            let rhs_values = unsafe { load_f32_vector(rhs, rhs_offsets, active_mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = global_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f32_vector(out, output_offsets, sum, active_mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn ragged_bmm_f16(
         out: *mut f16,
@@ -1302,13 +1310,15 @@ mod kernels {
         let local_row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - local_row * broadcast_scalar(columns, tile_shape);
 
-        let segment_start = load_i32_vector(row_indptr, batch, mask, 0i32);
-        let segment_end = load_i32_vector(
-            row_indptr,
-            batch + broadcast_scalar(1i32, tile_shape),
-            mask,
-            0i32,
-        );
+        let segment_start = unsafe { load_i32_vector(row_indptr, batch, mask, 0i32) };
+        let segment_end = unsafe {
+            load_i32_vector(
+                row_indptr,
+                batch + broadcast_scalar(1i32, tile_shape),
+                mask,
+                0i32,
+            )
+        };
         let valid_rows = segment_end - segment_start;
         let active_mask = mask & cmpi(local_row, valid_rows, predicate::LessThan);
         let global_row = segment_start + local_row;
@@ -1333,16 +1343,16 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f16_vector_as_f32(lhs, lhs_offsets, active_mask);
-            let rhs_values = load_f16_vector_as_f32(rhs, rhs_offsets, active_mask);
+            let lhs_values = unsafe { load_f16_vector_as_f32(lhs, lhs_offsets, active_mask) };
+            let rhs_values = unsafe { load_f16_vector_as_f32(rhs, rhs_offsets, active_mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = global_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_f16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub unsafe fn ragged_bmm_bf16(
         out: *mut bf16,
@@ -1377,13 +1387,15 @@ mod kernels {
         let local_row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - local_row * broadcast_scalar(columns, tile_shape);
 
-        let segment_start = load_i32_vector(row_indptr, batch, mask, 0i32);
-        let segment_end = load_i32_vector(
-            row_indptr,
-            batch + broadcast_scalar(1i32, tile_shape),
-            mask,
-            0i32,
-        );
+        let segment_start = unsafe { load_i32_vector(row_indptr, batch, mask, 0i32) };
+        let segment_end = unsafe {
+            load_i32_vector(
+                row_indptr,
+                batch + broadcast_scalar(1i32, tile_shape),
+                mask,
+                0i32,
+            )
+        };
         let valid_rows = segment_end - segment_start;
         let active_mask = mask & cmpi(local_row, valid_rows, predicate::LessThan);
         let global_row = segment_start + local_row;
@@ -1408,13 +1420,13 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_bf16_vector_as_f32(lhs, lhs_offsets, active_mask);
-            let rhs_values = load_bf16_vector_as_f32(rhs, rhs_offsets, active_mask);
+            let lhs_values = unsafe { load_bf16_vector_as_f32(lhs, lhs_offsets, active_mask) };
+            let rhs_values = unsafe { load_bf16_vector_as_f32(rhs, rhs_offsets, active_mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = global_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_bf16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_bf16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
     // Mirrors list-based group GEMM from
@@ -1453,12 +1465,12 @@ mod kernels {
         let row = matrix_offsets / broadcast_scalar(max_columns, tile_shape);
         let column = matrix_offsets - row * broadcast_scalar(max_columns, tile_shape);
 
-        let group_rows = load_i32_vector(rows, group, mask, 0i32);
-        let group_columns = load_i32_vector(columns, group, mask, 0i32);
-        let group_reduction = load_i32_vector(reductions, group, mask, 0i32);
-        let lhs_base = load_i32_vector(lhs_offsets, group, mask, 0i32);
-        let rhs_base = load_i32_vector(rhs_offsets, group, mask, 0i32);
-        let output_base = load_i32_vector(output_offsets_base, group, mask, 0i32);
+        let group_rows = unsafe { load_i32_vector(rows, group, mask, 0i32) };
+        let group_columns = unsafe { load_i32_vector(columns, group, mask, 0i32) };
+        let group_reduction = unsafe { load_i32_vector(reductions, group, mask, 0i32) };
+        let lhs_base = unsafe { load_i32_vector(lhs_offsets, group, mask, 0i32) };
+        let rhs_base = unsafe { load_i32_vector(rhs_offsets, group, mask, 0i32) };
+        let output_base = unsafe { load_i32_vector(output_offsets_base, group, mask, 0i32) };
         let active_mask = mask
             & cmpi(row, group_rows, predicate::LessThan)
             & cmpi(column, group_columns, predicate::LessThan);
@@ -1478,16 +1490,18 @@ mod kernels {
             } else {
                 rhs_base + broadcast_scalar(reduction_index, tile_shape) * group_columns + column
             };
-            let lhs_values = load_f32_vector(lhs, lhs_element_offsets, reduction_mask, 0.0f32);
-            let rhs_values = load_f32_vector(rhs, rhs_element_offsets, reduction_mask, 0.0f32);
+            let lhs_values =
+                unsafe { load_f32_vector(lhs, lhs_element_offsets, reduction_mask, 0.0f32) };
+            let rhs_values =
+                unsafe { load_f32_vector(rhs, rhs_element_offsets, reduction_mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = output_base + row * group_columns + column;
-        store_f32_vector(out, output_offsets, sum, active_mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn group_gemm_f16(
         out: *mut f16,
@@ -1522,12 +1536,12 @@ mod kernels {
         let row = matrix_offsets / broadcast_scalar(max_columns, tile_shape);
         let column = matrix_offsets - row * broadcast_scalar(max_columns, tile_shape);
 
-        let group_rows = load_i32_vector(rows, group, mask, 0i32);
-        let group_columns = load_i32_vector(columns, group, mask, 0i32);
-        let group_reduction = load_i32_vector(reductions, group, mask, 0i32);
-        let lhs_base = load_i32_vector(lhs_offsets, group, mask, 0i32);
-        let rhs_base = load_i32_vector(rhs_offsets, group, mask, 0i32);
-        let output_base = load_i32_vector(output_offsets_base, group, mask, 0i32);
+        let group_rows = unsafe { load_i32_vector(rows, group, mask, 0i32) };
+        let group_columns = unsafe { load_i32_vector(columns, group, mask, 0i32) };
+        let group_reduction = unsafe { load_i32_vector(reductions, group, mask, 0i32) };
+        let lhs_base = unsafe { load_i32_vector(lhs_offsets, group, mask, 0i32) };
+        let rhs_base = unsafe { load_i32_vector(rhs_offsets, group, mask, 0i32) };
+        let output_base = unsafe { load_i32_vector(output_offsets_base, group, mask, 0i32) };
         let active_mask = mask
             & cmpi(row, group_rows, predicate::LessThan)
             & cmpi(column, group_columns, predicate::LessThan);
@@ -1547,16 +1561,18 @@ mod kernels {
             } else {
                 rhs_base + broadcast_scalar(reduction_index, tile_shape) * group_columns + column
             };
-            let lhs_values = load_f16_vector_as_f32(lhs, lhs_element_offsets, reduction_mask);
-            let rhs_values = load_f16_vector_as_f32(rhs, rhs_element_offsets, reduction_mask);
+            let lhs_values =
+                unsafe { load_f16_vector_as_f32(lhs, lhs_element_offsets, reduction_mask) };
+            let rhs_values =
+                unsafe { load_f16_vector_as_f32(rhs, rhs_element_offsets, reduction_mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = output_base + row * group_columns + column;
-        store_f16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_f16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub unsafe fn group_gemm_bf16(
         out: *mut bf16,
@@ -1591,12 +1607,12 @@ mod kernels {
         let row = matrix_offsets / broadcast_scalar(max_columns, tile_shape);
         let column = matrix_offsets - row * broadcast_scalar(max_columns, tile_shape);
 
-        let group_rows = load_i32_vector(rows, group, mask, 0i32);
-        let group_columns = load_i32_vector(columns, group, mask, 0i32);
-        let group_reduction = load_i32_vector(reductions, group, mask, 0i32);
-        let lhs_base = load_i32_vector(lhs_offsets, group, mask, 0i32);
-        let rhs_base = load_i32_vector(rhs_offsets, group, mask, 0i32);
-        let output_base = load_i32_vector(output_offsets_base, group, mask, 0i32);
+        let group_rows = unsafe { load_i32_vector(rows, group, mask, 0i32) };
+        let group_columns = unsafe { load_i32_vector(columns, group, mask, 0i32) };
+        let group_reduction = unsafe { load_i32_vector(reductions, group, mask, 0i32) };
+        let lhs_base = unsafe { load_i32_vector(lhs_offsets, group, mask, 0i32) };
+        let rhs_base = unsafe { load_i32_vector(rhs_offsets, group, mask, 0i32) };
+        let output_base = unsafe { load_i32_vector(output_offsets_base, group, mask, 0i32) };
         let active_mask = mask
             & cmpi(row, group_rows, predicate::LessThan)
             & cmpi(column, group_columns, predicate::LessThan);
@@ -1616,13 +1632,15 @@ mod kernels {
             } else {
                 rhs_base + broadcast_scalar(reduction_index, tile_shape) * group_columns + column
             };
-            let lhs_values = load_bf16_vector_as_f32(lhs, lhs_element_offsets, reduction_mask);
-            let rhs_values = load_bf16_vector_as_f32(rhs, rhs_element_offsets, reduction_mask);
+            let lhs_values =
+                unsafe { load_bf16_vector_as_f32(lhs, lhs_element_offsets, reduction_mask) };
+            let rhs_values =
+                unsafe { load_bf16_vector_as_f32(rhs, rhs_element_offsets, reduction_mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = output_base + row * group_columns + column;
-        store_bf16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_bf16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
     // Mirrors the forward grouped GEMM in
@@ -1665,12 +1683,14 @@ mod kernels {
         let mut expert_size: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         let mut token_cursor: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         for expert_index in 0i32..expert_count {
-            let current_size = load_i32_vector(
-                m_sizes,
-                broadcast_scalar(expert_index, tile_shape),
-                mask,
-                0i32,
-            );
+            let current_size = unsafe {
+                load_i32_vector(
+                    m_sizes,
+                    broadcast_scalar(expert_index, tile_shape),
+                    mask,
+                    0i32,
+                )
+            };
             let next_cursor = token_cursor + current_size;
             let selected = mask
                 & cmpi(expert_size, zero_offsets, predicate::Equal)
@@ -1687,7 +1707,8 @@ mod kernels {
         }
 
         let active_mask = mask & cmpi(expert_size, zero_offsets, predicate::GreaterThan);
-        let gathered_rows = load_i32_vector(gather_indices, sorted_row, active_mask, 0i32);
+        let gathered_rows =
+            unsafe { load_i32_vector(gather_indices, sorted_row, active_mask, 0i32) };
         let input_row = if permute_input != 0 {
             gathered_rows / broadcast_scalar(top_k, tile_shape)
         } else {
@@ -1706,16 +1727,18 @@ mod kernels {
             let weight_offsets = expert_id * broadcast_scalar(weight_expert_stride, tile_shape)
                 + column * broadcast_scalar(weight_row_stride, tile_shape)
                 + broadcast_scalar(reduction_index, tile_shape);
-            let input_values = load_f32_vector(input, input_offsets, active_mask, 0.0f32);
-            let weight_values = load_f32_vector(weights, weight_offsets, active_mask, 0.0f32);
+            let input_values =
+                unsafe { load_f32_vector(input, input_offsets, active_mask, 0.0f32) };
+            let weight_values =
+                unsafe { load_f32_vector(weights, weight_offsets, active_mask, 0.0f32) };
             sum = sum + input_values * weight_values;
         }
 
         let output_offsets = output_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f32_vector(out, output_offsets, sum, active_mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn grouped_gemm_f16(
         out: *mut f16,
@@ -1754,12 +1777,14 @@ mod kernels {
         let mut expert_size: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         let mut token_cursor: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         for expert_index in 0i32..expert_count {
-            let current_size = load_i32_vector(
-                m_sizes,
-                broadcast_scalar(expert_index, tile_shape),
-                mask,
-                0i32,
-            );
+            let current_size = unsafe {
+                load_i32_vector(
+                    m_sizes,
+                    broadcast_scalar(expert_index, tile_shape),
+                    mask,
+                    0i32,
+                )
+            };
             let next_cursor = token_cursor + current_size;
             let selected = mask
                 & cmpi(expert_size, zero_offsets, predicate::Equal)
@@ -1776,7 +1801,8 @@ mod kernels {
         }
 
         let active_mask = mask & cmpi(expert_size, zero_offsets, predicate::GreaterThan);
-        let gathered_rows = load_i32_vector(gather_indices, sorted_row, active_mask, 0i32);
+        let gathered_rows =
+            unsafe { load_i32_vector(gather_indices, sorted_row, active_mask, 0i32) };
         let input_row = if permute_input != 0 {
             gathered_rows / broadcast_scalar(top_k, tile_shape)
         } else {
@@ -1795,16 +1821,17 @@ mod kernels {
             let weight_offsets = expert_id * broadcast_scalar(weight_expert_stride, tile_shape)
                 + column * broadcast_scalar(weight_row_stride, tile_shape)
                 + broadcast_scalar(reduction_index, tile_shape);
-            let input_values = load_f16_vector_as_f32(input, input_offsets, active_mask);
-            let weight_values = load_f16_vector_as_f32(weights, weight_offsets, active_mask);
+            let input_values = unsafe { load_f16_vector_as_f32(input, input_offsets, active_mask) };
+            let weight_values =
+                unsafe { load_f16_vector_as_f32(weights, weight_offsets, active_mask) };
             sum = sum + input_values * weight_values;
         }
 
         let output_offsets = output_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_f16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub unsafe fn grouped_gemm_bf16(
         out: *mut bf16,
@@ -1843,12 +1870,14 @@ mod kernels {
         let mut expert_size: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         let mut token_cursor: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         for expert_index in 0i32..expert_count {
-            let current_size = load_i32_vector(
-                m_sizes,
-                broadcast_scalar(expert_index, tile_shape),
-                mask,
-                0i32,
-            );
+            let current_size = unsafe {
+                load_i32_vector(
+                    m_sizes,
+                    broadcast_scalar(expert_index, tile_shape),
+                    mask,
+                    0i32,
+                )
+            };
             let next_cursor = token_cursor + current_size;
             let selected = mask
                 & cmpi(expert_size, zero_offsets, predicate::Equal)
@@ -1865,7 +1894,8 @@ mod kernels {
         }
 
         let active_mask = mask & cmpi(expert_size, zero_offsets, predicate::GreaterThan);
-        let gathered_rows = load_i32_vector(gather_indices, sorted_row, active_mask, 0i32);
+        let gathered_rows =
+            unsafe { load_i32_vector(gather_indices, sorted_row, active_mask, 0i32) };
         let input_row = if permute_input != 0 {
             gathered_rows / broadcast_scalar(top_k, tile_shape)
         } else {
@@ -1884,18 +1914,20 @@ mod kernels {
             let weight_offsets = expert_id * broadcast_scalar(weight_expert_stride, tile_shape)
                 + column * broadcast_scalar(weight_row_stride, tile_shape)
                 + broadcast_scalar(reduction_index, tile_shape);
-            let input_values = load_bf16_vector_as_f32(input, input_offsets, active_mask);
-            let weight_values = load_bf16_vector_as_f32(weights, weight_offsets, active_mask);
+            let input_values =
+                unsafe { load_bf16_vector_as_f32(input, input_offsets, active_mask) };
+            let weight_values =
+                unsafe { load_bf16_vector_as_f32(weights, weight_offsets, active_mask) };
             sum = sum + input_values * weight_values;
         }
 
         let output_offsets = output_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_bf16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_bf16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
     // Mirrors the scale application in
     // thirdparty/TileGym/src/tilegym/suites/flashinfer/cutile/gemm/ragged_block_scaled_bmm.py.
-    #[cfg(feature = "dtype-f8")]
+    #[cfg(feature = "dtype_f8")]
     #[cutile::entry()]
     pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f32(
         out: *mut f32,
@@ -1933,13 +1965,15 @@ mod kernels {
         let local_row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - local_row * broadcast_scalar(columns, tile_shape);
 
-        let segment_start = load_i32_vector(row_indptr, batch, mask, 0i32);
-        let segment_end = load_i32_vector(
-            row_indptr,
-            batch + broadcast_scalar(1i32, tile_shape),
-            mask,
-            0i32,
-        );
+        let segment_start = unsafe { load_i32_vector(row_indptr, batch, mask, 0i32) };
+        let segment_end = unsafe {
+            load_i32_vector(
+                row_indptr,
+                batch + broadcast_scalar(1i32, tile_shape),
+                mask,
+                0i32,
+            )
+        };
         let valid_rows = segment_end - segment_start;
         let active_mask = mask & cmpi(local_row, valid_rows, predicate::LessThan);
         let global_row = segment_start + local_row;
@@ -1959,20 +1993,22 @@ mod kernels {
                 + (column / broadcast_scalar(scale_block, tile_shape))
                     * broadcast_scalar(rhs_scale_row_stride, tile_shape)
                 + scale_k;
-            let lhs_values = load_f8e4m3_vector_as_f32(lhs, lhs_offsets, active_mask);
-            let rhs_values = load_f8e4m3_vector_as_f32(rhs, rhs_offsets, active_mask);
-            let lhs_scales = load_f32_vector(lhs_scale, lhs_scale_offsets, active_mask, 0.0f32);
-            let rhs_scales = load_f32_vector(rhs_scale, rhs_scale_offsets, active_mask, 0.0f32);
+            let lhs_values = unsafe { load_f8e4m3_vector_as_f32(lhs, lhs_offsets, active_mask) };
+            let rhs_values = unsafe { load_f8e4m3_vector_as_f32(rhs, rhs_offsets, active_mask) };
+            let lhs_scales =
+                unsafe { load_f32_vector(lhs_scale, lhs_scale_offsets, active_mask, 0.0f32) };
+            let rhs_scales =
+                unsafe { load_f32_vector(rhs_scale, rhs_scale_offsets, active_mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values * lhs_scales * rhs_scales;
         }
 
         let output_offsets = global_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f32_vector(out, output_offsets, sum, active_mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, active_mask) };
     }
 
     // Mirrors the scale application in
     // thirdparty/TileGym/src/tilegym/suites/flashinfer/cutile/gemm/ragged_block_scaled_bmm.py.
-    #[cfg(all(feature = "dtype-f8", feature = "dtype-f16"))]
+    #[cfg(all(feature = "dtype_f8", feature = "dtype_f16"))]
     #[cutile::entry()]
     pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f16(
         out: *mut f16,
@@ -2010,13 +2046,15 @@ mod kernels {
         let local_row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - local_row * broadcast_scalar(columns, tile_shape);
 
-        let segment_start = load_i32_vector(row_indptr, batch, mask, 0i32);
-        let segment_end = load_i32_vector(
-            row_indptr,
-            batch + broadcast_scalar(1i32, tile_shape),
-            mask,
-            0i32,
-        );
+        let segment_start = unsafe { load_i32_vector(row_indptr, batch, mask, 0i32) };
+        let segment_end = unsafe {
+            load_i32_vector(
+                row_indptr,
+                batch + broadcast_scalar(1i32, tile_shape),
+                mask,
+                0i32,
+            )
+        };
         let valid_rows = segment_end - segment_start;
         let active_mask = mask & cmpi(local_row, valid_rows, predicate::LessThan);
         let global_row = segment_start + local_row;
@@ -2036,20 +2074,22 @@ mod kernels {
                 + (column / broadcast_scalar(scale_block, tile_shape))
                     * broadcast_scalar(rhs_scale_row_stride, tile_shape)
                 + scale_k;
-            let lhs_values = load_f8e4m3_vector_as_f32(lhs, lhs_offsets, active_mask);
-            let rhs_values = load_f8e4m3_vector_as_f32(rhs, rhs_offsets, active_mask);
-            let lhs_scales = load_f32_vector(lhs_scale, lhs_scale_offsets, active_mask, 0.0f32);
-            let rhs_scales = load_f32_vector(rhs_scale, rhs_scale_offsets, active_mask, 0.0f32);
+            let lhs_values = unsafe { load_f8e4m3_vector_as_f32(lhs, lhs_offsets, active_mask) };
+            let rhs_values = unsafe { load_f8e4m3_vector_as_f32(rhs, rhs_offsets, active_mask) };
+            let lhs_scales =
+                unsafe { load_f32_vector(lhs_scale, lhs_scale_offsets, active_mask, 0.0f32) };
+            let rhs_scales =
+                unsafe { load_f32_vector(rhs_scale, rhs_scale_offsets, active_mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values * lhs_scales * rhs_scales;
         }
 
         let output_offsets = global_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_f16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
     // Mirrors the scale application in
     // thirdparty/TileGym/src/tilegym/suites/flashinfer/cutile/gemm/ragged_block_scaled_bmm.py.
-    #[cfg(all(feature = "dtype-f8", feature = "dtype-bf16"))]
+    #[cfg(all(feature = "dtype_f8", feature = "dtype_bf16"))]
     #[cutile::entry()]
     pub unsafe fn ragged_block_scaled_bmm_f8e4m3_bf16(
         out: *mut bf16,
@@ -2087,13 +2127,15 @@ mod kernels {
         let local_row = matrix_offsets / broadcast_scalar(columns, tile_shape);
         let column = matrix_offsets - local_row * broadcast_scalar(columns, tile_shape);
 
-        let segment_start = load_i32_vector(row_indptr, batch, mask, 0i32);
-        let segment_end = load_i32_vector(
-            row_indptr,
-            batch + broadcast_scalar(1i32, tile_shape),
-            mask,
-            0i32,
-        );
+        let segment_start = unsafe { load_i32_vector(row_indptr, batch, mask, 0i32) };
+        let segment_end = unsafe {
+            load_i32_vector(
+                row_indptr,
+                batch + broadcast_scalar(1i32, tile_shape),
+                mask,
+                0i32,
+            )
+        };
         let valid_rows = segment_end - segment_start;
         let active_mask = mask & cmpi(local_row, valid_rows, predicate::LessThan);
         let global_row = segment_start + local_row;
@@ -2113,18 +2155,20 @@ mod kernels {
                 + (column / broadcast_scalar(scale_block, tile_shape))
                     * broadcast_scalar(rhs_scale_row_stride, tile_shape)
                 + scale_k;
-            let lhs_values = load_f8e4m3_vector_as_f32(lhs, lhs_offsets, active_mask);
-            let rhs_values = load_f8e4m3_vector_as_f32(rhs, rhs_offsets, active_mask);
-            let lhs_scales = load_f32_vector(lhs_scale, lhs_scale_offsets, active_mask, 0.0f32);
-            let rhs_scales = load_f32_vector(rhs_scale, rhs_scale_offsets, active_mask, 0.0f32);
+            let lhs_values = unsafe { load_f8e4m3_vector_as_f32(lhs, lhs_offsets, active_mask) };
+            let rhs_values = unsafe { load_f8e4m3_vector_as_f32(rhs, rhs_offsets, active_mask) };
+            let lhs_scales =
+                unsafe { load_f32_vector(lhs_scale, lhs_scale_offsets, active_mask, 0.0f32) };
+            let rhs_scales =
+                unsafe { load_f32_vector(rhs_scale, rhs_scale_offsets, active_mask, 0.0f32) };
             sum = sum + lhs_values * rhs_values * lhs_scales * rhs_scales;
         }
 
         let output_offsets = global_row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_bf16_vector_from_f32(out, output_offsets, sum, active_mask);
+        unsafe { store_bf16_vector_from_f32(out, output_offsets, sum, active_mask) };
     }
 
-    #[cfg(feature = "dtype-f64")]
+    #[cfg(feature = "dtype_f64")]
     // Mirrors the row-major (Q, M, K) @ (Q, K, N) layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/bmm.py.
     #[cutile::entry()]
@@ -2184,20 +2228,20 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f64_vector(lhs, lhs_offsets, mask, 0.0f64);
-            let rhs_values = load_f64_vector(rhs, rhs_offsets, mask, 0.0f64);
+            let lhs_values = unsafe { load_f64_vector(lhs, lhs_offsets, mask, 0.0f64) };
+            let rhs_values = unsafe { load_f64_vector(rhs, rhs_offsets, mask, 0.0f64) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = batch * broadcast_scalar(output_batch_stride, tile_shape)
             + row * broadcast_scalar(output_row_stride, tile_shape)
             + column;
-        store_f64_vector(out, output_offsets, sum, mask);
+        unsafe { store_f64_vector(out, output_offsets, sum, mask) };
     }
 
     // Mirrors the row-major (Q, M, K) @ (Q, K, N) layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/bmm.py, accumulating half inputs into f32.
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[cutile::entry()]
     pub unsafe fn bmm_f16_f32(
         out: *mut f32,
@@ -2255,20 +2299,20 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_f16_vector_as_f32(lhs, lhs_offsets, mask);
-            let rhs_values = load_f16_vector_as_f32(rhs, rhs_offsets, mask);
+            let lhs_values = unsafe { load_f16_vector_as_f32(lhs, lhs_offsets, mask) };
+            let rhs_values = unsafe { load_f16_vector_as_f32(rhs, rhs_offsets, mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = batch * broadcast_scalar(output_batch_stride, tile_shape)
             + row * broadcast_scalar(output_row_stride, tile_shape)
             + column;
-        store_f32_vector(out, output_offsets, sum, mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, mask) };
     }
 
     // Mirrors the row-major (Q, M, K) @ (Q, K, N) layout in
     // thirdparty/TileGym/src/tilegym/ops/cutile/bmm.py, accumulating bf16 inputs into f32.
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[cutile::entry()]
     pub unsafe fn bmm_bf16_f32(
         out: *mut f32,
@@ -2326,18 +2370,18 @@ mod kernels {
                         * broadcast_scalar(rhs_row_stride, tile_shape)
                     + column
             };
-            let lhs_values = load_bf16_vector_as_f32(lhs, lhs_offsets, mask);
-            let rhs_values = load_bf16_vector_as_f32(rhs, rhs_offsets, mask);
+            let lhs_values = unsafe { load_bf16_vector_as_f32(lhs, lhs_offsets, mask) };
+            let rhs_values = unsafe { load_bf16_vector_as_f32(rhs, rhs_offsets, mask) };
             sum = sum + lhs_values * rhs_values;
         }
 
         let output_offsets = batch * broadcast_scalar(output_batch_stride, tile_shape)
             + row * broadcast_scalar(output_row_stride, tile_shape)
             + column;
-        store_f32_vector(out, output_offsets, sum, mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, mask) };
     }
 
-    fn load_f32_vector(
+    unsafe fn load_f32_vector(
         input: *mut f32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2347,19 +2391,21 @@ mod kernels {
         let input_base: PointerTile<*mut f32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    fn store_f32_vector(
+    unsafe fn store_f32_vector(
         out: *mut f32,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -2369,34 +2415,38 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn store_f32_scalar(out: *mut f32, offset: i32, value: Tile<f32, { [1] }>) {
+    unsafe fn store_f32_scalar(out: *mut f32, offset: i32, value: Tile<f32, { [1] }>) {
         let out_base: PointerTile<*mut f32, { [] }> = pointer_to_tile(out);
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [1] }> =
             out_base.offset_tile(broadcast_scalar(offset, const_shape![1]));
-        store_ptr_tko(
-            out_ptrs,
-            value,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            None,
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                value,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn load_i32_vector(
+    unsafe fn load_i32_vector(
         input: *mut i32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2406,20 +2456,22 @@ mod kernels {
         let input_base: PointerTile<*mut i32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut i32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut i32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<i32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<i32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    #[cfg(feature = "dtype-f64")]
-    fn load_f64_vector(
+    #[cfg(feature = "dtype_f64")]
+    unsafe fn load_f64_vector(
         input: *mut f64,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2429,20 +2481,22 @@ mod kernels {
         let input_base: PointerTile<*mut f64, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f64, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f64, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f64, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f64, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    #[cfg(feature = "dtype-f64")]
-    fn store_f64_vector(
+    #[cfg(feature = "dtype_f64")]
+    unsafe fn store_f64_vector(
         out: *mut f64,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f64, { [128] }>,
@@ -2452,19 +2506,21 @@ mod kernels {
         let out_base: PointerTile<*mut f64, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f64, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    #[cfg(feature = "dtype-f16")]
-    fn load_f16_vector_as_f32(
+    #[cfg(feature = "dtype_f16")]
+    unsafe fn load_f16_vector_as_f32(
         input: *mut f16,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2475,22 +2531,24 @@ mod kernels {
         let input_base: PointerTile<*mut f16, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f16, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [128] }> = convert_tile(result.0);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, const_shape![128]);
         select(mask, values, zero)
     }
 
-    #[cfg(feature = "dtype-f16")]
-    fn load_f16_vector_as_f32_const<const K: i32>(
+    #[cfg(feature = "dtype_f16")]
+    unsafe fn load_f16_vector_as_f32_const<const K: i32>(
         input: *mut f16,
         offsets: Tile<i32, { [K] }>,
         mask: Tile<bool, { [K] }>,
@@ -2501,22 +2559,24 @@ mod kernels {
         let input_base: PointerTile<*mut f16, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f16, { [K] }> = input_base.broadcast(const_shape![K]);
         let input_ptrs: PointerTile<*mut f16, { [K] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f16, { [K] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f16, { [K] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [K] }> = convert_tile(result.0);
         let zero: Tile<f32, { [K] }> = constant(0.0f32, const_shape![K]);
         select(mask, values, zero)
     }
 
-    #[cfg(feature = "dtype-f8")]
-    fn load_f8e4m3_vector_as_f32(
+    #[cfg(feature = "dtype_f8")]
+    unsafe fn load_f8e4m3_vector_as_f32(
         input: *mut f8e4m3fn,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2528,22 +2588,24 @@ mod kernels {
         let input_ptrs: PointerTile<*mut f8e4m3fn, { [128] }> =
             input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f8e4m3fn, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f8e4m3fn, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f8e4m3fn, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [128] }> = convert_tile(result.0);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, const_shape![128]);
         select(mask, values, zero)
     }
 
-    #[cfg(feature = "dtype-f16")]
-    fn store_f16_vector_from_f32(
+    #[cfg(feature = "dtype_f16")]
+    unsafe fn store_f16_vector_from_f32(
         out: *mut f16,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -2556,19 +2618,21 @@ mod kernels {
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
         let output: Tile<f16, { [128] }> = convert_tile(values);
-        store_ptr_tko(
-            out_ptrs,
-            output,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                output,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    #[cfg(feature = "dtype-bf16")]
-    fn store_bf16_vector_from_f32(
+    #[cfg(feature = "dtype_bf16")]
+    unsafe fn store_bf16_vector_from_f32(
         out: *mut bf16,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -2581,19 +2645,21 @@ mod kernels {
         let out_ptrs: PointerTile<*mut bf16, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut bf16, { [128] }> = out_ptrs.offset_tile(offsets);
         let output: Tile<bf16, { [128] }> = convert_tile(values);
-        store_ptr_tko(
-            out_ptrs,
-            output,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                output,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    #[cfg(feature = "dtype-bf16")]
-    fn load_bf16_vector_as_f32(
+    #[cfg(feature = "dtype_bf16")]
+    unsafe fn load_bf16_vector_as_f32(
         input: *mut bf16,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -2604,15 +2670,17 @@ mod kernels {
         let input_base: PointerTile<*mut bf16, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut bf16, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut bf16, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<bf16, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<bf16, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [128] }> = convert_tile(result.0);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, const_shape![128]);
         select(mask, values, zero)

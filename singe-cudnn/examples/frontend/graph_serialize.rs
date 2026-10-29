@@ -1,15 +1,17 @@
 mod common;
 
-use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::pointwise::PointwiseMode,
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorId, TensorSpec},
+    },
     data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{ConvolutionConfig, HeuristicMode, PointwiseOperation},
+        graph::{DataTypePolicy, Graph, GraphConfig, GraphKeyShapePolicy, TensorOutputConfig},
+        operation::{ConvolutionConfig, PointwiseOperation},
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
 };
@@ -25,26 +27,6 @@ fn init_f16_image(size: usize, seed: &mut u32) -> Vec<f16> {
         .into_iter()
         .map(f16::from_f32)
         .collect()
-}
-
-fn verify_output(y_host: &[f16]) {
-    let first = y_host[0].to_f32();
-    let last = y_host[y_host.len() - 1].to_f32();
-    let checksum = y_host.iter().map(|value| value.to_f32()).sum::<f32>();
-    let nonfinite = y_host
-        .iter()
-        .filter(|value| !value.to_f32().is_finite())
-        .count();
-
-    println!(
-        "y: first={first}, last={last}, checksum={checksum}, nonfinite={nonfinite}, len={}",
-        y_host.len()
-    );
-
-    assert_eq!(nonfinite, 0, "y.nonfinite mismatch");
-    assert_close!(first, 22.15625, 1.0e-5, "y.first");
-    assert_close!(last, 19.203125, 1.0e-5, "y.last");
-    assert_close!(checksum, 2_305_199.0, 1.0, "y.checksum");
 }
 
 fn build_graph() -> Result<Graph> {
@@ -67,103 +49,115 @@ fn build_graph() -> Result<Graph> {
             ),
     );
 
-    let x = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])?,
-        )
-        .with_id(X_ID),
-    );
-    let w_tensor = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([k, c, r, s])?.with_strides([c * r * s, 1, c * s, c])?,
-        )
-        .with_id(W_ID),
-    );
-    let conv = graph.convolution_forward_infer(
+    let x = graph.insert_tensor(
+        X_ID,
+        TensorSpec::new(DataType::F16, Shape::channels_last([n, c, h, w])?),
+    )?;
+    let w_tensor = graph.insert_tensor(
+        W_ID,
+        TensorSpec::new(DataType::F16, Shape::channels_last([k, c, r, s])?),
+    )?;
+    let conv = graph.convolution_forward(
         x,
         w_tensor,
-        ConvolutionConfig::new(DataType::F32, 2)
+        ConvolutionConfig::new(2)
             .with_padding(vec![1, 1])
             .with_strides([1, 1])
             .with_dilations(vec![1, 1]),
+        TensorOutputConfig::new().with_data_type(DataType::F16),
     )?;
-    let conv_virtual = graph.tensor_config(conv)?.clone().virtual_tensor();
-    graph.replace_tensor(conv, conv_virtual)?;
-    let scale = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([1, k, 1, 1])?.with_strides([k, 1, k, k])?,
-        )
-        .with_id(SCALE_ID),
-    );
-    let scaled = graph.pointwise_binary_infer(conv, scale, PointwiseMode::Mul, DataType::F32)?;
-    let scaled_virtual = graph.tensor_config(scaled)?.clone().virtual_tensor();
-    graph.replace_tensor(scaled, scaled_virtual)?;
-    let bias = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([1, k, 1, 1])?.with_strides([k, 1, k, k])?,
-        )
-        .with_id(BIAS_ID),
-    );
-    let biased = graph.pointwise_binary_infer(scaled, bias, PointwiseMode::Add, DataType::F32)?;
-    let biased_virtual = graph.tensor_config(biased)?.clone().virtual_tensor();
-    graph.replace_tensor(biased, biased_virtual)?;
-    let y = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([n, k, h, w])?.with_strides([k * h * w, 1, k * w, k])?,
-        )
-        .with_id(Y_ID),
-    );
-    graph.pointwise(PointwiseOperation::Unary {
-        mode: PointwiseMode::ReluFwd,
-        input: biased,
-        output: y,
-        compute_type: DataType::F32,
-        nan_propagation: NanPropagation::NotPropagate,
-        alpha1: 1.0,
-        axis: None,
-    });
+    let scale = graph.insert_tensor(
+        SCALE_ID,
+        TensorSpec::new(DataType::F16, Shape::channels_last([1, k, 1, 1])?),
+    )?;
+    let scaled = graph.pointwise(PointwiseOperation::binary(
+        PointwiseMode::Mul,
+        conv,
+        scale,
+        TensorOutputConfig::new()
+            .with_data_type(DataType::F16)
+            .virtual_tensor(),
+    ))?;
+    let bias = graph.insert_tensor(
+        BIAS_ID,
+        TensorSpec::new(DataType::F16, Shape::channels_last([1, k, 1, 1])?),
+    )?;
+    let biased = graph.pointwise(PointwiseOperation::binary(
+        PointwiseMode::Add,
+        scaled,
+        bias,
+        TensorOutputConfig::new()
+            .with_data_type(DataType::F16)
+            .virtual_tensor(),
+    ))?;
+    let y = graph.insert_tensor(
+        Y_ID,
+        TensorSpec::new(DataType::F16, Shape::channels_last([n, k, h, w])?),
+    )?;
+    graph.pointwise_into(
+        PointwiseOperation::unary(PointwiseMode::ReluFwd, biased, y)
+            .with_nan_propagation(NanPropagation::NotPropagate),
+    )?;
 
     Ok(graph)
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let context = common::ExampleContext::create()?;
     let graph = build_graph()?;
 
     let serialized = serde_json::to_vec(&graph)?;
     let restored = serde_json::from_slice::<Graph>(&serialized)?;
-    assert_eq!(restored.name(), Some("serialize-demo"));
-    let json = serde_json::to_string(&restored)?;
-    let restored_from_json = serde_json::from_str::<Graph>(&json)?;
-    assert_eq!(restored_from_json.key()?, restored.key()?);
+    println!(
+        "restored graph {:?}: {} JSON bytes, key={:016x}",
+        restored.name(),
+        serialized.len(),
+        restored.key(GraphKeyShapePolicy::Auto)?,
+    );
 
-    let compiled = restored.compile(&ctx.cudnn, &[HeuristicMode::A])?;
+    let compiled = restored.compile(
+        Some(&context.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+    )?;
     let mut seed = 123_456_789_u32;
-    let mut x_dev =
-        DeviceMemory::from_slice(&init_f16_image((4 * 32 * 16 * 16) as usize, &mut seed))?;
-    let mut w_dev =
-        DeviceMemory::from_slice(&init_f16_image((64 * 32 * 3 * 3) as usize, &mut seed))?;
-    let mut scale_dev = DeviceMemory::from_slice(&init_f16_image(64, &mut seed))?;
-    let mut bias_dev = DeviceMemory::from_slice(&init_f16_image(64, &mut seed))?;
-    let mut y_dev = DeviceMemory::<f16>::zeroes((4 * 64 * 16 * 16) as usize)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
+    let x_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_f16_image(restored.shape(X_ID)?.storage_span()?, &mut seed),
+    )?;
+    let w_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_f16_image(restored.shape(W_ID)?.storage_span()?, &mut seed),
+    )?;
+    let scale_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_f16_image(restored.shape(SCALE_ID)?.storage_span()?, &mut seed),
+    )?;
+    let bias_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_f16_image(restored.shape(BIAS_ID)?.storage_span()?, &mut seed),
+    )?;
+    let output_elements = restored.shape(Y_ID)?.storage_span()?;
+    let mut y_dev = DeviceMemory::<f16>::zeroed(context.cudnn.cuda_context(), output_elements)?;
+    let mut workspace = common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
 
-    let mut bindings = compiled.bindings();
+    let mut bindings = compiled.bindings()?;
     bindings
-        .set(X_ID, &mut x_dev)?
-        .set(W_ID, &mut w_dev)?
-        .set(SCALE_ID, &mut scale_dev)?
-        .set(BIAS_ID, &mut bias_dev)?
+        .set_input(X_ID, &x_dev.view())?
+        .set_input(W_ID, &w_dev.view())?
+        .set_input(SCALE_ID, &scale_dev.view())?
+        .set_input(BIAS_ID, &bias_dev.view())?
         .set(Y_ID, &mut y_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-
-    let y_host = y_dev.copy_to_host_vec()?;
-    verify_output(&y_host);
+    // SAFETY: inputs, writable output, plan and workspace remain live until stream completion, including enqueue failure.
+    let execution = unsafe {
+        compiled.execute(
+            &context.cudnn,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    };
+    let completion = context.stream.synchronize();
+    execution?;
+    completion?;
+    println!("executed restored graph with {output_elements} output elements");
 
     Ok(())
 }

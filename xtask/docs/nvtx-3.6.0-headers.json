@@ -1,0 +1,804 @@
+{
+  "NVTX_API": {
+    "doc": "POSIX-like platform",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_COLOR_ARGB": {
+    "doc": "An ARGB color is provided.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_COLOR_UNKNOWN": {
+    "doc": "Color attribute is unused.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_EVENT_ATTRIB_STRUCT_SIZE": {
+    "doc": "Size of the nvtxEventAttributes_t structure.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_IMPL_GUARD": {
+    "doc": "__cplusplus",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_MESSAGE_TYPE_ASCII": {
+    "doc": "A character sequence is used as payload.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_MESSAGE_TYPE_REGISTERED": {
+    "doc": "A unique string handle that was registered with `nvtxDomainRegisterStringA()` or `nvtxDomainRegisterStringW()`.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_MESSAGE_TYPE_UNICODE": {
+    "doc": "A wide character sequence is used as payload.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_MESSAGE_UNKNOWN": {
+    "doc": "Message attribute is unused.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_PAYLOAD_TYPE_DOUBLE": {
+    "doc": "A 64 bit floating point value is used as payload.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_PAYLOAD_TYPE_FLOAT": {
+    "doc": "A 32 bit floating point value is used as payload.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_PAYLOAD_TYPE_INT32": {
+    "doc": "A 32 bit floating point value is used as payload.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_PAYLOAD_TYPE_INT64": {
+    "doc": "A 64 bit signed integer value is used as payload.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_PAYLOAD_TYPE_UNSIGNED_INT32": {
+    "doc": "A 32 bit floating point value is used as payload.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_PAYLOAD_TYPE_UNSIGNED_INT64": {
+    "doc": "A 64 bit unsigned integer value is used as payload.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_PAYLOAD_UNKNOWN": {
+    "doc": "Payload attribute is unused.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_RESOURCE_ATTRIB_STRUCT_SIZE": {
+    "doc": "SHOW_HIDDEN\n\n\n\nversion: NVTX_VERSION_2",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_RESOURCE_CLASS_CUDA": {
+    "doc": "SHOW_HIDDEN\n\n\n\nUsed to build a non-colliding value for resource types separated class\n\nversion: NVTX_VERSION_2",
+    "members": {},
+    "source": "nvToolsExtCuda.h"
+  },
+  "NVTX_RESOURCE_CLASS_CUDART": {
+    "doc": "SHOW_HIDDEN\n\n\n\nUsed to build a non-colliding value for resource types separated class\n\nversion: NVTX_VERSION_2",
+    "members": {},
+    "source": "nvToolsExtCudaRt.h"
+  },
+  "NVTX_RESOURCE_CLASS_SYNC_OS": {
+    "doc": "SHOW_HIDDEN\n\n\n\nUsed to build a non-colliding value for resource types separated class\n\nversion: NVTX_VERSION_2",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "NVTX_RESOURCE_TYPE_CUDART_DEVICE": {
+    "doc": "int device",
+    "members": {},
+    "source": "nvToolsExtCudaRt.h"
+  },
+  "NVTX_RESOURCE_TYPE_CUDART_EVENT": {
+    "doc": "cudaEvent_t",
+    "members": {},
+    "source": "nvToolsExtCudaRt.h"
+  },
+  "NVTX_RESOURCE_TYPE_CUDART_STREAM": {
+    "doc": "cudaStream_t",
+    "members": {},
+    "source": "nvToolsExtCudaRt.h"
+  },
+  "NVTX_RESOURCE_TYPE_CUDA_CONTEXT": {
+    "doc": "CUcontext",
+    "members": {},
+    "source": "nvToolsExtCuda.h"
+  },
+  "NVTX_RESOURCE_TYPE_CUDA_DEVICE": {
+    "doc": "CUdevice",
+    "members": {},
+    "source": "nvToolsExtCuda.h"
+  },
+  "NVTX_RESOURCE_TYPE_CUDA_EVENT": {
+    "doc": "CUevent",
+    "members": {},
+    "source": "nvToolsExtCuda.h"
+  },
+  "NVTX_RESOURCE_TYPE_CUDA_STREAM": {
+    "doc": "CUstream",
+    "members": {},
+    "source": "nvToolsExtCuda.h"
+  },
+  "NVTX_RESOURCE_TYPE_GENERIC_HANDLE": {
+    "doc": "Generic handle assumed to have no collisions with other handles.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_RESOURCE_TYPE_GENERIC_POINTER": {
+    "doc": "Generic pointer assumed to have no collisions with other pointers.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_RESOURCE_TYPE_GENERIC_THREAD_NATIVE": {
+    "doc": "OS native thread identifier.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_RESOURCE_TYPE_GENERIC_THREAD_POSIX": {
+    "doc": "POSIX pthread identifier.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_RESOURCE_TYPE_SYNC_PTHREAD_BARRIER": {
+    "doc": "pthread_barrier_t",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "NVTX_RESOURCE_TYPE_SYNC_PTHREAD_CONDITION": {
+    "doc": "pthread_cond_t",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "NVTX_RESOURCE_TYPE_SYNC_PTHREAD_MUTEX": {
+    "doc": "pthread_mutex_t",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "NVTX_RESOURCE_TYPE_SYNC_PTHREAD_ONCE": {
+    "doc": "pthread_once_t",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "NVTX_RESOURCE_TYPE_SYNC_PTHREAD_RWLOCK": {
+    "doc": "pthread_rwlock_t",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "NVTX_RESOURCE_TYPE_SYNC_PTHREAD_SPINLOCK": {
+    "doc": "pthread_spinlock_t",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "NVTX_SUCCESS": {
+    "doc": "Result Codes used for the NVTX tool loader.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "NVTX_SYNCUSER_ATTRIB_STRUCT_SIZE": {
+    "doc": "SHOW_HIDDEN\n\n\n\nversion: NVTX_VERSION_2",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxColorType_t": {
+    "doc": "--------------------------------------------------------------------------- Color Types -------------------------------------------------------------------------",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainCreate": {
+    "doc": "NVTX_VERSION_2",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainCreateA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nRegister a NVTX domain.\n\nDomains are used to scope annotations. All NVTX_VERSION_0 and NVTX_VERSION_1 annotations are scoped to the global domain. The function nvtxDomainCreate creates a new named domain.\n\nEach domain maintains its own nvtxRangePush and nvtxRangePop stack.\n\n\n\n\n\n# Return value\n\nA handle representing the domain.\n\n\n\nCreate a domain:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"com.nvidia.nvtx.example\");\n\n nvtxMarkA(\"nvtxMarkA to global domain\");\n\n nvtxEventAttributes_t eventAttrib1 = {0};\n eventAttrib1.version = NVTX_VERSION;\n eventAttrib1.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib1.message.ascii = \"nvtxDomainMarkEx to global domain\";\n nvtxDomainMarkEx(NULL, &eventAttrib1);\n\n nvtxEventAttributes_t eventAttrib2 = {0};\n eventAttrib2.version = NVTX_VERSION;\n eventAttrib2.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib2.message.ascii = \"nvtxDomainMarkEx to com.nvidia.nvtx.example\";\n nvtxDomainMarkEx(domain, &eventAttrib2);\n\n nvtxDomainDestroy(domain);\n```\n\n\n\nSee also: ::nvtxDomainDestroy\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "name": {
+        "doc": "- A unique string representing the domain."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainDestroy": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nUnregister a NVTX domain.\n\nUnregisters the domain handle and frees all domain specific resources.\n\n\n\n\n\nDestroy a domain:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"com.nvidia.nvtx.example\");\n // ...\n nvtxDomainDestroy(domain);\n```\n\n\n\nSee also: ::nvtxDomainCreateA ::nvtxDomainCreateW\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "domain": {
+        "doc": "- the domain handle"
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainHandle_t": {
+    "doc": "Domain Handle Structure.\n\nThis structure is opaque to the user and is used as a handle to reference a domain.  This type is returned from tools when using the NVTX API to create a domain.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainMarkEx": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nMarks an instantaneous event in the application.\n\nA marker can contain a text message or specify additional information using the event attributes structure.  These attributes include a text message, color, category, and a payload. Each of the attributes is optional and can only be sent out using the `nvtxDomainMarkEx` function.\n\nnvtxDomainMarkEx(NULL, event) is equivalent to calling nvtxMarkEx(event).\n\n\n\n\n\nSee also: ::nvtxMarkEx\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "domain": {
+        "doc": "- The domain of scoping the category."
+      },
+      "eventAttrib": {
+        "doc": "- The event attribute structure defining the marker's attribute types and attribute values."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainNameCategoryA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotate an NVTX category used within a domain.\n\nCategories are used to group sets of events. Each category is identified through a unique ID and that ID is passed into any of the marker/range events to assign that event to a specific category. The nvtxDomainNameCategory function calls allow the user to assign a name to a category ID that is specific to the domain.\n\nnvtxDomainNameCategory(NULL, category, name) is equivalent to calling nvtxNameCategory(category, name).\n\n\n\n\n\nremarks: The category names are tracked per domain.\n\n\n\nAssign names to categories in a domain:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"example\");\n nvtxDomainNameCategoryA(domain, 1, \"Memory Allocation\");\n nvtxDomainNameCategoryW(domain, 2, L\"Memory Transfer\");\n```\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "category": {
+        "doc": "- The category ID to name."
+      },
+      "domain": {
+        "doc": "- The domain of scoping the category."
+      },
+      "name": {
+        "doc": "- The name of the category."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainRangeEnd": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nEnds a process range.\n\n\n\n\n\nremarks: This function is offered completeness but is an alias for ::nvtxRangeEnd. It does not need a domain param since that is associated with the range ID at ::nvtxDomainRangeStartEx\n\n\n\nEnd a range for a domain:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"my domain\");\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;\n eventAttrib.message.ascii = \"my range\";\n nvtxRangeId_t rangeId = nvtxDomainRangeStartEx(domain, &eventAttrib);\n // ...\n nvtxDomainRangeEnd(domain, rangeId);\n```\n\n\n\nSee also: ::nvtxDomainRangeStartEx\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "domain": {
+        "doc": "- The domain"
+      },
+      "id": {
+        "doc": "- The correlation ID returned from a nvtxRangeStart call."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainRangePop": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nEnds a nested thread range.\n\n\n\n# Return value\n\nThe level of the range being ended. If an error occurs a negative value is returned on the current thread.\n\n\n\nPop a range for a domain:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"example domain\");\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib.colorType = NVTX_COLOR_ARGB;\n eventAttrib.color = 0xFFFF0000;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;\n eventAttrib.message.ascii = \"Level 0\";\n nvtxDomainRangePushEx(domain, &eventAttrib);\n\n // Re-use eventAttrib\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_UNICODE;\n eventAttrib.message.unicode = L\"Level 1\";\n nvtxDomainRangePushEx(domain, &eventAttrib);\n\n nvtxDomainRangePop(domain); // Level 1\n nvtxDomainRangePop(domain); // Level 0\n```\n\n\n\nSee also: ::nvtxRangePushEx ::nvtxRangePushA ::nvtxRangePushW\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainRangePushEx": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nStarts a nested thread range.\n\n\n\n\n\n# Return value\n\nThe 0 based level of range being started. This value is scoped to the domain. If an error occurs, a negative value is returned.\n\n\n\nPush a range with attributes for a domain:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"example domain\");\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib.colorType = NVTX_COLOR_ARGB;\n eventAttrib.color = 0xFFFF0000;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;\n eventAttrib.message.ascii = \"Level 0\";\n nvtxDomainRangePushEx(domain, &eventAttrib);\n\n // Re-use eventAttrib\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_UNICODE;\n eventAttrib.message.unicode = L\"Level 1\";\n nvtxDomainRangePushEx(domain, &eventAttrib);\n\n nvtxDomainRangePop(domain); // Level 1\n nvtxDomainRangePop(domain); // Level 0\n```\n\n\n\nSee also: ::nvtxDomainRangePop\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "domain": {
+        "doc": "- The domain of scoping."
+      },
+      "eventAttrib": {
+        "doc": "- The event attribute structure defining the range's attribute types and attribute values."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainRangeStartEx": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nStarts a process range in a domain.\n\n\n\n\n\n# Return value\n\nThe unique ID used to correlate a pair of Start and End events.\n\n\n\nremarks: Ranges defined by Start/End can overlap.\n\n\n\nStart a range with attributes for a domain:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"my domain\");\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;\n eventAttrib.message.ascii = \"my range\";\n nvtxRangeId_t rangeId = nvtxDomainRangeStartEx(domain, &eventAttrib);\n // ...\n nvtxDomainRangeEnd(domain, rangeId);\n```\n\n\n\nSee also: ::nvtxDomainRangeEnd\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "domain": {
+        "doc": "- The domain of scoping the category."
+      },
+      "eventAttrib": {
+        "doc": "- The event attribute structure defining the range's attribute types and attribute values."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainRegisterStringA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nRegister a string.\n\nRegisters an immutable string with NVTX. Once registered the pointer used to register the domain name can be used in nvtxEventAttributes_t `MESSAGE_FIELD`. This allows NVTX implementation to skip copying the contents of the message on each event invocation.\n\nString registration is an optimization. It is recommended to use string registration if the string will be passed to an event many times.\n\nString are not unregistered, except that by unregistering the entire domain\n\n\n\n\n\n# Return value\n\nA handle representing the registered string.\n\n\n\nRegister a string:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"com.nvidia.nvtx.example\");\n nvtxStringHandle_t message = nvtxDomainRegisterStringA(domain, \"registered string\");\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_REGISTERED;\n eventAttrib.message.registered = message;\n```\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "domain": {
+        "doc": "- Domain handle. If NULL then the global domain is used."
+      },
+      "string": {
+        "doc": "- A unique pointer to a sequence of characters."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainRegistration_st": {
+    "doc": "Forward declaration of opaque domain registration structure",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainResourceCreate": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nCreate a resource object to track and associate data with OS and middleware objects\n\nAllows users to associate an API handle or pointer with a user-provided name.\n\n\n\n\n\n# Return value\n\nA handle that represents the newly created resource object.\n\n\n\nRegister a resource:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"example domain\");\n nvtxResourceAttributes_t attribs = {0};\n attribs.version = NVTX_VERSION;\n attribs.size = NVTX_RESOURCE_ATTRIB_STRUCT_SIZE;\n attribs.identifierType = NVTX_RESOURCE_TYPE_GENERIC_POINTER;\n attribs.identifier.pValue = (const void*)pMutex;\n attribs.messageType = NVTX_MESSAGE_TYPE_ASCII;\n attribs.message.ascii = \"Single thread access to database.\";\n nvtxResourceHandle_t handle = nvtxDomainResourceCreate(domain, &attribs);\n```\n\n\n\nSee also: ::nvtxResourceAttributes_t ::nvtxDomainResourceDestroy\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attribs": {
+        "doc": "- Attributes to be associated with the resource"
+      },
+      "domain": {
+        "doc": "- Domain to own the resource object"
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainResourceDestroy": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nDestroy a resource object to track and associate data with OS and middleware objects\n\nAllows users to associate an API handle or pointer with a user-provided name.\n\n\n\n\n\nUnregister a resource:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"example domain\");\n nvtxResourceAttributes_t attribs = {0};\n attribs.version = NVTX_VERSION;\n attribs.size = NVTX_RESOURCE_ATTRIB_STRUCT_SIZE;\n attribs.identifierType = NVTX_RESOURCE_TYPE_GENERIC_POINTER;\n attribs.identifier.pValue = (const void*)pMutex;\n attribs.messageType = NVTX_MESSAGE_TYPE_ASCII;\n attribs.message.ascii = \"Single thread access to database.\";\n nvtxResourceHandle_t handle = nvtxDomainResourceCreate(domain, &attribs);\n // ...\n nvtxDomainResourceDestroy(handle);\n```\n\n\n\nSee also: ::nvtxDomainResourceCreate\n\n\n\nversion: NVTX_VERSION_2 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "resource": {
+        "doc": "- Handle to the resource in which to operate."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxDomainSyncUserAcquireFailed": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nSignal to tools of failure in acquiring a user defined synchronization object This should be called after `nvtxDomainSyncUserAcquireStart`\n\n\n\n\n\nSee also: ::nvtxDomainSyncUserCreate ::nvtxDomainSyncUserDestroy ::nvtxDomainSyncUserAcquireStart ::nvtxDomainSyncUserAcquireFailed ::nvtxDomainSyncUserAcquireSuccess ::nvtxDomainSyncUserReleasing\n\n\n\nversion: NVTX_VERSION_2",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "- A handle to the object to operate on."
+      }
+    },
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxDomainSyncUserAcquireStart": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nSignal to tools that an attempt to acquire a user defined synchronization object\n\n\n\n\n\nSee also: ::nvtxDomainSyncUserCreate ::nvtxDomainSyncUserDestroy ::nvtxDomainSyncUserAcquireStart ::nvtxDomainSyncUserAcquireFailed ::nvtxDomainSyncUserAcquireSuccess ::nvtxDomainSyncUserReleasing\n\n\n\nversion: NVTX_VERSION_2",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "- A handle to the object to operate on."
+      }
+    },
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxDomainSyncUserAcquireSuccess": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nSignal to tools of success in acquiring a user defined synchronization object This should be called after `nvtxDomainSyncUserAcquireStart`.\n\n\n\n\n\nSee also: ::nvtxDomainSyncUserCreate ::nvtxDomainSyncUserDestroy ::nvtxDomainSyncUserAcquireStart ::nvtxDomainSyncUserAcquireFailed ::nvtxDomainSyncUserAcquireSuccess ::nvtxDomainSyncUserReleasing\n\n\n\nversion: NVTX_VERSION_2",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "- A handle to the object to operate on."
+      }
+    },
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxDomainSyncUserCreate": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nCreate a user defined synchronization object This is used to track non-OS synchronization working with spinlocks and atomics\n\n\n\n\n\n# Return value\n\nA handle that represents the newly created user defined synchronization object.\n\n\n\nSee also: ::nvtxDomainSyncUserCreate ::nvtxDomainSyncUserDestroy ::nvtxDomainSyncUserAcquireStart ::nvtxDomainSyncUserAcquireFailed ::nvtxDomainSyncUserAcquireSuccess ::nvtxDomainSyncUserReleasing\n\n\n\nversion: NVTX_VERSION_2",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "attribs": {
+        "doc": "- A structure to assign multiple attributes to the object."
+      },
+      "domain": {
+        "doc": "- Domain to own the resource"
+      }
+    },
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxDomainSyncUserDestroy": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nDestroy a user defined synchronization object This is used to track non-OS synchronization working with spinlocks and atomics\n\n\n\n\n\nSee also: ::nvtxDomainSyncUserCreate ::nvtxDomainSyncUserDestroy ::nvtxDomainSyncUserAcquireStart ::nvtxDomainSyncUserAcquireFailed ::nvtxDomainSyncUserAcquireSuccess ::nvtxDomainSyncUserReleasing\n\n\n\nversion: NVTX_VERSION_2",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "- A handle to the object to operate on."
+      }
+    },
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxDomainSyncUserReleasing": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nSignal to tools of releasing a reservation on user defined synchronization object This should be called after `nvtxDomainSyncUserAcquireSuccess`.\n\n\n\n\n\nSee also: ::nvtxDomainSyncUserCreate ::nvtxDomainSyncUserDestroy ::nvtxDomainSyncUserAcquireStart ::nvtxDomainSyncUserAcquireFailed ::nvtxDomainSyncUserAcquireSuccess ::nvtxDomainSyncUserReleasing\n\n\n\nversion: NVTX_VERSION_2",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "handle": {
+        "doc": "- A handle to the object to operate on."
+      }
+    },
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxEventAttributes_v2": {
+    "doc": "Event Attribute Structure.\n\nThis structure is used to describe the attributes of an event. The layout of the structure is defined by a specific version of the tools extension library and can change between different versions of the Tools Extension library.\n\n\n\nThe caller should always perform the following three tasks when using attributes: <ul> <li>Zero the structure <li>Set the version field <li>Set the size field </ul>\n\nZeroing the structure sets all the event attributes types and values to the default value.\n\nThe version and size field are used by the Tools Extension implementation to handle multiple versions of the attributes structure.\n\nIt is recommended that the caller use one of the following to methods to initialize the event attributes structure:\n\n\n\nInitializing nvtxEventAttributes for future compatibility:\n\n\n\n```text\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n```\n\n\n\nInitializing nvtxEventAttributes for a specific version:\n\n\n\n```text\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = 1;\n eventAttrib.size = (uint16_t)(sizeof(nvtxEventAttributes_v1));\n```\n\nIf the caller uses Method 1 it is critical that the entire binary layout of the structure be configured to 0 so that all fields are initialized to the default value.\n\nThe caller should either use both NVTX_VERSION and NVTX_EVENT_ATTRIB_STRUCT_SIZE (Method 1) or use explicit values and a versioned type (Method 2).  Using a mix of the two methods will likely cause either source level incompatibility or binary incompatibility in the future.\n\n\n\nPopulate an attributes structure:\n\n\n\n```text\n // Initialize\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n\n // Configure the Attributes\n eventAttrib.colorType = NVTX_COLOR_ARGB;\n eventAttrib.color = 0xFF880000;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;\n eventAttrib.message.ascii = \"Example\";\n```\n\nIn the example the caller does not have to set the value of `::nvtxEventAttributes_v2::category` or `::nvtxEventAttributes_v2::payload` as these fields were set to the default value by {0}.\n\nSee also: ::nvtxDomainMarkEx ::nvtxDomainRangeStartEx ::nvtxDomainRangePushEx",
+    "members": {
+      "category": {
+        "doc": "ID of the category the event is assigned to.\n\nA category is a user-controlled ID that can be used to group events.  The tool may use category IDs to improve filtering or enable grouping of events in the same category. The functions `::nvtxNameCategoryA` or `::nvtxNameCategoryW` can be used to name a category.\n\nDefault Value is 0"
+      },
+      "color": {
+        "doc": "Color assigned to this event.\n\nThe color that the tool should use to visualize the event."
+      },
+      "colorType": {
+        "doc": "nvtxColorType_t"
+      },
+      "message": {
+        "doc": "Message assigned to this attribute structure.\n\nThe text message that is attached to an event."
+      },
+      "messageType": {
+        "doc": "nvtxMessageType_t"
+      },
+      "payload": {
+        "doc": "Payload assigned to this event.\n\nA numerical value that can be used to annotate an event. The tool could use the payload data to reconstruct graphs and diagrams."
+      },
+      "payloadType": {
+        "doc": "nvtxPayloadType_t"
+      },
+      "size": {
+        "doc": "Size of the structure.\n\nNeeds to be set to the size in bytes of the event attribute structure used to specify the event."
+      },
+      "version": {
+        "doc": "Version flag of the structure.\n\nNeeds to be set to NVTX_VERSION to indicate the version of NVTX APIs supported in this header file. This can optionally be overridden to another version of the tools extension library."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxEventAttributes_v2_payload_t": {
+    "doc": "Payload assigned to this event.\n\nA numerical value that can be used to annotate an event. The tool could use the payload data to reconstruct graphs and diagrams.",
+    "members": {
+      "uiValue": {
+        "doc": "NVTX_VERSION_2"
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxInitialize": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nForce initialization (optional)\n\nForce NVTX library to initialize.  The first call to any NVTX API function will automatically initialize the entire API.  This can make the first call much slower than subsequent calls.  In applications where the first call to NVTX may be in a performance-critical section, calling nvtxInitialize before any performance-critical sections will ensure NVTX initialization occurs at an acceptable time.  Since nvtxInitialize takes no parameters and has no expected behavior besides initialization, it is convenient to add a call to nvtxInitialize in NVTX-instrumented applications that need to force earlier initialization without changing any other code.  For example, if an app's first NVTX call is nvtxDomainCreate, and it is difficult to move that call earlier because the domain handle must be stored in an object only created at that point, adding a call to nvtxInitialize at the top of main() will ensure the later call to nvtxDomainCreate is as fast as possible.\n\n\n\nversion: NVTX_VERSION_3\n\n\n\n@{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "reserved": {
+        "doc": "- must be zero or NULL."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxMarkA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nMarks an instantaneous event in the application.\n\nA marker created using `nvtxMarkA` or `nvtxMarkW` contains only a text message.\n\n\n\n\n\nPlace a mark:\n\n\n\n```text\n nvtxMarkA(\"Example nvtxMarkA\");\n nvtxMarkW(L\"Example nvtxMarkW\");\n```\n\n\n\nSee also: ::nvtxDomainMarkEx ::nvtxMarkEx\n\n\n\nversion: NVTX_VERSION_0 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "message": {
+        "doc": "- The message associated to this marker event."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxMarkEx": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nMarks an instantaneous event in the application.\n\nA marker can contain a text message or specify additional information using the event attributes structure.  These attributes include a text message, color, category, and a payload. Each of the attributes is optional and can only be sent out using the `nvtxMarkEx` function. If `nvtxMarkA` or `nvtxMarkW` are used to specify the marker or if an attribute is unspecified then a default value will be used.\n\n\n\n\n\nPlace a mark with attributes:\n\n\n\n```text\n // zero the structure\n nvtxEventAttributes_t eventAttrib = {0};\n // set the version and the size information\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n // configure the attributes.  0 is the default for all attributes.\n eventAttrib.colorType = NVTX_COLOR_ARGB;\n eventAttrib.color = 0xFF880000;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;\n eventAttrib.message.ascii = \"Example nvtxMarkEx\";\n nvtxMarkEx(&eventAttrib);\n```\n\n\n\nSee also: ::nvtxDomainMarkEx\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "eventAttrib": {
+        "doc": "- The event attribute structure defining the marker's attribute types and attribute values."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxMessageType_t": {
+    "doc": "--------------------------------------------------------------------------- Message Types -------------------------------------------------------------------------",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxMessageValue_t": {
+    "doc": "",
+    "members": {
+      "registered": {
+        "doc": "NVTX_VERSION_2"
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxNameCategoryA": {
+    "doc": "Annotate an NVTX category.\n\nCategories are used to group sets of events. Each category is identified through a unique ID and that ID is passed into any of the marker/range events to assign that event to a specific category. The nvtxNameCategory function calls allow the user to assign a name to a category ID.\n\n\n\n\n\nremarks: The category names are tracked per process.\n\n\n\nAssign names to categories:\n\n\n\n```text\n nvtxNameCategory(1, \"Memory Allocation\");\n nvtxNameCategory(2, \"Memory Transfer\");\n nvtxNameCategory(3, \"Memory Object Lifetime\");\n```\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "category": {
+        "doc": "- The category ID to name."
+      },
+      "name": {
+        "doc": "- The name of the category."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxNameCuContextA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotates a CUDA context.\n\nAllows the user to associate a CUDA context with a user-provided name.\n\n\n\n\n\nName a CUDA context:\n\n\n\n```text\n CUresult status = cuCtxCreate( &cuContext, 0, cuDevice );\n if ( CUDA_SUCCESS != status )\n     goto Error;\n nvtxNameCuContext(cuContext, \"CTX_NAME\");\n```\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "context": {
+        "doc": "- The handle of the CUDA context to name."
+      },
+      "name": {
+        "doc": "- The name of the CUDA context."
+      }
+    },
+    "source": "nvToolsExtCuda.h"
+  },
+  "nvtxNameCuDeviceA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotates a CUDA device.\n\nAllows the user to associate a CUDA device with a user-provided name.\n\n\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "device": {
+        "doc": "- The handle of the CUDA device to name."
+      },
+      "name": {
+        "doc": "- The name of the CUDA device."
+      }
+    },
+    "source": "nvToolsExtCuda.h"
+  },
+  "nvtxNameCuEventA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotates a CUDA event.\n\nAllows the user to associate a CUDA event with a user-provided name.\n\n\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "event": {
+        "doc": "- The handle of the CUDA event to name."
+      },
+      "name": {
+        "doc": "- The name of the CUDA event."
+      }
+    },
+    "source": "nvToolsExtCuda.h"
+  },
+  "nvtxNameCuStreamA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotates a CUDA stream.\n\nAllows the user to associate a CUDA stream with a user-provided name.\n\n\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "name": {
+        "doc": "- The name of the CUDA stream."
+      },
+      "stream": {
+        "doc": "- The handle of the CUDA stream to name."
+      }
+    },
+    "source": "nvToolsExtCuda.h"
+  },
+  "nvtxNameCudaDeviceA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotates a CUDA device.\n\nAllows the user to associate a CUDA device with a user-provided name.\n\n\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "device": {
+        "doc": "- The id of the CUDA device to name."
+      },
+      "name": {
+        "doc": "- The name of the CUDA device."
+      }
+    },
+    "source": "nvToolsExtCudaRt.h"
+  },
+  "nvtxNameCudaEventA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotates a CUDA event.\n\nAllows the user to associate a CUDA event with a user-provided name.\n\n\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "event": {
+        "doc": "- The handle of the CUDA event to name."
+      },
+      "name": {
+        "doc": "- The name of the CUDA event."
+      }
+    },
+    "source": "nvToolsExtCudaRt.h"
+  },
+  "nvtxNameCudaStreamA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotates a CUDA stream.\n\nAllows the user to associate a CUDA stream with a user-provided name.\n\n\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "name": {
+        "doc": "- The name of the CUDA stream."
+      },
+      "stream": {
+        "doc": "- The handle of the CUDA stream to name."
+      }
+    },
+    "source": "nvToolsExtCudaRt.h"
+  },
+  "nvtxNameOsThreadA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nAnnotate an OS thread.\n\nAllows the user to name an active thread of the current process. If an invalid thread ID is provided or a thread ID from a different process is used the behavior of the tool is implementation dependent.\n\nTools expect thread ID to be a number that uniquely identifies the thread at the time of the call. Note that a thread's ID can be reused after it is destroyed. Tools may choose how to handle aliasing of thread IDs.\n\nPOSIX pthread_t type returned by pthread_self() may not comply with these expectations. Please use OS-specific thread ID instead of pthread_t.\n\nThe thread name is associated to the default domain.  To support domains use resource objects via ::nvtxDomainResourceCreate.\n\n\n\n\n\nName a thread based on the given operating system:\n\nWindows:\n\n\n\n```text\n #include <windows.h>\n nvtxNameOsThread(GetCurrentThreadId(), \"Current thread\");\n nvtxNameOsThread(GetThreadId(SomeThreadHandle), \"Other thread\");\n```\n\nAndroid:\n\n\n\n```text\n #include <unistd.h>\n nvtxNameOsThreadA(gettid(), \"Current thread\");\n nvtxNameOsThreadA(getpid(), \"Main thread\");\n```\n\nLinux:\n\n\n\n```text\n #include <sys/syscall.h>\n nvtxNameOsThreadA(syscall(SYS_gettid), \"Current thread\");\n```\n\n\n\n\n\n```text\n #include <unistd.h>\n nvtxNameOsThreadA(getpid(), \"Main thread\");\n```\n\nmacOS:\n\n\n\n```text\n #include <sys/syscall.h>\n nvtxNameOsThreadA(syscall(SYS_thread_selfid), \"Current thread\");\n```\n\n\n\n\n\n```text\n #include <pthread.h>\n __uint64_t id;\n pthread_threadid_np(pthread_self(), &id);\n nvtxNameOsThreadA(id, \"Current thread\");\n pthread_threadid_np(somePThreadId, &id);\n nvtxNameOsThreadA(id, \"Other thread\");\n```\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "name": {
+        "doc": "- The name of the thread."
+      },
+      "threadId": {
+        "doc": "- The ID of the thread to name."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxPayloadType_t": {
+    "doc": "--------------------------------------------------------------------------- Payload Types -------------------------------------------------------------------------",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxRangeEnd": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nEnds a process range.\n\n\n\n\n\nSee also: ::nvtxDomainRangeStartEx ::nvtxRangeStartEx ::nvtxRangeStartA ::nvtxRangeStartW\n\n\n\nversion: NVTX_VERSION_0 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "id": {
+        "doc": "- The correlation ID returned from an nvtxRangeStart call."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxRangePop": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nEnds a nested thread range.\n\n\n\n# Return value\n\nThe level of the range being ended. If an error occurs a negative value is returned on the current thread.\n\n\n\nPop a range:\n\n\n\n```text\n nvtxRangePushA(\"Level 0\");\n nvtxRangePushW(L\"Level 1\");\n nvtxRangePop(); // Level 1\n nvtxRangePop(); // Level 0\n```\n\n\n\nSee also: ::nvtxRangePushEx ::nvtxRangePushA ::nvtxRangePushW\n\n\n\nversion: NVTX_VERSION_0 @{",
+    "kind": "function",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxRangePushA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nStarts a nested thread range.\n\n\n\n\n\n# Return value\n\nThe 0 based level of range being started.  If an error occurs a negative value is returned.\n\n\n\nPush a range:\n\n\n\n```text\n nvtxRangePushA(\"Level 0\");\n nvtxRangePushW(L\"Level 1\");\n nvtxRangePop(); // Level 1\n nvtxRangePop(); // Level 0\n```\n\n\n\nSee also: ::nvtxDomainRangePushEx ::nvtxRangePop\n\n\n\nversion: NVTX_VERSION_0 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "message": {
+        "doc": "- The event message associated to this range event."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxRangePushEx": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nStarts a nested thread range.\n\n\n\n\n\n# Return value\n\nThe 0 based level of range being started. This level is per domain. If an error occurs a negative value is returned.\n\n\n\nPush a range with attributes:\n\n\n\n```text\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib.colorType = NVTX_COLOR_ARGB;\n eventAttrib.color = 0xFFFF0000;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;\n eventAttrib.message.ascii = \"Level 0\";\n nvtxRangePushEx(&eventAttrib);\n\n // Re-use eventAttrib\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_UNICODE;\n eventAttrib.message.unicode = L\"Level 1\";\n nvtxRangePushEx(&eventAttrib);\n\n nvtxRangePop(); // Level 1\n nvtxRangePop(); // Level 0\n```\n\n\n\nSee also: ::nvtxDomainRangePushEx ::nvtxRangePop\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "eventAttrib": {
+        "doc": "- The event attribute structure defining the range's attribute types and attribute values."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxRangeStartA": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nStarts a process range.\n\n\n\n\n\n# Return value\n\nThe unique ID used to correlate a pair of Start and End events.\n\n\n\nremarks: Ranges defined by Start/End can overlap.\n\n\n\nStart a range:\n\n\n\n```text\n nvtxRangeId_t r1 = nvtxRangeStartA(\"Range 1\");\n nvtxRangeId_t r2 = nvtxRangeStartW(L\"Range 2\");\n nvtxRangeEnd(r1);\n nvtxRangeEnd(r2);\n```\n\n\n\nSee also: ::nvtxRangeEnd ::nvtxRangeStartEx ::nvtxDomainRangeStartEx\n\n\n\nversion: NVTX_VERSION_0 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "message": {
+        "doc": "- The event message associated to this range event."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxRangeStartEx": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nStarts a process range.\n\n\n\n\n\n# Return value\n\nThe unique ID used to correlate a pair of Start and End events.\n\n\n\nremarks: Ranges defined by Start/End can overlap.\n\n\n\nStart a range with attributes:\n\n\n\n```text\n nvtxEventAttributes_t eventAttrib = {0};\n eventAttrib.version = NVTX_VERSION;\n eventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;\n eventAttrib.category = 3;\n eventAttrib.colorType = NVTX_COLOR_ARGB;\n eventAttrib.color = 0xFF0088FF;\n eventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;\n eventAttrib.message.ascii = \"Example Range\";\n nvtxRangeId_t rangeId = nvtxRangeStartEx(&eventAttrib);\n // ...\n nvtxRangeEnd(rangeId);\n```\n\n\n\nSee also: ::nvtxRangeEnd ::nvtxDomainRangeStartEx\n\n\n\nversion: NVTX_VERSION_1 @{",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "eventAttrib": {
+        "doc": "- The event attribute structure defining the range's attribute types and attribute values."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxResourceAttributes_v0": {
+    "doc": "Resource Attribute Structure.\n\nThis structure is used to describe the attributes of a resource. The layout of the structure is defined by a specific version of the tools extension library and can change between different versions of the Tools Extension library.\n\n\n\nThe caller should always perform the following three tasks when using attributes: <ul> <li>Zero the structure <li>Set the version field <li>Set the size field </ul>\n\nZeroing the structure sets all the resource attributes types and values to the default value.\n\nThe version and size field are used by the Tools Extension implementation to handle multiple versions of the attributes structure.\n\nIt is recommended that the caller use one of the following to methods to initialize the event attributes structure:\n\n\n\nInitializing nvtxEventAttributes for future compatibility:\n\n\n\n```text\n nvtxResourceAttributes_t attribs = {0};\n attribs.version = NVTX_VERSION;\n attribs.size = NVTX_RESOURCE_ATTRIB_STRUCT_SIZE;\n```\n\n\n\nInitializing nvtxEventAttributes for a specific version:\n\n\n\n```text\n nvtxResourceAttributes_v0 attribs = {0};\n attribs.version = 2;\n attribs.size = (uint16_t)(sizeof(nvtxResourceAttributes_v0));\n```\n\nIf the caller uses Method 1 it is critical that the entire binary layout of the structure be configured to 0 so that all fields are initialized to the default value.\n\nThe caller should either use both NVTX_VERSION and NVTX_RESOURCE_ATTRIB_STRUCT_SIZE (Method 1) or use explicit values and a versioned type (Method 2).  Using a mix of the two methods will likely cause either source level incompatibility or binary incompatibility in the future.\n\n\n\nRegister a resource and populate its attributes:\n\n\n\n```text\n nvtxDomainHandle_t domain = nvtxDomainCreateA(\"example domain\");\n\n // Initialize\n nvtxResourceAttributes_t attribs = {0};\n attribs.version = NVTX_VERSION;\n attribs.size = NVTX_RESOURCE_ATTRIB_STRUCT_SIZE;\n\n // Configure the Attributes\n attribs.identifierType = NVTX_RESOURCE_TYPE_GENERIC_POINTER;\n attribs.identifier.pValue = (const void*)pMutex;\n attribs.messageType = NVTX_MESSAGE_TYPE_ASCII;\n attribs.message.ascii = \"Single thread access to database.\";\n\n nvtxResourceHandle_t handle = nvtxDomainResourceCreate(domain, &attribs);\n```\n\n\n\nSee also: ::nvtxDomainResourceCreate",
+    "members": {
+      "identifier": {
+        "doc": "Identifier for the resource.\n\nAn identifier may be a pointer or a handle to an OS or middleware API object. The resource type will assist in avoiding collisions where handles values may collide."
+      },
+      "identifierType": {
+        "doc": "values from enums following the pattern nvtxResource[name]Type_t"
+      },
+      "message": {
+        "doc": "Message assigned to this attribute structure.\n\nThe text message that is attached to a resource."
+      },
+      "messageType": {
+        "doc": "nvtxMessageType_t"
+      },
+      "size": {
+        "doc": "Size of the structure.\n\nNeeds to be set to the size in bytes of this attribute structure."
+      },
+      "version": {
+        "doc": "Version flag of the structure.\n\nNeeds to be set to NVTX_VERSION to indicate the version of NVTX APIs supported in this header file. This can optionally be overridden to another version of the tools extension library."
+      }
+    },
+    "source": "nvToolsExt.h"
+  },
+  "nvtxResourceAttributes_v0_identifier_t": {
+    "doc": "Identifier for the resource.\n\nAn identifier may be a pointer or a handle to an OS or middleware API object. The resource type will assist in avoiding collisions where handles values may collide.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxResourceCUDARTType_t": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nResource types for CUDART",
+    "members": {},
+    "source": "nvToolsExtCudaRt.h"
+  },
+  "nvtxResourceCUDAType_t": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nResource types for CUDA",
+    "members": {},
+    "source": "nvToolsExtCuda.h"
+  },
+  "nvtxResourceGenericType_t": {
+    "doc": "-------------------------------------------------------------------------\n\n\n\nGeneric resource type for when a resource class is not available.\n\n\n\nSee also: ::nvtxDomainResourceCreate\n\n\n\nversion: NVTX_VERSION_2",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxResourceSyncAndroidType_t": {
+    "doc": "Resource type values for Android come from Linux.\n\nSee also: ::nvtxResourceSyncLinuxType_t ::nvtxResourceSyncPosixThreadType_t",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxResourceSyncLinuxType_t": {
+    "doc": "Resource type values for Linux and Linux derived OSs such as Android\n\nSee also: ::nvtxResourceSyncPosixThreadType_t",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxResourceSyncPosixThreadType_t": {
+    "doc": "Resource type values for OSs with POSIX Thread API support",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxResourceSyncWindowsType_t": {
+    "doc": "Resource type values for Windows OSs",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxStringHandle_t": {
+    "doc": "Registered String Handle Structure.\n\nThis structure is opaque to the user and is used as a handle to reference a registered string.  This type is returned from tools when using the NVTX API to create a registered string.",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxStringRegistration_st": {
+    "doc": "Forward declaration of opaque string registration structure",
+    "members": {},
+    "source": "nvToolsExt.h"
+  },
+  "nvtxSyncUserAttributes_v0": {
+    "doc": "User Defined Synchronization Object Attributes Structure.\n\nThis structure is used to describe the attributes of a user defined synchronization object.  The layout of the structure is defined by a specific version of the tools extension library and can change between different versions of the Tools Extension library.\n\n\n\nThe caller should always perform the following three tasks when using attributes: <ul> <li>Zero the structure <li>Set the version field <li>Set the size field </ul>\n\nZeroing the structure sets all the event attributes types and values to the default value.\n\nThe version and size field are used by the Tools Extension implementation to handle multiple versions of the attributes structure.\n\nIt is recommended that the caller use one of the following to methods to initialize the event attributes structure:\n\n\n\nInitializing nvtxEventAttributes for future compatibility:\n\n\n\n```text\n nvtxSyncUserAttributes_t attribs = {0};\n attribs.version = NVTX_VERSION;\n attribs.size = NVTX_SYNCUSER_ATTRIB_STRUCT_SIZE;\n```\n\n\n\nInitializing nvtxSyncUserAttributes_t for a specific version:\n\n\n\n```text\n nvtxSyncUserAttributes_t attribs = {0};\n attribs.version = 1;\n attribs.size = (uint16_t)(sizeof(nvtxSyncUserAttributes_t));\n```\n\nIf the caller uses Method 1 it is critical that the entire binary layout of the structure be configured to 0 so that all fields are initialized to the default value.\n\nThe caller should either use both NVTX_VERSION and NVTX_SYNCUSER_ATTRIB_STRUCT_SIZE (Method 1) or use explicit values and a versioned type (Method 2).  Using a mix of the two methods will likely cause either source level incompatibility or binary incompatibility in the future.\n\n\n\nPopulate a sync attributes structure:\n\n\n\n```text\n // Initialize\n nvtxSyncUserAttributes_t attribs = {0};\n attribs.version = NVTX_VERSION;\n attribs.size = NVTX_SYNCUSER_ATTRIB_STRUCT_SIZE;\n\n // Configure the Attributes\n attribs.messageType = NVTX_MESSAGE_TYPE_ASCII;\n attribs.message.ascii = \"Example\";\n```\n\n\n\nSee also: ::nvtxDomainSyncUserCreate",
+    "members": {
+      "message": {
+        "doc": "Message assigned to this attribute structure.\n\nThe text message that is attached to an event."
+      },
+      "messageType": {
+        "doc": "nvtxMessageType_t"
+      },
+      "size": {
+        "doc": "Size of the structure.\n\nNeeds to be set to the size in bytes of the event attribute structure used to specify the event."
+      },
+      "version": {
+        "doc": "Version flag of the structure.\n\nNeeds to be set to NVTX_VERSION to indicate the version of NVTX APIs supported in this header file. This can optionally be overridden to another version of the tools extension library."
+      }
+    },
+    "source": "nvToolsExtSync.h"
+  },
+  "nvtxSyncUser_t": {
+    "doc": "User Defined Synchronization Object Handle .\n\nThis structure is opaque to the user and is used as a handle to reference a user defined synchronization object.  The tools will return a pointer through the API for the application to hold on its behalf to reference the string in the future.",
+    "members": {},
+    "source": "nvToolsExtSync.h"
+  }
+}

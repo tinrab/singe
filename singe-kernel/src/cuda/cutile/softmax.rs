@@ -1,23 +1,26 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
 use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
+    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::CompileOptions,
 };
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use crate::cuda::cutile::kernel::f16::softmax as kernel_f16;
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 use crate::cuda::cutile::kernel::f32::softmax as kernel_f32;
-#[cfg(feature = "dtype-f64")]
+#[cfg(feature = "dtype_f64")]
 use crate::cuda::cutile::kernel::f64::softmax as kernel_f64;
 use crate::{
-    cuda::cutile::{
-        DeviceOpExt,
-        adapter::TensorAdapter,
-        kernel::common as kernel_common,
-        utility::{VectorLaunch, checked_device_pointer},
+    cuda::{
+        autotune::KernelCompileConfig,
+        cutile::{
+            DeviceOpExt, TileKernel,
+            adapter::TensorAdapter,
+            kernel::common as kernel_common,
+            utility::{VectorLaunch, checked_device_pointer},
+        },
     },
     error::{Error, Result},
     utility::{checked_element_count, checked_i32_value},
@@ -87,17 +90,42 @@ fn softmax_tile_shape(cols: usize) -> Result<(usize, usize)> {
     }
 }
 
+fn softmax_compile_options(compile: KernelCompileConfig) -> CompileOptions {
+    let mut options = CompileOptions::default();
+    if let Some(occupancy) = compile.occupancy {
+        options = options.occupancy(occupancy);
+    }
+    if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
+        options = options.num_cta_in_cga(num_cta_in_cga);
+    }
+    if let Some(max_divisibility) = compile.max_divisibility {
+        options = options.max_divisibility(max_divisibility);
+    }
+    options
+}
+
+macro_rules! enqueue_softmax_op {
+    ($op:expr, $stream:expr, $compile:expr) => {{
+        if $compile.is_default() {
+            $op.enqueue_on($stream)?;
+        } else {
+            $op.compile_options(softmax_compile_options($compile))
+                .enqueue_on($stream)?;
+        }
+    }};
+}
+
 macro_rules! dispatch_softmax {
-    ($kernel:ident::$kernel_fn:ident, $out:expr, $input:expr, $stream:expr, $bm:expr, $bn:expr) => {{
+    ($kernel:ident::$kernel_fn:ident, $out:expr, $input:expr, $stream:expr, $bm:expr, $bn:expr, $compile:expr) => {{
         match ($bm, $bn) {
-            (4, 8) => $kernel::$kernel_fn($out, $input).enqueue_on($stream)?,
-            (2, 16) => $kernel::$kernel_fn($out, $input).enqueue_on($stream)?,
-            (1, 32) => $kernel::$kernel_fn($out, $input).enqueue_on($stream)?,
-            (1, 64) => $kernel::$kernel_fn($out, $input).enqueue_on($stream)?,
-            (1, 128) => $kernel::$kernel_fn($out, $input).enqueue_on($stream)?,
-            (1, 256) => $kernel::$kernel_fn($out, $input).enqueue_on($stream)?,
-            (1, 512) => $kernel::$kernel_fn($out, $input).enqueue_on($stream)?,
-            (1, 1024) => $kernel::$kernel_fn($out, $input).enqueue_on($stream)?,
+            (4, 8) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (2, 16) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 32) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 64) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 128) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 256) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 512) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 1024) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
             _ => {
                 return Err(Error::UnsupportedWidth {
                     op: "softmax".into(),
@@ -105,7 +133,7 @@ macro_rules! dispatch_softmax {
                 });
             }
         };
-        Ok::<(), crate::error::Error>(())
+        Ok::<(), $crate::error::Error>(())
     }};
 }
 
@@ -127,13 +155,38 @@ macro_rules! dispatch_softmax_lse {
                 });
             }
         };
-        Ok::<(), crate::error::Error>(())
+        Ok::<(), $crate::error::Error>(())
+    }};
+}
+
+macro_rules! dispatch_softmax_lse_tuned {
+    ($kernel:ident::$kernel_fn:ident, $out:expr, $input:expr, $stream:expr, $bm:expr, $bn:expr, $compile:expr) => {{
+        match ($bm, $bn) {
+            (4, 8) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (2, 16) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 32) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 64) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 128) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 256) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 512) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            (1, 1024) => enqueue_softmax_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            _ => {
+                return Err(Error::UnsupportedWidth {
+                    op: "softmax".into(),
+                    width: $bn,
+                });
+            }
+        };
+        Ok::<(), $crate::error::Error>(())
     }};
 }
 
 macro_rules! softmax_fn {
-    ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+    ($name:ident, $tuned_name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -145,7 +198,7 @@ macro_rules! softmax_fn {
             }
             let len = checked_element_count(rows, cols)?;
             if len == 0 {
-                return Ok::<(), crate::error::Error>(());
+                return Ok::<(), $crate::error::Error>(());
             }
             if cols > SOFTMAX_MAX_TILE_WIDTH {
                 return Err(Error::UnsupportedWidth {
@@ -153,39 +206,119 @@ macro_rules! softmax_fn {
                     width: cols,
                 });
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let (bm, bn) = softmax_tile_shape(cols)?;
             let out = TensorAdapter::contiguous_2d(out, rows, cols)?.partition([bm, bn])?;
             let input = TensorAdapter::contiguous_2d(input, rows, cols)?;
-            dispatch_softmax!($kernel::$kernel_fn, out, input, stream, bm, bn)?;
-            Ok::<(), crate::error::Error>(())
+            dispatch_softmax!(
+                $kernel::$kernel_fn,
+                out,
+                input,
+                stream,
+                bm,
+                bn,
+                KernelCompileConfig::default()
+            )?;
+            Ok::<(), $crate::error::Error>(())
+        }
+
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $tuned_name(
+            stream: &Arc<Stream>,
+            out: DevicePointer<$ty>,
+            input: DevicePointer<$ty>,
+            rows: usize,
+            cols: usize,
+            tile_rows: usize,
+            tile_columns: usize,
+            compile: KernelCompileConfig,
+        ) -> Result<()> {
+            if cols == 0 {
+                return Err(Error::InvalidLength);
+            }
+            let len = checked_element_count(rows, cols)?;
+            if len == 0 {
+                return Ok::<(), $crate::error::Error>(());
+            }
+            if cols > SOFTMAX_MAX_TILE_WIDTH || tile_columns < cols {
+                return Err(Error::UnsupportedWidth {
+                    op: "softmax".into(),
+                    width: cols,
+                });
+            }
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            let out = TensorAdapter::contiguous_2d(out, rows, cols)?
+                .partition([tile_rows, tile_columns])?;
+            let input = TensorAdapter::contiguous_2d(input, rows, cols)?;
+            dispatch_softmax!(
+                $kernel::$kernel_fn,
+                out,
+                input,
+                stream,
+                tile_rows,
+                tile_columns,
+                compile
+            )?;
+            Ok::<(), $crate::error::Error>(())
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
-softmax_fn!(softmax_f32, f32, kernel_f32, softmax_f32);
-#[cfg(feature = "dtype-f32")]
-softmax_fn!(log_softmax_f32, f32, kernel_f32, log_softmax_f32);
-#[cfg(feature = "dtype-f32")]
-softmax_fn!(softmin_f32, f32, kernel_f32, softmin_f32);
-#[cfg(feature = "dtype-f16")]
-softmax_fn!(softmax_f16, f16, kernel_f16, softmax_f16);
-#[cfg(feature = "dtype-f16")]
-softmax_fn!(log_softmax_f16, f16, kernel_f16, log_softmax_f16);
-#[cfg(feature = "dtype-f16")]
-softmax_fn!(softmin_f16, f16, kernel_f16, softmin_f16);
-#[cfg(feature = "dtype-f64")]
-softmax_fn!(softmax_f64, f64, kernel_f64, softmax_f64);
-#[cfg(feature = "dtype-f64")]
-softmax_fn!(log_softmax_f64, f64, kernel_f64, log_softmax_f64);
-#[cfg(feature = "dtype-f64")]
-softmax_fn!(softmin_f64, f64, kernel_f64, softmin_f64);
+#[cfg(feature = "dtype_f32")]
+softmax_fn!(softmax_f32, softmax_f32_tuned, f32, kernel_f32, softmax_f32);
+
+#[cfg(feature = "dtype_f32")]
+softmax_fn!(
+    log_softmax_f32,
+    log_softmax_f32_tuned,
+    f32,
+    kernel_f32,
+    log_softmax_f32
+);
+
+#[cfg(feature = "dtype_f32")]
+softmax_fn!(softmin_f32, softmin_f32_tuned, f32, kernel_f32, softmin_f32);
+
+#[cfg(feature = "dtype_f16")]
+softmax_fn!(softmax_f16, softmax_f16_tuned, f16, kernel_f16, softmax_f16);
+
+#[cfg(feature = "dtype_f16")]
+softmax_fn!(
+    log_softmax_f16,
+    log_softmax_f16_tuned,
+    f16,
+    kernel_f16,
+    log_softmax_f16
+);
+
+#[cfg(feature = "dtype_f16")]
+softmax_fn!(softmin_f16, softmin_f16_tuned, f16, kernel_f16, softmin_f16);
+
+#[cfg(feature = "dtype_f64")]
+softmax_fn!(softmax_f64, softmax_f64_tuned, f64, kernel_f64, softmax_f64);
+
+#[cfg(feature = "dtype_f64")]
+softmax_fn!(
+    log_softmax_f64,
+    log_softmax_f64_tuned,
+    f64,
+    kernel_f64,
+    log_softmax_f64
+);
+
+#[cfg(feature = "dtype_f64")]
+softmax_fn!(softmin_f64, softmin_f64_tuned, f64, kernel_f64, softmin_f64);
 
 macro_rules! softmax_lse_fn {
-    ($name:ident, $input_ty:ty, $output_ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+    ($name:ident, $tuned_name:ident, $input_ty:ty, $output_ty:ty, $kernel:ident, $kernel_fn:ident) => {
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$output_ty>,
             input: DevicePointer<$input_ty>,
@@ -197,7 +330,7 @@ macro_rules! softmax_lse_fn {
             }
             let len = checked_element_count(rows, cols)?;
             if len == 0 {
-                return Ok::<(), crate::error::Error>(());
+                return Ok::<(), $crate::error::Error>(());
             }
             if cols > SOFTMAX_MAX_TILE_WIDTH {
                 return Err(Error::UnsupportedWidth {
@@ -205,23 +338,88 @@ macro_rules! softmax_lse_fn {
                     width: cols,
                 });
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let (_, bn) = softmax_tile_shape(cols)?;
             let out = TensorAdapter::contiguous_2d(out, rows, 1)?.partition([1, 1])?;
             let input = TensorAdapter::contiguous_2d(input, rows, cols)?;
             dispatch_softmax_lse!($kernel::$kernel_fn, out, input, stream, bn)?;
-            Ok::<(), crate::error::Error>(())
+            Ok::<(), $crate::error::Error>(())
+        }
+
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $tuned_name(
+            stream: &Arc<Stream>,
+            out: DevicePointer<$output_ty>,
+            input: DevicePointer<$input_ty>,
+            rows: usize,
+            cols: usize,
+            tile_rows: usize,
+            tile_columns: usize,
+            compile: KernelCompileConfig,
+        ) -> Result<()> {
+            if cols == 0 {
+                return Err(Error::InvalidLength);
+            }
+            let len = checked_element_count(rows, cols)?;
+            if len == 0 {
+                return Ok::<(), $crate::error::Error>(());
+            }
+            if cols > SOFTMAX_MAX_TILE_WIDTH || tile_columns < cols {
+                return Err(Error::UnsupportedWidth {
+                    op: "softmax".into(),
+                    width: cols,
+                });
+            }
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            let out = TensorAdapter::contiguous_2d(out, rows, 1)?.partition([1, 1])?;
+            let input = TensorAdapter::contiguous_2d(input, rows, cols)?;
+            dispatch_softmax_lse_tuned!(
+                $kernel::$kernel_fn,
+                out,
+                input,
+                stream,
+                tile_rows,
+                tile_columns,
+                compile
+            )?;
+            Ok::<(), $crate::error::Error>(())
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
-softmax_lse_fn!(softmax_lse_f32, f32, f32, kernel_f32, softmax_lse_f32);
-#[cfg(feature = "dtype-f16")]
-softmax_lse_fn!(softmax_lse_f16, f16, f32, kernel_f16, softmax_lse_f16);
-#[cfg(feature = "dtype-f64")]
-softmax_lse_fn!(softmax_lse_f64, f64, f64, kernel_f64, softmax_lse_f64);
+#[cfg(feature = "dtype_f32")]
+softmax_lse_fn!(
+    softmax_lse_f32,
+    softmax_lse_f32_tuned,
+    f32,
+    f32,
+    kernel_f32,
+    softmax_lse_f32
+);
+
+#[cfg(feature = "dtype_f16")]
+softmax_lse_fn!(
+    softmax_lse_f16,
+    softmax_lse_f16_tuned,
+    f16,
+    f32,
+    kernel_f16,
+    softmax_lse_f16
+);
+
+#[cfg(feature = "dtype_f64")]
+softmax_lse_fn!(
+    softmax_lse_f64,
+    softmax_lse_f64_tuned,
+    f64,
+    f64,
+    kernel_f64,
+    softmax_lse_f64
+);
 
 macro_rules! softmax_wide_fn {
     (
@@ -234,7 +432,10 @@ macro_rules! softmax_wide_fn {
         $reduce_sum:ident,
         $normalize:ident
     ) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$input_ty>,
             input: DevicePointer<$input_ty>,
@@ -245,38 +446,43 @@ macro_rules! softmax_wide_fn {
             cols: usize,
         ) -> Result<()> {
             let Some(params) = SoftmaxWide::create(rows, cols)? else {
-                return Ok::<(), crate::error::Error>(());
+                return Ok::<(), $crate::error::Error>(());
             };
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
-            checked_device_pointer(partial)?;
-            checked_device_pointer(row_max)?;
-            checked_device_pointer(row_sum)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            checked_device_pointer(&partial)?;
+            checked_device_pointer(&row_max)?;
+            checked_device_pointer(&row_sum)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { kernel_common::$partial_max(partial, input, params.cols, params.chunks) }
                 .grid(params.chunk_grid)
                 .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { kernel_common::$reduce_max(row_max, partial, params.chunks) }
                 .grid(params.row_grid)
                 .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_common::$partial_sum(partial, input, row_max, params.cols, params.chunks)
             }
             .grid(params.chunk_grid)
             .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { kernel_common::$reduce_sum(row_sum, partial, params.chunks) }
                 .grid(params.row_grid)
                 .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_common::$normalize(out, input, row_max, row_sum, params.cols, params.len)
             }
             .grid(params.len_grid)
             .enqueue_on(stream)?;
-            Ok::<(), crate::error::Error>(())
+            Ok::<(), $crate::error::Error>(())
         }
     };
 }
@@ -293,7 +499,10 @@ macro_rules! softmax_lse_wide_fn {
         $reduce_sum:ident,
         $finalize:ident
     ) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$output_ty>,
             input: DevicePointer<$input_ty>,
@@ -304,41 +513,46 @@ macro_rules! softmax_lse_wide_fn {
             cols: usize,
         ) -> Result<()> {
             let Some(params) = SoftmaxWide::create(rows, cols)? else {
-                return Ok::<(), crate::error::Error>(());
+                return Ok::<(), $crate::error::Error>(());
             };
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
-            checked_device_pointer(partial)?;
-            checked_device_pointer(row_max)?;
-            checked_device_pointer(row_sum)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            checked_device_pointer(&partial)?;
+            checked_device_pointer(&row_max)?;
+            checked_device_pointer(&row_sum)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { kernel_common::$partial_max(partial, input, params.cols, params.chunks) }
                 .grid(params.chunk_grid)
                 .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { kernel_common::$reduce_max(row_max, partial, params.chunks) }
                 .grid(params.row_grid)
                 .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_common::$partial_sum(partial, input, row_max, params.cols, params.chunks)
             }
             .grid(params.chunk_grid)
             .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { kernel_common::$reduce_sum(row_sum, partial, params.chunks) }
                 .grid(params.row_grid)
                 .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { kernel_common::$finalize(out, row_max, row_sum, params.rows) }
                 .grid(params.row_vector_grid)
                 .enqueue_on(stream)?;
-            Ok::<(), crate::error::Error>(())
+            Ok::<(), $crate::error::Error>(())
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 softmax_wide_fn!(
     softmax_wide_f32,
     f32,
@@ -349,7 +563,8 @@ softmax_wide_fn!(
     softmax_reduce_sum_f32,
     softmax_normalize_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 softmax_wide_fn!(
     softmax_wide_f16,
     f16,
@@ -360,7 +575,8 @@ softmax_wide_fn!(
     softmax_reduce_sum_f32,
     softmax_normalize_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 softmax_wide_fn!(
     softmax_wide_f64,
     f64,
@@ -372,7 +588,7 @@ softmax_wide_fn!(
     softmax_normalize_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 softmax_wide_fn!(
     log_softmax_wide_f32,
     f32,
@@ -383,7 +599,8 @@ softmax_wide_fn!(
     softmax_reduce_sum_f32,
     log_softmax_normalize_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 softmax_wide_fn!(
     log_softmax_wide_f16,
     f16,
@@ -394,7 +611,8 @@ softmax_wide_fn!(
     softmax_reduce_sum_f32,
     log_softmax_normalize_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 softmax_wide_fn!(
     log_softmax_wide_f64,
     f64,
@@ -406,7 +624,7 @@ softmax_wide_fn!(
     log_softmax_normalize_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 softmax_wide_fn!(
     softmin_wide_f32,
     f32,
@@ -417,7 +635,8 @@ softmax_wide_fn!(
     softmax_reduce_sum_f32,
     softmin_normalize_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 softmax_wide_fn!(
     softmin_wide_f16,
     f16,
@@ -428,7 +647,8 @@ softmax_wide_fn!(
     softmax_reduce_sum_f32,
     softmin_normalize_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 softmax_wide_fn!(
     softmin_wide_f64,
     f64,
@@ -440,7 +660,7 @@ softmax_wide_fn!(
     softmin_normalize_f64
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 softmax_lse_wide_fn!(
     softmax_lse_wide_f32,
     f32,
@@ -452,7 +672,8 @@ softmax_lse_wide_fn!(
     softmax_reduce_sum_f32,
     softmax_lse_from_parts_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 softmax_lse_wide_fn!(
     softmax_lse_wide_f16,
     f16,
@@ -464,7 +685,8 @@ softmax_lse_wide_fn!(
     softmax_reduce_sum_f32,
     softmax_lse_from_parts_f32
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 softmax_lse_wide_fn!(
     softmax_lse_wide_f64,
     f64,

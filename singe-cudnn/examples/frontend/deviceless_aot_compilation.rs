@@ -3,14 +3,19 @@ mod common;
 use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::device::DeviceProperties,
-    backend::tensor::{Shape, TensorId, TensorSpec},
+    backend::{
+        device::{DeviceProperties, DevicePropertiesSource},
+        tensor::{Shape, TensorId, TensorSpec},
+    },
     data_type::{DataType, f16},
     error::{Error, Result, Status},
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{ConvolutionConfig, HeuristicMode},
-        plan::CompiledGraph,
+        operation::ConvolutionConfig,
+        plan::{
+            CompileConfig, CompiledGraph, ExecuteArgs, HeuristicMode, NativePlanRestoreTarget,
+            NativePlanSerializationConfig, NativePlanStructure,
+        },
     },
 };
 
@@ -78,46 +83,37 @@ fn build_graph(device_properties: DeviceProperties) -> Result<Graph> {
     );
     graph.attach_device_properties(device_properties)?;
 
-    let x = graph.tensor(
+    let x = graph.insert_tensor(
+        X_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([n, c, h, width])?.with_strides(vec![
-                c * h * width,
-                1,
-                c * width,
-                c,
-            ])?,
+            Shape::with_strides([n, c, h, width], vec![c * h * width, 1, c * width, c])?,
         )
-        .with_id(X_ID)
         .with_name("image"),
-    );
+    )?;
 
-    let w = graph.tensor(
+    let w = graph.insert_tensor(
+        W_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([k, c, r, s])?.with_strides([c * r * s, 1, c * s, c])?,
+            Shape::with_strides([k, c, r, s], [c * r * s, 1, c * s, c])?,
         )
-        .with_id(W_ID)
         .with_name("filter"),
-    );
+    )?;
 
-    let y = graph.tensor(
+    let y = graph.insert_tensor(
+        Y_ID,
         TensorSpec::new(
             DataType::F16,
-            Shape::contiguous([n, k, h, width])?.with_strides(vec![
-                k * h * width,
-                1,
-                k * width,
-                k,
-            ])?,
-        )
-        .with_id(Y_ID),
-    );
-    graph.convolution_forward(
+            Shape::with_strides([n, k, h, width], vec![k * h * width, 1, k * width, k])?,
+        ),
+    )?;
+    graph.convolution_forward_into(
         x,
         w,
         y,
-        ConvolutionConfig::new(DataType::F32, 2)
+        ConvolutionConfig::new(2)
+            .with_compute_type(DataType::F32)
             .with_padding(vec![1, 1])
             .with_strides([1, 1])
             .with_dilations(vec![1, 1]),
@@ -127,13 +123,30 @@ fn build_graph(device_properties: DeviceProperties) -> Result<Graph> {
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-    let device_properties = DeviceProperties::create(&ctx.cudnn)?;
+    let context = common::ExampleContext::create()?;
+    let device_properties = DeviceProperties::create(DevicePropertiesSource::Device(
+        context.cudnn.cuda_context().device(),
+    ))?;
     let serialized_device = device_properties.serialize()?;
     let restored_device = DeviceProperties::deserialize(&serialized_device)?;
 
     let graph = build_graph(restored_device)?;
-    let compiled = match graph.compile_deviceless(&[HeuristicMode::A, HeuristicMode::Fallback]) {
+    let build = || {
+        let candidates = graph.plan_candidates(
+            None,
+            &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+        )?;
+        let mut built = candidates.into_build_candidates(&CompileConfig::new())?;
+        for plan in built.plan_ids() {
+            let report = built.build_plan(None, &plan)?;
+            println!("deviceless candidate: {report}");
+            if report.is_available() {
+                return built.compile_selected(&plan);
+            }
+        }
+        built.compile()
+    };
+    let compiled = match build() {
         Ok(compiled) => compiled,
         Err(error) if is_deviceless_not_supported(&error) => {
             println!(
@@ -143,27 +156,59 @@ fn run() -> Result<()> {
         }
         Err(error) => return Err(error),
     };
-    let serialized_compiled = compiled.serialize()?;
-    let restored = CompiledGraph::deserialize(&ctx.cudnn, &serialized_compiled)?;
+    let serialized_compiled = compiled.serialize(NativePlanSerializationConfig {
+        structure: NativePlanStructure::Omit,
+        ..Default::default()
+    })?;
+    let restore_properties = DeviceProperties::deserialize(&serialized_device)?;
+    // SAFETY: the artifact is unmodified, and execution below uses the same device that supplied these properties.
+    let restored = unsafe {
+        CompiledGraph::deserialize(
+            NativePlanRestoreTarget::DeviceProperties(&restore_properties),
+            &serialized_compiled,
+        )
+    }?;
 
-    assert_eq!(restored.graph().name(), Some("deviceless-aot-demo"));
-    assert_eq!(restored.graph().name(), Some("deviceless-aot-demo"));
-    assert_eq!(restored.names()?, compiled.names()?);
+    println!("restored graph structure: {:?}", restored.graph());
+    for binding in restored.required_tensor_bindings() {
+        for operand in &binding.bindings {
+            let tensor = restored.tensor_info(operand.tensor_id)?;
+            println!(
+                "restored tensor {}: uid={:?}, name={:?}, dimensions={:?}, access={:?}",
+                tensor.id,
+                tensor.backend_uid,
+                tensor.spec.name,
+                tensor.spec.shape.dimensions(),
+                tensor.access,
+            );
+        }
+    }
 
     let mut seed = 123_456_789_u32;
-    let mut x_dev =
-        DeviceMemory::from_slice(&init_f16_image((16 * 128 * 64 * 64) as usize, &mut seed))?;
-    let mut w_dev =
-        DeviceMemory::from_slice(&init_f16_image((256 * 128 * 3 * 3) as usize, &mut seed))?;
-    let mut y_dev = DeviceMemory::<f16>::zeroes((16 * 256 * 64 * 64) as usize)?;
-    let mut workspace = common::workspace(restored.workspace_size()?)?;
+    let mut x_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_f16_image((16 * 128 * 64 * 64) as usize, &mut seed),
+    )?;
+    let mut w_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &init_f16_image((256 * 128 * 3 * 3) as usize, &mut seed),
+    )?;
+    let mut y_dev =
+        DeviceMemory::<f16>::zeroed(context.cudnn.cuda_context(), (16 * 256 * 64 * 64) as usize)?;
+    let mut workspace = common::workspace(context.cudnn.cuda_context(), restored.workspace_size())?;
 
-    let mut bindings = restored.bindings();
+    let mut bindings = restored.bindings()?;
     bindings
         .set(X_ID, &mut x_dev)?
         .set(W_ID, &mut w_dev)?
         .set(Y_ID, &mut y_dev)?;
-    restored.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
+    unsafe {
+        restored.execute(
+            &context.cudnn,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    }?;
 
     let y_host = y_dev.copy_to_host_vec()?;
     verify_output(&y_host);

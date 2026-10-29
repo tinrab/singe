@@ -1,16 +1,14 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use cutile::half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
-use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
-};
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
 use crate::{
     cuda::cutile::{
-        DeviceOpExt,
+        DeviceOpExt, TileKernel,
         kernel::recurrent as kernel_recurrent,
         utility::{VectorLaunch, checked_device_pointer},
     },
@@ -76,6 +74,17 @@ impl RecurrentGatedDeltaRule {
             return Err(Error::InvalidLength);
         }
         let batch_value_heads = checked_element_count(batch, value_heads)?;
+        let qk_span = checked_element_count(
+            checked_element_count(checked_element_count(batch, time)?, query_heads)?,
+            qk_dim,
+        )?;
+        let value_span =
+            checked_element_count(checked_element_count(batch_value_heads, time)?, value_dim)?;
+        let state_span =
+            checked_element_count(checked_element_count(batch_value_heads, qk_dim)?, value_dim)?;
+        checked_i32_value(qk_span)?;
+        checked_i32_value(value_span)?;
+        checked_i32_value(state_span)?;
         let grid_x = u32::try_from(batch_value_heads).map_err(|_| Error::SizeOverflow)?;
         let grid_y = u32::try_from(value_dim).map_err(|_| Error::SizeOverflow)?;
         Ok(Self {
@@ -94,7 +103,10 @@ impl RecurrentGatedDeltaRule {
 
 macro_rules! gated_delta_rule_preprocess_fn {
     ($name:ident, $ty:ty, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             beta_out: DevicePointer<$ty>,
             g_out: DevicePointer<$ty>,
@@ -106,12 +118,13 @@ macro_rules! gated_delta_rule_preprocess_fn {
             hidden: usize,
         ) -> Result<()> {
             let params = GatedDeltaRulePreprocess::create(rows, hidden)?;
-            checked_device_pointer(beta_out)?;
-            checked_device_pointer(g_out)?;
-            checked_device_pointer(b_in)?;
-            checked_device_pointer(a_in)?;
-            checked_device_pointer(a_log)?;
-            checked_device_pointer(dt_bias)?;
+            checked_device_pointer(&beta_out)?;
+            checked_device_pointer(&g_out)?;
+            checked_device_pointer(&b_in)?;
+            checked_device_pointer(&a_in)?;
+            checked_device_pointer(&a_log)?;
+            checked_device_pointer(&dt_bias)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_recurrent::$kernel_fn(
                     beta_out,
@@ -131,9 +144,13 @@ macro_rules! gated_delta_rule_preprocess_fn {
     };
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! gated_delta_rule_preprocess_g_f32_fn {
     ($name:ident, $ty:ty, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             beta_out: DevicePointer<$ty>,
             g_out: DevicePointer<f32>,
@@ -145,12 +162,13 @@ macro_rules! gated_delta_rule_preprocess_g_f32_fn {
             hidden: usize,
         ) -> Result<()> {
             let params = GatedDeltaRulePreprocess::create(rows, hidden)?;
-            checked_device_pointer(beta_out)?;
-            checked_device_pointer(g_out)?;
-            checked_device_pointer(b_in)?;
-            checked_device_pointer(a_in)?;
-            checked_device_pointer(a_log)?;
-            checked_device_pointer(dt_bias)?;
+            checked_device_pointer(&beta_out)?;
+            checked_device_pointer(&g_out)?;
+            checked_device_pointer(&b_in)?;
+            checked_device_pointer(&a_in)?;
+            checked_device_pointer(&a_log)?;
+            checked_device_pointer(&dt_bias)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_recurrent::$kernel_fn(
                     beta_out,
@@ -170,32 +188,35 @@ macro_rules! gated_delta_rule_preprocess_g_f32_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 gated_delta_rule_preprocess_fn!(
     gated_delta_rule_preprocess_f32,
     f32,
     gated_delta_rule_preprocess_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 gated_delta_rule_preprocess_fn!(
     gated_delta_rule_preprocess_f16,
     f16,
     gated_delta_rule_preprocess_f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 gated_delta_rule_preprocess_fn!(
     gated_delta_rule_preprocess_bf16,
     bf16,
     gated_delta_rule_preprocess_bf16
 );
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 gated_delta_rule_preprocess_g_f32_fn!(
     gated_delta_rule_preprocess_f16_g_f32,
     f16,
     gated_delta_rule_preprocess_f16_g_f32
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 gated_delta_rule_preprocess_g_f32_fn!(
     gated_delta_rule_preprocess_bf16_g_f32,
     bf16,
@@ -204,7 +225,10 @@ gated_delta_rule_preprocess_g_f32_fn!(
 
 macro_rules! recurrent_gated_delta_rule_fn {
     ($name:ident, $ty:ty, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             final_state: DevicePointer<$ty>,
@@ -218,18 +242,19 @@ macro_rules! recurrent_gated_delta_rule_fn {
             has_initial_state: bool,
             output_final_state: bool,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
-            checked_device_pointer(gate)?;
-            checked_device_pointer(beta)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
+            checked_device_pointer(&gate)?;
+            checked_device_pointer(&beta)?;
             if has_initial_state {
-                checked_device_pointer(initial_state)?;
+                checked_device_pointer(&initial_state)?;
             }
             if output_final_state {
-                checked_device_pointer(final_state)?;
+                checked_device_pointer(&final_state)?;
             }
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_recurrent::$kernel_fn(
                     out,
@@ -259,19 +284,21 @@ macro_rules! recurrent_gated_delta_rule_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 recurrent_gated_delta_rule_fn!(
     recurrent_gated_delta_rule_f32,
     f32,
     recurrent_gated_delta_rule_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 recurrent_gated_delta_rule_fn!(
     recurrent_gated_delta_rule_f16,
     f16,
     recurrent_gated_delta_rule_f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 recurrent_gated_delta_rule_fn!(
     recurrent_gated_delta_rule_bf16,
     bf16,
@@ -280,7 +307,10 @@ recurrent_gated_delta_rule_fn!(
 
 macro_rules! recurrent_gated_delta_rule_decode_fn {
     ($name:ident, $kernel_fn:ident, $ty:ty) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             final_state: DevicePointer<$ty>,
@@ -296,16 +326,17 @@ macro_rules! recurrent_gated_delta_rule_decode_fn {
             if params.time != 1 {
                 return Err(Error::InvalidLength);
             }
-            checked_device_pointer(out)?;
+            checked_device_pointer(&out)?;
             if output_final_state {
-                checked_device_pointer(final_state)?;
+                checked_device_pointer(&final_state)?;
             }
-            checked_device_pointer(query)?;
-            checked_device_pointer(key)?;
-            checked_device_pointer(value)?;
-            checked_device_pointer(gate)?;
-            checked_device_pointer(beta)?;
-            checked_device_pointer(initial_state)?;
+            checked_device_pointer(&query)?;
+            checked_device_pointer(&key)?;
+            checked_device_pointer(&value)?;
+            checked_device_pointer(&gate)?;
+            checked_device_pointer(&beta)?;
+            checked_device_pointer(&initial_state)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_recurrent::$kernel_fn(
                     out,
@@ -333,19 +364,21 @@ macro_rules! recurrent_gated_delta_rule_decode_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 recurrent_gated_delta_rule_decode_fn!(
     recurrent_gated_delta_rule_decode_f32,
     recurrent_gated_delta_rule_decode_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 recurrent_gated_delta_rule_decode_fn!(
     recurrent_gated_delta_rule_decode_f16,
     recurrent_gated_delta_rule_decode_f16,
     f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 recurrent_gated_delta_rule_decode_fn!(
     recurrent_gated_delta_rule_decode_bf16,
     recurrent_gated_delta_rule_decode_bf16,
@@ -354,7 +387,10 @@ recurrent_gated_delta_rule_decode_fn!(
 
 macro_rules! chunk_gated_delta_rule_fn {
     ($name:ident, $recurrent_fn:ident, $ty:ty) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             final_state: DevicePointer<$ty>,
@@ -386,37 +422,42 @@ macro_rules! chunk_gated_delta_rule_fn {
                 value_dim,
                 use_qk_l2norm,
             )?;
-            $recurrent_fn(
-                stream,
-                out,
-                final_state,
-                query,
-                key,
-                value,
-                gate,
-                beta,
-                initial_state,
-                params,
-                has_initial_state,
-                output_final_state,
-            )
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                $recurrent_fn(
+                    stream,
+                    out,
+                    final_state,
+                    query,
+                    key,
+                    value,
+                    gate,
+                    beta,
+                    initial_state,
+                    params,
+                    has_initial_state,
+                    output_final_state,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 chunk_gated_delta_rule_fn!(
     chunk_gated_delta_rule_f32,
     recurrent_gated_delta_rule_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 chunk_gated_delta_rule_fn!(
     chunk_gated_delta_rule_f16,
     recurrent_gated_delta_rule_f16,
     f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 chunk_gated_delta_rule_fn!(
     chunk_gated_delta_rule_bf16,
     recurrent_gated_delta_rule_bf16,
@@ -430,14 +471,14 @@ mod tests {
     use cutile::prelude::*;
 
     use super::*;
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     use crate::cpu::recurrent::{bfloat_to_f32, bfloat_vec, round_bfloat_vec};
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     use crate::cpu::recurrent::{half_to_f32, half_vec, round_half_vec};
     use crate::{cpu::recurrent as cpu_recurrent, error::Result};
 
     #[test]
-    fn gated_delta_rule_preprocess_f32() -> Result<()> {
+    fn test_gated_delta_rule_preprocess_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -469,26 +510,29 @@ mod tests {
         let beta = api::zeros::<f32>(&[rows * hidden]).sync_on(&stream)?;
         let g = api::zeros::<f32>(&[rows * hidden]).sync_on(&stream)?;
 
-        gated_delta_rule_preprocess_f32(
-            &stream,
-            beta.device_pointer(),
-            g.device_pointer(),
-            b.device_pointer(),
-            a.device_pointer(),
-            a_log.device_pointer(),
-            dt_bias.device_pointer(),
-            rows,
-            hidden,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::gated_delta_rule_preprocess_f32(
+                &stream,
+                beta.device_pointer(),
+                g.device_pointer(),
+                b.device_pointer(),
+                a.device_pointer(),
+                a_log.device_pointer(),
+                dt_bias.device_pointer(),
+                rows,
+                hidden,
+            )
+        }?;
 
         singe_core::assert_close!(&beta.to_host_vec().sync_on(&stream)?, &expected_beta, 1e-6);
         singe_core::assert_close!(&g.to_host_vec().sync_on(&stream)?, &expected_g, 1e-6);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn gated_delta_rule_preprocess_f16() -> Result<()> {
+    fn test_gated_delta_rule_preprocess_f16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -521,17 +565,20 @@ mod tests {
         let beta = api::zeros::<f16>(&[rows * hidden]).sync_on(&stream)?;
         let g = api::zeros::<f16>(&[rows * hidden]).sync_on(&stream)?;
 
-        gated_delta_rule_preprocess_f16(
-            &stream,
-            beta.device_pointer(),
-            g.device_pointer(),
-            b.device_pointer(),
-            a.device_pointer(),
-            a_log.device_pointer(),
-            dt_bias.device_pointer(),
-            rows,
-            hidden,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::gated_delta_rule_preprocess_f16(
+                &stream,
+                beta.device_pointer(),
+                g.device_pointer(),
+                b.device_pointer(),
+                a.device_pointer(),
+                a_log.device_pointer(),
+                dt_bias.device_pointer(),
+                rows,
+                hidden,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&beta.to_host_vec().sync_on(&stream)?),
@@ -546,9 +593,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn gated_delta_rule_preprocess_f16_g_f32() -> Result<()> {
+    fn test_gated_delta_rule_preprocess_f16_g_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -580,17 +627,20 @@ mod tests {
         let beta = api::zeros::<f16>(&[rows * hidden]).sync_on(&stream)?;
         let g = api::zeros::<f32>(&[rows * hidden]).sync_on(&stream)?;
 
-        gated_delta_rule_preprocess_f16_g_f32(
-            &stream,
-            beta.device_pointer(),
-            g.device_pointer(),
-            b.device_pointer(),
-            a.device_pointer(),
-            a_log.device_pointer(),
-            dt_bias.device_pointer(),
-            rows,
-            hidden,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::gated_delta_rule_preprocess_f16_g_f32(
+                &stream,
+                beta.device_pointer(),
+                g.device_pointer(),
+                b.device_pointer(),
+                a.device_pointer(),
+                a_log.device_pointer(),
+                dt_bias.device_pointer(),
+                rows,
+                hidden,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&beta.to_host_vec().sync_on(&stream)?),
@@ -601,9 +651,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn gated_delta_rule_preprocess_bf16() -> Result<()> {
+    fn test_gated_delta_rule_preprocess_bf16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -636,17 +686,20 @@ mod tests {
         let beta = api::zeros::<bf16>(&[rows * hidden]).sync_on(&stream)?;
         let g = api::zeros::<bf16>(&[rows * hidden]).sync_on(&stream)?;
 
-        gated_delta_rule_preprocess_bf16(
-            &stream,
-            beta.device_pointer(),
-            g.device_pointer(),
-            b.device_pointer(),
-            a.device_pointer(),
-            a_log.device_pointer(),
-            dt_bias.device_pointer(),
-            rows,
-            hidden,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::gated_delta_rule_preprocess_bf16(
+                &stream,
+                beta.device_pointer(),
+                g.device_pointer(),
+                b.device_pointer(),
+                a.device_pointer(),
+                a_log.device_pointer(),
+                dt_bias.device_pointer(),
+                rows,
+                hidden,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&beta.to_host_vec().sync_on(&stream)?),
@@ -661,9 +714,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn gated_delta_rule_preprocess_bf16_g_f32() -> Result<()> {
+    fn test_gated_delta_rule_preprocess_bf16_g_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -695,17 +748,20 @@ mod tests {
         let beta = api::zeros::<bf16>(&[rows * hidden]).sync_on(&stream)?;
         let g = api::zeros::<f32>(&[rows * hidden]).sync_on(&stream)?;
 
-        gated_delta_rule_preprocess_bf16_g_f32(
-            &stream,
-            beta.device_pointer(),
-            g.device_pointer(),
-            b.device_pointer(),
-            a.device_pointer(),
-            a_log.device_pointer(),
-            dt_bias.device_pointer(),
-            rows,
-            hidden,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::gated_delta_rule_preprocess_bf16_g_f32(
+                &stream,
+                beta.device_pointer(),
+                g.device_pointer(),
+                b.device_pointer(),
+                a.device_pointer(),
+                a_log.device_pointer(),
+                dt_bias.device_pointer(),
+                rows,
+                hidden,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&beta.to_host_vec().sync_on(&stream)?),
@@ -717,7 +773,7 @@ mod tests {
     }
 
     #[test]
-    fn recurrent_gated_delta_rule_f32_with_state() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_f32_with_state() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -772,20 +828,23 @@ mod tests {
         let final_state =
             api::zeros::<f32>(&[batch * value_heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        recurrent_gated_delta_rule_f32(
-            &stream,
-            out.device_pointer(),
-            final_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_f32(
+                &stream,
+                out.device_pointer(),
+                final_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected_out, 1e-5);
         singe_core::assert_close!(
@@ -797,7 +856,7 @@ mod tests {
     }
 
     #[test]
-    fn recurrent_gated_delta_rule_decode_f32_matches_recurrent_t1() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_decode_f32_matches_recurrent_t1() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -839,33 +898,39 @@ mod tests {
         let actual_state =
             api::zeros::<f32>(&[batch * value_heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        recurrent_gated_delta_rule_f32(
-            &stream,
-            expected_out.device_pointer(),
-            expected_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-            true,
-        )?;
-        recurrent_gated_delta_rule_decode_f32(
-            &stream,
-            actual_out.device_pointer(),
-            actual_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_f32(
+                &stream,
+                expected_out.device_pointer(),
+                expected_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+                true,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_decode_f32(
+                &stream,
+                actual_out.device_pointer(),
+                actual_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(
             &actual_out.to_host_vec().sync_on(&stream)?,
@@ -880,9 +945,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn recurrent_gated_delta_rule_decode_f16_matches_recurrent_t1() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_decode_f16_matches_recurrent_t1() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -924,33 +989,39 @@ mod tests {
         let actual_state =
             api::zeros::<f16>(&[batch * value_heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        recurrent_gated_delta_rule_f16(
-            &stream,
-            expected_out.device_pointer(),
-            expected_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-            true,
-        )?;
-        recurrent_gated_delta_rule_decode_f16(
-            &stream,
-            actual_out.device_pointer(),
-            actual_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_f16(
+                &stream,
+                expected_out.device_pointer(),
+                expected_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+                true,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_decode_f16(
+                &stream,
+                actual_out.device_pointer(),
+                actual_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&actual_out.to_host_vec().sync_on(&stream)?),
@@ -965,9 +1036,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn recurrent_gated_delta_rule_decode_bf16_matches_recurrent_t1() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_decode_bf16_matches_recurrent_t1() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1009,33 +1080,39 @@ mod tests {
         let actual_state =
             api::zeros::<bf16>(&[batch * value_heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        recurrent_gated_delta_rule_bf16(
-            &stream,
-            expected_out.device_pointer(),
-            expected_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-            true,
-        )?;
-        recurrent_gated_delta_rule_decode_bf16(
-            &stream,
-            actual_out.device_pointer(),
-            actual_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_bf16(
+                &stream,
+                expected_out.device_pointer(),
+                expected_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+                true,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_decode_bf16(
+                &stream,
+                actual_out.device_pointer(),
+                actual_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&actual_out.to_host_vec().sync_on(&stream)?),
@@ -1051,7 +1128,7 @@ mod tests {
     }
 
     #[test]
-    fn recurrent_gated_delta_rule_f32_without_state() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_f32_without_state() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1100,28 +1177,31 @@ mod tests {
         let final_state = api::zeros::<f32>(&[1]).sync_on(&stream)?;
         let initial_state = api::zeros::<f32>(&[1]).sync_on(&stream)?;
 
-        recurrent_gated_delta_rule_f32(
-            &stream,
-            out.device_pointer(),
-            final_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            false,
-            false,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_f32(
+                &stream,
+                out.device_pointer(),
+                final_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                false,
+                false,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected_out, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn recurrent_gated_delta_rule_f16_with_state() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_f16_with_state() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1178,20 +1258,23 @@ mod tests {
         let final_state =
             api::zeros::<f16>(&[batch * value_heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        recurrent_gated_delta_rule_f16(
-            &stream,
-            out.device_pointer(),
-            final_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_f16(
+                &stream,
+                out.device_pointer(),
+                final_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -1206,9 +1289,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn recurrent_gated_delta_rule_bf16_with_state() -> Result<()> {
+    fn test_recurrent_gated_delta_rule_bf16_with_state() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1265,20 +1348,23 @@ mod tests {
         let final_state =
             api::zeros::<bf16>(&[batch * value_heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        recurrent_gated_delta_rule_bf16(
-            &stream,
-            out.device_pointer(),
-            final_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            config,
-            true,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            recurrent_gated_delta_rule_bf16(
+                &stream,
+                out.device_pointer(),
+                final_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                config,
+                true,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -1294,7 +1380,7 @@ mod tests {
     }
 
     #[test]
-    fn chunk_gated_delta_rule_f32_with_state() -> Result<()> {
+    fn test_chunk_gated_delta_rule_f32_with_state() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1345,26 +1431,29 @@ mod tests {
         let final_state =
             api::zeros::<f32>(&[batch * heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        chunk_gated_delta_rule_f32(
-            &stream,
-            out.device_pointer(),
-            final_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            batch,
-            time,
-            heads,
-            qk_dim,
-            value_dim,
-            2,
-            false,
-            true,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            chunk_gated_delta_rule_f32(
+                &stream,
+                out.device_pointer(),
+                final_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                batch,
+                time,
+                heads,
+                qk_dim,
+                value_dim,
+                2,
+                false,
+                true,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected_out, 1e-5);
         singe_core::assert_close!(
@@ -1375,9 +1464,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn chunk_gated_delta_rule_f16_with_state() -> Result<()> {
+    fn test_chunk_gated_delta_rule_f16_with_state() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1430,26 +1519,29 @@ mod tests {
         let final_state =
             api::zeros::<f16>(&[batch * heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        chunk_gated_delta_rule_f16(
-            &stream,
-            out.device_pointer(),
-            final_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            batch,
-            time,
-            heads,
-            qk_dim,
-            value_dim,
-            2,
-            false,
-            true,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            chunk_gated_delta_rule_f16(
+                &stream,
+                out.device_pointer(),
+                final_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                batch,
+                time,
+                heads,
+                qk_dim,
+                value_dim,
+                2,
+                false,
+                true,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -1464,9 +1556,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn chunk_gated_delta_rule_bf16_with_state() -> Result<()> {
+    fn test_chunk_gated_delta_rule_bf16_with_state() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1519,26 +1611,29 @@ mod tests {
         let final_state =
             api::zeros::<bf16>(&[batch * heads * qk_dim * value_dim]).sync_on(&stream)?;
 
-        chunk_gated_delta_rule_bf16(
-            &stream,
-            out.device_pointer(),
-            final_state.device_pointer(),
-            query.device_pointer(),
-            key.device_pointer(),
-            value.device_pointer(),
-            gate.device_pointer(),
-            beta.device_pointer(),
-            initial_state.device_pointer(),
-            batch,
-            time,
-            heads,
-            qk_dim,
-            value_dim,
-            2,
-            false,
-            true,
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            chunk_gated_delta_rule_bf16(
+                &stream,
+                out.device_pointer(),
+                final_state.device_pointer(),
+                query.device_pointer(),
+                key.device_pointer(),
+                value.device_pointer(),
+                gate.device_pointer(),
+                beta.device_pointer(),
+                initial_state.device_pointer(),
+                batch,
+                time,
+                heads,
+                qk_dim,
+                value_dim,
+                2,
+                false,
+                true,
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&out.to_host_vec().sync_on(&stream)?),

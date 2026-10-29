@@ -4,9 +4,10 @@ description = "ONNX model utilities."
 version = "0.1.0-alpha.7"
 edition.workspace = true
 repository.workspace = true
-keywords = ["singe", "onnx", "model"]
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
+keywords = ["singe", "onnx", "model"]
+include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*", "proto/*.proto"]
 
 [dependencies]
 thiserror.workspace = true

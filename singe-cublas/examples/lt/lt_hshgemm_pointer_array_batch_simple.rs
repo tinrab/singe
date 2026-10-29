@@ -9,6 +9,7 @@ use singe_cublas::{
     },
     types::{ComputeType, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
     types::f16,
@@ -30,47 +31,51 @@ fn main() -> Result<(), Box<dyn Error>> {
     let four = f16::from_f32(4.0);
 
     let a_batches = [
-        DeviceMemory::from_slice(&[one, three, two, four])?,
-        DeviceMemory::from_slice(&[two, four, one, three])?,
+        DeviceMemory::from_slice(&cuda, &[one, three, two, four])?,
+        DeviceMemory::from_slice(&cuda, &[two, four, one, three])?,
     ];
     let b_batches = [
-        DeviceMemory::from_slice(&[one, one, one, one])?,
-        DeviceMemory::from_slice(&[one, two, three, four])?,
+        DeviceMemory::from_slice(&cuda, &[one, one, one, one])?,
+        DeviceMemory::from_slice(&cuda, &[one, two, three, four])?,
     ];
     let c_batches = [
-        DeviceMemory::<f16>::zeroes((M * N) as usize)?,
-        DeviceMemory::<f16>::zeroes((M * N) as usize)?,
+        DeviceMemory::<f16>::zeroed(&cuda, (M * N) as usize)?,
+        DeviceMemory::<f16>::zeroed(&cuda, (M * N) as usize)?,
     ];
     let mut d_batches = [
-        DeviceMemory::<f16>::zeroes((M * N) as usize)?,
-        DeviceMemory::<f16>::zeroes((M * N) as usize)?,
+        DeviceMemory::<f16>::zeroed(&cuda, (M * N) as usize)?,
+        DeviceMemory::<f16>::zeroed(&cuda, (M * N) as usize)?,
     ];
 
     let a_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &a_batches
             .iter()
-            .map(DeviceMemory::as_ptr)
-            .collect::<Vec<*const f16>>(),
+            .map(DeviceMemory::as_device_ptr)
+            .collect::<Vec<_>>(),
     )?;
     let b_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &b_batches
             .iter()
-            .map(DeviceMemory::as_ptr)
-            .collect::<Vec<*const f16>>(),
+            .map(DeviceMemory::as_device_ptr)
+            .collect::<Vec<_>>(),
     )?;
     let c_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &c_batches
             .iter()
-            .map(DeviceMemory::as_ptr)
-            .collect::<Vec<*const f16>>(),
+            .map(DeviceMemory::as_device_ptr)
+            .collect::<Vec<_>>(),
     )?;
     let mut d_ptrs = DeviceMemory::from_slice(
+        &cuda,
         &d_batches
             .iter_mut()
-            .map(|batch| batch.as_mut_ptr())
-            .collect::<Vec<*mut f16>>(),
+            .map(|batch| batch.as_device_ptr())
+            .collect::<Vec<_>>(),
     )?;
-    let mut workspace = DeviceMemory::<u8>::create(WORKSPACE_BYTES)?;
+    let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, WORKSPACE_BYTES)?;
 
     let mut a_layout = MatrixLayout::create(DataType::F16, M, K, M as i64)?;
     a_layout.set_batch_count(BATCH_COUNT)?;
@@ -94,23 +99,27 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
-    matmul(
-        &lt,
-        &desc,
-        &alpha,
-        &a_ptrs,
-        &a_layout,
-        &b_ptrs,
-        &b_layout,
-        &beta,
-        &c_ptrs,
-        &c_layout,
-        &mut d_ptrs,
-        &d_layout,
-        None,
-        Some(&mut workspace),
-        None,
-    )?;
+    // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
+    unsafe {
+        matmul(
+            &lt,
+            &desc,
+            &alpha,
+            &a_ptrs,
+            &a_layout,
+            &b_ptrs,
+            &b_layout,
+            &beta,
+            &c_ptrs,
+            &c_layout,
+            &mut d_ptrs,
+            &d_layout,
+            None,
+            Some(&mut workspace),
+            None,
+        )
+    }?;
+    cuda.synchronize()?;
 
     for (index, batch) in d_batches.iter().enumerate() {
         println!(

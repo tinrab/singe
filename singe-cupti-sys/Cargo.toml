@@ -4,7 +4,7 @@ description = "Raw FFI bindings for the NVIDIA CUPTI profiling interface."
 version = "0.1.0-alpha.7"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["nvidia", "cupti", "profiling", "ffi", "cuda"]
 include.workspace = true
@@ -13,9 +13,9 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cupti_13_3"]
+default = ["cupti_13_4"]
 
-cupti_13_3 = []
+cupti_13_4 = []
 
 [dependencies]
 num_enum.workspace = true

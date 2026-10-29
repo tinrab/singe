@@ -1,6 +1,13 @@
 #[cutile::module]
 mod kernels {
-    use cutile::core::*;
+    use cutile::core::{
+        Latency, PointerTile_0, PointerTile_1, ReshapePtr, Shape_1, Tile_1, Token,
+        broadcast_scalar, cmp_ordering, cmpf, cmpi, constant, ftz, get_tile_block_id, iota,
+        load_ptr_tko, maxf, nan, ordering, pointer_to_tile, predicate, scope, select,
+        store_ptr_tko,
+    };
+
+    use crate::cuda::cutile::runtime as cutile;
 
     #[cutile::entry()]
     pub unsafe fn max_pool2d_f32(
@@ -40,7 +47,8 @@ mod kernels {
         let oh: Tile<i32, { [128] }> = rem_c / broadcast_scalar(output_width, tile_shape);
         let ow: Tile<i32, { [128] }> = rem_c - oh * broadcast_scalar(output_width, tile_shape);
 
-        let mut values: Tile<f32, { [128] }> = constant(f32::NEG_INFINITY, tile_shape);
+        let negative_infinity: Tile<f32, { [128] }> = constant(f32::NEG_INFINITY, tile_shape);
+        let mut values: Tile<f32, { [128] }> = negative_infinity;
         for kh in 0i32..kernel_height {
             for kw in 0i32..kernel_width {
                 let ih: Tile<i32, { [128] }> = oh * broadcast_scalar(stride_height, tile_shape)
@@ -72,16 +80,19 @@ mod kernels {
                 let input_ptrs: PointerTile<*mut f32, { [128] }> = input_base.broadcast(tile_shape);
                 let input_ptrs: PointerTile<*mut f32, { [128] }> =
                     input_ptrs.offset_tile(source_offsets);
-                let result: (Tile<f32, { [128] }>, Token) = load_ptr_tko(
-                    input_ptrs,
-                    ordering::Weak,
-                    None::<scope::TileBlock>,
-                    Some(valid),
-                    Some(f32::NEG_INFINITY),
-                    None,
-                    Latency::<0>,
-                );
-                values = maxf(values, result.0, nan::Enabled, ftz::Disabled);
+                let result: (Tile<f32, { [128] }>, Token) = unsafe {
+                    load_ptr_tko(
+                        input_ptrs,
+                        ordering::Weak,
+                        None::<scope::TileBlock>,
+                        Some(valid),
+                        None,
+                        None,
+                        Latency::<0>,
+                    )
+                };
+                let input_values = select(valid, result.0, negative_infinity);
+                values = maxf(values, input_values, nan::Enabled, ftz::Disabled);
             }
         }
 
@@ -89,18 +100,28 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(output_mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(output_mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     #[cutile::entry()]
+    #[expect(
+        clippy::similar_names,
+        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
+    )]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
+    )]
     pub unsafe fn avg_pool2d_f32(
         out: *mut f32,
         input: *mut f32,
@@ -196,15 +217,17 @@ mod kernels {
                 let input_ptrs: PointerTile<*mut f32, { [128] }> = input_base.broadcast(tile_shape);
                 let input_ptrs: PointerTile<*mut f32, { [128] }> =
                     input_ptrs.offset_tile(source_offsets);
-                let result: (Tile<f32, { [128] }>, Token) = load_ptr_tko(
-                    input_ptrs,
-                    ordering::Weak,
-                    None::<scope::TileBlock>,
-                    Some(valid),
-                    Some(0.0f32),
-                    None,
-                    Latency::<0>,
-                );
+                let result: (Tile<f32, { [128] }>, Token) = unsafe {
+                    load_ptr_tko(
+                        input_ptrs,
+                        ordering::Weak,
+                        None::<scope::TileBlock>,
+                        Some(valid),
+                        Some(0.0f32),
+                        None,
+                        Latency::<0>,
+                    )
+                };
                 sum = sum + result.0;
                 count = count + select(valid, one_f32, zero_f32);
                 padded_count = padded_count + select(padded_valid, one_f32, zero_f32);
@@ -226,15 +249,17 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(output_mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(output_mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 

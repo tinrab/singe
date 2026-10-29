@@ -12,6 +12,16 @@
 //! and runtime environment must be able to locate the driver NVML library, for
 //! example through the platform library path.
 //!
+//! # Thread safety
+//!
+//! NVML is thread-safe, so handles such as [`device::Device`] are `Send` and `Sync`.
+//! APIs that write into caller-owned objects, such as GPM samples, take `&mut`.
+//!
+//! # Testing
+//!
+//! Tests query the installed NVIDIA driver and any devices it reports.
+//! This crate has no `testing` feature.
+//!
 //! # Example
 //!
 //! ```
@@ -30,14 +40,30 @@
 //! # Ok::<(), singe_nvml::error::Error>(())
 //! ```
 
+/// MIG compute-instance handles, profiles, and placement queries.
 pub mod compute_instance;
+/// GPU device handles and device monitoring queries.
 pub mod device;
+/// Typed NVML statuses and wrapper error values.
 pub mod error;
+/// MIG GPU-instance handles, profiles, and placement queries.
 pub mod gpu_instance;
+/// NVML initialization, reference-counted shutdown, and system queries.
 pub mod library;
+
+/// Device power, memory partitioning, and telemetry controls.
+pub mod management;
+
+/// Owned event records and structured GPU Operational Event subscriptions.
+pub mod operational_event;
+
+/// Typed device properties, query records, identifiers, and control settings.
 pub mod types;
+/// Multi-GPU unit monitoring, fan, power-supply, and enclosure information.
 pub mod unit;
+/// Queries and controls for virtual GPU instances.
 pub mod vgpu_instance;
+/// Virtual GPU type capabilities, geometry, and resource limits.
 pub mod vgpu_type;
 
 pub(crate) mod utility;
@@ -45,7 +71,7 @@ pub(crate) mod utility;
 use singe_core::string_from_c_chars;
 use singe_nvml_sys as sys;
 
-use crate::error::Result;
+use crate::{error::Result, utility::to_u32};
 
 /// Returns the version of the NVML library.
 ///
@@ -58,10 +84,11 @@ use crate::error::Result;
 /// rejects the output argument.
 pub fn version() -> Result<String> {
     let mut buffer = [0i8; sys::NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE as usize];
+    // SAFETY: `nvmlSystemGetNVMLVersion` receives valid output locations.
     unsafe {
         try_ffi!(sys::nvmlSystemGetNVMLVersion(
             buffer.as_mut_ptr(),
-            buffer.len() as u32,
+            to_u32(buffer.len(), "NVML buffer length")?,
         ))?;
     }
     Ok(string_from_c_chars(&buffer))
@@ -91,7 +118,10 @@ mod tests {
                     );
                     match set.wait(0, 4) {
                         Ok(_) => Ok(()),
-                        Err(Error::Nvml { code, .. }) if code == Status::Timeout => Ok(()),
+                        Err(Error::Nvml {
+                            code: Status::Timeout,
+                            ..
+                        }) => Ok(()),
                         Err(error) => Err(error),
                     }
                 });
@@ -100,3 +130,5 @@ mod tests {
         }
     }
 }
+
+mod optional;

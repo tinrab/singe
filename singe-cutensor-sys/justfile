@@ -41,7 +41,6 @@ generate:
         --blocklist-item "^nccl.*"
         --blocklist-item "^NCCL.*"
         --blocklist-item "^libraryPropertyType.*"
-        --no-doc-comments
         --no-size_t-is-usize
         --no-layout-tests
         --with-derive-default
@@ -63,6 +62,8 @@ generate:
     )
     clang_args=(
         -x c++
+        -fparse-all-comments -fretain-comments-from-system-headers
+        -include library_types.h
         -I {{cuda_path}}/include
         -I {{cutensor_include_path}}
         -I ${NCCL_INCLUDE_PATH:-{{cuda_path}}/include}

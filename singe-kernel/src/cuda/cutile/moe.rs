@@ -1,35 +1,27 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 use cutile::core::f8e4m3fn;
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use cutile::half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
-use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
-};
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
+#[cfg(feature = "dtype_f8")]
+use singe_cuda::device::Device as CudaDevice;
 
 use crate::{
-    cuda::cutile::{
-        DeviceOpExt,
-        kernel::moe as kernel_moe,
-        utility::{checked_device_pointer, raw_vector_grid},
+    cuda::{
+        cutile::{
+            DeviceOpExt, TileKernel,
+            kernel::{common::fill_i32, moe as kernel_moe, moe_routing},
+            utility::{checked_device_pointer, raw_vector_grid},
+        },
+        moe::MoeAlignBlockSizeConfig,
     },
     error::{Error, Result},
     utility::{checked_element_count, checked_i32_value},
 };
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct MoeAlignBlockSize {
-    element_count: i32,
-    expert_count: i32,
-    block_size: i32,
-    sorted_token_ids_len: i32,
-    expert_ids_len: i32,
-    output_len: i32,
-    grid: (u32, u32, u32),
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct FusedMoe {
@@ -43,11 +35,9 @@ struct FusedMoe {
     weight_row_stride: i32,
     output_row_stride: i32,
     mul_routed_weight: i32,
-    output_len: i32,
-    grid: (u32, u32, u32),
 }
 
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct FusedMoeBlockScaled {
     base: FusedMoe,
@@ -56,55 +46,7 @@ struct FusedMoeBlockScaled {
     k_groups: i32,
 }
 
-impl MoeAlignBlockSize {
-    fn create(
-        element_count: usize,
-        expert_count: usize,
-        block_size: usize,
-        sorted_token_ids_len: usize,
-        expert_ids_len: usize,
-    ) -> Result<Self> {
-        if element_count == 0
-            || expert_count == 0
-            || block_size == 0
-            || sorted_token_ids_len == 0
-            || expert_ids_len == 0
-        {
-            return Err(Error::InvalidLength);
-        }
-        let max_num_tokens_padded = element_count
-            .checked_add(
-                expert_count
-                    .checked_mul(block_size - 1)
-                    .ok_or(Error::SizeOverflow)?,
-            )
-            .ok_or(Error::SizeOverflow)?;
-        if sorted_token_ids_len < max_num_tokens_padded {
-            return Err(Error::InvalidLength);
-        }
-        let max_blocks = ceil_div(max_num_tokens_padded, block_size)?;
-        if expert_ids_len < max_blocks {
-            return Err(Error::InvalidLength);
-        }
-        let output_len = checked_element_count(
-            sorted_token_ids_len
-                .max(expert_ids_len)
-                .max(expert_count + 1),
-            1,
-        )?;
-        Ok(Self {
-            element_count: checked_i32_value(element_count)?,
-            expert_count: checked_i32_value(expert_count)?,
-            block_size: checked_i32_value(block_size)?,
-            sorted_token_ids_len: checked_i32_value(sorted_token_ids_len)?,
-            expert_ids_len: checked_i32_value(expert_ids_len)?,
-            output_len: checked_i32_value(output_len)?,
-            grid: raw_vector_grid(output_len)?,
-        })
-    }
-}
-
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 impl FusedMoeBlockScaled {
     fn create(
         element_count: usize,
@@ -168,12 +110,12 @@ impl FusedMoe {
             || input_row_stride == 0
             || expert_stride == 0
             || weight_row_stride == 0
-            || output_row_stride == 0
+            || output_row_stride < columns
             || sorted_token_ids_len == 0
         {
             return Err(Error::InvalidLength);
         }
-        let output_len = checked_element_count(sorted_token_ids_len, columns)?;
+        checked_i32_value(checked_element_count(sorted_token_ids_len, columns)?)?;
         Ok(Self {
             element_count: checked_i32_value(element_count)?,
             columns: checked_i32_value(columns)?,
@@ -185,19 +127,22 @@ impl FusedMoe {
             weight_row_stride: checked_i32_value(weight_row_stride)?,
             output_row_stride: checked_i32_value(output_row_stride)?,
             mul_routed_weight: i32::from(mul_routed_weight),
-            output_len: checked_i32_value(output_len)?,
-            grid: raw_vector_grid(output_len)?,
         })
     }
 }
 
-pub fn moe_align_block_size_i32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn moe_align_block_size_i32(
     stream: &Arc<Stream>,
     sorted_token_ids: DevicePointer<i32>,
     expert_ids: DevicePointer<i32>,
     num_tokens_post_pad: DevicePointer<i32>,
     cumsum: DevicePointer<i32>,
     max_expert_count: DevicePointer<i32>,
+    workspace: DevicePointer<i32>,
+    workspace_len: usize,
     topk_ids: DevicePointer<i32>,
     element_count: usize,
     expert_count: usize,
@@ -205,42 +150,75 @@ pub fn moe_align_block_size_i32(
     sorted_token_ids_len: usize,
     expert_ids_len: usize,
 ) -> Result<()> {
-    checked_device_pointer(sorted_token_ids)?;
-    checked_device_pointer(expert_ids)?;
-    checked_device_pointer(num_tokens_post_pad)?;
-    checked_device_pointer(cumsum)?;
-    checked_device_pointer(max_expert_count)?;
-    checked_device_pointer(topk_ids)?;
-
-    let params = MoeAlignBlockSize::create(
-        element_count,
-        expert_count,
-        block_size,
-        sorted_token_ids_len,
-        expert_ids_len,
-    )?;
+    let config = MoeAlignBlockSizeConfig::create(element_count, expert_count, block_size)?;
+    if sorted_token_ids_len < config.max_num_tokens_padded()?
+        || expert_ids_len < config.max_num_blocks()?
+        || workspace_len < config.workspace_len()?
+    {
+        return Err(Error::InvalidLength);
+    }
+    for pointer in [
+        sorted_token_ids,
+        expert_ids,
+        num_tokens_post_pad,
+        cumsum,
+        max_expert_count,
+        workspace,
+        topk_ids,
+    ] {
+        checked_device_pointer(&pointer)?;
+    }
+    let assignments = checked_i32_value(element_count)?;
+    let experts = checked_i32_value(expert_count)?;
+    let block = checked_i32_value(block_size)?;
+    let chunks = checked_i32_value(element_count.div_ceil(256))?;
+    let grid = (chunks as u32, experts as u32, 1);
+    // SAFETY: checked ranges and the caller's allocation lifetimes cover the ordered stages.
     unsafe {
-        kernel_moe::moe_align_block_size_i32(
-            topk_ids,
+        fill_i32(
+            sorted_token_ids,
+            assignments,
+            checked_i32_value(sorted_token_ids_len)?,
+        )
+        .grid(raw_vector_grid(sorted_token_ids_len)?)
+        .enqueue_on(stream)?;
+        moe_routing::count(workspace, topk_ids, assignments, chunks)
+            .grid(grid)
+            .enqueue_on(stream)?;
+        moe_routing::prefix_chunks(workspace, chunks, experts)
+            .grid((experts as u32, 1, 1))
+            .enqueue_on(stream)?;
+        moe_routing::prefix_experts(
+            workspace,
+            cumsum,
+            num_tokens_post_pad,
+            max_expert_count,
+            chunks,
+            experts,
+            block,
+        )
+        .grid((1, 1, 1))
+        .enqueue_on(stream)?;
+        moe_routing::scatter(
             sorted_token_ids,
             expert_ids,
-            num_tokens_post_pad,
+            topk_ids,
+            workspace,
             cumsum,
-            max_expert_count,
-            params.element_count,
-            params.expert_count,
-            params.block_size,
-            params.sorted_token_ids_len,
-            params.expert_ids_len,
-            params.output_len,
+            assignments,
+            chunks,
+            block,
         )
+        .grid(grid)
+        .enqueue_on(stream)?;
     }
-    .grid(params.grid)
-    .enqueue_on(stream)?;
     Ok(())
 }
 
-pub fn fused_moe_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fused_moe_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -261,13 +239,15 @@ pub fn fused_moe_f32(
     sorted_token_ids_len: usize,
     mul_routed_weight: bool,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(routed_weight)?;
-    checked_device_pointer(sorted_token_ids)?;
-    checked_device_pointer(expert_ids)?;
-    checked_device_pointer(num_tokens_post_pad)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    if mul_routed_weight {
+        checked_device_pointer(&routed_weight)?;
+    }
+    checked_device_pointer(&sorted_token_ids)?;
+    checked_device_pointer(&expert_ids)?;
+    checked_device_pointer(&num_tokens_post_pad)?;
 
     let params = FusedMoe::create(
         element_count,
@@ -282,8 +262,9 @@ pub fn fused_moe_f32(
         sorted_token_ids_len,
         mul_routed_weight,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        kernel_moe::fused_moe_f32(
+        kernel_moe::expert_product(
             out,
             input,
             weight,
@@ -301,18 +282,31 @@ pub fn fused_moe_f32(
             params.weight_row_stride,
             params.output_row_stride,
             params.mul_routed_weight,
-            params.output_len,
+            routed_weight,
+            routed_weight,
+            1i32,
+            params.reduction,
+            1i32,
         )
     }
-    .grid(params.grid)
+    .generics(vec!["f32".into(), "f32".into(), "0".into()])
+    .grid((
+        u32::try_from(sorted_token_ids_len.div_ceil(block_size))
+            .map_err(|_| Error::SizeOverflow)?,
+        u32::try_from(columns.div_ceil(64)).map_err(|_| Error::SizeOverflow)?,
+        u32::try_from(block_size.div_ceil(16)).map_err(|_| Error::SizeOverflow)?,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! fused_moe_half_fn {
     ($name:ident, $ty:ty, $kernel:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -333,13 +327,15 @@ macro_rules! fused_moe_half_fn {
             sorted_token_ids_len: usize,
             mul_routed_weight: bool,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
-            checked_device_pointer(weight)?;
-            checked_device_pointer(routed_weight)?;
-            checked_device_pointer(sorted_token_ids)?;
-            checked_device_pointer(expert_ids)?;
-            checked_device_pointer(num_tokens_post_pad)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            checked_device_pointer(&weight)?;
+            if mul_routed_weight {
+                checked_device_pointer(&routed_weight)?;
+            }
+            checked_device_pointer(&sorted_token_ids)?;
+            checked_device_pointer(&expert_ids)?;
+            checked_device_pointer(&num_tokens_post_pad)?;
 
             let params = FusedMoe::create(
                 element_count,
@@ -354,8 +350,9 @@ macro_rules! fused_moe_half_fn {
                 sorted_token_ids_len,
                 mul_routed_weight,
             )?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
-                kernel_moe::$kernel(
+                kernel_moe::expert_product(
                     out,
                     input,
                     weight,
@@ -373,24 +370,41 @@ macro_rules! fused_moe_half_fn {
                     params.weight_row_stride,
                     params.output_row_stride,
                     params.mul_routed_weight,
-                    params.output_len,
+                    routed_weight,
+                    routed_weight,
+                    1i32,
+                    params.reduction,
+                    1i32,
                 )
             }
-            .grid(params.grid)
+            .generics(vec![
+                stringify!($ty).into(),
+                stringify!($ty).into(),
+                "0".into(),
+            ])
+            .grid((
+                u32::try_from(sorted_token_ids_len.div_ceil(block_size))
+                    .map_err(|_| Error::SizeOverflow)?,
+                u32::try_from(columns.div_ceil(64)).map_err(|_| Error::SizeOverflow)?,
+                u32::try_from(block_size.div_ceil(16)).map_err(|_| Error::SizeOverflow)?,
+            ))
             .enqueue_on(stream)?;
             Ok(())
         }
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 fused_moe_half_fn!(fused_moe_f16, f16, fused_moe_f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 fused_moe_half_fn!(fused_moe_bf16, bf16, fused_moe_bf16);
 
-#[cfg(feature = "dtype-f8")]
-
-pub fn fused_moe_f8e4m3_block_scaled_f32(
+#[cfg(feature = "dtype_f8")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fused_moe_f8e4m3_block_scaled_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<u8>,
@@ -415,15 +429,17 @@ pub fn fused_moe_f8e4m3_block_scaled_f32(
     sorted_token_ids_len: usize,
     mul_routed_weight: bool,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(input_scales)?;
-    checked_device_pointer(weight_scales)?;
-    checked_device_pointer(routed_weight)?;
-    checked_device_pointer(sorted_token_ids)?;
-    checked_device_pointer(expert_ids)?;
-    checked_device_pointer(num_tokens_post_pad)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    checked_device_pointer(&input_scales)?;
+    checked_device_pointer(&weight_scales)?;
+    if mul_routed_weight {
+        checked_device_pointer(&routed_weight)?;
+    }
+    checked_device_pointer(&sorted_token_ids)?;
+    checked_device_pointer(&expert_ids)?;
+    checked_device_pointer(&num_tokens_post_pad)?;
 
     let params = FusedMoeBlockScaled::create(
         element_count,
@@ -440,15 +456,22 @@ pub fn fused_moe_f8e4m3_block_scaled_f32(
         sorted_token_ids_len,
         mul_routed_weight,
     )?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let input = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(input.cu_deviceptr()) };
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let weight = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(weight.cu_deviceptr()) };
+    let properties = CudaDevice::new(stream.device().cu_device()).properties()?;
+    let mode = if (properties.major, properties.minor) >= (8, 9) {
+        1
+    } else {
+        -1
+    };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        kernel_moe::fused_moe_f8e4m3_block_scaled_f32(
+        kernel_moe::expert_product(
             out,
             input,
             weight,
-            input_scales,
-            weight_scales,
             routed_weight,
             sorted_token_ids,
             expert_ids,
@@ -458,18 +481,25 @@ pub fn fused_moe_f8e4m3_block_scaled_f32(
             params.base.reduction,
             params.base.top_k,
             params.base.block_size,
-            params.group_n,
-            params.group_k,
-            params.k_groups,
             params.base.input_row_stride,
             params.base.expert_stride,
             params.base.weight_row_stride,
             params.base.output_row_stride,
             params.base.mul_routed_weight,
-            params.base.output_len,
+            input_scales,
+            weight_scales,
+            params.group_n,
+            params.group_k,
+            params.k_groups,
         )
     }
-    .grid(params.base.grid)
+    .generics(vec!["f8e4m3fn".into(), "f32".into(), mode.to_string()])
+    .grid((
+        u32::try_from(sorted_token_ids_len.div_ceil(block_size))
+            .map_err(|_| Error::SizeOverflow)?,
+        u32::try_from(columns.div_ceil(64)).map_err(|_| Error::SizeOverflow)?,
+        u32::try_from(block_size.div_ceil(16)).map_err(|_| Error::SizeOverflow)?,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
@@ -491,7 +521,7 @@ mod tests {
     use crate::{cpu::moe as cpu_moe, error::Result};
 
     #[test]
-    fn moe_align_block_size_i32() -> Result<()> {
+    fn test_moe_align_block_size_i32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -512,21 +542,28 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            element_count,
-            expert_count,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                element_count,
+                expert_count,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
 
         assert_eq!(
             sorted_token_ids.to_host_vec().sync_on(&stream)?,
@@ -549,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn fused_moe_f32_topk2() -> Result<()> {
+    fn test_fused_moe_f32_topk2() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -593,50 +630,60 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[tokens * top_k * columns]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            tokens * top_k,
-            experts,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
-        fused_moe_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            routed_weight.device_pointer(),
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            tokens * top_k,
-            columns,
-            reduction,
-            top_k,
-            block_size,
-            reduction,
-            columns * reduction,
-            reduction,
-            columns,
-            expected_sorted.len(),
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                tokens * top_k,
+                experts,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            fused_moe_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                routed_weight.device_pointer(),
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                tokens * top_k,
+                columns,
+                reduction,
+                top_k,
+                block_size,
+                reduction,
+                columns * reduction,
+                reduction,
+                columns,
+                expected_sorted.len(),
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-5);
         Ok(())
     }
 
     #[test]
-    fn fused_moe_f32_topk2_with_empty_experts() -> Result<()> {
+    fn test_fused_moe_f32_topk2_with_empty_experts() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -680,51 +727,61 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[tokens * top_k * columns]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            tokens * top_k,
-            experts,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
-        fused_moe_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            routed_weight.device_pointer(),
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            tokens * top_k,
-            columns,
-            reduction,
-            top_k,
-            block_size,
-            reduction,
-            columns * reduction,
-            reduction,
-            columns,
-            expected_sorted.len(),
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                tokens * top_k,
+                experts,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            fused_moe_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                routed_weight.device_pointer(),
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                tokens * top_k,
+                columns,
+                reduction,
+                top_k,
+                block_size,
+                reduction,
+                columns * reduction,
+                reduction,
+                columns,
+                expected_sorted.len(),
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f8")]
+    #[cfg(feature = "dtype_f8")]
     #[test]
-    fn fused_moe_f8e4m3_block_scaled_f32_topk2() -> Result<()> {
+    fn test_fused_moe_f8e4m3_block_scaled_f32_topk2() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -791,55 +848,65 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[tokens * top_k * columns]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            tokens * top_k,
-            experts,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
-        fused_moe_f8e4m3_block_scaled_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            input_scales.device_pointer(),
-            weight_scales.device_pointer(),
-            routed_weight.device_pointer(),
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            tokens * top_k,
-            columns,
-            reduction,
-            top_k,
-            block_size,
-            group_n,
-            group_k,
-            reduction,
-            columns * reduction,
-            reduction,
-            columns,
-            expected_sorted.len(),
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                tokens * top_k,
+                experts,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            fused_moe_f8e4m3_block_scaled_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                input_scales.device_pointer(),
+                weight_scales.device_pointer(),
+                routed_weight.device_pointer(),
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                tokens * top_k,
+                columns,
+                reduction,
+                top_k,
+                block_size,
+                group_n,
+                group_k,
+                reduction,
+                columns * reduction,
+                reduction,
+                columns,
+                expected_sorted.len(),
+                true,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn fused_moe_f16_topk2() -> Result<()> {
+    fn test_fused_moe_f16_topk2() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -893,43 +960,53 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[tokens * top_k * columns]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            tokens * top_k,
-            experts,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
-        fused_moe_f16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            routed_weight.device_pointer(),
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            tokens * top_k,
-            columns,
-            reduction,
-            top_k,
-            block_size,
-            reduction,
-            columns * reduction,
-            reduction,
-            columns,
-            expected_sorted.len(),
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                tokens * top_k,
+                experts,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            fused_moe_f16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                routed_weight.device_pointer(),
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                tokens * top_k,
+                columns,
+                reduction,
+                top_k,
+                block_size,
+                reduction,
+                columns * reduction,
+                reduction,
+                columns,
+                expected_sorted.len(),
+                true,
+            )
+        }?;
 
         let actual = out
             .to_host_vec()
@@ -942,9 +1019,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn fused_moe_bf16_topk2() -> Result<()> {
+    fn test_fused_moe_bf16_topk2() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -998,43 +1075,53 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
         let out = api::zeros::<bf16>(&[tokens * top_k * columns]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            tokens * top_k,
-            experts,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
-        fused_moe_bf16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            routed_weight.device_pointer(),
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            tokens * top_k,
-            columns,
-            reduction,
-            top_k,
-            block_size,
-            reduction,
-            columns * reduction,
-            reduction,
-            columns,
-            expected_sorted.len(),
-            true,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                tokens * top_k,
+                experts,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            fused_moe_bf16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                routed_weight.device_pointer(),
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                tokens * top_k,
+                columns,
+                reduction,
+                top_k,
+                block_size,
+                reduction,
+                columns * reduction,
+                reduction,
+                columns,
+                expected_sorted.len(),
+                true,
+            )
+        }?;
 
         let actual = out
             .to_host_vec()
@@ -1048,7 +1135,7 @@ mod tests {
     }
 
     #[test]
-    fn fused_moe_f32_topk1_without_routed_weight() -> Result<()> {
+    fn test_fused_moe_f32_topk1_without_routed_weight() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1090,51 +1177,61 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[tokens * top_k * columns]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            tokens * top_k,
-            experts,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
-        fused_moe_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            routed_weight.device_pointer(),
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            tokens * top_k,
-            columns,
-            reduction,
-            top_k,
-            block_size,
-            reduction,
-            columns * reduction,
-            reduction,
-            columns,
-            expected_sorted.len(),
-            false,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                tokens * top_k,
+                experts,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            fused_moe_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                routed_weight.device_pointer(),
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                tokens * top_k,
+                columns,
+                reduction,
+                top_k,
+                block_size,
+                reduction,
+                columns * reduction,
+                reduction,
+                columns,
+                expected_sorted.len(),
+                false,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn fused_moe_f16_topk1_without_routed_weight() -> Result<()> {
+    fn test_fused_moe_f16_topk1_without_routed_weight() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1186,43 +1283,53 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[tokens * top_k * columns]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            tokens * top_k,
-            experts,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
-        fused_moe_f16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            routed_weight.device_pointer(),
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            tokens * top_k,
-            columns,
-            reduction,
-            top_k,
-            block_size,
-            reduction,
-            columns * reduction,
-            reduction,
-            columns,
-            expected_sorted.len(),
-            false,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                tokens * top_k,
+                experts,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            fused_moe_f16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                routed_weight.device_pointer(),
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                tokens * top_k,
+                columns,
+                reduction,
+                top_k,
+                block_size,
+                reduction,
+                columns * reduction,
+                reduction,
+                columns,
+                expected_sorted.len(),
+                false,
+            )
+        }?;
 
         let actual = out
             .to_host_vec()
@@ -1235,9 +1342,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn fused_moe_bf16_topk1_without_routed_weight() -> Result<()> {
+    fn test_fused_moe_bf16_topk1_without_routed_weight() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1289,43 +1396,53 @@ mod tests {
         let num_tokens_post_pad = api::zeros::<i32>(&[1]).sync_on(&stream)?;
         let cumsum = api::zeros::<i32>(&[expected_cumsum.len()]).sync_on(&stream)?;
         let max_expert_count = api::zeros::<i32>(&[1]).sync_on(&stream)?;
+        let workspace_len = (expected_sorted.len().div_ceil(256) + 1) * (expected_cumsum.len() - 1);
+        let workspace = api::zeros::<i32>(&[workspace_len]).sync_on(&stream)?;
         let out = api::zeros::<bf16>(&[tokens * top_k * columns]).sync_on(&stream)?;
 
-        moe_align_block_size_i32(
-            &stream,
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            cumsum.device_pointer(),
-            max_expert_count.device_pointer(),
-            topk_ids.device_pointer(),
-            tokens * top_k,
-            experts,
-            block_size,
-            expected_sorted.len(),
-            expected_experts_padded.len(),
-        )?;
-        fused_moe_bf16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            routed_weight.device_pointer(),
-            sorted_token_ids.device_pointer(),
-            expert_ids.device_pointer(),
-            num_tokens_post_pad.device_pointer(),
-            tokens * top_k,
-            columns,
-            reduction,
-            top_k,
-            block_size,
-            reduction,
-            columns * reduction,
-            reduction,
-            columns,
-            expected_sorted.len(),
-            false,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::moe_align_block_size_i32(
+                &stream,
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                cumsum.device_pointer(),
+                max_expert_count.device_pointer(),
+                workspace.device_pointer(),
+                workspace_len,
+                topk_ids.device_pointer(),
+                tokens * top_k,
+                experts,
+                block_size,
+                expected_sorted.len(),
+                expected_experts_padded.len(),
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            fused_moe_bf16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                routed_weight.device_pointer(),
+                sorted_token_ids.device_pointer(),
+                expert_ids.device_pointer(),
+                num_tokens_post_pad.device_pointer(),
+                tokens * top_k,
+                columns,
+                reduction,
+                top_k,
+                block_size,
+                reduction,
+                columns * reduction,
+                reduction,
+                columns,
+                expected_sorted.len(),
+                false,
+            )
+        }?;
 
         let actual = out
             .to_host_vec()

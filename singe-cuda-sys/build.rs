@@ -1,7 +1,9 @@
+//! Discovers CUDA toolkit and driver libraries and emits Cargo linker metadata.
+
 use singe_cuda_find::{
     emit_dependency_metadata, emit_library_path_metadata, emit_link_libraries,
     emit_rerun_if_env_changed, emit_static_link_libraries, find_cuda_driver_path,
-    find_cuda_runtime, find_nvrtc, find_nvvm,
+    find_cuda_runtime, find_nvjitlink, find_nvrtc, find_nvvm,
 };
 
 fn main() {
@@ -12,6 +14,9 @@ fn main() {
 }
 
 fn link_libraries() {
+    if cfg!(feature = "nvjitlink_13_4") && emit_dependency_metadata(find_nvjitlink()).is_some() {
+        emit_link_libraries(&["nvJitLink"]);
+    }
     if let Some(cuda_driver_path) = emit_library_path_metadata(find_cuda_driver_path()) {
         #[cfg(target_os = "linux")]
         println!(

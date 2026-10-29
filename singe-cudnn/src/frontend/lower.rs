@@ -1,171 +1,147 @@
 use std::collections::{BTreeMap, HashSet};
 
 use crate::{
-    descriptor::BackendDescriptor,
+    backend::{
+        descriptor::BackendDescriptor,
+        execution::{
+            attention::{
+                DiagonalBandMaskOperation, SdpaBackwardOperation, SdpaForwardOperation,
+                SdpaSubgraph, SoftmaxOperation,
+            },
+            block_scale::{BlockScaleDequantizeOperation, BlockScaleQuantizeOperation},
+            convolution::{
+                ConvolutionBackwardDataOperation, ConvolutionBackwardFilterOperation,
+                ConvolutionForwardOperation,
+            },
+            matmul::MatmulOperation,
+            moe::{MoeGroupedMatmulBackwardOperation, MoeGroupedMatmulOperation},
+            normalization::{
+                BatchNormalizationBackwardWeightsOperation,
+                BatchNormalizationFinalizeStatsOperation, GenStatsOperation,
+                NormalizationBackwardOperation, NormalizationForwardOperation,
+            },
+            paged_cache::PagedCacheLoadOperation,
+            pointwise::PointwiseOperation as BackendPointwiseOperation,
+            reduction::ReductionOperation as BackendReductionOperation,
+            resample::{ResampleBackwardOperation, ResampleForwardOperation},
+            rng::RngOperation,
+            rope::{RopeBackwardOperation, RopeForwardOperation},
+            tensor_ops::{ConcatOperation, ReshapeOperation, SliceOperation, TransposeOperation},
+        },
+        tensor::{Tensor, TensorId},
+    },
+    context::Context,
+    data_type::DataType,
     error::{Error, Result},
-    execution::{
-        OperationGraph,
-        advanced::{
-            BlockScaleDequantizeOperation, BlockScaleQuantizeOperation, DiagonalBandMaskOperation,
-            MatmulOperation, MoeGroupedMatmulOperation, PagedCacheLoadOperation,
-            SdpaBackwardOperation, SdpaForwardOperation, SoftmaxOperation,
-        },
-        convolution::{
-            ConvolutionBackwardDataOperation, ConvolutionBackwardFilterOperation,
-            ConvolutionForwardOperation,
-        },
-        normalization::{
-            BatchNormalizationBackwardWeightsOperation, BatchNormalizationFinalizeStatsOperation,
-            GenStatsOperation, NormalizationBackwardOperation, NormalizationForwardOperation,
-        },
-        pointwise::PointwiseOperation as BackendPointwiseOperation,
-        reduction::ReductionOperation as BackendReductionOperation,
-        resample::{ResampleBackwardOperation, ResampleForwardOperation},
-        rng::RngOperation,
-        tensor_ops::{ConcatOperation, ReshapeOperation},
-    },
     frontend::{
-        graph::{Graph, TensorRecord},
-        operation::{FrontendOperationTensors, Operation},
-        plan::BindingReplacement,
+        error::Error as FrontendError,
+        graph::{DataTypePolicy, Graph, GraphLayout, PreparedGraph, TensorRecord, ValidatedGraph},
     },
-    tensor::{Tensor, TensorId, TensorSpec},
 };
 
 #[derive(Debug)]
 pub struct LoweredGraph {
-    pub tensors: BTreeMap<TensorId, TensorRecord>,
-    pub backend_tensors: BTreeMap<TensorId, Tensor>,
-    pub binding_template_ids: Vec<TensorId>,
-    pub binding_replacements: Vec<BindingReplacement>,
+    pub(crate) layout: GraphLayout,
     pub operations: Vec<LoweredOperation>,
+    pub backend_tensors: BTreeMap<TensorId, Tensor>,
+    pub retained_subgraphs: Vec<PreparedGraph>,
 }
 
 impl LoweredGraph {
-    pub fn lower(graph: &Graph) -> Result<Self> {
-        let mut seen_ids = HashSet::new();
-        let tensors = graph
-            .tensors
-            .iter()
-            .map(|(&tensor_ref, tensor)| {
-                let id = tensor.id.ok_or(Error::DescriptorMismatch {
-                    name: "frontend tensor id".into(),
-                })?;
-                if !seen_ids.insert(id) {
-                    return Err(Error::FrontendTensorIdConflict(id));
-                }
-                Ok((
-                    tensor_ref,
-                    TensorRecord {
-                        tensor: tensor.clone(),
-                        id,
-                    },
-                ))
-            })
-            .collect::<Result<BTreeMap<_, _>>>()?;
-
+    pub(crate) fn lower(
+        graph: &Graph,
+        layout: GraphLayout,
+        subgraphs: &BTreeMap<usize, SdpaSubgraph<'_>>,
+        mut reducers: BTreeMap<usize, ValidatedGraph>,
+        cudnn_context: Option<&Context>,
+    ) -> Result<Self> {
         let mut backend_tensors = BTreeMap::new();
         let mut active_tensors = HashSet::new();
-        for &tensor_ref in tensors.keys() {
+        for &tensor_id in &layout.native_tensor_ids {
             lower_tensor_at(
-                tensor_ref,
-                &tensors,
+                tensor_id,
+                &layout.tensors,
                 &mut backend_tensors,
                 &mut active_tensors,
             )?;
         }
 
-        let mut used_tensors = graph
-            .operations
-            .iter()
-            .flat_map(OperationSpec::tensor_ids)
-            .chain(graph.alias_bindings.iter().map(|binding| binding.source))
-            .collect::<HashSet<_>>();
-        let seed_tensors = used_tensors.iter().copied().collect::<Vec<_>>();
-        for tensor_ref in seed_tensors {
-            collect_used_tensors(graph, tensor_ref, &mut used_tensors)?;
-        }
-
-        let binding_template_ids = tensors
-            .iter()
-            .filter(|(tensor_ref, record)| {
-                !record.tensor.is_virtual && used_tensors.contains(tensor_ref)
-            })
-            .map(|(_, record)| record.id)
-            .collect();
-
         let context = LoweringContext {
-            tensor_records: &tensors,
             backend_tensors: &backend_tensors,
+            data_type_policy: graph.data_type_policy(),
+            cudnn_context,
         };
-        let mut binding_replacements = Vec::new();
         let mut operations = Vec::with_capacity(graph.operations.len());
-        for operation in &graph.operations {
-            match operation.lower(&context)? {
-                LoweringOutput::Operation(operation) => operations.push(operation),
-                LoweringOutput::BindingReplacement(replacement) => {
-                    binding_replacements.push(replacement);
-                }
-                LoweringOutput::Expanded => {}
-            }
+        for (index, operation) in graph.operations.iter().enumerate() {
+            operations.push(operation.lower(
+                &context,
+                subgraphs.get(&index).copied(),
+                reducers.remove(&index),
+            )?);
         }
 
         Ok(Self {
-            tensors,
+            layout,
             backend_tensors,
-            binding_template_ids,
-            binding_replacements,
             operations,
+            retained_subgraphs: Vec::new(),
         })
-    }
-
-    pub(crate) fn tensor_record(&self, tensor: TensorId) -> Result<&TensorRecord> {
-        self.tensors
-            .get(&tensor)
-            .ok_or(Error::FrontendTensorNotFound(tensor))
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct LoweringContext<'a> {
-    tensor_records: &'a BTreeMap<TensorId, TensorRecord>,
+pub struct LoweringContext<'a> {
     backend_tensors: &'a BTreeMap<TensorId, Tensor>,
+    data_type_policy: DataTypePolicy,
+    cudnn_context: Option<&'a Context>,
 }
 
 impl LoweringContext<'_> {
-    pub(crate) fn backend_id(&self, tensor: TensorId) -> Result<TensorId> {
-        Ok(self
-            .tensor_records
-            .get(&tensor)
-            .ok_or(Error::FrontendTensorNotFound(tensor))?
-            .id)
-    }
-
     pub(crate) fn backend_tensors(&self) -> &BTreeMap<TensorId, Tensor> {
         self.backend_tensors
     }
+
+    pub(crate) fn compute_data_type(&self, requested: Option<DataType>) -> DataType {
+        self.compute_data_type_with_fallback(requested, DataType::F32)
+    }
+
+    pub(crate) fn compute_data_type_with_fallback(
+        &self,
+        requested: Option<DataType>,
+        fallback: DataType,
+    ) -> DataType {
+        requested
+            .or_else(|| self.data_type_policy.compute())
+            .unwrap_or(fallback)
+    }
+
+    pub(crate) fn cudnn_context(&self) -> Option<&Context> {
+        self.cudnn_context
+    }
 }
 
 #[derive(Debug)]
-pub(crate) enum LoweringOutput {
-    Operation(LoweredOperation),
-    BindingReplacement(BindingReplacement),
-    Expanded,
-}
-
-pub(crate) trait OperationSpec {
-    fn tensor_ids(&self) -> Vec<TensorId>;
-}
-
-#[derive(Debug)]
-pub(crate) enum LoweredOperation {
+#[expect(
+    clippy::large_enum_variant,
+    reason = "lowered descriptors are built once per graph; boxing variants would only complicate matching"
+)]
+pub enum LoweredOperation {
     Matmul(MatmulOperation),
     ConvolutionForward(ConvolutionForwardOperation),
     ConvolutionBackwardData(ConvolutionBackwardDataOperation),
     ConvolutionBackwardFilter(ConvolutionBackwardFilterOperation),
     Pointwise(BackendPointwiseOperation),
     Reduction(BackendReductionOperation),
+    CustomReduction {
+        operation: BackendReductionOperation,
+        /// Keeps the reducer body's native descriptors alive with the reduction descriptor.
+        _body: Box<PreparedGraph>,
+    },
     Reshape(ReshapeOperation),
+    Slice(SliceOperation),
+    Transpose(TransposeOperation),
+    RopeForward(RopeForwardOperation),
+    RopeBackward(RopeBackwardOperation),
     Concat(ConcatOperation),
     Resample(ResampleForwardOperation),
     ResampleBackward(ResampleBackwardOperation),
@@ -183,7 +159,7 @@ pub(crate) enum LoweredOperation {
     BatchNormalizationInference(NormalizationForwardOperation),
     BatchNormalizationFinalize(BatchNormalizationFinalizeStatsOperation),
     BatchNormalizationBackward(NormalizationBackwardOperation),
-    DbnWeight(BatchNormalizationBackwardWeightsOperation),
+    BatchNormalizationBackwardWeights(BatchNormalizationBackwardWeightsOperation),
     AdaptiveLayerNormalization(NormalizationForwardOperation),
     AdaptiveLayerNormalizationBackward(NormalizationBackwardOperation),
     PagedCacheLoad(PagedCacheLoadOperation),
@@ -192,21 +168,7 @@ pub(crate) enum LoweredOperation {
     SdpaForward(SdpaForwardOperation),
     SdpaBackward(SdpaBackwardOperation),
     MoeGroupedMatmul(MoeGroupedMatmulOperation),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct LoweredSdpaSubgraph<'a> {
-    pub(crate) operation_graph: &'a OperationGraph,
-    pub(crate) input_id: TensorId,
-    pub(crate) output_id: TensorId,
-}
-
-impl OperationSpec for Operation {
-    fn tensor_ids(&self) -> Vec<TensorId> {
-        let mut tensors = Vec::new();
-        self.append_tensor_ids(&mut tensors);
-        tensors
-    }
+    MoeGroupedMatmulBackward(MoeGroupedMatmulBackwardOperation),
 }
 
 impl LoweredOperation {
@@ -218,7 +180,12 @@ impl LoweredOperation {
             Self::ConvolutionBackwardFilter(op) => op.descriptor(),
             Self::Pointwise(op) => op.descriptor(),
             Self::Reduction(op) => op.descriptor(),
+            Self::CustomReduction { operation, .. } => operation.descriptor(),
             Self::Reshape(op) => op.descriptor(),
+            Self::Slice(op) => op.descriptor(),
+            Self::Transpose(op) => op.descriptor(),
+            Self::RopeForward(op) => op.descriptor(),
+            Self::RopeBackward(op) => op.descriptor(),
             Self::Concat(op) => op.descriptor(),
             Self::Resample(op) => op.descriptor(),
             Self::ResampleBackward(op) => op.descriptor(),
@@ -226,115 +193,77 @@ impl LoweredOperation {
             Self::GenStats(op) => op.descriptor(),
             Self::BlockScaleQuantize(op) => op.descriptor(),
             Self::BlockScaleDequantize(op) => op.descriptor(),
-            Self::LayerNormalization(op) => op.descriptor(),
-            Self::RmsNormalization(op) => op.descriptor(),
-            Self::LayerNormalizationBackward(op) => op.descriptor(),
-            Self::RmsNormalizationBackward(op) => op.descriptor(),
-            Self::InstanceNormalization(op) => op.descriptor(),
-            Self::InstanceNormalizationBackward(op) => op.descriptor(),
-            Self::BatchNormalization(op) => op.descriptor(),
-            Self::BatchNormalizationInference(op) => op.descriptor(),
+            Self::LayerNormalization(op)
+            | Self::RmsNormalization(op)
+            | Self::InstanceNormalization(op)
+            | Self::BatchNormalization(op)
+            | Self::BatchNormalizationInference(op)
+            | Self::AdaptiveLayerNormalization(op) => op.descriptor(),
+            Self::LayerNormalizationBackward(op)
+            | Self::RmsNormalizationBackward(op)
+            | Self::InstanceNormalizationBackward(op)
+            | Self::BatchNormalizationBackward(op)
+            | Self::AdaptiveLayerNormalizationBackward(op) => op.descriptor(),
             Self::BatchNormalizationFinalize(op) => op.descriptor(),
-            Self::BatchNormalizationBackward(op) => op.descriptor(),
-            Self::DbnWeight(op) => op.descriptor(),
-            Self::AdaptiveLayerNormalization(op) => op.descriptor(),
-            Self::AdaptiveLayerNormalizationBackward(op) => op.descriptor(),
+            Self::BatchNormalizationBackwardWeights(op) => op.descriptor(),
             Self::PagedCacheLoad(op) => op.descriptor(),
             Self::DiagonalBandMask(op) => op.descriptor(),
             Self::Softmax(op) => op.descriptor(),
             Self::SdpaForward(op) => op.descriptor(),
             Self::SdpaBackward(op) => op.descriptor(),
             Self::MoeGroupedMatmul(op) => op.descriptor(),
+            Self::MoeGroupedMatmulBackward(op) => op.descriptor(),
         }
     }
 }
 
 fn lower_tensor_at(
-    tensor_ref: TensorId,
+    tensor_id: TensorId,
     tensors: &BTreeMap<TensorId, TensorRecord>,
     lowered_tensors: &mut BTreeMap<TensorId, Tensor>,
     active_tensors: &mut HashSet<TensorId>,
 ) -> Result<()> {
-    if lowered_tensors.contains_key(&tensor_ref) {
+    if lowered_tensors.contains_key(&tensor_id) {
         return Ok(());
     }
-    if !active_tensors.insert(tensor_ref) {
+    if !active_tensors.insert(tensor_id) {
         return Err(Error::DescriptorMismatch {
             name: "tensor ragged offset cycle".into(),
         });
     }
 
     let record = tensors
-        .get(&tensor_ref)
-        .ok_or(Error::FrontendTensorNotFound(tensor_ref))?;
+        .get(&tensor_id)
+        .ok_or(FrontendError::TensorNotFound(tensor_id))?;
     let tensor = &record.tensor;
     if let Some(ragged_offset) = tensor.ragged_offset {
         lower_tensor_at(ragged_offset, tensors, lowered_tensors, active_tensors)?;
     }
 
-    let lowered = lower_tensor(record.id, tensor)?;
-    lowered_tensors.insert(tensor_ref, lowered);
-    active_tensors.remove(&tensor_ref);
+    let ragged_offset = tensor
+        .ragged_offset
+        .map(|id| tensor_at(lowered_tensors, id))
+        .transpose()?;
+    let lowered = Tensor::create_with_spec(record.id.into(), tensor, ragged_offset)?;
+    lowered_tensors.insert(tensor_id, lowered);
+    active_tensors.remove(&tensor_id);
     Ok(())
 }
 
-fn collect_used_tensors(
-    graph: &Graph,
-    tensor_ref: TensorId,
-    used_tensors: &mut HashSet<TensorId>,
-) -> Result<()> {
-    let Some(tensor) = graph.tensors.get(&tensor_ref) else {
-        return Err(Error::FrontendTensorNotFound(tensor_ref));
-    };
-    if let Some(ragged_offset) = tensor.ragged_offset
-        && used_tensors.insert(ragged_offset)
-    {
-        collect_used_tensors(graph, ragged_offset, used_tensors)?;
-    }
-    Ok(())
-}
-
-fn lower_tensor(id: TensorId, tensor: &TensorSpec) -> Result<Tensor> {
-    if tensor.vector_count.is_some() || tensor.vectorized_dimension.is_some() {
-        let vectorized_dimension =
-            tensor
-                .vectorized_dimension
-                .ok_or(Error::DescriptorMismatch {
-                    name: "frontend tensor vectorization".into(),
-                })?;
-        let vectorized_dimension = if vectorized_dimension < 0 {
-            tensor.shape.rank() + vectorized_dimension
-        } else {
-            vectorized_dimension
-        };
-        let vector_count = tensor.vector_count.ok_or(Error::DescriptorMismatch {
-            name: "frontend tensor vectorization".into(),
-        })?;
-        Tensor::create_with_resolved_spec(
-            id,
-            tensor,
-            Some(vectorized_dimension),
-            Some(vector_count),
-        )
-    } else {
-        Tensor::create_with_resolved_spec(id, tensor, None, None)
-    }
-}
-
-pub(crate) fn tensor_at(tensors: &BTreeMap<TensorId, Tensor>, tensor: TensorId) -> Result<&Tensor> {
+pub fn tensor_at(tensors: &BTreeMap<TensorId, Tensor>, tensor: TensorId) -> Result<&Tensor> {
     tensors
         .get(&tensor)
-        .ok_or(Error::FrontendTensorNotFound(tensor))
+        .ok_or(FrontendError::TensorNotFound(tensor).into())
 }
 
-pub(crate) fn optional_tensor_at(
+pub fn optional_tensor_at(
     tensors: &BTreeMap<TensorId, Tensor>,
     tensor: Option<TensorId>,
 ) -> Result<Option<&Tensor>> {
     tensor.map(|tensor| tensor_at(tensors, tensor)).transpose()
 }
 
-pub(crate) fn tensor_slice_at<'a>(
+pub fn tensor_slice_at<'a>(
     tensors: &'a BTreeMap<TensorId, Tensor>,
     tensor_ids: &[TensorId],
 ) -> Result<Vec<&'a Tensor>> {

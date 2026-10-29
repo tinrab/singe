@@ -1,4 +1,4 @@
-use std::ptr;
+use std::{mem, ptr};
 
 use crate::{
     context::Context,
@@ -6,14 +6,18 @@ use crate::{
     sys, try_ffi,
 };
 
+/// Owns native options and completed convergence results for Jacobi singular value decompositions.
+///
+/// Complete solver work before inspecting results or changing the options. Raw execution must retain the object and exclude concurrent access until completion.
 #[derive(Debug)]
 pub struct GesvdjInfo {
     handle: sys::gesvdjInfo_t,
 }
 
-// gesvdj info handles store solver options and expose mutation only through
-// &mut self, so immutable sharing is allowed.
+// SAFETY: native execution and option changes require exclusive access. Completed
+// getters may share an immutable borrow of the parameter storage.
 unsafe impl Send for GesvdjInfo {}
+
 unsafe impl Sync for GesvdjInfo {}
 
 impl GesvdjInfo {
@@ -25,6 +29,7 @@ impl GesvdjInfo {
     /// it does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusolverDnCreateGesvdjInfo` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnCreateGesvdjInfo(&raw mut handle))?;
         }
@@ -42,6 +47,7 @@ impl GesvdjInfo {
     ///
     /// Returns an error if cuSOLVER rejects `tolerance`.
     pub fn set_tolerance(&mut self, tolerance: f64) -> Result<()> {
+        // SAFETY: `cusolverDnXgesvdjSetTolerance` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjSetTolerance(self.as_raw(), tolerance,))?;
         }
@@ -55,6 +61,7 @@ impl GesvdjInfo {
     ///
     /// Returns an error if cuSOLVER rejects `max_sweeps`.
     pub fn set_max_sweeps(&mut self, max_sweeps: i32) -> Result<()> {
+        // SAFETY: `cusolverDnXgesvdjSetMaxSweeps` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjSetMaxSweeps(
                 self.as_raw(),
@@ -73,6 +80,7 @@ impl GesvdjInfo {
     ///
     /// Returns an error if cuSOLVER rejects the sort setting.
     pub fn set_sort_eigenvalues(&mut self, sort_eigenvalues: bool) -> Result<()> {
+        // SAFETY: `cusolverDnXgesvdjSetSortEig` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjSetSortEig(
                 self.as_raw(),
@@ -92,13 +100,14 @@ impl GesvdjInfo {
     ///
     /// Returns an error if the info handle was used with `gesvdjBatched`,
     /// which does not report a residual.
-    pub fn residual(&self, ctx: &Context) -> Result<f64> {
-        ctx.bind()?;
+    pub fn residual(&self, context: &Context) -> Result<f64> {
+        context.bind()?;
 
         let mut residual = 0.0;
+        // SAFETY: `cusolverDnXgesvdjGetResidual` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjGetResidual(
-                ctx.as_raw(),
+                context.as_raw(),
                 self.as_raw(),
                 &raw mut residual,
             ))?;
@@ -114,13 +123,14 @@ impl GesvdjInfo {
     ///
     /// Returns an error if the info handle was used with `gesvdjBatched`,
     /// which does not report a sweep count.
-    pub fn executed_sweeps(&self, ctx: &Context) -> Result<i32> {
-        ctx.bind()?;
+    pub fn executed_sweeps(&self, context: &Context) -> Result<i32> {
+        context.bind()?;
 
         let mut sweeps = 0;
+        // SAFETY: `cusolverDnXgesvdjGetSweeps` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnXgesvdjGetSweeps(
-                ctx.as_raw(),
+                context.as_raw(),
                 self.as_raw(),
                 &raw mut sweeps,
             ))?;
@@ -128,6 +138,8 @@ impl GesvdjInfo {
         Ok(sweeps)
     }
 
+    /// Returns the borrowed native parameter handle; ownership remains with this wrapper.
+    #[must_use]
     pub fn as_raw(&self) -> sys::gesvdjInfo_t {
         self.handle
     }
@@ -139,6 +151,10 @@ impl GesvdjInfo {
     /// `handle` must be a valid `gesvdjInfo_t` created by cuSOLVER. The
     /// returned wrapper takes ownership and will destroy it with
     /// `cusolverDnDestroyGesvdjInfo`; no other owner may destroy or keep using it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `handle` is null.
     pub unsafe fn from_raw(handle: sys::gesvdjInfo_t) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -149,19 +165,21 @@ impl GesvdjInfo {
     /// Releases ownership and returns the raw cuSOLVER `gesvdj` info handle.
     ///
     /// The caller becomes responsible for destroying the handle.
+    #[must_use]
     pub fn into_raw(self) -> sys::gesvdjInfo_t {
         let handle = self.handle;
-        std::mem::forget(self);
+        mem::forget(self);
         handle
     }
 }
 
 impl Drop for GesvdjInfo {
     fn drop(&mut self) {
+        // SAFETY: `cusolverDnDestroyGesvdjInfo` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusolverDnDestroyGesvdjInfo(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cusolverDnDestroyGesvdjInfo(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusolver gesvdj info: {err}");
+                eprintln!("failed to destroy cusolver gesvdj info: {error}");
             }
         }
     }

@@ -3,15 +3,13 @@ mod common;
 use singe_core::assert_close;
 use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
-    backend::tensor::{Shape, TensorSpec},
-    data_type::DataType,
-    data_type::bf16,
-    data_type::f16,
+    backend::tensor::{Shape, TensorId, TensorSpec},
+    data_type::{DataType, bf16},
     error::{Error, Result},
     frontend::{
-        graph::Graph,
-        operation::{CompileConfig, HeuristicMode},
-        plan::BuildPlanPolicy,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::MatmulConfig,
+        plan::{BuildPlanPolicy, CompileConfig, EngineConfigFilter, ExecuteArgs, HeuristicMode},
     },
 };
 
@@ -27,8 +25,7 @@ fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
 fn init_bf16_image(size: usize, seed: &mut u32) -> Vec<bf16> {
     init_f32_image(size, seed)
         .into_iter()
-        .map(f16::from_f32)
-        .map(|value| bf16::from_bits(value.to_bits()))
+        .map(bf16::from_f32)
         .collect()
 }
 
@@ -37,83 +34,111 @@ fn count_nonfinite_f32(values: &[f32]) -> usize {
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let example = common::ExampleContext::create()?;
 
     let b = 16;
     let m = 32;
     let n = 64;
     let k = 128;
 
-    let mut graph = Graph::new();
-    let a = graph.tensor(
+    let mut graph = Graph::with_config(
+        GraphConfig::new().with_data_type_policy(DataTypePolicy::new().with_compute(DataType::F32)),
+    );
+    let a = graph.insert_tensor(
+        TensorId::new(1000),
         TensorSpec::new(
             DataType::BF16,
-            Shape::contiguous([b, m, k])?.with_strides([m * k, k, 1])?,
+            Shape::with_strides([b, m, k], [m * k, k, 1])?,
         )
-        .with_id(1000)
         .with_name("A"),
-    );
-    let b_tensor = graph.tensor(
+    )?;
+    let b_tensor = graph.insert_tensor(
+        TensorId::new(1001),
         TensorSpec::new(
             DataType::BF16,
-            Shape::contiguous([b, k, n])?.with_strides([k * n, n, 1])?,
+            Shape::with_strides([b, k, n], [k * n, n, 1])?,
         )
-        .with_id(1001)
         .with_name("B"),
-    );
-    let c = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([b, m, n])?.with_strides([m * n, n, 1])?,
-        )
-        .with_id(1002),
-    );
-    graph.matmul(a, b_tensor, c, DataType::F32)?;
+    )?;
+    let c = graph.matmul(
+        a,
+        b_tensor,
+        MatmulConfig::new().with_name("projection"),
+        TensorOutputConfig::new()
+            .with_data_type(DataType::F32)
+            .output_tensor(),
+    )?;
+    for (id, tensor) in graph.tensors_named("projection::C") {
+        println!("named result {id}: {:?}", tensor.shape.dimensions());
+    }
+    let input_a_elements = graph.shape(a)?.storage_span()?;
+    let input_b_elements = graph.shape(b_tensor)?.storage_span()?;
+    let output_elements = graph.shape(c)?.storage_span()?;
 
     let candidates = graph
-        .plan_candidates(&ctx.cudnn, &[HeuristicMode::A])?
-        .deselect_engines(vec!["eng4_".to_owned()])?;
-    let built_candidates = candidates.build_candidates_with_config(
-        &ctx.cudnn,
+        .plan_candidates(
+            Some(&example.cudnn),
+            &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+        )?
+        .filter(
+            &EngineConfigFilter::new().with_excluded_engine_name_substrings(&["eng4_".to_owned()]),
+        );
+    let built_candidates = candidates.build_candidates(
+        Some(&example.cudnn),
         &CompileConfig::new()
             .with_heuristic_modes(vec![HeuristicMode::A])
             .with_build_policy(BuildPlanPolicy::AllSupported),
     )?;
 
-    let mut winner_index = None;
-    for plan_index in 0..built_candidates.candidate_count() {
-        if built_candidates.check_support_at(plan_index).is_ok() {
-            winner_index = Some(plan_index);
-            break;
-        }
-    }
-    let winner_index = winner_index.ok_or(Error::NoAvailableEngines)?;
-    let compiled = built_candidates.compile_at(winner_index)?;
+    let winner = built_candidates
+        .available_plan_ids()
+        .into_iter()
+        .next()
+        .ok_or(Error::NoAvailableEngines)?;
+    let compiled = built_candidates.compile_selected(&winner)?;
 
     let mut half_seed = 123_456_789_u32;
-    let mut a_dev =
-        DeviceMemory::from_slice(&init_bf16_image((b * m * k) as usize, &mut half_seed))?;
-    let mut b_dev =
-        DeviceMemory::from_slice(&init_bf16_image((b * k * n) as usize, &mut half_seed))?;
-    let mut c_dev =
-        DeviceMemory::from_slice(&init_f32_image((b * m * n) as usize, &mut half_seed))?;
-    let mut workspace = common::workspace(compiled.max_workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    bindings.set(a, &mut a_dev)?;
-    bindings.set(b_tensor, &mut b_dev)?;
+    let a_host = init_bf16_image(input_a_elements, &mut half_seed);
+    let b_host = init_bf16_image(input_b_elements, &mut half_seed);
+    let a_dev = DeviceMemory::from_slice(example.cudnn.cuda_context(), &a_host)?;
+    let b_dev = DeviceMemory::from_slice(example.cudnn.cuda_context(), &b_host)?;
+    let mut c_dev = DeviceMemory::from_slice(
+        example.cudnn.cuda_context(),
+        &init_f32_image(output_elements, &mut half_seed),
+    )?;
+    let mut workspace =
+        common::workspace(example.cudnn.cuda_context(), compiled.max_workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    bindings.set_input(a, &a_dev.view())?;
+    bindings.set_input(b_tensor, &b_dev.view())?;
     bindings.set(c, &mut c_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
+    // SAFETY: initialized inputs, writable output, workspace and native plan remain
+    // live through stream completion, including an enqueue failure.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
 
     let c_host = c_dev.copy_to_host_vec()?;
-    let c_first = c_host[0];
-    let c_last = c_host[c_host.len() - 1];
-    let c_checksum = c_host.iter().copied().sum::<f32>();
-    let c_nonfinite = count_nonfinite_f32(&c_host);
+    assert_eq!(count_nonfinite_f32(&c_host), 0, "c.nonfinite mismatch");
 
-    assert_eq!(c_nonfinite, 0, "c.nonfinite mismatch");
-    assert_close!(c_first, 9.74358e-05, 1.0e-8, "c.first");
-    assert_close!(c_last, 3.08791e-05, 1.0e-8, "c.last");
-    assert_close!(c_checksum, 2.25493, 1.0e-5, "c.checksum");
+    // Reference: each batch is an [m, k] x [k, n] product accumulated in f32.
+    for batch in 0..b as usize {
+        for row in 0..m as usize {
+            for column in 0..n as usize {
+                let expected: f32 = (0..k as usize)
+                    .map(|inner| {
+                        a_host[(batch * m as usize + row) * k as usize + inner].to_f32()
+                            * b_host[(batch * k as usize + inner) * n as usize + column].to_f32()
+                    })
+                    .sum();
+                let actual = c_host[(batch * m as usize + row) * n as usize + column];
+                assert_close!(actual, expected, 1.0e-2, "c");
+            }
+        }
+    }
 
     Ok(())
 }

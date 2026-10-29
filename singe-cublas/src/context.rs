@@ -1,11 +1,15 @@
-use std::{ffi::CString, mem::ManuallyDrop, path::Path, ptr, sync::Arc};
+use std::{cell::RefCell, mem, ptr, sync::Arc};
+
+mod math_mode;
+
+use math_mode::set_math_mode_flags;
 
 use singe_cublas_sys as sys;
 use singe_cuda::{
     context::Context as CudaContext,
-    memory::DeviceMemory,
     stream::{BorrowedStream, Stream, StreamBinding},
     types::{EmulationMantissaControl, EmulationSpecialValuesSupport},
+    view::DeviceOutputView,
 };
 
 use crate::{
@@ -26,12 +30,30 @@ pub struct Context {
 #[derive(Debug)]
 struct Handle {
     raw: sys::cublasHandle_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
+    streams: RefCell<Vec<Stream>>,
 }
 
-// cuBLAS handles are stateful and not internally synchronized. Moving the
+// SAFETY: cuBLAS handles are stateful and not internally synchronized. Moving the
 // owner between threads is allowed, but shared concurrent access is not.
 unsafe impl Send for Handle {}
+
+/// A transferred native context with its actual CUDA context and retained streams.
+///
+/// Destroy `handle` before releasing these owners, or reclaim it with `Context::from_raw`.
+/// External workspaces, callbacks, queued buffers and graph replays remain caller obligations.
+#[derive(Debug)]
+pub struct RawContext {
+    /// The owned native cuBLAS handle.
+    pub handle: sys::cublasHandle_t,
+    /// The CUDA context associated with the native handle.
+    pub cuda_context: Arc<CudaContext>,
+    /// Streams retained to keep the handle's queued work valid.
+    pub streams: Vec<Stream>,
+}
+
+// SAFETY: transfer carries exclusive native ownership and the resources needed for cross-thread cleanup.
+unsafe impl Send for RawContext {}
 
 impl Context {
     /// Initializes cuBLAS and creates a library handle.
@@ -49,10 +71,11 @@ impl Context {
     /// Returns an error if CUDA runtime initialization fails, if cuBLAS cannot
     /// allocate the required resources, or if cuBLAS does not return a valid
     /// handle.
-    pub fn create(cuda_ctx: &Arc<CudaContext>) -> Result<Self> {
-        cuda_ctx.bind()?;
+    pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
+        cuda_context.bind()?;
 
         let mut handle = ptr::null_mut();
+        // SAFETY: `cublasCreate_v2` receives valid output locations.
         unsafe {
             try_ffi!(sys::cublasCreate_v2(&raw mut handle))?;
         }
@@ -64,7 +87,8 @@ impl Context {
         Ok(Self {
             handle: Handle {
                 raw: handle,
-                cuda_ctx: Arc::clone(cuda_ctx),
+                cuda_context: Arc::clone(cuda_context),
+                streams: RefCell::new(Vec::new()),
             },
         })
     }
@@ -73,13 +97,25 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuBLAS handle associated with `cuda_ctx`.
+    /// `handle` must be a valid cuBLAS handle associated with `cuda_context`.
     /// Ownership of `handle` is transferred to the returned context, and the
     /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NullHandle`] if `handle` is null.
+    /// Returns [`Error::StreamContextMismatch`] if a retained stream belongs to another CUDA context.
+    pub unsafe fn from_raw_parts(
         handle: sys::cublasHandle_t,
-        cuda_ctx: Arc<CudaContext>,
+        cuda_context: Arc<CudaContext>,
+        streams: Vec<Stream>,
     ) -> Result<Self> {
+        if streams
+            .iter()
+            .any(|stream| stream.context() != &cuda_context)
+        {
+            return Err(Error::StreamContextMismatch);
+        }
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -87,14 +123,15 @@ impl Context {
         Ok(Self {
             handle: Handle {
                 raw: handle,
-                cuda_ctx,
+                cuda_context,
+                streams: RefCell::new(streams),
             },
         })
     }
 
     /// Returns the underlying CUDA context used by this cuBLAS handle.
     pub fn cuda_context(&self) -> &Arc<CudaContext> {
-        &self.handle.cuda_ctx
+        &self.handle.cuda_context
     }
 
     /// Binds the underlying CUDA context associated with this handle.
@@ -108,9 +145,11 @@ impl Context {
 
     /// Ensures `stream` belongs to the same CUDA context as this handle.
     ///
-    /// Returns an error if the stream belongs to a different context.
+    /// # Errors
+    ///
+    /// Returns [`Error::StreamContextMismatch`] if `stream` belongs to another CUDA context, or a CUDA error if binding the context fails.
     pub fn ensure_stream(&self, stream: &Stream) -> Result<()> {
-        if self.cuda_context().as_ref() != stream.context() {
+        if self.cuda_context() != stream.context() {
             return Err(Error::StreamContextMismatch);
         }
 
@@ -127,6 +166,7 @@ impl Context {
         self.bind()?;
 
         let mut version = 0;
+        // SAFETY: `cublasGetVersion_v2` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetVersion_v2(self.as_raw(), &raw mut version))?;
         }
@@ -154,17 +194,29 @@ impl Context {
     /// Returns an error if the CUDA context cannot be bound, if `workspace`
     /// exceeds cuBLAS size limits or is not aligned to at least 256 bytes, or if
     /// cuBLAS reports that the library handle is not initialized.
-    pub fn set_workspace(&self, workspace: Option<&mut DeviceMemory<u8>>) -> Result<()> {
+    /// # Safety
+    ///
+    /// Retain the workspace exclusively until it is reset and all queued work using it completes.
+    /// It must remain live through native handle destruction if still installed.
+    /// Graph replays using it retain the same lifetime and exclusivity obligations.
+    pub unsafe fn set_workspace(&self, workspace: Option<DeviceOutputView<'_, u8>>) -> Result<()> {
         self.bind()?;
+        let (workspace_ptr, workspace_size) = if let Some(workspace) = workspace {
+            let region = workspace.into_region();
+            if region.context() != self.cuda_context() {
+                return Err(Error::StreamContextMismatch);
+            }
+            if !region.as_ptr().addr().is_multiple_of(256) {
+                return Err(Error::out_of_range("workspace_alignment"));
+            }
+            (region.as_ptr().cast(), region.byte_len())
+        } else {
+            (ptr::null_mut(), 0_usize)
+        };
+        let workspace_size =
+            u64::try_from(workspace_size).map_err(|_| Error::out_of_range("workspace size"))?;
 
-        let (workspace_ptr, workspace_size) = workspace
-            .map_or((ptr::null_mut(), 0_usize), |workspace| {
-                (workspace.as_mut_ptr().cast(), workspace.byte_len())
-            });
-        let workspace_size = u64::try_from(workspace_size).map_err(|_| Error::OutOfRange {
-            name: "workspace size".into(),
-        })?;
-
+        // SAFETY: `cublasSetWorkspace_v2` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetWorkspace_v2(
                 self.as_raw(),
@@ -187,13 +239,23 @@ impl Context {
         self.bind()?;
 
         let mut stream = ptr::null_mut();
+        // SAFETY: `cublasGetStream_v2` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetStream_v2(self.as_raw(), &raw mut stream))?;
         }
 
         Ok(if stream.is_null() {
             StreamBinding::Default(Arc::clone(self.cuda_context()))
+        } else if let Some(owner) = self
+            .handle
+            .streams
+            .borrow()
+            .iter()
+            .find(|owner| owner.as_raw() == stream)
+        {
+            StreamBinding::Borrowed(owner.to_borrowed())
         } else {
+            // SAFETY: the library reports the stream bound to this handle, which the handle keeps alive.
             StreamBinding::Borrowed(unsafe {
                 BorrowedStream::from_raw(stream, Arc::clone(self.cuda_context()))
             })
@@ -204,6 +266,8 @@ impl Context {
     ///
     /// Passing `None` makes kernels use CUDA's default stream.
     /// Use this to change the stream between kernel launches or reset the cuBLAS library stream to the default stream.
+    /// The handle retains the current owned stream until replacement. CUDA keeps
+    /// queued work alive when a previous stream handle is released.
     /// This also unconditionally resets the cuBLAS workspace back to the default workspace
     /// pool. See [`Context::set_workspace`].
     ///
@@ -218,14 +282,17 @@ impl Context {
             self.bind()?;
         }
 
+        // SAFETY: `cublasSetStream_v2` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetStream_v2(
                 self.as_raw(),
-                match stream {
-                    Some(stream) => stream.as_raw(),
-                    None => ptr::null_mut(),
-                },
+                stream.map_or_else(ptr::null_mut, Stream::as_raw),
             ))?;
+        }
+        let mut streams = self.handle.streams.borrow_mut();
+        streams.clear();
+        if let Some(stream) = stream {
+            streams.push(stream.clone());
         }
         Ok(())
     }
@@ -242,6 +309,7 @@ impl Context {
         self.bind()?;
 
         let mut mode = sys::cublasPointerMode_t::CUBLAS_POINTER_MODE_HOST;
+        // SAFETY: `cublasGetPointerMode_v2` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetPointerMode_v2(self.as_raw(), &raw mut mode))?;
         }
@@ -259,6 +327,7 @@ impl Context {
     /// `mode`, or if cuBLAS reports that the library handle is not initialized.
     pub fn set_scalar_pointer_mode(&self, mode: PointerMode) -> Result<()> {
         self.bind()?;
+        // SAFETY: `cublasSetPointerMode_v2` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetPointerMode_v2(self.as_raw(), mode.into()))?;
         }
@@ -284,16 +353,15 @@ impl Context {
         }
 
         let result = operation();
-        let restore_result = if previous != mode {
-            self.set_scalar_pointer_mode(previous)
-        } else {
+        let restore_result = if previous == mode {
             Ok(())
+        } else {
+            self.set_scalar_pointer_mode(previous)
         };
 
         match (result, restore_result) {
             (Ok(value), Ok(())) => Ok(value),
-            (Err(error), _) => Err(error),
-            (Ok(_), Err(error)) => Err(error),
+            (Err(error), _) | (Ok(_), Err(error)) => Err(error),
         }
     }
 
@@ -310,6 +378,7 @@ impl Context {
         self.bind()?;
 
         let mut mode = sys::cublasAtomicsMode_t::CUBLAS_ATOMICS_NOT_ALLOWED;
+        // SAFETY: `cublasGetAtomicsMode` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetAtomicsMode(self.as_raw(), &raw mut mode))?;
         }
@@ -334,6 +403,7 @@ impl Context {
     /// that the library handle is not initialized.
     pub fn set_atomics_mode(&self, mode: AtomicsMode) -> Result<()> {
         self.bind()?;
+        // SAFETY: `cublasSetAtomicsMode` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetAtomicsMode(self.as_raw(), mode.into()))?;
         }
@@ -350,13 +420,14 @@ impl Context {
         self.bind()?;
 
         let mut mode = sys::cublasMath_t::CUBLAS_DEFAULT_MATH as u32;
+        // SAFETY: `cublasGetMathMode` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetMathMode(
                 self.as_raw(),
                 (&raw mut mode).cast(),
             ))?;
         }
-        Ok(unsafe { MathMode::from_raw_bits(mode) })
+        Ok(MathMode::from_bits_retain(mode))
     }
 
     /// Sets the compute precision mode.
@@ -376,8 +447,10 @@ impl Context {
     /// that the library handle is not initialized.
     pub fn set_math_mode(&self, mode: MathMode) -> Result<()> {
         self.bind()?;
+        // SAFETY: the live handle and documented integer flag ABI accept these
+        // bits without constructing a bindgen enum with an invalid discriminant.
         unsafe {
-            try_ffi!(sys::cublasSetMathMode(self.as_raw(), mode.as_raw()))?;
+            try_ffi!(set_math_mode_flags(self.as_raw(), mode.bits()))?;
         }
         Ok(())
     }
@@ -392,6 +465,7 @@ impl Context {
         self.bind()?;
 
         let mut count = 0;
+        // SAFETY: `cublasGetSmCountTarget` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetSmCountTarget(self.as_raw(), &raw mut count))?;
         }
@@ -421,6 +495,7 @@ impl Context {
     pub fn set_sm_count_target(&self, count: i32) -> Result<()> {
         self.bind()?;
 
+        // SAFETY: `cublasSetSmCountTarget` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetSmCountTarget(self.as_raw(), count))?;
         }
@@ -437,6 +512,7 @@ impl Context {
         self.bind()?;
 
         let mut strategy = sys::cublasEmulationStrategy_t::CUBLAS_EMULATION_STRATEGY_DEFAULT;
+        // SAFETY: `cublasGetEmulationStrategy` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetEmulationStrategy(
                 self.as_raw(),
@@ -456,6 +532,7 @@ impl Context {
     /// `strategy`, or if cuBLAS reports that the library handle is not initialized.
     pub fn set_emulation_strategy(&self, strategy: EmulationStrategy) -> Result<()> {
         self.bind()?;
+        // SAFETY: `cublasSetEmulationStrategy` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetEmulationStrategy(
                 self.as_raw(),
@@ -475,6 +552,7 @@ impl Context {
         self.bind()?;
 
         let mut mask = EmulationSpecialValuesSupport::NONE.into();
+        // SAFETY: `cublasGetEmulationSpecialValuesSupport` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetEmulationSpecialValuesSupport(
                 self.as_raw(),
@@ -496,6 +574,7 @@ impl Context {
         support: EmulationSpecialValuesSupport,
     ) -> Result<()> {
         self.bind()?;
+        // SAFETY: `cublasSetEmulationSpecialValuesSupport` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetEmulationSpecialValuesSupport(
                 self.as_raw(),
@@ -515,6 +594,7 @@ impl Context {
         self.bind()?;
 
         let mut control = EmulationMantissaControl::Dynamic.into();
+        // SAFETY: `cublasGetFixedPointEmulationMantissaControl` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetFixedPointEmulationMantissaControl(
                 self.as_raw(),
@@ -532,6 +612,7 @@ impl Context {
     /// `control`, or if cuBLAS reports that the library handle is not initialized.
     pub fn set_emulation_mantissa_control(&self, control: EmulationMantissaControl) -> Result<()> {
         self.bind()?;
+        // SAFETY: `cublasSetFixedPointEmulationMantissaControl` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetFixedPointEmulationMantissaControl(
                 self.as_raw(),
@@ -551,6 +632,7 @@ impl Context {
         self.bind()?;
 
         let mut count = 0;
+        // SAFETY: `cublasGetFixedPointEmulationMaxMantissaBitCount` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetFixedPointEmulationMaxMantissaBitCount(
                 self.as_raw(),
@@ -569,6 +651,7 @@ impl Context {
     pub fn set_fixed_point_emulation_max_mantissa_bit_count(&self, count: i32) -> Result<()> {
         self.bind()?;
 
+        // SAFETY: `cublasSetFixedPointEmulationMaxMantissaBitCount` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetFixedPointEmulationMaxMantissaBitCount(
                 self.as_raw(),
@@ -588,6 +671,7 @@ impl Context {
         self.bind()?;
 
         let mut offset = 0;
+        // SAFETY: `cublasGetFixedPointEmulationMantissaBitOffset` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetFixedPointEmulationMantissaBitOffset(
                 self.as_raw(),
@@ -606,6 +690,7 @@ impl Context {
     pub fn set_fixed_point_emulation_mantissa_bit_offset(&self, offset: i32) -> Result<()> {
         self.bind()?;
 
+        // SAFETY: `cublasSetFixedPointEmulationMantissaBitOffset` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetFixedPointEmulationMantissaBitOffset(
                 self.as_raw(),
@@ -631,6 +716,7 @@ impl Context {
         count: *mut i32,
     ) -> Result<()> {
         self.bind()?;
+        // SAFETY: `cublasSetFixedPointEmulationMantissaBitCountPointer` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cublasSetFixedPointEmulationMantissaBitCountPointer(
                 self.as_raw(),
@@ -640,62 +726,18 @@ impl Context {
         Ok(())
     }
 
-    /// Returns the custom logger callback installed with [`Context::set_logger_callback`], if any.
+    /// Returns the custom logger callback installed with [`crate::logger::set_callback`], if any.
     ///
     /// # Errors
     ///
     /// Returns an error if cuBLAS cannot report the current logger callback.
     pub fn logger_callback() -> Result<sys::cublasLogCallback> {
         let mut callback = None;
+        // SAFETY: `cublasGetLoggerCallback` receives valid output locations.
         unsafe {
             try_ffi!(sys::cublasGetLoggerCallback(&raw mut callback))?;
         }
         Ok(callback)
-    }
-
-    /// Installs a custom logger callback through cuBLAS.
-    ///
-    /// # Safety
-    ///
-    /// `callback`, if present, must remain valid for use by cuBLAS and must follow
-    /// the callback ABI expected by the library.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if cuBLAS rejects the callback.
-    pub unsafe fn set_logger_callback(callback: sys::cublasLogCallback) -> Result<()> {
-        unsafe {
-            try_ffi!(sys::cublasSetLoggerCallback(callback))?;
-        }
-        Ok(())
-    }
-
-    /// Configures cuBLAS logging at runtime.
-    /// Logging can also be configured with environment variables checked by `libcublas`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `file` contains an interior NUL byte or if cuBLAS
-    /// rejects the logging configuration.
-    pub fn configure_logger(
-        enabled: bool,
-        stdout: bool,
-        stderr: bool,
-        file: Option<&Path>,
-    ) -> Result<()> {
-        let file = file
-            .map(|file| CString::new(file.as_os_str().to_string_lossy().as_bytes()))
-            .transpose()?;
-
-        unsafe {
-            try_ffi!(sys::cublasLoggerConfigure(
-                enabled.into(),
-                stdout.into(),
-                stderr.into(),
-                file.as_ref().map_or(ptr::null(), |file| file.as_ptr()),
-            ))?;
-        }
-        Ok(())
     }
 
     /// Returns the raw cuBLAS handle.
@@ -706,28 +748,48 @@ impl Context {
         self.handle.raw
     }
 
-    /// Consumes the context and returns the raw cuBLAS handle without
-    /// destroying it.
+    /// Reclaims a native context transferred together with its dependent owners.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with cuBLAS.
-    pub fn into_raw(self) -> sys::cublasHandle_t {
-        let context = ManuallyDrop::new(self);
-        context.handle.raw
+    /// # Safety
+    ///
+    /// `handle` must remain valid, uniquely owned, and associated with `cuda_context`.
+    /// Retained streams must cover all streams still referenced by native state or queued work.
+    /// Complete all borrowed work before releasing or replacing its resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the transferred handle is null or a retained stream belongs to another CUDA context.
+    pub unsafe fn from_raw(raw: RawContext) -> Result<Self> {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { Self::from_raw_parts(raw.handle, raw.cuda_context, raw.streams) }
+    }
+
+    /// Transfers the native handle together with its actual CUDA context and streams.
+    pub fn into_raw(mut self) -> RawContext {
+        let handle = mem::replace(&mut self.handle.raw, ptr::null_mut());
+        RawContext {
+            handle,
+            cuda_context: Arc::clone(&self.handle.cuda_context),
+            streams: self.handle.streams.take(),
+        }
     }
 }
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        if let Err(err) = self.cuda_ctx.bind() {
+        if self.raw.is_null() {
+            return;
+        }
+        if let Err(error) = self.cuda_context.bind() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying cublas handle: {err}");
+            eprintln!("failed to bind cuda context before destroying cublas handle: {error}");
         }
 
+        // SAFETY: `cublasDestroy_v2` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cublasDestroy_v2(self.raw)) {
+            if let Err(error) = try_ffi!(sys::cublasDestroy_v2(self.raw)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublas context: {err}");
+                eprintln!("failed to destroy cublas context: {error}");
             }
         }
     }

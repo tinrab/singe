@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
-};
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
 use crate::{
     cuda::cutile::{
-        DeviceOpExt,
+        DeviceOpExt, TileKernel,
         kernel::audio as kernel_audio,
         utility::{VectorLaunch, checked_device_pointer, raw_vector_grid},
     },
@@ -36,6 +34,16 @@ impl LogMel {
             return Err(Error::InvalidLength);
         }
         let output_len = checked_element_count(checked_element_count(batch, frames)?, mel_bins)?;
+        let power_len =
+            checked_element_count(checked_element_count(batch, frames)?, frequency_bins)?;
+        let frame_end = first_frame.checked_add(frames).ok_or(Error::SizeOverflow)?;
+        if frame_end > output_frame_stride {
+            return Err(Error::InvalidLength);
+        }
+        let output_span =
+            checked_element_count(checked_element_count(batch, output_frame_stride)?, mel_bins)?;
+        checked_i32_value(power_len)?;
+        checked_i32_value(output_span)?;
         Ok(Self {
             batch: checked_i32_value(batch)?,
             frames: checked_i32_value(frames)?,
@@ -73,6 +81,10 @@ impl LogMelDynamicMax {
         }
         let output_len = checked_element_count(checked_element_count(batch, frames)?, mel_bins)?;
         checked_i32_value(output_len)?;
+        checked_i32_value(checked_element_count(
+            checked_element_count(batch, frames)?,
+            frequency_bins,
+        )?)?;
         let expected_partial_per_batch = checked_element_count(frames, mel_bins)?.div_ceil(128);
         if partial_per_batch != expected_partial_per_batch || partial_per_batch > 1024 {
             return Err(Error::InvalidLength);
@@ -133,6 +145,17 @@ impl StftR2c {
         let output_len = checked_element_count(complex_values, 2)?;
         checked_i32_value(output_len)?;
         let stage1_len = checked_element_count(checked_element_count(batch, frames)?, n_fft)?;
+        checked_i32_value(checked_element_count(stage1_len, 2)?)?;
+        checked_i32_value(checked_element_count(batch, input_len)?)?;
+        let last_frame = first_frame
+            .checked_add(frames - 1)
+            .ok_or(Error::SizeOverflow)?;
+        let sample_end = last_frame
+            .checked_mul(hop_length)
+            .and_then(|value| value.checked_add(n_fft - 1))
+            .ok_or(Error::SizeOverflow)?;
+        let sample_end = sample_end - if center { n_fft / 2 } else { 0 };
+        checked_i32_value(sample_end)?;
         Ok(Self {
             input_len: checked_i32_value(input_len)?,
             batch: checked_i32_value(batch)?,
@@ -150,8 +173,11 @@ impl StftR2c {
     }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn r2c_power_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn r2c_power_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     spectrum: DevicePointer<f32>,
@@ -162,20 +188,25 @@ pub fn r2c_power_f32(
     if batch == 0 || frames == 0 || frequency_bin_count == 0 {
         return Err(Error::InvalidLength);
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(spectrum)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&spectrum)?;
 
     let output_len =
         checked_element_count(checked_element_count(batch, frames)?, frequency_bin_count)?;
+    checked_i32_value(checked_element_count(output_len, 2)?)?;
     let launch = VectorLaunch::create(output_len)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe { kernel_audio::r2c_power_f32(out, spectrum, launch.len_i32) }
         .grid(launch.grid)
         .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn stft_r2c_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn stft_r2c_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     workspace: DevicePointer<f32>,
@@ -193,12 +224,12 @@ pub fn stft_r2c_f32(
     pad_mode: i32,
     frequency_bin_count: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(workspace)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(window)?;
-    checked_device_pointer(dft_real)?;
-    checked_device_pointer(dft_imag)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&workspace)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&window)?;
+    checked_device_pointer(&dft_real)?;
+    checked_device_pointer(&dft_imag)?;
 
     let params = StftR2c::create(
         input_len,
@@ -214,6 +245,7 @@ pub fn stft_r2c_f32(
 
     match (n_fft, frequency_bin_count) {
         (400, 201) => {
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_audio::stft_r2c_stage1_f32_400(
                     workspace,
@@ -233,6 +265,7 @@ pub fn stft_r2c_f32(
             .grid(params.stage1_grid)
             .enqueue_on(stream)?;
 
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_audio::stft_r2c_stage2_f32_400_201(
                     out,
@@ -254,8 +287,11 @@ pub fn stft_r2c_f32(
     }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn log_mel_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn log_mel_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     power: DevicePointer<f32>,
@@ -273,9 +309,9 @@ pub fn log_mel_f32(
     first_frame: usize,
     output_frame_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(power)?;
-    checked_device_pointer(mel_filters)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&power)?;
+    checked_device_pointer(&mel_filters)?;
 
     let params = LogMel::create(
         batch,
@@ -287,6 +323,7 @@ pub fn log_mel_f32(
     )?;
 
     match (frequency_bins, mel_bins) {
+        // SAFETY: the caller upholds this function's safety contract.
         (201, 128) => unsafe {
             kernel_audio::log_mel_f32_201_128(
                 out,
@@ -316,8 +353,11 @@ pub fn log_mel_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn log_mel_dynamic_max_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn log_mel_dynamic_max_f32(
     stream: &Arc<Stream>,
     reference_max: DevicePointer<f32>,
     partial: DevicePointer<f32>,
@@ -330,15 +370,16 @@ pub fn log_mel_dynamic_max_f32(
     floor: f32,
     partial_per_batch: usize,
 ) -> Result<()> {
-    checked_device_pointer(reference_max)?;
-    checked_device_pointer(partial)?;
-    checked_device_pointer(power)?;
-    checked_device_pointer(mel_filters)?;
+    checked_device_pointer(&reference_max)?;
+    checked_device_pointer(&partial)?;
+    checked_device_pointer(&power)?;
+    checked_device_pointer(&mel_filters)?;
 
     let params =
         LogMelDynamicMax::create(batch, frames, mel_bins, frequency_bins, partial_per_batch)?;
 
     match (frequency_bins, mel_bins) {
+        // SAFETY: the caller upholds this function's safety contract.
         (201, 128) => unsafe {
             kernel_audio::log_mel_partial_max_f32_201_128(
                 partial,
@@ -360,6 +401,7 @@ pub fn log_mel_dynamic_max_f32(
         }
     };
 
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_audio::log_mel_reduce_partial_max_f32(
             reference_max,
@@ -372,8 +414,11 @@ pub fn log_mel_dynamic_max_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn log_mel_dynamic_reference_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn log_mel_dynamic_reference_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     power: DevicePointer<f32>,
@@ -391,10 +436,10 @@ pub fn log_mel_dynamic_reference_f32(
     first_frame: usize,
     output_frame_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(power)?;
-    checked_device_pointer(mel_filters)?;
-    checked_device_pointer(reference_max)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&power)?;
+    checked_device_pointer(&mel_filters)?;
+    checked_device_pointer(&reference_max)?;
 
     let params = LogMel::create(
         batch,
@@ -406,6 +451,7 @@ pub fn log_mel_dynamic_reference_f32(
     )?;
 
     match (frequency_bins, mel_bins) {
+        // SAFETY: the caller upholds this function's safety contract.
         (201, 128) => unsafe {
             kernel_audio::log_mel_dynamic_reference_f32_201_128(
                 out,

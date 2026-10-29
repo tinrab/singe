@@ -4,7 +4,7 @@ description = "Low-level FFI bindings for the NVIDIA cuTENSOR tensor algebra lib
 version = "0.1.0-alpha.7"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "cutensor", "bindings", "ffi"]
 include.workspace = true
@@ -13,9 +13,9 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cutensor_2_6", "mp", "mg"]
+default = ["cutensor_2_8", "mp", "mg"]
 
-cutensor_2_6 = ["singe-cuda-sys/runtime_13_3", "singe-nccl-sys/nccl_2_28"]
+cutensor_2_8 = ["singe-cuda-sys/runtime_13_4", "singe-nccl-sys/nccl_2_32"]
 
 mp = []
 mg = []

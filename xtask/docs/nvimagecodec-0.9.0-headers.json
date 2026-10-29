@@ -1,0 +1,2436 @@
+{
+  "NVIMGCODEC_BACKEND_KIND_CPU_ONLY": {
+    "doc": "Decoding/encoding is executed only on CPU.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_BACKEND_KIND_GPU_ONLY": {
+    "doc": "Decoding/encoding is executed only on GPU.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_BACKEND_KIND_HW_GPU_ONLY": {
+    "doc": "Decoding/encoding is executed on GPU dedicated hardware engine.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_BACKEND_KIND_HYBRID_CPU_GPU": {
+    "doc": "Decoding/encoding is executed on both CPU and GPU.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_CMYK": {
+    "doc": "The image uses the CMYK color space (Cyan, Magenta, Yellow, Black).",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_ENUM_FORCE_INT": {
+    "doc": "Forces the enum to be represented as a 32-bit integer.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_GRAY": {
+    "doc": "The image is grayscale (single channel, no color).",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_ICC_PROFILE": {
+    "doc": "Precise color space is provided in an ICC profile.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_PALETTE": {
+    "doc": "Sample data is represented using a palette color map.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_SRGB": {
+    "doc": "The image uses the standard RGB (sRGB) color space.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_SYCC": {
+    "doc": "The image uses the sYCC color space (YCbCr with sRGB primaries).",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_UNCHANGED": {
+    "doc": "The color specification should be left unchanged; equivalent to UNKNOWN.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_UNKNOWN": {
+    "doc": "The color specification is unknown or not specified.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_UNSUPPORTED": {
+    "doc": "The color specification is unsupported by the library.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_COLORSPEC_YCCK": {
+    "doc": "The image uses the YCCK color space (YCbCr plus Black channel).",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_ALL": {
+    "doc": "Used in case filtering out by message category",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_GENERAL": {
+    "doc": "Some event has happened that is unrelated to the specification or performance",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_PERFORMANCE": {
+    "doc": "Potential non-optimal use",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_CATEGORY_VALIDATION": {
+    "doc": "Something has happened that indicates a possible mistake",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ALL": {
+    "doc": "Used in case filtering out by message severity",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_DEBUG": {
+    "doc": "Diagnostic message useful for developers",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_ERROR": {
+    "doc": "Message about behavior that is invalid and may cause improper execution or result of operation (e.g. can't open file) but not application",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_FATAL": {
+    "doc": "Message about behavior that is invalid and may cause crashes and forcing to shutdown application",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_INFO": {
+    "doc": "Informational message like the creation of a resource",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_TRACE": {
+    "doc": "Diagnostic message useful for developers",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEBUG_MESSAGE_SEVERITY_WARNING": {
+    "doc": "Message about behavior that is not necessarily an error, but very likely a bug in your application",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEVICE_CPU_ONLY": {
+    "doc": "Defines device id as a CPU only",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_DEVICE_CURRENT": {
+    "doc": "Defines device id as current device",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_DEVICE": {
+    "doc": "GPU-accessible with planes in pitch-linear layout.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_IMAGE_BUFFER_KIND_STRIDED_HOST": {
+    "doc": "Host-accessible with planes in pitch-linear layout.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_JPEG2K_MAXRES": {
+    "doc": "Maximum number of JPEG2000 resolutions.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_JPEG2K_PROG_ORDER_CPRL": {
+    "doc": "**< Component-Position-Resolution-Layer progression order. */",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_JPEG2K_PROG_ORDER_LRCP": {
+    "doc": "**< Layer-Resolution-Component-Position progression order. */",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_JPEG2K_PROG_ORDER_PCRL": {
+    "doc": "**< Position-Component-Resolution-Layer progression order. */",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_JPEG2K_PROG_ORDER_RLCP": {
+    "doc": "**< Resolution-Layer-Component-Position progression order. */",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_JPEG2K_PROG_ORDER_RPCL": {
+    "doc": "**< Resolution-Position-Component-Layer progression order. */",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_JPEG2K_STREAM_J2K": {
+    "doc": "Corresponds to the JPEG2000 code stream.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_JPEG2K_STREAM_JP2": {
+    "doc": "Corresponds to the .jp2 container.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_LOAD_HINT_POLICY_ADAPTIVE_MINIMIZE_IDLE_TIME": {
+    "doc": "Load hint is used as an initial hint, and it is recalculated on every iteration to reduce the idle time of threads",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_LOAD_HINT_POLICY_FIXED": {
+    "doc": "Load hint is used to calculate the backend batch size once",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_LOAD_HINT_POLICY_IGNORE": {
+    "doc": "Load hint is not taken into account.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_MAX_CODEC_NAME_SIZE": {
+    "doc": "Maximal size of codec name",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_MAX_NUM_DIM": {
+    "doc": "Maximal number of dimensions.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_MAX_NUM_PLANES": {
+    "doc": "Maximum number of image planes.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_MAX_ROI_FILL_CHANNELS": {
+    "doc": "Maximal number of channels with distinct out of bounds fill samples in a region. Channels with higher index will use fill sample from the last (5th) channel. For usage see nvimgcodecRegion_t.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_MAX_SUBIFD_OFFSETS": {
+    "doc": "Maximum number of SubIFD offsets that can be stored in CodeStreamInfoTiffExt",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_JSON": {
+    "doc": "JSON metadata format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_RAW": {
+    "doc": "Raw binary metadata format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_UNKNOWN": {
+    "doc": "Unknown metadata format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_XML": {
+    "doc": "XML metadata format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_FORMAT_XMP": {
+    "doc": "XMP metadata format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_EXIF": {
+    "doc": "EXIF metadata (reserved for future use)",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_GEO": {
+    "doc": "Geographic metadata",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_ICC_PROFILE": {
+    "doc": "ICC profile metadata",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_APERIO": {
+    "doc": "Medical metadata - Aperio format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_LEICA": {
+    "doc": "Medical metadata - Leica format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_PHILIPS": {
+    "doc": "Medical metadata - Philips format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_TRESTLE": {
+    "doc": "Medical metadata - Trestle format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_MED_VENTANA": {
+    "doc": "Medical metadata - Ventana format",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_TIFF_TAG": {
+    "doc": "TIFF tag metadata",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_TIFF_TAG_LIST": {
+    "doc": "List of available TIFF tag IDs",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_KIND_UNKNOWN": {
+    "doc": "Unknown metadata kind",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_ASCII": {
+    "doc": "8-bit byte containing 7-bit ASCII code; last byte must be NUL",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_BYTE": {
+    "doc": "8-bit unsigned integer",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_DOUBLE": {
+    "doc": "8-byte IEEE floating point value",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_FLOAT": {
+    "doc": "4-byte IEEE floating point value",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_IFD": {
+    "doc": "4-byte (32-bit) unsigned integer used for IFD offsets",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_IFD8": {
+    "doc": "8-byte (64-bit) unsigned integer used for IFD offsets (BigTIFF)",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_LONG": {
+    "doc": "32-bit (4-byte) unsigned integer",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_LONG8": {
+    "doc": "8-byte (64-bit) unsigned integer (BigTIFF)",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_RATIONAL": {
+    "doc": "Two LONGs: numerator and denominator",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SBYTE": {
+    "doc": "8-bit signed (twos-complement) integer",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SHORT": {
+    "doc": "16-bit (2-byte) unsigned integer",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SLONG": {
+    "doc": "32-bit (4-byte) signed (twos-complement) integer",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SLONG8": {
+    "doc": "8-byte (64-bit) signed integer (BigTIFF)",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SRATIONAL": {
+    "doc": "Two SLONGs: numerator and denominator",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_SSHORT": {
+    "doc": "16-bit (2-byte) signed (twos-complement) integer",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_UNDEFINED": {
+    "doc": "8-bit byte, value depends on field definition",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_METADATA_VALUE_TYPE_UNKNOWN": {
+    "doc": "Unknown metadata type",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_OUT_OF_BOUNDS_POLICY_CONSTANT": {
+    "doc": "Each of ouf bounds pixel will be set to sample specified in `out_of_bounds_samples` in nvimgcodecRegion_t.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_BACKEND_UNSUPPORTED": {
+    "doc": "Processing failed because no one from allowed backends is supported.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_CODEC_UNSUPPORTED": {
+    "doc": "Processing failed because codec is unsupported",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_CODESTREAM_UNSUPPORTED": {
+    "doc": "Processing failed because some feature of compressed stream is unsupported",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_COLOR_SPEC_UNSUPPORTED": {
+    "doc": "Color specification unsupported.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_ENCODING_UNSUPPORTED": {
+    "doc": "Processing failed because codec encoding is unsupported.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_FAIL": {
+    "doc": "Processing failed because unknown reason.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_IMAGE_CORRUPTED": {
+    "doc": "Processing failed because compressed image stream is corrupted.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_NUM_CHANNELS_UNSUPPORTED": {
+    "doc": "Unsupported number of channels to decode/encode.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_NUM_IMAGES_UNSUPPORTED": {
+    "doc": "Unsupported number of images to decode/encode.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_NUM_PLANES_UNSUPPORTED": {
+    "doc": "Unsupported number of planes to decode/encode.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_ORIENTATION_UNSUPPORTED": {
+    "doc": "Apply orientation was enabled but it is unsupported.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_QUALITY_TYPE_UNSUPPORTED": {
+    "doc": "Unsupported quality type to encode.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_QUALITY_VALUE_UNSUPPORTED": {
+    "doc": "Unsupported quality value to encode.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_RESOLUTION_UNSUPPORTED": {
+    "doc": "Processing failed because image resolution is unsupported.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_ROI_UNSUPPORTED": {
+    "doc": "Decoding region of interest is unsupported.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SAMPLE_FORMAT_UNSUPPORTED": {
+    "doc": "Selected unsupported sample format.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SAMPLE_TYPE_UNSUPPORTED": {
+    "doc": "Selected unsupported sample type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SAMPLING_UNSUPPORTED": {
+    "doc": "Selected unsupported chroma subsampling .",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SATURATED": {
+    "doc": "Decoder/encoder could potentially process image but is saturated.\n\nSee also: nvimgcodecBackendParams_t load_hint.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_SUCCESS": {
+    "doc": "Processing finished with success.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_PROCESSING_STATUS_TILING_UNSUPPORTED": {
+    "doc": "Unsupported tiling to encode.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_DEFAULT": {
+    "doc": "Each plugin decides what is best quality setting to use. ``quality_value``is ignored.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_LOSSLESS": {
+    "doc": "Image encoding is reversible and keeps original image quality. ``quality_value`` is ignored except for:\n- the CUDA TIFF encoder backend, for which ``quality_value = 0`` means no compression, and ``quality_value = 1`` means LZW compression,\n- the CPU PNG encoder backend, for which ``quality_value`` can be in range from 0 (lowest compression ratio, fastest) to 9 (highest compression ratio, slowest).",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_PSNR": {
+    "doc": "``quality_value`` is interpreted as desired Peak Signal-to-Noise Ratio (PSNR) target for the encoded image. The higher the value, the better quality image is produced. Value should be positive.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_QUALITY": {
+    "doc": "``quality_value`` is interpreted as JPEG-like quality in range from 1 (worst) to 100 (best).",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_QUANTIZATION_STEP": {
+    "doc": "``quality_value`` is interpreted as quantization step (by how much pixel data will be divided). The higher the value, the worse quality image is produced.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_QUALITY_TYPE_SIZE_RATIO": {
+    "doc": "``quality_value`` is interpreted as desired encoded image size ratio compared to original size, should be floating in range (0.0, 1.0). E.g. value 0.1 means target size of 10% of original image.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_AUTO_COMPONENTS": {
+    "doc": "Alias of I_UNCHANGED for callers that want to pin only the channel interleaving (interleaved) and let color_spec choose the components. Preferred over I_UNCHANGED whenever color_spec is concrete; the two names produce identical behaviour.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_BGR": {
+    "doc": "Interleaved BGR.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_CMYK": {
+    "doc": "Interleaved CMYK.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_RGB": {
+    "doc": "Interleaved RGB.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_RGBA": {
+    "doc": "Interleaved RGBA.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_UNCHANGED": {
+    "doc": "Unchanged interleaved.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_Y": {
+    "doc": "Interleaved Y component only. For 3-dimensional shape is defined as (H, W, 1) and this is only difference with P_Y.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_YA": {
+    "doc": "Interleaved Y component with alpha.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_YCC": {
+    "doc": "Interleaved YCC format.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_YCCK": {
+    "doc": "Interleaved YCCK.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_I_YUV": {
+    "doc": "Interleaved YUV format.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_AUTO_COMPONENTS": {
+    "doc": "Alias of P_UNCHANGED for callers that want to pin only the channel interleaving (planar) and let color_spec choose the components. Preferred over P_UNCHANGED whenever color_spec is concrete; the two names produce identical behaviour.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_BGR": {
+    "doc": "Planar BGR.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_CMYK": {
+    "doc": "Planar CMYK.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_RGB": {
+    "doc": "Planar RGB.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_RGBA": {
+    "doc": "Planar RGBA.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_UNCHANGED": {
+    "doc": "Unchanged planar.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_Y": {
+    "doc": "Planar Y component only. For 3-dimensional shape is defined as (1, H, W) and this is only difference with I_Y.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_YA": {
+    "doc": "Planar Y component with alpha.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_YCC": {
+    "doc": "Planar YCC format.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_YCCK": {
+    "doc": "Planar YCCK.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_SAMPLEFORMAT_P_YUV": {
+    "doc": "Planar YUV format.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "NVIMGCODEC_VER_BUILD": {
+    "doc": "Build component of the nvImageCodec version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvimgcodec_version.h"
+  },
+  "NVIMGCODEC_VER_MAJOR": {
+    "doc": "Major component of the nvImageCodec version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvimgcodec_version.h"
+  },
+  "NVIMGCODEC_VER_MINOR": {
+    "doc": "Minor component of the nvImageCodec version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvimgcodec_version.h"
+  },
+  "NVIMGCODEC_VER_PATCH": {
+    "doc": "Patch component of the nvImageCodec version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvimgcodec_version.h"
+  },
+  "nvimgcodecBackendKind_t": {
+    "doc": "Defines decoding/encoding backend kind.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecBackendParams_t": {
+    "doc": "Defines decoding/encoding backend parameters.",
+    "members": {
+      "load_hint": {
+        "doc": "Hint to calculate the fraction of the batch items that will be picked by this backend. This is just a hint and a particular implementation can choose to ignore it. Different policies can be selected, see `nvimgcodecLoadHintPolicy_t`"
+      },
+      "load_hint_policy": {
+        "doc": "If true, the backend load will be adapted on every iteration to minize idle time of the threads."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecBackend_t": {
+    "doc": "Defines decoding/encoding backend.",
+    "members": {
+      "kind": {
+        "doc": "Decoding/encoding backend kind."
+      },
+      "params": {
+        "doc": "Decoding/encoding backend parameters."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecChromaSubsampling_t": {
+    "doc": "Chroma subsampling.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStream": {
+    "doc": "Opaque Code Stream type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamCreateFromFile": {
+    "doc": "Creates code stream which wraps file source of compressed data\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in/out] Points a nvimgcodecCodeStream_t handle in which the resulting code stream is returned. If *code_stream is NULL, a new code stream instance will be created. If *code_stream is not NULL, the existing code stream instance will be reused instead of creating a new one."
+      },
+      "code_stream_view": {
+        "doc": "[in] Optional pointer to a nvimgcodecCodeStreamView_t struct specifying parsing parameters such as bitstream_offset. Can be NULL for default behavior. Note: image_idx and region are rejected here; use nvimgcodecCodeStreamGetSubCodeStream to select a specific image or region after creation."
+      },
+      "file_name": {
+        "doc": "[in] File name with compressed image data to wrap."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the code stream will be used with."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamCreateFromHostMem": {
+    "doc": "Creates code stream which wraps host memory source of compressed data.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in/out] Points a nvimgcodecCodeStream_t handle in which the resulting code stream is returned. If *code_stream is NULL, a new code stream instance will be created. If *code_stream is not NULL, the existing code stream instance will be reused instead of creating a new one."
+      },
+      "code_stream_view": {
+        "doc": "[in] Optional pointer to a nvimgcodecCodeStreamView_t struct specifying parsing parameters such as bitstream_offset. Can be NULL for default behavior. Note: image_idx and region are rejected here; use nvimgcodecCodeStreamGetSubCodeStream to select a specific image or region after creation."
+      },
+      "data": {
+        "doc": "[in] Pointer to buffer with compressed data."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the code stream will be used with."
+      },
+      "length": {
+        "doc": "[in] Length of compressed data in provided buffer."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamCreateToFile": {
+    "doc": "Creates code stream which wraps file sink for compressed data with given format.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in/out] Points a nvimgcodecCodeStream_t handle in which the resulting code stream is returned. If *code_stream is NULL, a new code stream instance will be created. If *code_stream is not NULL, the existing code stream instance will be reused instead of creating a new one."
+      },
+      "file_name": {
+        "doc": "[in] File name sink for compressed image data to wrap."
+      },
+      "image_info": {
+        "doc": "[in] Points a nvimgcodecImageInfo_t struct which describes output image format."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the code stream will be used with."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamCreateToHostMem": {
+    "doc": "Creates code stream which wraps host memory sink for compressed data with given format.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in/out] Points a nvimgcodecCodeStream_t handle in which the resulting code stream is returned. If *code_stream is NULL, a new code stream instance will be created. If *code_stream is not NULL, the existing code stream instance will be reused instead of creating a new one."
+      },
+      "ctx": {
+        "doc": "[in] Pointer to user defined context with which get buffer function will be called back."
+      },
+      "image_info": {
+        "doc": "[in] Points a nvimgcodecImageInfo_t struct which describes output image format."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the code stream will be used with."
+      },
+      "resize_buffer_func": {
+        "doc": "[in] Points a nvimgcodecResizeBufferFunc_t function handle which will be used to resize and providing host output buffer."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamDesc_t": {
+    "doc": "Code stream description.",
+    "members": {
+      "getCodeStreamInfo": {
+        "doc": "Retrieves code stream information.\n\n\n\n[in] Pointer to nvimgcodecCodeStreamDesc_t instance.\n\n[in/out] Points where to return code stream information.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "getImageInfo": {
+        "doc": "Retrieves image information.\n\n\n\n[in] Pointer to nvimgcodecCodeStreamDesc_t instance.\n\n[in/out] Points where to return image information.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "instance": {
+        "doc": "Code stream description instance pointer which will be passed back in functions"
+      },
+      "io_stream": {
+        "doc": "I/O stream which works as a source or sink of code stream bytes"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamDestroy": {
+    "doc": "Destroys code stream.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in] The code stream handle to destroy"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamGetCodeStreamInfo": {
+    "doc": "Retrieves information about the specified code stream.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in] The code stream handle from which information is to be retrieved."
+      },
+      "codestream_info": {
+        "doc": "[in/out] Points to a nvimgcodecCodeStreamInfo_t handle where the code stream information will be stored."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamGetImageInfo": {
+    "doc": "Retrieves compressed image information from code stream.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in] The code stream handle from which information is to be retrieved."
+      },
+      "image_info": {
+        "doc": "[in/out] Points to a nvimgcodecImageInfo_t handle where the image information will be stored."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamGetSubCodeStream": {
+    "doc": "Creates a sub-code stream from the specified code stream view.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in] The code stream handle from which the sub-code stream is to be created."
+      },
+      "code_stream_view": {
+        "doc": "[in] Points to a nvimgcodecCodeStreamView_t struct which describes the view of the code stream to be used for the sub-code stream. Views selecting a specific image are resolved during this call, so containers may parse metadata up to the requested image."
+      },
+      "sub_code_stream": {
+        "doc": "[in/out] Points to a nvimgcodecCodeStream_t handle in which the resulting sub-code stream is returned. If *sub_code_stream is NULL, a new code stream instance will be created. If *sub_code_stream is not NULL, the existing code stream instance will be reused instead of creating a new one."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamInfoTiffExt_t": {
+    "doc": "TIFF-specific extension for CodeStreamInfo.\n\nChain this struct via struct_next of nvimgcodecCodeStreamInfo_t to receive IFD traversal and SubIFD information for TIFF files.",
+    "members": {
+      "ifd_offset": {
+        "doc": "Byte offset of the selected image's IFD. 0 = unknown or not applicable."
+      },
+      "next_ifd_offset": {
+        "doc": "Byte offset of the next sibling IFD. 0 = no next sibling."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "Must be NVIMGCODEC_STRUCTURE_TYPE_TIFF_CODE_STREAM_INFO"
+      },
+      "subifd_count": {
+        "doc": "Number of stored SubIFD offsets for the current image (Tag 330), capped at `NVIMGCODEC_MAX_SUBIFD_OFFSETS`."
+      },
+      "subifd_offsets": {
+        "doc": "SubIFD byte offsets. Only first subifd_count entries are valid."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamInfo_t": {
+    "doc": "Defines information about a CodeStream",
+    "members": {
+      "code_stream_view": {
+        "doc": "Code stream view defines concerned part"
+      },
+      "codec_name": {
+        "doc": "Information about codec used. Only valid when used with code stream."
+      },
+      "num_images": {
+        "doc": "Number of images in CodeStream."
+      },
+      "size": {
+        "doc": "Size of underlying bitstream in bytes."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStreamView_t": {
+    "doc": "Defines view (selection) of CodeStream.",
+    "members": {
+      "bitstream_offset": {
+        "doc": "TIFF IFD byte offset selecting one image view; 0 selects the default view. Note that this field cannot be used in conjunction with `image_idx`. Currently, this field is only used by the TIFF extension, and offsets should normally come from `ifd_offset`, `next_ifd_offset`, or `subifd_offsets` of `nvimgcodecCodeStreamInfoTiffExt_t`."
+      },
+      "image_idx": {
+        "doc": "Image index starts from 0."
+      },
+      "region": {
+        "doc": "Region of interest."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecCodeStream_t": {
+    "doc": "Handle to opaque Code Stream type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecColorSpec_t": {
+    "doc": "Defines color specification.\n\nThis enumeration specifies how the color information in image samples should be interpreted.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugCallback_t": {
+    "doc": "Debug callback function type.\n\n\n\n[in] Message severity\n\n[in] Message category\n\n[in] Debug message data\n\n[in] Pointer that was specified during the setup of the callback\n\n# Return value\n\n1 if message should not be passed further to other callbacks and 0 otherwise",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugMessageCategory_t": {
+    "doc": "Bitmask specifying which category of events cause a debug messenger callback",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugMessageData_t": {
+    "doc": "Describing debug message passed to debug callback function",
+    "members": {
+      "codec": {
+        "doc": "Codec name if codec is rising message or NULL otherwise (e.g framework)"
+      },
+      "codec_id": {
+        "doc": "Codec id if codec is rising message or NULL otherwise"
+      },
+      "codec_version": {
+        "doc": "Codec version if codec is rising message or 0 otherwise"
+      },
+      "internal_status_id": {
+        "doc": "It is internal codec status id"
+      },
+      "message": {
+        "doc": "Null-terminated string detailing the trigger conditions"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugMessageSeverity_t": {
+    "doc": "Bitmask specifying which severities of events cause a debug messenger callback",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugMessenger": {
+    "doc": "Opaque Debug Messenger type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugMessengerCreate": {
+    "doc": "Creates a debug messenger.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "dbg_messenger": {
+        "doc": "[in/out] Points a nvimgcodecDebugMessenger_t handle in which the resulting debug messenger is returned."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the messenger will be used with."
+      },
+      "messenger_desc": {
+        "doc": "[in]  Pointer to nvimgcodecDebugMessengerDesc_t structure which defines debug messenger to create."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugMessengerDesc_t": {
+    "doc": "Debug messenger description.",
+    "members": {
+      "message_category": {
+        "doc": "Bitmask of message category to listen for e.g. general or performance related."
+      },
+      "message_severity": {
+        "doc": "Bitmask of message severity to listen for e.g. error or warning."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "user_callback": {
+        "doc": "Debug callback function"
+      },
+      "user_data": {
+        "doc": "Pointer to user data which will be passed back to debug callback function."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugMessengerDestroy": {
+    "doc": "Destroys debug messenger.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "dbg_messenger": {
+        "doc": "[in] The debug messenger handle to destroy"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDebugMessenger_t": {
+    "doc": "Handle to opaque Debug Messenger type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecodeParams_t": {
+    "doc": "Decode parameters",
+    "members": {
+      "apply_exif_orientation": {
+        "doc": "Apply exif orientation if available. Valid values 0 or 1."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecoder": {
+    "doc": "Opaque Decoder type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecoderCanDecode": {
+    "doc": "Checks if decoder can decode provided code stream to given output images with specified parameters.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "batch_size": {
+        "doc": "[in] Batch size of provided code streams and images."
+      },
+      "decoder": {
+        "doc": "[in] The decoder handle to use for checks."
+      },
+      "force_format": {
+        "doc": "[in] Valid values 0 or 1. If 1 value, and high priority codec does not support provided format it will fallback to lower priority codec for further checks. For 0 value, when high priority codec does not support provided format or parameters but it can process input in general, it will stop check and return processing status with flags which shows what format or parameters need to be changed to avoid fallback to lower priority codec."
+      },
+      "images": {
+        "doc": "[in] Pointer to output nvimgcodecImage_t array to check decoding with."
+      },
+      "params": {
+        "doc": "[in] Pointer to nvimgcodecDecodeParams_t struct to check decoding with."
+      },
+      "processing_status": {
+        "doc": "[in/out] Points a nvimgcodecProcessingStatus_t handle in which the processing statuses is returned."
+      },
+      "streams": {
+        "doc": "[in] Pointer to input nvimgcodecCodeStream_t array to check decoding with."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecoderCreate": {
+    "doc": "Creates generic image decoder.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decoder": {
+        "doc": "[in/out] Points a nvimgcodecDecoder_t handle in which the decoder is returned."
+      },
+      "exec_params": {
+        "doc": "[in] Points an execution parameters."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the decoder will be used with."
+      },
+      "options": {
+        "doc": "[in] Optional space-separated list of parameters. Use \"<decoder_id>:<name>=<value>\" for decoder-specific options, or a leading colon for global options (e.g. \":num_cuda_streams=4\") or options that any matching decoder may honor (e.g. \":fancy_upsampling=1\"). Pass NULL or empty string for no options. See the documentation for the full list of options per decoder."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecoderDecode": {
+    "doc": "Decode batch of provided code streams to given output images with specified parameters.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n \n @see nvimgcodecFutureGetProcessingStatus\n @see nvimgcodecFutureWaitForAll\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "batch_size": {
+        "doc": "[in] Batch size of provided code streams and images."
+      },
+      "decoder": {
+        "doc": "[in] The decoder handle to use for decoding."
+      },
+      "future": {
+        "doc": "[in/out] Points a nvimgcodecFuture_t handle in which the future is returned. The future object can be used to waiting and getting processing statuses."
+      },
+      "images": {
+        "doc": "[in] Pointer to output nvimgcodecImage_t array to decode to."
+      },
+      "params": {
+        "doc": "[in] Pointer to nvimgcodecDecodeParams_t struct to decode with."
+      },
+      "streams": {
+        "doc": "[in] Pointer to input nvimgcodecCodeStream_t array to decode."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecoderDesc_t": {
+    "doc": "Decoder description.",
+    "members": {
+      "backend_kind": {
+        "doc": "Backend kind"
+      },
+      "canDecode": {
+        "doc": "Checks whether decoder can decode given code stream to image with provided parameters.\n\n\n\n[in] Decoder handle to use for check.\n\n[in] Image information, including requested format.\n\n[in] Encoded stream.\n\n[in] Decode parameters which will be used with check.\n\n[in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)\n\n# Return value\n\nnvimgcodecStatus_t"
+      },
+      "codec": {
+        "doc": "Codec name e.g. jpeg2000"
+      },
+      "create": {
+        "doc": "Creates decoder.\n\n\n\n[in] Pointer to nvimgcodecDecoderDesc_t instance.\n\n[in/out] Points where to return handle to created decoder.\n\n[in] Points an execution parameters.\n\n[in] String with optional, space separated, list of parameters for decoders, in format \"<encoder_id>:<parameter_name>=<parameter_value>\".\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "decode": {
+        "doc": "Decode given code stream to image with provided parameters.\n\n\n\n[in] Decoder handle to use for decoding.\n\n[in/out] Image descriptor.\n\n[in] Encoded stream.\n\n[in] Decode parameters.\n\n[in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)\n\n# Return value\n\nnvimgcodecStatus_t"
+      },
+      "decodeBatch": {
+        "doc": "Decode given batch of code streams to images with provided parameters.\n\n[in] Decoder handle to use for decoding.\n\n[in/out] Pointer to array of pointers of batch size with image descriptors.\n\n[in] Pointer to array of batch size of pointers to encoded stream instances.\n\n[in] Number of items in batch to decode.\n\n[in] Decode parameters.\n\n[in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "destroy": {
+        "doc": "Destroys decoder.\n\n\n\n[in] Decoder handle to destroy.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "getMetadata": {
+        "doc": "Retrieves metadata from code stream.\n\n\n\n[in] Decoder handle to use for metadata retrieval.\n\n[in] Code stream to get metadata from.\n\n[in/out] Points where to return metadata.\n\n[in/out] Points where to return metadata count.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "getMiniBatchSize": {
+        "doc": "Retrieve preferred minibatch size. The library will try to use batch sizes that are multiples of this value.\n\n[in] Decoder handle to use.\n\n[out] Preferred minibatch size.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "id": {
+        "doc": "Codec named identifier e.g. nvJpeg2000"
+      },
+      "instance": {
+        "doc": "Decoder description instance pointer which will be passed back in functions"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecoderDestroy": {
+    "doc": "Destroys decoder.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decoder": {
+        "doc": "[in] The decoder handle to destroy"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecoderGetMetadata": {
+    "doc": "Retrieves metadata from code stream.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "code_stream": {
+        "doc": "[in] Pointer to input nvimgcodecCodeStream_t to get metadata from."
+      },
+      "decoder": {
+        "doc": "[in] The decoder handle from which metadata is to be retrieved."
+      },
+      "metadata": {
+        "doc": "[in/out] Points to a nvimgcodecMetadata_t handle where the metadata will be stored. When set to nullptr (first call), only metadata_count will be returned."
+      },
+      "metadata_count": {
+        "doc": "[in/out] Points to an int handle where the metadata count will be stored."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDecoder_t": {
+    "doc": "Handle to opaque Decoder type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDeviceAllocator_t": {
+    "doc": "Device memory allocator.",
+    "members": {
+      "device_ctx": {
+        "doc": "When invoking the allocators, this context will be pass as input to allocator functions."
+      },
+      "device_free": {
+        "doc": "Frees memory on the device."
+      },
+      "device_malloc": {
+        "doc": "Allocate memory on the device."
+      },
+      "device_mem_padding": {
+        "doc": "Any device memory allocation would be padded to the multiple of specified number of bytes"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDeviceFree_t": {
+    "doc": "Function type for device memory deallocation.\n\n\n\nPointer to user context.\n\nPointer to memory buffer to be deallocated. If NULL, the operation must do nothing, successfully.\n\nHow many bytes was allocated (size passed during allocation).\n\nCUDA stream\n\n# Return value\n\nThey will return 0 in case of success, and non-zero otherwise",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecDeviceMalloc_t": {
+    "doc": "Function type for device memory resource allocation.\n\n\n\nPointer to user context.\n\nPointer where to write pointer to allocated memory.\n\nHow many bytes to allocate.\n\nCUDA stream\n\n# Return value\n\nThey will return 0 in case of success, and non-zero otherwise",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecEncodeParams_t": {
+    "doc": "Encode parameters",
+    "members": {
+      "quality_type": {
+        "doc": "Quality type (algorithm) that will be used to encode image."
+      },
+      "quality_value": {
+        "doc": "Specifies how good encoded image should look like. Refer to the {\n\n\n\n```text\n nvimgcodecQualityType_t nvimgcodecQualityType_t} for the allowed values for each quality type. \n\n```"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecEncoder": {
+    "doc": "Opaque Encoder type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecEncoderCanEncode": {
+    "doc": "Checks if encoder can encode provided images to given output code streams with specified parameters.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "batch_size": {
+        "doc": "[in] Batch size of provided code streams and images."
+      },
+      "encoder": {
+        "doc": "[in] The encoder handle to use for checks."
+      },
+      "force_format": {
+        "doc": "[in] Valid values 0 or 1. If 1 value, and high priority codec does not support provided format it will fallback to lower priority codec for further checks. For 0 value, when high priority codec does not support provided format or parameters but it can process input in general, it will stop check and return processing status with flags which shows what format or parameters need to be changed to avoid fallback to lower priority codec."
+      },
+      "images": {
+        "doc": "[in] Pointer to input nvimgcodecImage_t array to check encoding with."
+      },
+      "params": {
+        "doc": "[in] Pointer to nvimgcodecEncodeParams_t struct to check decoding with."
+      },
+      "processing_status": {
+        "doc": "[in/out] Points a nvimgcodecProcessingStatus_t handle in which the processing statuses is returned."
+      },
+      "streams": {
+        "doc": "[in] Pointer to output nvimgcodecCodeStream_t array to check encoding with."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecEncoderCreate": {
+    "doc": "Creates generic image encoder.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encoder": {
+        "doc": "[in/out] Points a nvimgcodecEncoder_t handle in which the encoder is returned."
+      },
+      "exec_params": {
+        "doc": "[in] Points an execution parameters."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the encoder will be used with."
+      },
+      "options": {
+        "doc": "[in] Optional space-separated list of parameters. Use \"<encoder_id>:<name>=<value>\" for encoder-specific options, or a leading colon for global options (e.g. \":num_cuda_streams=4\"). Pass NULL or empty string for no options. See the documentation for encoder options."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecEncoderDesc_t": {
+    "doc": "Encoder description.",
+    "members": {
+      "backend_kind": {
+        "doc": "What kind of backend this encoder is using"
+      },
+      "canEncode": {
+        "doc": "Checks whether encoder can encode given image to code stream with provided parameters.\n\n\n\n[in] Encoder handle.\n\n[in] Encoded stream.\n\n[in] Image descriptor.\n\n[in] Encode parameters which will be used with check.\n\n[in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)\n\n# Return value\n\nnvimgcodecProcessingStatus_t - Processing status"
+      },
+      "codec": {
+        "doc": "Codec name e.g. jpeg2000"
+      },
+      "create": {
+        "doc": "Creates encoder.\n\n\n\n[in] Pointer to nvimgcodecEncoderDesc_t instance.\n\n[in/out] Points where to return handle to created encoder.\n\n[in] Points an execution parameters.\n\n[in] String with optional, space separated, list of parameters for encoders, in format \"<encoder_id>:<parameter_name>=<parameter_value>\".\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "destroy": {
+        "doc": "Destroys encoder.\n\n\n\n[in] Encoder handle to destroy.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "encode": {
+        "doc": "Encode given image to code stream with provided parameters.\n\n\n\n[in] Encoder handle.\n\n[in] Image descriptor.\n\n[in] Encoded stream.\n\n[in] Encode parameters.\n\n[in] Index of the caller thread (can be from 0 to the executor's number of threads, or -1 for non-threaded execution)\n\n# Return value\n\nnvimgcodecProcessingStatus_t - Processing status"
+      },
+      "id": {
+        "doc": "Codec named identifier e.g. nvJpeg2000"
+      },
+      "instance": {
+        "doc": "Encoder description instance pointer which will be passed back in functions"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecEncoderDestroy": {
+    "doc": "Destroys encoder.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encoder": {
+        "doc": "[in] The encoder handle to destroy"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecEncoderEncode": {
+    "doc": "Encode batch of provided images to given output code streams with specified parameters.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n \n @see nvimgcodecFutureGetProcessingStatus\n @see nvimgcodecFutureWaitForAll\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "batch_size": {
+        "doc": "[in] Batch size of provided code streams and images."
+      },
+      "encoder": {
+        "doc": "[in] The encoder handle to use for encoding."
+      },
+      "future": {
+        "doc": "[in/out] Points a nvimgcodecFuture_t handle in which the future is returned. The future object can be used to waiting and getting processing statuses."
+      },
+      "images": {
+        "doc": "[in] Pointer to input nvimgcodecImage_t array to encode."
+      },
+      "params": {
+        "doc": "[in] Pointer to  nvimgcodecEncodeParams_t struct to encode with."
+      },
+      "streams": {
+        "doc": "[in] Pointer to output nvimgcodecCodeStream_t array to encode to."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecEncoder_t": {
+    "doc": "Handle to opaque Encoder type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExecutionParams_t": {
+    "doc": "Execution parameters",
+    "members": {
+      "backends": {
+        "doc": "Points a nvimgcodecBackend_t array with defined allowed backends. For nullptr, all backends are allowed."
+      },
+      "device_allocator": {
+        "doc": "Custom allocator for device memory"
+      },
+      "device_id": {
+        "doc": "Device id to process decoding on. It can be also specified using defines NVIMGCODEC_DEVICE_CURRENT or NVIMGCODEC_DEVICE_CPU_ONLY."
+      },
+      "executor": {
+        "doc": "Points an executor. If NULL default executor will be used.\n\nNote: At plugin level API it always points to executor, either custom or default."
+      },
+      "max_num_cpu_threads": {
+        "doc": "Max number of CPU threads in default executor (0 means default value equal to number of cpu cores)"
+      },
+      "num_backends": {
+        "doc": "Number of allowed backends passed (if any) in backends parameter. For 0, all backends are allowed."
+      },
+      "pinned_allocator": {
+        "doc": "Custom allocator for pinned memory"
+      },
+      "pre_init": {
+        "doc": "If true, all relevant resources are initialized at creation of the instance"
+      },
+      "skip_pre_sync": {
+        "doc": "If true, synchronization between user stream and per-thread streams is skipped before decoding (we only synchronize after decoding). This can be useful when we are sure that there are no actions that need synchronization (e.g. a CUDA async allocation on the user stream)"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExecutorDesc_t": {
+    "doc": "Executor description.\n\nCodec plugins can use executor available via execution parameters to schedule execution of asynchronous task.",
+    "members": {
+      "getNumThreads": {
+        "doc": "Gets number of threads.\n\n\n\n[in] Pointer to nvimgcodecExecutorDesc_t instance.\n\n# Return value\n\nNumber of threads in executor."
+      },
+      "instance": {
+        "doc": "Executor instance pointer which will be passed back in functions"
+      },
+      "run": {
+        "doc": "Starts the execution of all the queued work"
+      },
+      "schedule": {
+        "doc": "Schedule execution of asynchronous task.\n\n\n\n[in] Pointer to nvimgcodecExecutorDesc_t instance.\n\n[in] Device id on which task will be executed.\n\n[in] Index of batch sample to process task on; It will be passed back as an argument in task function.\n\n[in] Pointer to task context which will be passed back as an argument in task function.\n\n[in] Pointer to task function to schedule.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "wait": {
+        "doc": "Blocks until all work issued earlier is complete\n\nremarks: It must be called only after `run`"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExtension": {
+    "doc": "Opaque Extension type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExtensionCreate": {
+    "doc": "Creates library extension.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "extension": {
+        "doc": "[in/out] Points a nvimgcodecExtension_t handle in which the resulting extension is returned."
+      },
+      "extension_desc": {
+        "doc": "[in] Pointer to a nvimgcodecExtensionDesc_t structure which defines extension to create."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the extension will be used with."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExtensionDesc_t": {
+    "doc": "Extension description",
+    "members": {
+      "create": {
+        "doc": "Creates extension.\n\n\n\n[in] Pointer to nvimgcodecExtensionDesc_t instance.\n\n[in/out] Points where to return handle to created extension.\n\n[in] Pointer to framework description which can be use to register plugins.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "destroy": {
+        "doc": "Destroys extension.\n\n\n\n[in] Extension handle to destroy.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "ext_api_version": {
+        "doc": "The version of nvImageCodec extension API with which the extension was built."
+      },
+      "id": {
+        "doc": "Extension named identifier e.g. nvjpeg_ext"
+      },
+      "instance": {
+        "doc": "Extension instance pointer which will be passed back in functions"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "version": {
+        "doc": "Extension version. Used when registering extension to check if there are newer."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExtensionDestroy": {
+    "doc": "Destroys library extension.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "extension": {
+        "doc": "[in] The extension handle to destroy"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExtensionModuleEntry": {
+    "doc": "Extension shared module exported entry function.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "ext_desc": {
+        "doc": "[in/out] Points a nvimgcodecExtensionDesc_t handle in which the extension description is returned."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExtensionModuleEntryFunc_t": {
+    "doc": "Extension module entry function type\n\n\n\n[in/out] Points a nvimgcodecExtensionDesc_t handle in which the extension description is returned.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecExtension_t": {
+    "doc": "Handle to opaque Extension type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecFrameworkDesc_t": {
+    "doc": "Plugin Framework",
+    "members": {
+      "cudart_version": {
+        "doc": "The version of CUDA Runtime with which plugin framework was built."
+      },
+      "id": {
+        "doc": "Plugin framework named identifier e.g. nvImageCodec"
+      },
+      "instance": {
+        "doc": "Plugin framework instance pointer which will be passed back in functions"
+      },
+      "log": {
+        "doc": "Pointer to logging function.\n\nSee also: nvimgcodecLogFunc_t"
+      },
+      "registerDecoder": {
+        "doc": "Registers decoder plugin.\n\n\n\n[in] Pointer to nvimgcodecFrameworkDesc_t instance.\n\n[in] Pointer to decoder description.\n\n[in] Priority of decoder.\n\nSee also: nvimgcodecPriority_t\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "registerEncoder": {
+        "doc": "Registers encoder plugin.\n\n\n\n[in] Pointer to nvimgcodecFrameworkDesc_t instance.\n\n[in] Pointer to encoder description.\n\n[in] Priority of encoder.\n\nSee also: nvimgcodecPriority_t\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "registerParser": {
+        "doc": "Registers parser plugin.\n\n\n\n[in] Pointer to nvimgcodecFrameworkDesc_t instance.\n\n[in] Pointer to parser description.\n\n[in] Priority of decoder.\n\nSee also: nvimgcodecPriority_t\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "unregisterDecoder": {
+        "doc": "Unregisters decoder plugin.\n\n\n\n[in] Pointer to nvimgcodecFrameworkDesc_t instance.\n\n[in] Pointer to decoder description to unregister.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "unregisterEncoder": {
+        "doc": "Unregisters encoder plugin.\n\n\n\n[in] Pointer to nvimgcodecFrameworkDesc_t instance.\n\n[in] Pointer to encoder description to unregister.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "unregisterParser": {
+        "doc": "Unregisters parser plugin.\n\n\n\n[in] Pointer to nvimgcodecFrameworkDesc_t instance.\n\n[in] Pointer to parser description to unregister.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "version": {
+        "doc": "Plugin framework version."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecFuture": {
+    "doc": "Opaque Future type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecFutureDestroy": {
+    "doc": "Destroys future.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "future": {
+        "doc": "[in] The future handle to destroy"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecFutureGetProcessingStatus": {
+    "doc": "Receives processing statuses of batch items scheduled for decoding or encoding\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "future": {
+        "doc": "[in] The future handle returned by decode or encode function for given batch items."
+      },
+      "processing_status": {
+        "doc": "[in/out] Points a nvimgcodecProcessingStatus_t handle in which the processing statuses is returned."
+      },
+      "size": {
+        "doc": "[in/out]  Points a size_t in which the size of processing statuses returned."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecFutureWaitForAll": {
+    "doc": "Waits for processing items to be finished.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n @warning Please note that when future is ready, it only means that all host work was done and it can be that\n          some work was scheduled to be executed on device (depending on codec). To further synchronize work on \n          device, there is cuda_stream field available in nvimgcodecImageInfo_t which can be used to specify \n          cuda_stream to synchronize with.\n @see  nvimgcodecImageInfo_t cuda_stream field.\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "future": {
+        "doc": "[in] Handle to future object created by decode or encode functions."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecFuture_t": {
+    "doc": "Handle to opaque Future type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecGetProperties": {
+    "doc": "Provides nvImageCodec library properties.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "properties": {
+        "doc": "[in/out] Points a nvimgcodecProperties_t handle in which the properties are returned."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImage": {
+    "doc": "Opaque Image type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImageBufferKind_t": {
+    "doc": "Defines buffer kind in which image data is stored.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImageCreate": {
+    "doc": "Creates Image which wraps sample buffer together with format information.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "image": {
+        "doc": "[in,out] Pointer to a nvimgcodecImage_t handle that will receive the created image. If *image is NULL, a new image instance will be created. If *image is not NULL, the existing image instance will be reused instead of creating a new one."
+      },
+      "image_info": {
+        "doc": "[in] Points a nvimgcodecImageInfo_t struct which describes sample buffer together with format."
+      },
+      "instance": {
+        "doc": "[in] The library instance handle the image will be used with."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImageDesc_t": {
+    "doc": "Image description.",
+    "members": {
+      "getImageInfo": {
+        "doc": "Retrieves image info information.\n\n\n\n[in] Pointer to nvimgcodecImageDesc_t instance.\n\n[in/out] Points where to return image information.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "imageReady": {
+        "doc": "Informs that host side of processing of image is ready.\n\n\n\n[in] Pointer to nvimgcodecImageDesc_t instance.\n\n[in] Processing status.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes} \n         \n\n```"
+      },
+      "instance": {
+        "doc": "Image instance pointer which will be passed back in functions"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImageDestroy": {
+    "doc": "Destroys image.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "image": {
+        "doc": "[in] The image handle to destroy"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImageGetImageInfo": {
+    "doc": "Retrieves image information from provided opaque image object.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "image": {
+        "doc": "[in] The image handle to retrieve information from."
+      },
+      "image_info": {
+        "doc": "[in/out] Points a nvimgcodecImageInfo_t handle in which the image information is returned."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImageInfo_t": {
+    "doc": "Defines information about an image.",
+    "members": {
+      "buffer": {
+        "doc": "Pointer to buffer in which image data is stored."
+      },
+      "buffer_kind": {
+        "doc": "Buffer kind in which image data is stored."
+      },
+      "chroma_subsampling": {
+        "doc": "Image chroma subsampling. Only valid with chroma components."
+      },
+      "codec_name": {
+        "doc": "Information about codec used. Only valid when used with code stream."
+      },
+      "color_spec": {
+        "doc": "Image color specification."
+      },
+      "cuda_stream": {
+        "doc": "CUDA stream to synchronize with"
+      },
+      "num_planes": {
+        "doc": "Number of image planes."
+      },
+      "orientation": {
+        "doc": "Image orientation."
+      },
+      "plane_info": {
+        "doc": "Array with information about image planes."
+      },
+      "sample_format": {
+        "doc": "Defines how color components are matched to channels in given order and channels are matched to planes."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImagePlaneInfo_t": {
+    "doc": "Defines plane of an image.",
+    "members": {
+      "height": {
+        "doc": "Plane height. First plane defines height of image."
+      },
+      "num_channels": {
+        "doc": "Number of channels. Color components, are always first but there can be more channels than color components."
+      },
+      "precision": {
+        "doc": "Value 0 means that precision is equal to sample type bitdepth"
+      },
+      "row_stride": {
+        "doc": "Number of bytes need to offset to next row of plane."
+      },
+      "sample_type": {
+        "doc": "Sample data type.\n\nSee also: nvimgcodecSampleDataType_t"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "width": {
+        "doc": "Plane width. First plane defines width of image."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecImage_t": {
+    "doc": "Handle to opaque Image type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecInstance": {
+    "doc": "Opaque nvImageCodec library instance type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecInstanceCreate": {
+    "doc": "Creates an instance of the library using the input arguments.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "create_info": {
+        "doc": "[in] Pointer to a nvimgcodecInstanceCreateInfo_t structure controlling creation of the instance."
+      },
+      "instance": {
+        "doc": "[in/out] Points a nvimgcodecInstance_t handle in which the resulting instance is returned."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecInstanceCreateInfo_t": {
+    "doc": "The nvImageCodec library instance create information structure.",
+    "members": {
+      "create_debug_messenger": {
+        "doc": "Create debug messenger during instance creation. Valid values 0 or 1."
+      },
+      "debug_messenger_desc": {
+        "doc": "Pointer to description to use when creating debug messenger. If NULL, default internal description will be used, together with following message_severity and message_category fields."
+      },
+      "extension_modules_path": {
+        "doc": "There may be several paths separated by ':' on Linux or ';' on Windows"
+      },
+      "load_builtin_modules": {
+        "doc": "Load default modules. Valid values 0 or 1."
+      },
+      "load_extension_modules": {
+        "doc": "Discover and load extension modules on start. Valid values 0 or 1."
+      },
+      "message_category": {
+        "doc": "Message category for default debug messenger"
+      },
+      "message_severity": {
+        "doc": "Severity for default debug messenger"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecInstanceDestroy": {
+    "doc": "Destroys the nvImageCodec library instance.\n\n\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n     \n\n```",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "instance": {
+        "doc": "[in] The library instance handle to destroy"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecInstance_t": {
+    "doc": "Handle to opaque nvImageCodec library instance type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecIoStreamDesc_t": {
+    "doc": "Input/Output stream description.\n\nThis abstracts source or sink for code stream bytes.",
+    "members": {
+      "flush": {
+        "doc": "Requests all data to be written to the output.\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "id": {
+        "doc": "Generated id that uniquely identifies the instance"
+      },
+      "instance": {
+        "doc": "I/O stream description instance pointer which will be passed back in functions"
+      },
+      "map": {
+        "doc": "Maps data into host memory\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in/out] Points where to return pointer to mapped data. If data cannot be mapped, NULL will be returned.\n\n[in] Offset in the stream to begin mapping.\n\n[in] Length of the mapping\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "putc": {
+        "doc": "Writes one character to the stream.\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in/out] Pointer to where to return number of written bytes.\n\n[in] Character to write.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "read": {
+        "doc": "Reads all requested data from the stream.\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in/out] Pointer to where to return number of read bytes.\n\n[in]   Pointer to output buffer\n\n[in] Number of bytes to read\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "reserve": {
+        "doc": "Provides expected bytes which are going to be written.\n\nThis function gives possibility to pre/re-allocate map function.\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in] Number of expected bytes which are going to be written.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "seek": {
+        "doc": "Moves the read pointer in the stream.\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in] Offset to move.\n\n[in] Beginning - SEEK_SET, SEEK_CUR or SEEK_END.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "size": {
+        "doc": "Retrieves the length, in bytes, of the stream.\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in/out] Pointer where to return length of the stream.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "skip": {
+        "doc": "Skips `count` objects in the stream\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in] Number bytes to skip\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "tell": {
+        "doc": "Retrieves current position, in bytes from the beginning, in the stream.\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in/out] Pointer where to return current position.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "unmap": {
+        "doc": "Unmaps previously mapped data\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.         *\n\n[in] Pointer to mapped data\n\n[in] Length of data to unmap\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "write": {
+        "doc": "Writes all requested data to the stream.\n\n\n\n[in] Pointer to nvimgcodecIoStreamDesc_t instance.\n\n[in/out] Pointer to where to return number of written bytes.\n\n[in]   Pointer to input buffer\n\n[in] Number of bytes to write\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecJpeg2kBitstreamType_t": {
+    "doc": "JPEG2000 code stream type",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecJpeg2kEncodeParams_t": {
+    "doc": "JPEG2000 Encode parameters",
+    "members": {
+      "code_block_h": {
+        "doc": "Code block height. Allowed values 32, 64"
+      },
+      "code_block_w": {
+        "doc": "Code block width. Allowed values 32, 64"
+      },
+      "ht": {
+        "doc": "Sets whether or not to use High-Throughput encoding. Valid values 0 or 1."
+      },
+      "mct_mode": {
+        "doc": "Sets whether or not to use multiple component transform. Valid values 0 or 1."
+      },
+      "num_resolutions": {
+        "doc": "Number of resolutions."
+      },
+      "prog_order": {
+        "doc": "JPEG2000 progression order."
+      },
+      "stream_type": {
+        "doc": "JPEG2000 code stream type."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecJpeg2kProgOrder_t": {
+    "doc": "Progression orders defined in the JPEG2000 standard.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecJpegEncodeParams_t": {
+    "doc": "JPEG Encode parameters",
+    "members": {
+      "optimized_huffman": {
+        "doc": "Sets whether or not to use optimized Huffman. Valid values 0 or 1.\n\n\n\nNote: Using optimized Huffman produces smaller JPEG bitstream sizes with the same quality, but with slower performance."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecJpegEncoding_t": {
+    "doc": "JPEG Encoding\n\nCurrently parseable JPEG encodings (SOF markers) https://www.w3.org/Graphics/JPEG/itu-t81.pdf Table B.1 Start of Frame markers",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecJpegImageInfo_t": {
+    "doc": "Defines image information related to JPEG format.\n\nThis structure extends information provided in nvimgcodecImageInfo_t",
+    "members": {
+      "encoding": {
+        "doc": "JPEG encoding type."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecLoadHintPolicy_t": {
+    "doc": "Defines how to interpret the load hint parameter.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecLogFunc_t": {
+    "doc": "Pointer to logging function.\n\n\n\n[in] Plugin framework instance pointer\n\n[in] Message severity e.g. error or warning.\n\n[in]  Message category e.g. general or performance related.\n\n[in] Debug message data i.e. message string, status, codec etc.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecMetadataFormat_t": {
+    "doc": "Specifies the format of metadata contained in an image",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecMetadataKind_t": {
+    "doc": "Specifies the kind of metadata contained in an image",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecMetadataValueType_t": {
+    "doc": "Metadata types as defined for TIFF tag types in TIFF specification",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecMetadata_t": {
+    "doc": "Defines metadata information for an image.\n\nThis structure contains information about image metadata, such as EXIF. The metadata is stored in a buffer with a specified format and kind.",
+    "members": {
+      "buffer": {
+        "doc": "Pointer to the metadata buffer"
+      },
+      "buffer_size": {
+        "doc": "Size of the metadata buffer in bytes"
+      },
+      "format": {
+        "doc": "The format of the metadata buffer"
+      },
+      "id": {
+        "doc": "The id of the metadata. For TIFF tag metadata, it is the tag id. For other metadata kinds, it is reserved for future use."
+      },
+      "kind": {
+        "doc": "The kind of metadata (e.g. EXIF)"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "value_count": {
+        "doc": "The number of values in the metadata buffer. For ASCII type it is the number of bytes in the buffer (including NUL byte)."
+      },
+      "value_type": {
+        "doc": "The type of the metadata value when format is RAW (e.g. BYTE, SHORT, etc.)"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecOrientation_t": {
+    "doc": "Defines orientation of an image.",
+    "members": {
+      "flip_x": {
+        "doc": "Mirror across the vertical axis, applied after the rotation. 0 or 1."
+      },
+      "flip_y": {
+        "doc": "Mirror across the horizontal axis, applied after the rotation. 0 or 1."
+      },
+      "rotated": {
+        "doc": "Counter-clockwise rotation in degrees applied to the raw codestream pixels to produce the displayed image. Only multiples of 90 are allowed (0, 90, 180, 270)."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecOutOfBoundsPolicy_t": {
+    "doc": "Defines buffer kind in which image data is stored.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecOutOfBoundsSample_t": {
+    "doc": "A helper struct for storing out of bounds region fill sample.",
+    "members": {
+      "type": {
+        "doc": "Should be set accordingly to type of `value`. If type is not provided, 0 will be used as value."
+      },
+      "value": {
+        "doc": "Sample value to set pixel to. Use `value.as_uint`, `value.as_int` or `value.as_float` to access underlying value."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecOutOfBoundsSample_t__bindgen_ty_1": {
+    "doc": "Native layout of the `value` member of `nvimgcodecOutOfBoundsSample_t`.\n\nSample value to set pixel to. Use `value.as_uint`, `value.as_int` or `value.as_float` to access underlying value.",
+    "members": {
+      "as_float": {
+        "doc": "If value is set as `float`, type should be set as `FLOAT32`"
+      },
+      "as_int": {
+        "doc": "If value is set as `int32_t`, type should be set as `INT8`, `INT16` or `INT32`"
+      },
+      "as_uint": {
+        "doc": "If value is set as `uint32_t`, type should be set as `UINT8`, `UINT16` or `UINT32`"
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecParser": {
+    "doc": "Opaque Parser type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecParserDesc_t": {
+    "doc": "Parser description.",
+    "members": {
+      "canParse": {
+        "doc": "Checks whether parser can parse given code stream.\n\n\n\n[in] Pointer to nvimgcodecParserDesc_t instance.\n\n[in/out] Points where to return result of parsing check. Valid values 0 or 1.\n\n[in] Code stream to parse check.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "codec": {
+        "doc": "Codec name e.g. jpeg2000"
+      },
+      "create": {
+        "doc": "Creates parser.\n\n\n\nto nvimgcodecParserDesc_t instance.\n\nwhere to return handle to created parser.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "destroy": {
+        "doc": "Destroys parser.\n\n\n\n[in] Parser handle to destroy.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n        \n\n```"
+      },
+      "getCodeStreamInfo": {
+        "doc": "Parses given code stream and returns code stream information.\n\n\n\n[in] Parser handle.\n\n[in/out] Points where to return code stream information.\n\n[in] Code stream to parse.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "getImageInfo": {
+        "doc": "Parses given code stream and returns image information.\n\n\n\n[in] Parser handle.\n\n[in/out] Points where to return image information.\n\n[in] Code stream to parse.\n\n# Return value\n\nnvimgcodecStatus_t - An error code as specified in {\n\n\n\n```text\n nvimgcodecStatus_t API Return Status Codes}\n         \n\n```"
+      },
+      "id": {
+        "doc": "Codec named identifier e.g. nvJpeg2000"
+      },
+      "instance": {
+        "doc": "nvimgcodecStatus_t (*size)(void* instance, size_t* size); Parser description instance pointer which will be passed back in functions"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecParser_t": {
+    "doc": "Handle to opaque Parser type.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecPinnedAllocator_t": {
+    "doc": "Host pinned memory allocator.",
+    "members": {
+      "pinned_ctx": {
+        "doc": "When invoking the allocators, this context will be pass as input to allocator functions."
+      },
+      "pinned_free": {
+        "doc": "Frees host pinned memory."
+      },
+      "pinned_malloc": {
+        "doc": "Allocate host pinned memory: memory directly accessible by both CPU and cuda-enabled GPU."
+      },
+      "pinned_mem_padding": {
+        "doc": "Any pinned host memory allocation would be padded to the multiple of specified number of bytes"
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecPinnedFree_t": {
+    "doc": "Function type for host pinned memory deallocation.\n\n\n\nPointer to user context.\n\nPointer to memory buffer to be deallocated. If NULL, the operation must do nothing, successfully.\n\nHow many bytes was allocated (size passed during allocation).\n\nCUDA stream\n\n# Return value\n\nThey will return 0 in case of success, and non-zero otherwise",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecPinnedMalloc_t": {
+    "doc": "Function type for host pinned memory resource allocation.\n\n\n\nPointer to user context.\n\nPointer where to write pointer to allocated memory.\n\nHow many bytes to allocate.\n\nCUDA stream\n\n# Return value\n\nThey will return 0 in case of success, and non-zero otherwise",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecPriority_t": {
+    "doc": "Defines decoder or encoder priority in codec.\n\nFor each codec there can be more decoders and encoders registered. Every decoder and encoder is registered with defined priority. Decoding process starts with selecting highest priority decoder and checks whether it can decode particular code stream. In case decoding could not be handled by selected decoder, there is fallback mechanism which selects next in priority decoder. There can be more decoders registered with the same priority. In such case decoders with the same priority are selected in order of registration.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecProcessingStatus": {
+    "doc": "Processing status bitmask for decoding or encoding .",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecProcessingStatus_t": {
+    "doc": "Processing status type which combine processing status bitmasks",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecProperties_t": {
+    "doc": "The nvImageCodec properties.\n\n\n\nSee also: nvimgcodecGetProperties",
+    "members": {
+      "cudart_version": {
+        "doc": "The version of CUDA Runtime with which nvImageCodec library was built."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "version": {
+        "doc": "The nvImageCodec library version."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecQualityType_t": {
+    "doc": "Supported quality types (algorithms), which determines how ``quality_value`` is interpreted.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecRegion_t": {
+    "doc": "Defines region of an image.\n\nThe coordinate system depends on `nvimgcodecDecodeParams_t::apply_exif_orientation`:\n- When `apply_exif_orientation == 1`, the region is interpreted in **display** (post-orientation) coordinates. For a codestream whose EXIF orientation swaps width and height (rotated 90 or 270 degrees), this means the region's axes match the rotated image, not the raw codestream layout.\n- When `apply_exif_orientation == 0`, the region is interpreted in **codestream** coordinates, matching `nvimgcodecImagePlaneInfo_t::width`/`height` of the parsed code stream and `nvimgcodec::CodeStream.height`/`width` in the Python bindings.\n\n`start[0]`/`end[0]` is the y (height) axis; `start[1]`/`end[1]` is the x (width) axis. Half-open ranges: a pixel is included when `start <= idx < end`.",
+    "members": {
+      "end": {
+        "doc": "Region end position at the particular dimension."
+      },
+      "ndim": {
+        "doc": "Number of dimensions, 0 value means no region."
+      },
+      "out_of_bounds_policy": {
+        "doc": "Specifies how out of bounds pixels should be set."
+      },
+      "out_of_bounds_samples": {
+        "doc": "If `out_of_bounds_policy` is set to `NVIMGCODEC_OUT_OF_BOUNDS_POLICY_CONSTANT` then this is an array of samples that will be set for out of bounds pixels. Array length must be at most 5, for the rest of the channels fill sample of the 5th channel will be used. If array is shorter than 5, then missing channels fill sample will be set to 0.\n\nIf `out_of_bounds_policy` is set to a different value, then this array will be ignored."
+      },
+      "start": {
+        "doc": "Region start position at the particular dimension."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      }
+    },
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecResizeBufferFunc_t": {
+    "doc": "Function type to resize and provide host buffer.\n\n\n\n[in] Pointer to context provided together with function.\n\n[in] Requested size of buffer.\n\n# Return value\n\nPointer to requested buffer.\n\n\n\nNote: This function can be called multiple times and requested size can be lower at the end so buffer can be shrinked.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecSampleDataType_t": {
+    "doc": "Describes type sample of data.\n\nMeaning of bits: 0 bit      -> 0 - unsigned, 1- signed 1..7 bits  -> define type 8..15 bits -> type bitdepth",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecSampleFormat_t": {
+    "doc": "Provides information how color components are matched to channels in given order and channels are matched to planes.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecStatus_t": {
+    "doc": "The return status codes of the nvImageCodec API",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecStructureType_t": {
+    "doc": "Structure types supported by the nvImageCodec API.\n\nEach value corresponds to a particular structure with a type member and matching  structure name.",
+    "members": {},
+    "source": "nvimgcodec.h"
+  },
+  "nvimgcodecTileGeometryInfo_t": {
+    "doc": "Defines image information related to JPEG2000 format.\n\nThis structure extends information provided in nvimgcodecImageInfo_t",
+    "members": {
+      "num_tiles_x": {
+        "doc": "Number of tile columns."
+      },
+      "num_tiles_y": {
+        "doc": "Number of tile rows."
+      },
+      "struct_next": {
+        "doc": "Is NULL or a pointer to an extension structure type."
+      },
+      "struct_size": {
+        "doc": "The size of the structure, in bytes."
+      },
+      "struct_type": {
+        "doc": "The type of the structure."
+      },
+      "tile_height": {
+        "doc": "Height of the tile."
+      },
+      "tile_offset_x": {
+        "doc": "Horizontal offset of the tile."
+      },
+      "tile_offset_y": {
+        "doc": "Vertical offset of the tile."
+      },
+      "tile_width": {
+        "doc": "Width of the tile."
+      }
+    },
+    "source": "nvimgcodec.h"
+  }
+}

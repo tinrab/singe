@@ -1,22 +1,22 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{ChannelLayout, ImageViewMut},
-    pipeline::{ImageAllocator, Workspace},
+    image::{
+        Image, SupportedImage,
+        view::{ChannelLayout, ImageViewMut},
+    },
+    pipeline::image::{CopyImage, ImageBacking, ImagePipeline, filtering::FloodFillImage},
     types::{ConnectedRegion, ImageNormalization, Point},
 };
 
-use super::{CopyImage, ImageBacking, ImagePipeline, filtering::FloodFillImage};
-
-impl<'a, T, L> ImagePipeline<'a, T, L>
+impl<T, L> ImagePipeline<'_, T, L>
 where
-    T: Copy,
+    T: Copy + SupportedImage<L>,
     L: ChannelLayout,
-    Workspace: ImageAllocator<T, L>,
     Self: CopyImage<T, L> + FloodFillImage<T, L>,
     <Self as FloodFillImage<T, L>>::Value: Copy,
 {
-    pub(super) fn flood_fill_operation(
+    pub(crate) fn flood_fill_operation(
         self,
         seed: Point,
         new_value: <Self as FloodFillImage<T, L>>::Value,
@@ -25,18 +25,9 @@ where
         boundary_value: Option<<Self as FloodFillImage<T, L>>::Value>,
         norm: ImageNormalization,
         connected_region: Option<&mut ConnectedRegion>,
-        operation: fn(
-            &StreamContext,
-            &mut ImageViewMut<'_, T, L>,
-            Point,
-            <Self as FloodFillImage<T, L>>::Value,
-            Option<<Self as FloodFillImage<T, L>>::Value>,
-            Option<<Self as FloodFillImage<T, L>>::Value>,
-            Option<<Self as FloodFillImage<T, L>>::Value>,
-            ImageNormalization,
-            Option<&mut ConnectedRegion>,
-        ) -> Result<()>,
+        operation: FloodFillOperationCallback<L, T, <Self as FloodFillImage<T, L>>::Value>,
     ) -> Result<Self> {
+        self.ensure_eager()?;
         let ImagePipeline {
             stream_context,
             workspace,
@@ -44,12 +35,7 @@ where
         } = self;
         let mut image = match backing {
             ImageBacking::Owned(image) => image,
-            ImageBacking::Borrowed(source) => {
-                let mut destination = workspace.image::<T, L>(source.size())?;
-                let mut destination_view = destination.view_mut()?;
-                <Self as CopyImage<T, L>>::copy(stream_context, &source, &mut destination_view)?;
-                destination
-            }
+            ImageBacking::Borrowed(source) => Image::<T, L>::from_view(&source)?,
         };
 
         {
@@ -74,3 +60,15 @@ where
         })
     }
 }
+
+type FloodFillOperationCallback<L, T, V> = fn(
+    &StreamContext,
+    &mut ImageViewMut<'_, T, L>,
+    Point,
+    V,
+    Option<V>,
+    Option<V>,
+    Option<V>,
+    ImageNormalization,
+    Option<&mut ConnectedRegion>,
+) -> Result<()>;

@@ -1,15 +1,23 @@
-use singe_cuda::memory::DeviceMemory;
+use std::{mem::MaybeUninit, sync::Arc};
+
+use singe_cuda::{
+    context::Context as CudaContext,
+    memory::DeviceMemory,
+    view::{DeviceOutput, DeviceOutputView, DeviceRepr},
+};
 use singe_npp_sys as sys;
 
 use crate::{
+    context::StreamContext,
     error::{Error, Result},
     image::view::{ChannelLayout, ImageView, image_descriptors},
-    types::{Point, ProfileData, Rectangle, Size},
+    types::{Point, ProfileStatistics, Rectangle, Size},
     utility::batch_size_i32,
     workspace::{BufferDescriptors, create_repeated_buffer_descriptors},
 };
 
-pub(super) fn pair_metric_batch_descriptors<T, L>(
+pub fn pair_metric_batch_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     source_0: &[ImageView<'_, T, L>],
     source_1: &[ImageView<'_, T, L>],
 ) -> Result<(
@@ -39,12 +47,15 @@ where
     Ok((
         batch_size,
         roi,
-        DeviceMemory::from_slice(&descriptors_0)?,
-        DeviceMemory::from_slice(&descriptors_1)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors_0) }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors_1) }?,
     ))
 }
 
-pub(super) fn pair_metric_batch_advanced_descriptors<T, L>(
+pub fn pair_metric_batch_advanced_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     source_0: &[ImageView<'_, T, L>],
     source_1: &[ImageView<'_, T, L>],
 ) -> Result<(
@@ -74,47 +85,46 @@ where
     Ok((
         batch_size,
         max_roi,
-        DeviceMemory::from_slice(&descriptors_0)?,
-        DeviceMemory::from_slice(&descriptors_1)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors_0) }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors_1) }?,
     ))
 }
 
-pub(super) fn pair_metric_batch_buffers(
+pub fn pair_metric_batch_buffers(
+    allocation_context: &Arc<CudaContext>,
     batch_size: usize,
     bytes_per_image: usize,
-) -> Result<(Vec<DeviceMemory<u8>>, BufferDescriptors)> {
-    create_repeated_buffer_descriptors(batch_size, bytes_per_image)
+) -> Result<(Vec<DeviceMemory<MaybeUninit<u8>>>, BufferDescriptors)> {
+    create_repeated_buffer_descriptors(allocation_context, batch_size, bytes_per_image)
 }
 
-pub(super) fn pair_batch_size(source_0_len: usize, source_1_len: usize) -> Result<i32> {
+pub fn pair_batch_size(source_0_len: usize, source_1_len: usize) -> Result<i32> {
     batch_size_i32(source_0_len, source_1_len)
 }
 
-pub(super) fn smallest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
+pub fn smallest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
     sizes
         .into_iter()
         .reduce(|left, right| Size {
             width: left.width.min(right.width),
             height: left.height.min(right.height),
         })
-        .ok_or_else(|| Error::OutOfRange {
-            name: "batch size".into(),
-        })
+        .ok_or_else(|| Error::out_of_range("batch size"))
 }
 
-pub(super) fn largest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
+pub fn largest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
     sizes
         .into_iter()
         .reduce(|left, right| Size {
             width: left.width.max(right.width),
             height: left.height.max(right.height),
         })
-        .ok_or_else(|| Error::OutOfRange {
-            name: "batch size".into(),
-        })
+        .ok_or_else(|| Error::out_of_range("batch size"))
 }
 
-pub(super) fn validate_same_size(source: Size, destination: Size) -> Result<()> {
+pub fn validate_same_size(source: Size, destination: Size) -> Result<()> {
     if source == destination {
         return Ok(());
     }
@@ -126,7 +136,7 @@ pub(super) fn validate_same_size(source: Size, destination: Size) -> Result<()> 
     })
 }
 
-pub(super) fn validate_template_full_destination_size(
+pub fn validate_template_full_destination_size(
     source: Size,
     template: Size,
     destination: Size,
@@ -136,22 +146,18 @@ pub(super) fn validate_template_full_destination_size(
             .width
             .checked_add(template.width)
             .and_then(|width| width.checked_sub(1))
-            .ok_or_else(|| Error::OutOfRange {
-                name: "template full destination width".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("template full destination width"))?,
         height: source
             .height
             .checked_add(template.height)
             .and_then(|height| height.checked_sub(1))
-            .ok_or_else(|| Error::OutOfRange {
-                name: "template full destination height".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("template full destination height"))?,
     };
 
     validate_same_size(expected, destination)
 }
 
-pub(super) fn validate_template_valid_destination_size(
+pub fn validate_template_valid_destination_size(
     source: Size,
     template: Size,
     destination: Size,
@@ -161,35 +167,27 @@ pub(super) fn validate_template_valid_destination_size(
             .width
             .checked_sub(template.width)
             .and_then(|width| width.checked_add(1))
-            .ok_or_else(|| Error::OutOfRange {
-                name: "template valid destination width".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("template valid destination width"))?,
         height: source
             .height
             .checked_sub(template.height)
             .and_then(|height| height.checked_add(1))
-            .ok_or_else(|| Error::OutOfRange {
-                name: "template valid destination height".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("template valid destination height"))?,
     };
 
     validate_same_size(expected, destination)
 }
 
-pub(super) fn validate_integral_destination_size(source: Size, destination: Size) -> Result<()> {
+pub fn validate_integral_destination_size(source: Size, destination: Size) -> Result<()> {
     let expected = Size {
         width: source
             .width
             .checked_add(1)
-            .ok_or_else(|| Error::OutOfRange {
-                name: "integral destination width".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("integral destination width"))?,
         height: source
             .height
             .checked_add(1)
-            .ok_or_else(|| Error::OutOfRange {
-                name: "integral destination height".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("integral destination height"))?,
     };
 
     if expected == destination {
@@ -203,16 +201,14 @@ pub(super) fn validate_integral_destination_size(source: Size, destination: Size
     })
 }
 
-pub(super) fn validate_rect_std_dev_sources(
+pub fn validate_rect_std_dev_sources(
     source: Size,
     squared: Size,
     destination: Size,
     rectangle: Rectangle,
 ) -> Result<()> {
     if rectangle.x < 0 || rectangle.y < 0 || rectangle.width <= 0 || rectangle.height <= 0 {
-        return Err(Error::OutOfRange {
-            name: "rectangle".into(),
-        });
+        return Err(Error::out_of_range("rectangle"));
     }
 
     let expected = Size {
@@ -220,16 +216,12 @@ pub(super) fn validate_rect_std_dev_sources(
             .width
             .checked_add(rectangle.x)
             .and_then(|value| value.checked_add(rectangle.width))
-            .ok_or_else(|| Error::OutOfRange {
-                name: "rect stddev source width".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("rect stddev source width"))?,
         height: destination
             .height
             .checked_add(rectangle.y)
             .and_then(|value| value.checked_add(rectangle.height))
-            .ok_or_else(|| Error::OutOfRange {
-                name: "rect stddev source height".into(),
-            })?,
+            .ok_or_else(|| Error::out_of_range("rect stddev source height"))?,
     };
 
     validate_same_size(expected, source)?;
@@ -237,16 +229,14 @@ pub(super) fn validate_rect_std_dev_sources(
     Ok(())
 }
 
-pub(super) fn validate_metric_output(
-    output: &DeviceMemory<f32>,
+pub fn validate_metric_output(
+    output: &(impl DeviceOutput<f32> + ?Sized),
     batch_size: usize,
     channels: usize,
 ) -> Result<()> {
     let expected = batch_size
         .checked_mul(channels)
-        .ok_or_else(|| Error::OutOfRange {
-            name: "metric output length".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("metric output length"))?;
     if output.len() != expected {
         return Err(Error::LengthMismatch {
             name: "metric output length".into(),
@@ -257,19 +247,8 @@ pub(super) fn validate_metric_output(
     Ok(())
 }
 
-pub(super) fn validate_statistic_output(output: &DeviceMemory<f64>, channels: usize) -> Result<()> {
-    if output.len() != channels {
-        return Err(Error::LengthMismatch {
-            name: "statistic output length".into(),
-            expected: channels,
-            actual: output.len(),
-        });
-    }
-    Ok(())
-}
-
-pub(super) fn validate_typed_statistic_output<T>(
-    output: &DeviceMemory<T>,
+pub fn validate_statistic_output(
+    output: &DeviceOutputView<'_, f64>,
     channels: usize,
 ) -> Result<()> {
     if output.len() != channels {
@@ -282,7 +261,21 @@ pub(super) fn validate_typed_statistic_output<T>(
     Ok(())
 }
 
-pub(super) fn validate_profile_output(output: &[ProfileData]) -> Result<u16> {
+pub fn validate_typed_statistic_output<T: DeviceRepr>(
+    output: &DeviceOutputView<'_, T>,
+    channels: usize,
+) -> Result<()> {
+    if output.len() != channels {
+        return Err(Error::LengthMismatch {
+            name: "statistic output length".into(),
+            expected: channels,
+            actual: output.len(),
+        });
+    }
+    Ok(())
+}
+
+pub fn validate_profile_output(output: &[ProfileStatistics]) -> Result<u16> {
     if output.is_empty() {
         return Err(Error::LengthMismatch {
             name: "profile output length".into(),
@@ -291,12 +284,10 @@ pub(super) fn validate_profile_output(output: &[ProfileData]) -> Result<u16> {
         });
     }
 
-    u16::try_from(output.len()).map_err(|_| Error::OutOfRange {
-        name: "profile output length".into(),
-    })
+    u16::try_from(output.len()).map_err(|_| Error::out_of_range("profile output length"))
 }
 
-pub(super) fn validate_index_output(output: &DeviceMemory<i32>, channels: usize) -> Result<()> {
+pub fn validate_index_output(output: &DeviceOutputView<'_, i32>, channels: usize) -> Result<()> {
     if output.len() != channels {
         return Err(Error::LengthMismatch {
             name: "index output length".into(),
@@ -307,7 +298,7 @@ pub(super) fn validate_index_output(output: &DeviceMemory<i32>, channels: usize)
     Ok(())
 }
 
-pub(super) fn validate_point_output(output: &DeviceMemory<Point>, channels: usize) -> Result<()> {
+pub fn validate_point_output(output: &DeviceOutputView<'_, Point>, channels: usize) -> Result<()> {
     if output.len() != channels {
         return Err(Error::LengthMismatch {
             name: "point output length".into(),
@@ -318,7 +309,7 @@ pub(super) fn validate_point_output(output: &DeviceMemory<Point>, channels: usiz
     Ok(())
 }
 
-pub(super) fn validate_mask_size(roi: Size, mask: Size) -> Result<()> {
+pub fn validate_mask_size(roi: Size, mask: Size) -> Result<()> {
     if roi != mask {
         return Err(Error::SizeMismatch {
             name: "mask size".into(),
@@ -329,25 +320,28 @@ pub(super) fn validate_mask_size(roi: Size, mask: Size) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn validate_histogram_levels(levels: i32) -> Result<usize> {
+pub fn validate_histogram_levels(levels: i32) -> Result<usize> {
     if levels < 2 {
-        return Err(Error::OutOfRange {
-            name: "levels".into(),
-        });
+        return Err(Error::out_of_range("levels"));
     }
-    usize::try_from(levels - 1).map_err(|_| Error::OutOfRange {
-        name: "levels".into(),
-    })
+    usize::try_from(levels - 1).map_err(|_| Error::out_of_range("levels"))
 }
 
-pub(super) fn validate_histogram_levels_array<const C: usize>(levels: &[i32; C]) -> Result<()> {
+pub fn validate_histogram_levels_array<const C: usize>(levels: &[i32; C]) -> Result<()> {
     for &level in levels {
         validate_histogram_levels(level)?;
     }
     Ok(())
 }
 
-pub(super) fn validate_histogram_output(histogram: &DeviceMemory<i32>, levels: i32) -> Result<()> {
+pub fn validate_histogram_output(
+    stream_context: &StreamContext,
+    histogram: &(impl DeviceOutput<i32> + ?Sized),
+    levels: i32,
+) -> Result<()> {
+    if histogram.context() != stream_context.cuda_context() {
+        return Err(Error::StreamContextMismatch);
+    }
     let expected_bins = validate_histogram_levels(levels)?;
     if histogram.len() != expected_bins {
         return Err(Error::LengthMismatch {
@@ -359,15 +353,21 @@ pub(super) fn validate_histogram_output(histogram: &DeviceMemory<i32>, levels: i
     Ok(())
 }
 
-pub(super) fn validate_histogram_outputs<const C: usize>(
-    histograms: &[&mut DeviceMemory<i32>; C],
+pub fn validate_histogram_outputs<const C: usize>(
+    stream_context: &StreamContext,
+    histograms: &[&mut (impl DeviceOutput<i32> + ?Sized); C],
     levels: &[i32; C],
 ) -> Result<()> {
+    for histogram in histograms {
+        if histogram.context() != stream_context.cuda_context() {
+            return Err(Error::StreamContextMismatch);
+        }
+    }
     for (index, (&level, histogram)) in levels.iter().zip(histograms.iter()).enumerate() {
         let expected_bins = validate_histogram_levels(level)?;
         if histogram.len() != expected_bins {
             return Err(Error::LengthMismatch {
-                name: format!("histogram[{index}]"),
+                name: format!("histogram[{index}]").into(),
                 expected: expected_bins,
                 actual: histogram.len(),
             });
@@ -376,18 +376,14 @@ pub(super) fn validate_histogram_outputs<const C: usize>(
     Ok(())
 }
 
-pub(super) fn validate_histogram_range_levels<T>(levels: &[T]) -> Result<i32> {
+pub fn validate_histogram_range_levels<T>(levels: &[T]) -> Result<i32> {
     if levels.len() < 2 {
-        return Err(Error::OutOfRange {
-            name: "levels".into(),
-        });
+        return Err(Error::out_of_range("levels"));
     }
-    i32::try_from(levels.len()).map_err(|_| Error::OutOfRange {
-        name: "levels".into(),
-    })
+    i32::try_from(levels.len()).map_err(|_| Error::out_of_range("levels"))
 }
 
-pub(super) fn validate_histogram_range_level_arrays<T, const C: usize>(
+pub fn validate_histogram_range_level_arrays<T, const C: usize>(
     levels: &[&[T]; C],
 ) -> Result<[i32; C]> {
     let mut raw_levels = [0_i32; C];
@@ -397,10 +393,14 @@ pub(super) fn validate_histogram_range_level_arrays<T, const C: usize>(
     Ok(raw_levels)
 }
 
-pub(super) fn validate_histogram_range_output<T>(
-    histogram: &DeviceMemory<i32>,
+pub fn validate_histogram_range_output<T>(
+    stream_context: &StreamContext,
+    histogram: &(impl DeviceOutput<i32> + ?Sized),
     levels: &[T],
 ) -> Result<i32> {
+    if histogram.context() != stream_context.cuda_context() {
+        return Err(Error::StreamContextMismatch);
+    }
     let raw_levels = validate_histogram_range_levels(levels)?;
     let expected_bins = levels.len() - 1;
     if histogram.len() != expected_bins {
@@ -413,16 +413,22 @@ pub(super) fn validate_histogram_range_output<T>(
     Ok(raw_levels)
 }
 
-pub(super) fn validate_histogram_range_outputs<T, const C: usize>(
-    histograms: &[&mut DeviceMemory<i32>; C],
+pub fn validate_histogram_range_outputs<T, const C: usize>(
+    stream_context: &StreamContext,
+    histograms: &[&mut (impl DeviceOutput<i32> + ?Sized); C],
     levels: &[&[T]; C],
 ) -> Result<[i32; C]> {
+    for histogram in histograms {
+        if histogram.context() != stream_context.cuda_context() {
+            return Err(Error::StreamContextMismatch);
+        }
+    }
     let raw_levels = validate_histogram_range_level_arrays(levels)?;
     for (index, (histogram, level)) in histograms.iter().zip(levels.iter()).enumerate() {
         let expected_bins = level.len() - 1;
         if histogram.len() != expected_bins {
             return Err(Error::LengthMismatch {
-                name: format!("histogram[{index}]"),
+                name: format!("histogram[{index}]").into(),
                 expected: expected_bins,
                 actual: histogram.len(),
             });
@@ -431,14 +437,10 @@ pub(super) fn validate_histogram_range_outputs<T, const C: usize>(
     Ok(raw_levels)
 }
 
-pub(super) fn validate_coi(channel: usize, channels: usize) -> Result<i32> {
+pub fn validate_coi(channel: usize, channels: usize) -> Result<i32> {
     if channel < channels {
-        return i32::try_from(channel + 1).map_err(|_| Error::OutOfRange {
-            name: "channel".into(),
-        });
+        return i32::try_from(channel + 1).map_err(|_| Error::out_of_range("channel"));
     }
 
-    Err(Error::OutOfRange {
-        name: "channel".into(),
-    })
+    Err(Error::out_of_range("channel"))
 }

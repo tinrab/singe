@@ -2,7 +2,7 @@ mod common;
 
 use std::{env, error::Error, path::PathBuf};
 
-use singe_cudss::context::Context;
+use singe_cudss::{context::Context, error::Result as CudssResult};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let Some((_backend, layer_path)) = communication_layer_args() else {
@@ -38,10 +38,7 @@ fn communication_layer_args() -> Option<(String, Option<PathBuf>)> {
     })
 }
 
-fn set_communication_layer(
-    context: &Context,
-    path: Option<&PathBuf>,
-) -> singe_cudss::error::Result<()> {
+fn set_communication_layer(context: &Context, path: Option<&PathBuf>) -> CudssResult<()> {
     match path {
         Some(path) => context.set_communication_layer(path),
         None => context.set_default_communication_layer(),

@@ -4,7 +4,7 @@ description = "Safe cuRAND host API wrappers for CUDA random number generation."
 version = "0.1.0-alpha.2"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "curand", "rng"]
 include.workspace = true
@@ -13,15 +13,16 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["curand_13_3"]
+default = ["curand_13_4"]
 
-curand_13_3 = ["singe-cuda/runtime_13_3", "singe-curand-sys/curand_13_3"]
+curand_13_4 = ["singe-cuda/runtime_13_4", "singe-curand-sys/curand_13_4"]
 
 testing = ["singe-cuda/testing"]
 
 [dependencies]
 singe-core.workspace = true
 singe-cuda.workspace = true
+singe-cuda-sys.workspace = true
 singe-curand-sys.workspace = true
 thiserror.workspace = true
 num_enum.workspace = true

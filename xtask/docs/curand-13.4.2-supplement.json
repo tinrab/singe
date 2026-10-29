@@ -1,0 +1,172 @@
+{
+  "CURAND_DIRECTION_VECTORS_32_JOEKUO6": {
+    "doc": "Specific set of 32-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g60d34e2eadf8aa70831a695bd0333e44"
+  },
+  "CURAND_DIRECTION_VECTORS_64_JOEKUO6": {
+    "doc": "Specific set of 64-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g60d34e2eadf8aa70831a695bd0333e44"
+  },
+  "CURAND_ORDERING_PSEUDO_BEST": {
+    "doc": "Best ordering for pseudorandom results.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g2e3407c5fd20b3c1a3c215d2fcdeef55"
+  },
+  "CURAND_ORDERING_PSEUDO_DEFAULT": {
+    "doc": "Specific default thread sequence for pseudorandom results, same as [`curandOrdering::CURAND_ORDERING_PSEUDO_BEST`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g2e3407c5fd20b3c1a3c215d2fcdeef55"
+  },
+  "CURAND_ORDERING_PSEUDO_DYNAMIC": {
+    "doc": "Specific ordering adjusted to the device it is being executed on, provides the best performance.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g2e3407c5fd20b3c1a3c215d2fcdeef55"
+  },
+  "CURAND_ORDERING_PSEUDO_LEGACY": {
+    "doc": "Specific legacy sequence for pseudorandom results, guaranteed to remain the same for all cuRAND release.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g2e3407c5fd20b3c1a3c215d2fcdeef55"
+  },
+  "CURAND_ORDERING_PSEUDO_SEEDED": {
+    "doc": "Specific seeding pattern for fast lower quality pseudorandom results.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g2e3407c5fd20b3c1a3c215d2fcdeef55"
+  },
+  "CURAND_ORDERING_QUASI_DEFAULT": {
+    "doc": "Specific n-dimensional ordering for quasirandom results.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g2e3407c5fd20b3c1a3c215d2fcdeef55"
+  },
+  "CURAND_RNG_PSEUDO_DEFAULT": {
+    "doc": "Default pseudorandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_PSEUDO_MRG32K3A": {
+    "doc": "MRG32k3a pseudorandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_PSEUDO_MT19937": {
+    "doc": "Mersenne Twister MT19937 pseudorandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_PSEUDO_MTGP32": {
+    "doc": "Mersenne Twister MTGP32 pseudorandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_PSEUDO_PHILOX4_32_10": {
+    "doc": "PHILOX-4x32-10 pseudorandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_PSEUDO_XORWOW": {
+    "doc": "XORWOW pseudorandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_QUASI_DEFAULT": {
+    "doc": "Default quasirandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_QUASI_SCRAMBLED_SOBOL32": {
+    "doc": "Scrambled Sobol32 quasirandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_QUASI_SCRAMBLED_SOBOL64": {
+    "doc": "Scrambled Sobol64 quasirandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_QUASI_SOBOL32": {
+    "doc": "Sobol32 quasirandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_RNG_QUASI_SOBOL64": {
+    "doc": "Sobol64 quasirandom generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1ge4d4f19934ced528dd541ff1dafbb0db"
+  },
+  "CURAND_SCRAMBLED_DIRECTION_VECTORS_32_JOEKUO6": {
+    "doc": "Specific set of 32-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions, and scrambled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g60d34e2eadf8aa70831a695bd0333e44"
+  },
+  "CURAND_SCRAMBLED_DIRECTION_VECTORS_64_JOEKUO6": {
+    "doc": "Specific set of 64-bit direction vectors generated from polynomials recommended by S. Joe and F. Y. Kuo, for up to 20,000 dimensions, and scrambled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1g60d34e2eadf8aa70831a695bd0333e44"
+  },
+  "CURAND_STATUS_ALLOCATION_FAILED": {
+    "doc": "Memory allocation failed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_ARCH_MISMATCH": {
+    "doc": "Architecture mismatch, GPU does not support requested feature.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_DOUBLE_PRECISION_REQUIRED": {
+    "doc": "GPU does not have double precision required by MRG32k3a.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_INITIALIZATION_FAILED": {
+    "doc": "Initialization of CUDA failed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_INTERNAL_ERROR": {
+    "doc": "Internal library error.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_LAUNCH_FAILURE": {
+    "doc": "Kernel launch failure.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_LENGTH_NOT_MULTIPLE": {
+    "doc": "Length requested is not a multple of dimension.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_NOT_INITIALIZED": {
+    "doc": "Generator not initialized.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_OUT_OF_RANGE": {
+    "doc": "Argument out of range.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_PREEXISTING_FAILURE": {
+    "doc": "Preexisting failure on library entry.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_SUCCESS": {
+    "doc": "No errors.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_TYPE_ERROR": {
+    "doc": "Generator is wrong type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  },
+  "CURAND_STATUS_VERSION_MISMATCH": {
+    "doc": "Header file and linked library version do not match.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437"
+  }
+}

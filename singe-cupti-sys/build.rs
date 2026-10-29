@@ -1,3 +1,5 @@
+//! Discovers CUPTI libraries and emits Cargo linker metadata.
+
 use singe_cuda_find::{
     emit_dependency_metadata, emit_link_libraries, emit_rerun_if_env_changed,
     emit_static_link_libraries, find_cuda_runtime, find_cupti,

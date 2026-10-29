@@ -1,22 +1,24 @@
 use std::{
     env,
+    error::Error,
     fs::{self, File, OpenOptions},
     io::{self, Write},
     os::unix::fs::OpenOptionsExt,
     path::Path,
+    process,
 };
 
-use singe_cuda::{device::Device, memory::DeviceMemory};
+use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
 use singe_cufile::{driver::Driver, file::FileHandle};
 
 const SIZE: usize = 1024 * 1024;
 const O_DIRECT: i32 = 0o40000;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = env::args().collect();
     if args.len() != 4 {
         eprintln!("usage: {} <input-file> <output-file> <gpu-id>", args[0]);
-        std::process::exit(2);
+        process::exit(2);
     }
 
     let input_path = Path::new(&args[1]);
@@ -27,22 +29,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("input and output files must be different".into());
     }
 
-    Device::new(gpu_id).set_current()?;
-    let _driver = Driver::create()?;
+    let context = Context::retain_primary_for_device(Device::new(gpu_id))?;
+    context.bind()?;
+    let driver = Driver::create()?;
 
     create_pattern_file(input_path, SIZE)?;
 
     let input = open_direct_read(input_path)?;
     let output = open_direct_write(output_path)?;
-    let input = FileHandle::create(&input)?;
-    let output = FileHandle::create(&output)?;
+    let input = FileHandle::create(&driver, &input)?;
+    let output = FileHandle::create(&driver, &output)?;
 
-    let mut device = DeviceMemory::<u8>::zeroes(SIZE)?;
+    let mut device = DeviceMemory::<u8>::create_uninit(&context, SIZE)?;
 
     // Read directly from storage into GPU memory, then write the same GPU buffer
     // back out to another file. The wrapper keeps the cuFile handle lifecycle
     // scoped to ordinary Rust values.
     let read = input.read(&mut device, SIZE, 0, 0)?;
+    // SAFETY: synchronous file I/O initialized exactly the returned byte count.
+    let device = unsafe { device.assume_init_prefix(read)? };
     let written = output.write(&device, read, 0, 0)?;
     drop(output);
 

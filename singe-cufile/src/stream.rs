@@ -1,39 +1,63 @@
 use std::{
     marker::{PhantomData, PhantomPinned},
-    mem::size_of,
+    mem,
     pin::Pin,
-    ptr::NonNull,
+    process,
+    sync::Arc,
 };
 
 use singe_cuda::{
-    memory::{DeviceMemory, HostAllocationFlags},
+    context::Context,
+    memory::{HostAllocationFlags, PinnedHostMemory},
     stream::StreamBinding,
 };
 use singe_cufile_sys as sys;
 
 use crate::{
     buffer::{IoBuffer, IoBufferMut},
+    driver::Driver,
     error::{Error, Result},
-    file::{FileHandle, checked_io_size, operation_result},
+    file::{FileHandle, checked_io_size, io_pointer, operation_result, prepare_buffer},
     try_ffi,
     types::StreamRegisterFlags,
     utility::{to_i64, to_u64},
 };
 
+/// A cuFile stream registration retaining its stream binding and driver session.
 #[derive(Debug)]
 pub struct RegisteredStream {
     binding: StreamBinding,
+    driver: Arc<Driver>,
 }
 
 impl RegisteredStream {
-    pub fn register(binding: StreamBinding, flags: StreamRegisterFlags) -> Result<Self> {
+    /// Registers a native stream whose lifecycle is coordinated by its caller.
+    ///
+    /// # Safety
+    /// Keep foreign borrowed streams alive through deregistration and do not deregister during capture.
+    /// Complete queued work before releasing any resources used by its I/O.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if binding the stream's CUDA context fails or cuFile rejects the stream registration or flags.
+    pub unsafe fn register(
+        driver: &Arc<Driver>,
+        binding: StreamBinding,
+        flags: StreamRegisterFlags,
+    ) -> Result<Self> {
         binding.context().bind()?;
+        // SAFETY: `cuFileStreamRegister` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cuFileStreamRegister(binding.as_raw(), flags.bits()))?;
         }
-        Ok(Self { binding })
+        Ok(Self {
+            binding,
+            driver: Arc::clone(driver),
+        })
     }
 
+    /// Returns the retained CUDA stream binding.
+    #[must_use]
     pub fn binding(&self) -> &StreamBinding {
         &self.binding
     }
@@ -41,19 +65,34 @@ impl RegisteredStream {
 
 impl Drop for RegisteredStream {
     fn drop(&mut self) {
-        unsafe {
-            let _ = sys::cuFileStreamDeregister(self.binding.as_raw());
+        if self
+            .binding
+            .context()
+            .bind()
+            .map_err(Error::from)
+            .and_then(|()| {
+                // SAFETY: registration retains the binding and its driver through native deregistration.
+                unsafe { try_ffi!(sys::cuFileStreamDeregister(self.binding.as_raw())) }
+            })
+            .is_err()
+        {
+            // Keep native registration dependencies alive when deregistration cannot be established.
+            mem::forget(self.binding.clone());
+            mem::forget(Arc::clone(&self.driver));
         }
     }
 }
 
+/// A pending I/O operation retaining pinned completion status and its file and buffer borrows.
+///
+/// Waiting or dropping the operation synchronizes its stream before releasing these resources.
 #[derive(Debug)]
 pub struct AsyncIo<'a> {
     state: Pin<Box<AsyncIoState>>,
     stream: StreamBinding,
-    _file: PhantomData<&'a FileHandle>,
+    _file: FileHandle,
     _buffer: PhantomData<&'a mut ()>,
-    _stream: PhantomData<&'a StreamBinding>,
+    completed: bool,
 }
 
 #[derive(Debug)]
@@ -67,58 +106,60 @@ struct AsyncIoState {
 
 #[derive(Debug)]
 struct HostStatus {
-    ptr: NonNull<i64>,
+    memory: PinnedHostMemory<i64>,
 }
 
 impl HostStatus {
-    fn create() -> Result<Self> {
-        let ptr = unsafe {
-            DeviceMemory::<u8>::alloc_pinned(size_of::<i64>(), HostAllocationFlags::DEFAULT)?
-        };
-        let ptr = NonNull::new(ptr.cast::<i64>()).ok_or(Error::NullHandle)?;
-        unsafe {
-            ptr.as_ptr().write(0);
-        }
-        Ok(Self { ptr })
+    fn create(context: &Arc<Context>) -> Result<Self> {
+        Ok(Self {
+            memory: PinnedHostMemory::zeroed(context, 1, HostAllocationFlags::DEFAULT)?,
+        })
     }
 
     fn as_mut_ptr(&mut self) -> *mut i64 {
-        self.ptr.as_ptr()
+        self.memory.as_mut_ptr()
     }
 
     fn get(&self) -> i64 {
-        unsafe { self.ptr.as_ptr().read() }
-    }
-}
-
-impl Drop for HostStatus {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = DeviceMemory::<u8>::free_host(self.ptr.as_ptr().cast());
-        }
+        self.memory.as_slice()[0]
     }
 }
 
 impl<'a> AsyncIo<'a> {
-    pub fn read<B>(
-        file: &'a FileHandle,
+    /// Enqueues a borrowed read whose representation and lifetimes are established by its caller.
+    ///
+    /// # Safety
+    /// Retain the buffer and exclusive access until stream completion, even after errors or forgotten handles.
+    /// File bytes must leave valid element values or storage that remains explicitly uninitialized.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer length cannot be computed, the requested byte range exceeds the buffer, or a size or offset exceeds its native integer range.
+    /// Also returns an error if CUDA readiness, capture checks, or context binding fails, or cuFile reports an I/O error.
+    /// The buffer and stream must belong to the same CUDA context; allocating the pinned completion status can also fail.
+    pub unsafe fn read<B>(
+        file: &FileHandle,
         buffer: &'a mut B,
         size: usize,
         file_offset: u64,
         buffer_offset: u64,
-        stream: &'a StreamBinding,
+        stream: &StreamBinding,
     ) -> Result<Self>
     where
         B: IoBufferMut + ?Sized,
     {
-        stream.context().bind()?;
+        prepare_buffer(buffer, Some(stream))?;
         let size = checked_io_size(buffer.byte_len()?, size, buffer_offset)?;
-        let mut operation = Self::create(size, file_offset, buffer_offset, stream)?;
+        let pointer = buffer.ptr_mut();
+        let (pointer, native_offset) = io_pointer(buffer, pointer, size, buffer_offset)?;
+        let mut operation = Self::create(file, size, file_offset, native_offset as u64, stream)?;
+        // SAFETY: the caller upholds this function's safety contract.
         let state = unsafe { operation.state.as_mut().get_unchecked_mut() };
+        // SAFETY: `cuFileReadAsync` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cuFileReadAsync(
                 file.as_raw(),
-                buffer.ptr_mut().as_mut() as _,
+                pointer.cast(),
                 &raw mut state.size,
                 &raw mut state.file_offset,
                 &raw mut state.buffer_offset,
@@ -129,25 +170,39 @@ impl<'a> AsyncIo<'a> {
         Ok(operation)
     }
 
-    pub fn write<B>(
-        file: &'a FileHandle,
+    /// Enqueues a borrowed write from externally established initialized bytes.
+    ///
+    /// # Safety
+    /// Input bytes must be initialized when accessed, with prior producers ordered before this I/O.
+    /// Retain backing storage and read access until stream completion on every path, including forgotten handles.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer length cannot be computed, the requested byte range exceeds the buffer, or a size or offset exceeds its native integer range.
+    /// Also returns an error if CUDA readiness, capture checks, or context binding fails, or cuFile reports an I/O error.
+    /// The buffer and stream must belong to the same CUDA context; allocating the pinned completion status can also fail.
+    pub unsafe fn write<B>(
+        file: &FileHandle,
         buffer: &'a B,
         size: usize,
         file_offset: u64,
         buffer_offset: u64,
-        stream: &'a StreamBinding,
+        stream: &StreamBinding,
     ) -> Result<Self>
     where
         B: IoBuffer + ?Sized,
     {
-        stream.context().bind()?;
+        prepare_buffer(buffer, Some(stream))?;
         let size = checked_io_size(buffer.byte_len()?, size, buffer_offset)?;
-        let mut operation = Self::create(size, file_offset, buffer_offset, stream)?;
+        let (pointer, native_offset) = io_pointer(buffer, buffer.ptr(), size, buffer_offset)?;
+        let mut operation = Self::create(file, size, file_offset, native_offset as u64, stream)?;
+        // SAFETY: the caller upholds this function's safety contract.
         let state = unsafe { operation.state.as_mut().get_unchecked_mut() };
+        // SAFETY: `cuFileWriteAsync` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cuFileWriteAsync(
                 file.as_raw(),
-                buffer.ptr().as_mut() as _,
+                pointer.cast(),
                 &raw mut state.size,
                 &raw mut state.file_offset,
                 &raw mut state.buffer_offset,
@@ -158,15 +213,31 @@ impl<'a> AsyncIo<'a> {
         Ok(operation)
     }
 
-    pub fn bytes_transferred(&self) -> Result<usize> {
+    /// Reads native completion status after the caller establishes successful stream completion.
+    ///
+    /// # Safety
+    /// The stream must have completed this operation; no native status write may still be in flight.
+    ///
+    /// # Errors
+    ///
+    /// Returns a cuFile or operating-system error for a negative native result, or an error if the byte count cannot be represented as `usize`.
+    pub unsafe fn bytes_transferred(&self) -> Result<usize> {
         operation_result(self.state.bytes_transferred.get())
     }
 
+    /// Returns the byte count stored in the native submission state.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the native size no longer fits `usize`; construction validates the original size as a host byte length.
+    #[must_use]
     pub fn requested_size(&self) -> usize {
-        self.state.size as usize
+        usize::try_from(self.state.size)
+            .expect("requested size was validated as a host byte length")
     }
 
     fn create(
+        file: &FileHandle,
         size: usize,
         file_offset: u64,
         buffer_offset: u64,
@@ -177,27 +248,38 @@ impl<'a> AsyncIo<'a> {
                 size: to_u64(size, "size")?,
                 file_offset: to_i64(file_offset, "file_offset")?,
                 buffer_offset: to_i64(buffer_offset, "buffer_offset")?,
-                bytes_transferred: HostStatus::create()?,
+                bytes_transferred: HostStatus::create(stream.context())?,
                 _pin: PhantomPinned,
             }),
             stream: stream.clone(),
-            _file: PhantomData,
+            _file: file.clone(),
             _buffer: PhantomData,
-            _stream: PhantomData,
+            completed: false,
         })
+    }
+}
+
+impl AsyncIo<'_> {
+    /// Completes native stream work before inspecting its pinned status.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if stream synchronization fails or the completed operation reports an I/O failure or an unrepresentable byte count.
+    pub fn wait(mut self) -> Result<usize> {
+        self.stream.synchronize()?;
+        self.completed = true;
+        // SAFETY: successful stream synchronization includes the native I/O and status write.
+        unsafe { self.bytes_transferred() }
     }
 }
 
 impl Drop for AsyncIo<'_> {
     fn drop(&mut self) {
-        let result = match &self.stream {
-            StreamBinding::Default(context) => context.synchronize(),
-            StreamBinding::Borrowed(stream) => stream.synchronize(),
-            _ => Ok(()),
-        };
-        if let Err(err) = result {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to synchronize stream before dropping cufile async io: {err}");
+        if !self.completed && self.stream.synchronize().is_err() {
+            // Retry before releasing pinned status or the caller's borrowed storage.
+            if self.stream.synchronize().is_err() {
+                process::abort();
+            }
         }
     }
 }

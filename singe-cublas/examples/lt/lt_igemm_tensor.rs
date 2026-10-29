@@ -9,6 +9,7 @@ use singe_cublas::{
     },
     types::{ComputeType, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
 };
@@ -25,20 +26,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&vec![1_i8; (M * K) as usize])?;
-    let b = DeviceMemory::from_slice(&vec![1_i8; (K * N) as usize])?;
-    let mut c = DeviceMemory::<i32>::zeroes((M * N) as usize)?;
+    let a = DeviceMemory::from_slice(&cuda, &vec![1_i8; (M * K) as usize])?;
+    let b = DeviceMemory::from_slice(&cuda, &vec![1_i8; (K * N) as usize])?;
+    let mut c = DeviceMemory::<i32>::zeroed(&cuda, (M * N) as usize)?;
 
     let ldatransform = 32 * M;
     let ldbtransform = 32 * round_up(N, 8);
     let ldctransform = 32 * M;
 
     let mut a_transform =
-        DeviceMemory::<i8>::zeroes((round_up(K, 32) / 32 * ldatransform) as usize)?;
+        DeviceMemory::<i8>::zeroed(&cuda, (round_up(K, 32) / 32 * ldatransform) as usize)?;
     let mut b_transform =
-        DeviceMemory::<i8>::zeroes((round_up(K, 32) / 32 * ldbtransform) as usize)?;
+        DeviceMemory::<i8>::zeroed(&cuda, (round_up(K, 32) / 32 * ldbtransform) as usize)?;
     let mut c_transform =
-        DeviceMemory::<i32>::zeroes((round_up(N, 32) / 32 * ldctransform) as usize)?;
+        DeviceMemory::<i32>::zeroed(&cuda, (round_up(N, 32) / 32 * ldctransform) as usize)?;
 
     let a_layout = MatrixLayout::create(DataType::I8, M, K, M as i64)?;
     let b_layout = MatrixLayout::create(DataType::I8, K, N, K as i64)?;
@@ -90,24 +91,28 @@ fn main() -> Result<(), Box<dyn Error>> {
     let alpha = 1_i32;
     let beta = 0_i32;
     let c_accumulator =
-        DeviceMemory::<i32>::zeroes((round_up(N, 32) / 32 * ldctransform) as usize)?;
-    matmul(
-        &lt,
-        &desc,
-        &alpha,
-        &a_transform,
-        &a_transform_layout,
-        &b_transform,
-        &b_transform_layout,
-        &beta,
-        &c_accumulator,
-        &c_transform_layout,
-        &mut c_transform,
-        &c_transform_layout,
-        None,
-        None,
-        None,
-    )?;
+        DeviceMemory::<i32>::zeroed(&cuda, (round_up(N, 32) / 32 * ldctransform) as usize)?;
+    // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
+    unsafe {
+        matmul(
+            &lt,
+            &desc,
+            &alpha,
+            &a_transform,
+            &a_transform_layout,
+            &b_transform,
+            &b_transform_layout,
+            &beta,
+            &c_accumulator,
+            &c_transform_layout,
+            &mut c_transform,
+            &c_transform_layout,
+            None,
+            None,
+            None,
+        )
+    }?;
+    cuda.synchronize()?;
 
     transform_desc.set_transpose_a(Operation::NonTranspose)?;
     matrix_transform(

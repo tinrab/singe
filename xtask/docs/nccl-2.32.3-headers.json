@@ -1,0 +1,1042 @@
+{
+  "NCCL_API_MAGIC": {
+    "doc": "Internal use only",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_COLLCONFIG_INITIALIZER": {
+    "doc": "NCCL_COLLCONFIG_INITIALIZER must be used to initialize a ncclCollConfig_t when it is created. An uninitialized config will result in a NCCL error.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_CONFIG_INITIALIZER": {
+    "doc": "Config initializer must be assigned to initialize config structure when it is created. Not initialized config will result in NCCL error.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_CTA_POLICY_DEFAULT": {
+    "doc": "NCCL performance policy",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_ENCRYPTION_MODE_NONE": {
+    "doc": "plaintext",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_ENCRYPTION_MODE_PSK": {
+    "doc": "PSK is set",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_GIN_BACKEND_MASK_ALL": {
+    "doc": "No GIN backends on Windows",
+    "members": {},
+    "source": "gin_win_stub.h"
+  },
+  "NCCL_GIN_TYPE_EFA_GDA": {
+    "doc": "Must match NCCL_NET_DEVICE_GIN_EFA_GDA for backward compatibility",
+    "members": {},
+    "source": "core.h"
+  },
+  "NCCL_GIN_TYPE_GDAKI": {
+    "doc": "intentionally not 2. Must match NCCL_NET_DEVICE_GIN_GDAKI for backward compatibility",
+    "members": {},
+    "source": "core.h"
+  },
+  "NCCL_GIN_TYPE_GPI": {
+    "doc": "Must match NCCL_NET_DEVICE_GIN_GPI",
+    "members": {},
+    "source": "core.h"
+  },
+  "NCCL_GIN_TYPE_NONE": {
+    "doc": "Sentinel: accept any available backend (used in ncclDevCommRequirements)",
+    "members": {},
+    "source": "core.h"
+  },
+  "NCCL_GIN_TYPE_PROXY": {
+    "doc": "intentionally not 1. Must match NCCL_NET_DEVICE_GIN_PROXY for backward compatibility",
+    "members": {},
+    "source": "core.h"
+  },
+  "NCCL_MAJOR": {
+    "doc": "Major component of the NCCL version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nccl.h"
+  },
+  "NCCL_MINOR": {
+    "doc": "Minor component of the NCCL version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nccl.h"
+  },
+  "NCCL_PATCH": {
+    "doc": "Patch component of the NCCL version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nccl.h"
+  },
+  "NCCL_REVOKE_DEFAULT": {
+    "doc": "ncclCommRevoke flags",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_SHRINK_ABORT": {
+    "doc": "shrink the parent communicator",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_SHRINK_DEFAULT": {
+    "doc": "ncclCommShrink flags",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_SIM_INFO_INITIALIZER": {
+    "doc": "NCCL_SIM_INFO_INITIALIZER must be assigned to initialize simInfo structure when it is created. Not initialized simInfo will result in NCCL error.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_SUSPEND_MEM": {
+    "doc": "Communicator suspend flags",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_VERSION_CODE": {
+    "doc": "Compile-time NCCL version code. This identifies the headers used to generate these bindings, which may differ from the loaded library.",
+    "kind": "constant",
+    "source": "nccl.h"
+  },
+  "NCCL_WIN_CFT_COUNTED": {
+    "doc": "Restrict window registration to CFT COUNTED only. By default, register for non-COUNTED LEs.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_WIN_DEFAULT": {
+    "doc": "Window Registration flags",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "NCCL_WIN_GIN_ONLY": {
+    "doc": "Restrict window registration to GIN only. By default, register for all supported capabilities.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclAllGather": {
+    "doc": "All-Gather\n\nEach device gathers sendcount values from other GPUs into recvbuff, receiving data from rank i at offset i*sendcount. Assumes recvcount is equal to nranks*sendcount, which means that recvbuff should have a size of at least nranks*sendcount elements.\n\nIn-place operations will happen if sendbuff == recvbuff + rank * sendcount.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclAllReduce": {
+    "doc": "All-Reduce\n\nReduces data arrays of length count in sendbuff using op operation, and leaves identical copies of result on each recvbuff.\n\nIn-place operation will happen if sendbuff == recvbuff.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclAllReduceConfig": {
+    "doc": "nccl*Config: per-collective-config variant of every collective. It takes a trailing ncclCollConfig_t describing per-call customization. Initialize the config with NCCL_COLLCONFIG_INITIALIZER and set it identically on every rank. config == NULL is equivalent to the plain API.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclAlltoAll": {
+    "doc": "All-to-All\n\nEach device sends count values to all other devices and receives count values from all other devices. Data to send to destination rank j is taken from sendbuff+j*count and data received from source rank i is placed at recvbuff+i*count.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclBcast": {
+    "doc": "(deprecated) Broadcast (in-place)\n\nCopies count values from root to all other devices. root is the rank (not the CUDA device) where data resides before the operation is started.\n\nThis operation is implicitely in place.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclBroadcast": {
+    "doc": "Broadcast\n\nCopies count values from root to all other devices. root is the rank (not the CUDA device) where data resides before the operation is started.\n\nIn-place operation will happen if sendbuff == recvbuff.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCollConfig_t": {
+    "doc": "Per-collective configuration. Users assign values to attributes to customize an individual collective call issued through one of the nccl*Config() entry points. Like ncclConfig_t, this is a versioned, append-only struct: in the future, any new members will be added at the end, and existing members will never be removed or reordered. The user owns the storage and must keep the struct (and any linked ncclConfigExt_t) valid for the duration of every call that uses it. The same configuration must be set on every rank; NCCL validates it only locally.",
+    "members": {
+      "CTAPolicy": {
+        "doc": "NCCL_CTA_POLICY_* bitmask; UNDEF == inherit comm-level CTAPolicy"
+      },
+      "algSelection": {
+        "doc": "selection string; NULL/UNDEF/\"\" == automatic"
+      },
+      "cgaClusterSize": {
+        "doc": "CUDA thread-block-cluster size (Hopper+), should be the same for all collectives in the same Group. Inconsistent cgaClusterSize in a Group is undefined behavior."
+      },
+      "ext": {
+        "doc": "non-circular linked list of vendor-specific extension options, or NULL."
+      },
+      "forceAlgSelection": {
+        "doc": "default 1 (true): unsatisfiable selection is an error"
+      },
+      "launchCompletionEvent": {
+        "doc": "Caller-owned, rank-local CUDA event recorded at collective kernel launch completion. Create it with cudaEventDisableTiming; interprocess and interop events are unsupported. Every rank must provide a non-NULL event or every rank must provide NULL. Keep the event alive through all queued waits and captured-graph executions. At most one non-NULL event per communicator is supported in a group. CUDA < 12.3 records it before launch."
+      },
+      "maxCTAs": {
+        "doc": "upper bound on channels/CTAs, must be <= comm->maxCTAs"
+      },
+      "minCTAs": {
+        "doc": "lower bound on channels/CTAs"
+      },
+      "nvlsCTAs": {
+        "doc": "NVLS-pool-specific channel cap"
+      },
+      "size": {
+        "doc": "attributes that users should never touch."
+      },
+      "userProfilerTag": {
+        "doc": "user-provided profiler tag: an opaque value delivered verbatim to profiler plugins with this call's profiler events. Default to 0 as untagged. It does not affect execution. NCCL reserves profiler-tag values with the most-significant bit set (>= 0x8000000000000000) for possible future predefined tags; applications should use values with the MSB clear."
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclCollConfig_v23200": {
+    "doc": "Per-collective configuration. Users assign values to attributes to customize an individual collective call issued through one of the nccl*Config() entry points. Like ncclConfig_t, this is a versioned, append-only struct: in the future, any new members will be added at the end, and existing members will never be removed or reordered. The user owns the storage and must keep the struct (and any linked ncclConfigExt_t) valid for the duration of every call that uses it. The same configuration must be set on every rank; NCCL validates it only locally.",
+    "members": {
+      "CTAPolicy": {
+        "doc": "NCCL_CTA_POLICY_* bitmask; UNDEF == inherit comm-level CTAPolicy"
+      },
+      "algSelection": {
+        "doc": "selection string; NULL/UNDEF/\"\" == automatic"
+      },
+      "cgaClusterSize": {
+        "doc": "CUDA thread-block-cluster size (Hopper+), should be the same for all collectives in the same Group. Inconsistent cgaClusterSize in a Group is undefined behavior."
+      },
+      "ext": {
+        "doc": "non-circular linked list of vendor-specific extension options, or NULL."
+      },
+      "forceAlgSelection": {
+        "doc": "default 1 (true): unsatisfiable selection is an error"
+      },
+      "launchCompletionEvent": {
+        "doc": "Caller-owned, rank-local CUDA event recorded at collective kernel launch completion. Create it with cudaEventDisableTiming; interprocess and interop events are unsupported. Every rank must provide a non-NULL event or every rank must provide NULL. Keep the event alive through all queued waits and captured-graph executions. At most one non-NULL event per communicator is supported in a group. CUDA < 12.3 records it before launch."
+      },
+      "maxCTAs": {
+        "doc": "upper bound on channels/CTAs, must be <= comm->maxCTAs"
+      },
+      "minCTAs": {
+        "doc": "lower bound on channels/CTAs"
+      },
+      "nvlsCTAs": {
+        "doc": "NVLS-pool-specific channel cap"
+      },
+      "size": {
+        "doc": "attributes that users should never touch."
+      },
+      "userProfilerTag": {
+        "doc": "user-provided profiler tag: an opaque value delivered verbatim to profiler plugins with this call's profiler events. Default to 0 as untagged. It does not affect execution. NCCL reserves profiler-tag values with the most-significant bit set (>= 0x8000000000000000) for possible future predefined tags; applications should use values with the MSB clear."
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclCommAbort": {
+    "doc": "Frees resources associated with communicator object and aborts any operations that might still be running on the device.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommCount": {
+    "doc": "Gets the number of ranks in the communicator clique.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommCuDevice": {
+    "doc": "Returns the cuda device number associated with the communicator.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommDeregister": {
+    "doc": "Deregister CUDA buffer",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommDestroy": {
+    "doc": "Frees local resources associated with communicator object.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommFinalize": {
+    "doc": "Finalize a communicator. ncclCommFinalize flushes all issued communications, and marks communicator state as ncclInProgress. The state will change to ncclSuccess when the communicator is globally quiescent and related resources are freed; then, calling ncclCommDestroy can locally free the rest of the resources (e.g. communicator itself) without blocking.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommGetAsyncError": {
+    "doc": "Checks whether the comm has encountered any asynchronous errors",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommGetUniqueId": {
+    "doc": "Generate per-communicator unique ID for grow. Constraints:\n- Cannot generate a new UID while a previous UID is unconsumed\n- Each UID can only be used once (no reuse after consumption)\n- Must wait for grow operation to complete before calling again",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommGrow": {
+    "doc": "Grow communicator by adding new ranks. Parameter usage:\n- Existing non-root: comm, uniqueId=NULL, rank=-1\n- Existing root: comm, uniqueId=&id, rank=-1\n- New ranks: comm=NULL, uniqueId=&id, rank=assigned The UID is consumed upon successful grow and cannot be reused.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommInitAll": {
+    "doc": "Creates a clique of communicators (single process version). This is a convenience function to create a single-process communicator clique. Returns an array of ndev newly initialized communicators in comm. comm should be pre-allocated with size at least ndev*sizeof(ncclComm_t). If devlist is NULL, the first ndev CUDA devices are used. Order of devlist defines user-order of processors within the communicator.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommInitRank": {
+    "doc": "Creates a new communicator (multi thread/process version). rank must be between 0 and nranks-1 and unique within a communicator clique. Each rank is associated to a CUDA device, which has to be set before calling ncclCommInitRank. ncclCommInitRank implicitly syncronizes with other ranks, so it must be called by different threads/processes or use ncclGroupStart/ncclGroupEnd.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommInitRankConfig": {
+    "doc": "Create a new communicator (multi thread/process version) with a configuration set by users.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommInitRankScalable": {
+    "doc": "Creates a new communicator (multi thread/process version), similar to ncclCommInitRankConfig. Allows to use more than one ncclUniqueId (up to one per rank), indicated by nId, to accelerate the init operation. The number of ncclUniqueIds and their order must be the same for every rank.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommMemStat_t": {
+    "doc": "Communicator memory statistics",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommMemStats": {
+    "doc": "ncclCommMemStats\n\nQuery communicator memory statistics.\n\nstat: One of ncclCommMemStat_t values value: Output pointer to receive the memory statistic value",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommProperties": {
+    "doc": "clang-format on",
+    "members": {
+      "ginSupport": {
+        "doc": "ginSupport[i] is true if gin type i is supported"
+      },
+      "rank": {
+        "doc": "attributes for users."
+      },
+      "size": {
+        "doc": "internal use only"
+      }
+    },
+    "source": "host.h"
+  },
+  "ncclCommProperties_t": {
+    "doc": "clang-format on",
+    "members": {
+      "ginSupport": {
+        "doc": "ginSupport[i] is true if gin type i is supported"
+      },
+      "rank": {
+        "doc": "attributes for users."
+      },
+      "size": {
+        "doc": "internal use only"
+      }
+    },
+    "source": "host.h"
+  },
+  "ncclCommQueryProperties": {
+    "doc": "///////////////////////////////////////////////////////////////////////////// Device communicator API:",
+    "kind": "function",
+    "members": {},
+    "source": "host.h"
+  },
+  "ncclCommRegister": {
+    "doc": "Register CUDA buffer for zero-copy operation",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommResume": {
+    "doc": "ncclCommResume\n\nResume all previously suspended communicator resources.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommRevoke": {
+    "doc": "Revoke a communicator. ncclCommRevoke stops all in-flight operations and marks communicator state as ncclInProgress. The state will change to ncclSuccess when the communicator is quiescent; then, management operations (destroy, split, shrink) can proceed safely. Calling ncclCommFinalize after revoke is invalid. Additionally, resource sharing via splitShare/shrinkShare is disabled while revoked. revokeFlags must be NCCL_REVOKE_DEFAULT (0).",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommShrink": {
+    "doc": "Shrink existing communicator. Ranks in excludeRanksList will be removed form the existing communicator. Within the new communicator, ranks will be re-ordered to fill the gap of removed ones. If config is NULL, the new communicator will inherit the original communicator's configuration The flag enables NCCL to adapt to various states of the parent communicator, see NCCL_SHRINK flags.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommSplit": {
+    "doc": "Creates one or more communicators from an existing one. Ranks with the same color will end up in the same communicator. Within the new communicator, key will be used to order ranks. NCCL_SPLIT_NOCOLOR as color will indicate the rank will not be part of any group and will therefore return a NULL communicator. If config is NULL, the new communicator will inherit the original communicator's configuration",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommSuspend": {
+    "doc": "ncclCommSuspend\n\nSuspend communicator operations to free resources. The communicator cannot be used while suspended.\n\nflags: NCCL_SUSPEND_MEM - Release dynamic GPU memory allocations",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommUserRank": {
+    "doc": "Returns the user-ordered \"rank\" associated with the communicator.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommWindowDeregister": {
+    "doc": "Deregister symmetric memory",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclCommWindowRegister": {
+    "doc": "Register memory window",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclComm_t": {
+    "doc": "Opaque handle to communicator",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclConfigExt": {
+    "doc": "A single vendor-specific option expressed as a key-value pair. Multiple options can be chained into a non-circular linked list through the next pointer and attached to a ncclCollConfig_t via its ext member. The official NCCL library ignores every extension; a vendor library should assign a unique value to key.vendorId to avoid collision among vendor libraries. It can usually be done by picking a random number. Vendors should choose a non-zero vendorId (less than 2^24) that is unlikely to collide with other vendor libraries. The list is unordered and must not contain duplicate keys.",
+    "members": {
+      "next": {
+        "doc": "next option in the list, or NULL to terminate"
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclConfigExt__bindgen_ty_1": {
+    "doc": "Native layout of the `key` member of `ncclConfigExt`.",
+    "members": {
+      "optionId": {
+        "doc": "vendor-defined id distinguishing options within a vendor"
+      },
+      "vendorId": {
+        "doc": "vendor choose their own unique value as vendorId"
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclConfigExt__bindgen_ty_2": {
+    "doc": "Native layout of the `val` member of `ncclConfigExt`.",
+    "members": {
+      "i": {
+        "doc": "integer value"
+      },
+      "raw": {
+        "doc": "opaque pointer-sized value"
+      },
+      "s": {
+        "doc": "C-style string value"
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclConfigExt_t": {
+    "doc": "A single vendor-specific option expressed as a key-value pair. Multiple options can be chained into a non-circular linked list through the next pointer and attached to a ncclCollConfig_t via its ext member. The official NCCL library ignores every extension; a vendor library should assign a unique value to key.vendorId to avoid collision among vendor libraries. It can usually be done by picking a random number. Vendors should choose a non-zero vendorId (less than 2^24) that is unlikely to collide with other vendor libraries. The list is unordered and must not contain duplicate keys.",
+    "members": {
+      "next": {
+        "doc": "next option in the list, or NULL to terminate"
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclConfig_t": {
+    "doc": "Communicator configuration. Users can assign value to attributes to specify the behavior of a communicator.",
+    "members": {
+      "blocking": {
+        "doc": "attributes that users are able to customize."
+      },
+      "size": {
+        "doc": "attributes that users should never touch."
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclConfig_v23100": {
+    "doc": "Communicator configuration. Users can assign value to attributes to specify the behavior of a communicator.",
+    "members": {
+      "blocking": {
+        "doc": "attributes that users are able to customize."
+      },
+      "size": {
+        "doc": "attributes that users should never touch."
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclDataType_t": {
+    "doc": "Data types",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclDevCommRequirements": {
+    "doc": "",
+    "members": {
+      "cftCaps": {
+        "doc": "Bitmask of ncclCftCap_t values"
+      },
+      "ginContextCount": {
+        "doc": "This is a hint, the actual context count in the devcomm may not match."
+      },
+      "ginCounterCount": {
+        "doc": "Guaranteed to start at id=0"
+      },
+      "ginCustomStride": {
+        "doc": "Stride of ranks to connect for GIN if ginConnectionType is NCCL_GIN_CONNECTION_CUSTOM_STRIDE."
+      },
+      "ginSignalCount": {
+        "doc": "Guaranteed to start at id=0"
+      },
+      "ginStrongSignalsRequired": {
+        "doc": "Set to false if GIN strong signals will not be needed by the kernels using this devComm (defaults to true). When false, the use of GIN strong signals results in undefined behavior."
+      },
+      "ginVaSignalsRequired": {
+        "doc": "Set to false if GIN VA signals will not be needed by the kernels using this devComm (defaults to true). When false, the use of GIN VA signals results in undefined behavior."
+      },
+      "lsaMultimem": {
+        "doc": "Enable multimem on lsa team"
+      },
+      "resourceRequirementsList": {
+        "doc": "attributes that users are able to customize."
+      },
+      "size": {
+        "doc": "attributes that users should never touch."
+      },
+      "useRuntimeVersion": {
+        "doc": "If true, initialize the devComm assuming the version of the device code is the same as the runtime version of the NCCL library (i.e., the device code is JIT-compiled). When true, the DevComm must be allocated according to devCommRuntimeVersionSize."
+      }
+    },
+    "source": "host.h"
+  },
+  "ncclDevCommRequirements_t": {
+    "doc": "",
+    "members": {
+      "cftCaps": {
+        "doc": "Bitmask of ncclCftCap_t values"
+      },
+      "ginContextCount": {
+        "doc": "This is a hint, the actual context count in the devcomm may not match."
+      },
+      "ginCounterCount": {
+        "doc": "Guaranteed to start at id=0"
+      },
+      "ginCustomStride": {
+        "doc": "Stride of ranks to connect for GIN if ginConnectionType is NCCL_GIN_CONNECTION_CUSTOM_STRIDE."
+      },
+      "ginSignalCount": {
+        "doc": "Guaranteed to start at id=0"
+      },
+      "ginStrongSignalsRequired": {
+        "doc": "Set to false if GIN strong signals will not be needed by the kernels using this devComm (defaults to true). When false, the use of GIN strong signals results in undefined behavior."
+      },
+      "ginVaSignalsRequired": {
+        "doc": "Set to false if GIN VA signals will not be needed by the kernels using this devComm (defaults to true). When false, the use of GIN VA signals results in undefined behavior."
+      },
+      "lsaMultimem": {
+        "doc": "Enable multimem on lsa team"
+      },
+      "resourceRequirementsList": {
+        "doc": "attributes that users are able to customize."
+      },
+      "size": {
+        "doc": "attributes that users should never touch."
+      },
+      "useRuntimeVersion": {
+        "doc": "If true, initialize the devComm assuming the version of the device code is the same as the runtime version of the NCCL library (i.e., the device code is JIT-compiled). When true, the DevComm must be allocated according to devCommRuntimeVersionSize."
+      }
+    },
+    "source": "host.h"
+  },
+  "ncclDevResourceRequirements": {
+    "doc": "",
+    "members": {
+      "outBufferHandle": {
+        "doc": "If non-null, target assigned during ncclDevCommCreate."
+      }
+    },
+    "source": "host.h"
+  },
+  "ncclDevResourceRequirements_t": {
+    "doc": "",
+    "members": {
+      "outBufferHandle": {
+        "doc": "If non-null, target assigned during ncclDevCommCreate."
+      }
+    },
+    "source": "host.h"
+  },
+  "ncclEncryptionConfig_t": {
+    "doc": "",
+    "members": {
+      "mode": {
+        "doc": "attributes that users are able to customize."
+      },
+      "size": {
+        "doc": "attributes that users should never touch."
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclEncryptionConfig_v23200": {
+    "doc": "",
+    "members": {
+      "mode": {
+        "doc": "attributes that users are able to customize."
+      },
+      "size": {
+        "doc": "attributes that users should never touch."
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclEncryptionMode_t": {
+    "doc": "Encryption\n\nRequest encryption of NCCL TCP sockets via user code.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclGather": {
+    "doc": "Gather\n\nEach rank sends count elements from sendbuff to the root rank. On the root rank, data from rank i is placed at recvbuff + i*count. On non-root ranks, recvbuff is not used. root is the rank where data will be gathered.\n\nIn-place operations will happen if sendbuff == recvbuff + root * count.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclGetErrorString": {
+    "doc": "Returns a string for each error code.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclGetLastError": {
+    "doc": "Returns a human-readable message of the last error that occurred.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclGetLsaMultimemDevicePointer": {
+    "doc": "VA pointer based query functions for host code",
+    "kind": "function",
+    "members": {},
+    "source": "host.h"
+  },
+  "ncclGetMultimemDeviceLeInfo": {
+    "doc": "CFT handle based query functions for host code",
+    "kind": "function",
+    "members": {},
+    "source": "host.h"
+  },
+  "ncclGetResourceBufferOffset": {
+    "doc": "Get offset of resource buffer within `comm.resourceWindow`.",
+    "kind": "function",
+    "members": {},
+    "source": "core.h"
+  },
+  "ncclGetUniqueId": {
+    "doc": "Generates an Id to be used in ncclCommInitRank. ncclGetUniqueId should be called once and the Id should be distributed to all ranks in the communicator before calling ncclCommInitRank.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclGetVersion": {
+    "doc": "Return the NCCL_VERSION_CODE of the NCCL library in the supplied integer. This integer is coded with the MAJOR, MINOR and PATCH level of the NCCL library",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclGroupEnd": {
+    "doc": "Group End\n\nEnd a group call. Start a fused NCCL operation consisting of all calls since ncclGroupStart. Operations on the CUDA stream depending on the NCCL operations need to be called after ncclGroupEnd.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclGroupSimulateEnd": {
+    "doc": "Group Simulate End\n\nSimulate a ncclGroupEnd() call and return NCCL's simulation info in a struct.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclGroupStart": {
+    "doc": "Group Start\n\nStart a group call. All calls to NCCL until ncclGroupEnd will be fused into a single NCCL operation. Nothing will be started on the CUDA stream until ncclGroupEnd.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclLsaBarrierCreateRequirement": {
+    "doc": "///////////////////////////////////////////////////////////////////////////// Device resource requirement API:",
+    "kind": "function",
+    "members": {},
+    "source": "host.h"
+  },
+  "ncclMaxRedOp": {
+    "doc": "ncclMaxRedOp: The largest valid value for ncclRedOp_t. It is defined to be the largest signed value (since compilers are permitted to use signed enums) that won't grow sizeof(ncclRedOp_t) when compared to previous NCCL versions to maintain ABI compatibility.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclMemAlloc": {
+    "doc": "NCCL malloc and free function for all types of NCCL optimizations (e.g. user buffer registration). The actual allocated size might be larger than requested due to granularity requirement.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclNetDeviceHandle_t": {
+    "doc": "",
+    "members": {
+      "netDeviceType": {
+        "doc": "Network offload type"
+      },
+      "netDeviceVersion": {
+        "doc": "Version number for network offload"
+      }
+    },
+    "source": "net_device.h"
+  },
+  "ncclNetDeviceHandle_v10_t": {
+    "doc": "",
+    "members": {
+      "netDeviceType": {
+        "doc": "Network offload type"
+      },
+      "netDeviceVersion": {
+        "doc": "Version number for network offload"
+      }
+    },
+    "source": "net_device.h"
+  },
+  "ncclNetDeviceHandle_v11_t": {
+    "doc": "",
+    "members": {
+      "netDeviceType": {
+        "doc": "Network offload type"
+      },
+      "netDeviceVersion": {
+        "doc": "Version number for network offload"
+      }
+    },
+    "source": "net_device.h"
+  },
+  "ncclNetDeviceHandle_v12_t": {
+    "doc": "",
+    "members": {
+      "netDeviceType": {
+        "doc": "Network offload type"
+      },
+      "netDeviceVersion": {
+        "doc": "Version number for network offload"
+      }
+    },
+    "source": "net_device.h"
+  },
+  "ncclNetDeviceHandle_v7_t": {
+    "doc": "",
+    "members": {
+      "netDeviceType": {
+        "doc": "Network offload type"
+      },
+      "netDeviceVersion": {
+        "doc": "Version number for network offload"
+      }
+    },
+    "source": "net_device.h"
+  },
+  "ncclNetDeviceHandle_v8_t": {
+    "doc": "",
+    "members": {
+      "netDeviceType": {
+        "doc": "Network offload type"
+      },
+      "netDeviceVersion": {
+        "doc": "Version number for network offload"
+      }
+    },
+    "source": "net_device.h"
+  },
+  "ncclNetDeviceHandle_v9_t": {
+    "doc": "",
+    "members": {
+      "netDeviceType": {
+        "doc": "Network offload type"
+      },
+      "netDeviceVersion": {
+        "doc": "Version number for network offload"
+      }
+    },
+    "source": "net_device.h"
+  },
+  "ncclNumOps": {
+    "doc": "ncclNumOps: The number of built-in ncclRedOp_t values. Also serves as the least possible value for dynamic ncclRedOp_t's as constructed by ncclRedOpCreate*** functions.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclNvlsHostModeDefault": {
+    "doc": "library default",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclNvlsHostModeDisable": {
+    "doc": "disable all present and future host NVLS components",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclNvlsHostModeDisableSymmetricMultimem": {
+    "doc": "disable multimem in internal symmetric kernels and CE",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclNvlsHostModeDisableTransport": {
+    "doc": "disable NVLS transport and registered-buffer optimization",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclNvlsHostModeEnable": {
+    "doc": "enable all host NVLS components",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclNvlsHostMode_t": {
+    "doc": "Host NVLS component-disable flags. Individual component flags may be combined.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclParamBind": {
+    "doc": "Look up the parameter identified by key and store a handle to it in out. The returned handle is owned by the parameter system and must not be freed by the caller.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclParamDumpAll": {
+    "doc": "Dump all parameters to log output. By default, the result includes only parameters published in NCCL documentation. Setting NCCL_PARAM_DUMP_ALL=true will include all parameters.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclParamGet": {
+    "doc": "Read the value of the parameter bound to h as raw binary data. The user needs to allocate a buffer for the result and the parameter value is copied into user buffer as bytes.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclParamGetAllParameterKeys": {
+    "doc": "Get all registered parameter keys. Returned pointer table is owned by the parameter system and is valid until the next ncclParamGetAllParameterKeys() call on the same thread. By default, the results include only parameters published in NCCL documentation. Setting NCCL_PARAM_DUMP_ALL=true will include all parameters.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclParamGetI8": {
+    "doc": "Read the value of the parameter bound to h as the type of out. Function names are suffixed with I/U and 8/16/32/64 for 8-, 16-, 32- and 64-bit signed and unsigned integers.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclParamGetParameter": {
+    "doc": "Get parameter value as string by key. Returned pointer is owned by the parameter system and is valid until the next ncclParamGetParameter() call on the same thread.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclParamGetStr": {
+    "doc": "Read the value of the parameter bound to h as a string. Returned pointer is owned by the parameter system and is valid until the next ncclParamGetStr() call on the same thread.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclParamHandle_t": {
+    "doc": "Handle-based API (allows typed access)\n\nHandles represents parameters and are opaque (internal details hidden).",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclPutSignal": {
+    "doc": "Put\n\nOne-sided communication operation that writes data from the local buffer to a remote peer's registered memory window without explicit participation from the target process.\n\nParameters: localbuff    - Local source buffer containing data to be transferred count        - Number of elements to transfer datatype     - NCCL data type of each element peer         - Target rank to write data to peerWin      - Memory window object registered by the target peer peerWinOffset- Offset in bytes from the start of peer's registered window sigIdx       - Signal index identifier for the operation ctx          - Context identifier for the operation flags        - Reserved for future use comm         - NCCL communicator stream       - CUDA stream to enqueue the operation on\n\nReturns: ncclSuccess on successful enqueue, error code otherwise",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclRedOpCreatePreMulSum": {
+    "doc": "ncclRedOpCreatePreMulSum\n\nCreates a new reduction operator which pre-multiplies input values by a given scalar locally before reducing them with peer values via summation. For use only with collectives launched against *comm* and *datatype*. The *residence* argument indicates how/when the memory pointed to by *scalar* will be dereferenced. Upon return, the newly created operator's handle is stored in *op*.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclRedOpDestroy": {
+    "doc": "ncclRedOpDestroy\n\nDestroys the reduction operator *op*. The operator must have been created by ncclRedOpCreatePreMul with the matching communicator *comm*. An operator may be destroyed as soon as the last NCCL function which is given that operator returns.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclRedOp_dummy_t": {
+    "doc": "Reduction operation selector",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclReduce": {
+    "doc": "Reduce\n\nReduces data arrays of length count in sendbuff into recvbuff using op operation. recvbuff may be NULL on all calls except for root device. root is the rank (not the CUDA device) where data will reside after the operation is complete.\n\nIn-place operation will happen if sendbuff == recvbuff.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclReduceScatter": {
+    "doc": "Reduce-Scatter\n\nReduces data in sendbuff using op operation and leaves reduced result scattered over the devices so that recvbuff on rank i will contain the i-th block of the result. Assumes sendcount is equal to nranks*recvcount, which means that sendbuff should have a size of at least nranks*recvcount elements.\n\nIn-place operations will happen if recvbuff == sendbuff + rank * recvcount.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclResult_t": {
+    "doc": "Error type",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclScalarDevice": {
+    "doc": "ncclScalarDevice: The scalar is in device-visible memory and will be dereferenced while the collective is running.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclScalarHostImmediate": {
+    "doc": "ncclScalarHostImmediate: The scalar is in host-visible memory and will be dereferenced before the ncclRedOpCreate***() function returns.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclScalarResidence_t": {
+    "doc": "ncclScalarResidence_t: Location and dereferencing logic for scalar arguments.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclScatter": {
+    "doc": "Scatter\n\nOn the root rank, count elements from sendbuff+i*count are sent to rank i. On non-root ranks, sendbuff is not used. Each rank receives count elements into recvbuff. root is the rank that will distribute the data.\n\nIn-place operations will happen if recvbuff == sendbuff + root * count.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclSend": {
+    "doc": "Send\n\nSend data from sendbuff to rank peer.\n\nRank peer needs to call ncclRecv with the same datatype and the same count from this rank.\n\nThis operation is blocking for the GPU. If multiple ncclSend and ncclRecv operations need to progress concurrently to complete, they must be fused within a ncclGroupStart/ ncclGroupEnd section.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclSignal": {
+    "doc": "Signal\n\nSends a signal to the specified peer without transferring data.\n\nParameters: peer         - Target rank to send signal to sigIdx       - Signal index identifier for the operation ctx          - Context identifier for the operation flags        - Reserved for future use comm         - NCCL communicator stream       - CUDA stream to enqueue the operation on\n\nReturns: ncclSuccess on successful signal enqueue, error code otherwise",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclSimInfo_t": {
+    "doc": "This struct will be used by ncclGroupSimulateEnd() API to query information about simulation.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclSimInfo_v22200": {
+    "doc": "This struct will be used by ncclGroupSimulateEnd() API to query information about simulation.",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclStatGpuMemPersist": {
+    "doc": "Allocated GPU memory that cannot be suspended (bytes)",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclStatGpuMemSuspend": {
+    "doc": "Allocated GPU memory that can be suspended (bytes)",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclStatGpuMemSuspended": {
+    "doc": "GPU memory suspended? (0=active, 1=suspended)",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclStatGpuMemTotal": {
+    "doc": "Total allocated GPU memory tracked by NCCL (bytes)",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclTeamRankInDifference": {
+    "doc": "Interpret each team as a set of ranks. This function assumes that `subset` is a subset of `parent`. Thus the number of ranks in the set difference of `parent` minus `subset` is `super.nRanks - subset.nRanks`. Given `index` this function returns the index'th element of `parent` minus `subset`.",
+    "kind": "function",
+    "members": {},
+    "source": "core.h"
+  },
+  "ncclTeamRequirements": {
+    "doc": "",
+    "members": {
+      "outMultimemHandle": {
+        "doc": "If non-null, target assigned during ncclDevCommCreate."
+      }
+    },
+    "source": "host.h"
+  },
+  "ncclTeamRequirements_t": {
+    "doc": "",
+    "members": {
+      "outMultimemHandle": {
+        "doc": "If non-null, target assigned during ncclDevCommCreate."
+      }
+    },
+    "source": "host.h"
+  },
+  "ncclTeamWorld": {
+    "doc": "///////////////////////////////////////////////////////////////////////////// Team API:",
+    "kind": "function",
+    "members": {},
+    "source": "host.h"
+  },
+  "ncclWaitSignal": {
+    "doc": "Wait Signal\n\nWaits for signals as described in the signal descriptor array.\n\nParameters: nDesc        - Number of signal descriptors in the array signalDescs  - Array of descriptors specifying the signals to wait for. Each descriptor indicates how many signals to expect from a specific peer on a particular signal index and context. comm         - NCCL communicator stream       - CUDA stream to enqueue the operation on\n\nReturns: ncclSuccess when all required signals received, error code otherwise",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclWaitSignalDesc_t": {
+    "doc": "Wait Signal Descriptor\n\nDescribes how many signal operations to wait for from a particular rank on a given signal index and context.",
+    "members": {
+      "ctx": {
+        "doc": "Context identifier"
+      },
+      "opCnt": {
+        "doc": "Number of signal operations to wait for"
+      },
+      "peer": {
+        "doc": "Target peer to wait for signals from"
+      },
+      "sigIdx": {
+        "doc": "Signal index identifier"
+      }
+    },
+    "source": "nccl.h"
+  },
+  "ncclWinGetUserPtr": {
+    "doc": "Get the user pointer from the window",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  },
+  "ncclWindow_vidmem_t": {
+    "doc": "typedef struct ncclWindow_vidmem* ncclWindow_t; // in nccl.h",
+    "members": {},
+    "source": "core.h"
+  },
+  "pncclRecv": {
+    "doc": "Receive\n\nReceive data from rank peer into recvbuff.\n\nRank peer needs to call ncclSend with the same datatype and the same count to this rank.\n\nThis operation is blocking for the GPU. If multiple ncclSend and ncclRecv operations need to progress concurrently to complete, they must be fused within a ncclGroupStart/ ncclGroupEnd section.",
+    "kind": "function",
+    "members": {},
+    "source": "nccl.h"
+  }
+}

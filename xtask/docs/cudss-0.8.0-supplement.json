@@ -1,0 +1,752 @@
+{
+  "CUDA_C_32F": {
+    "doc": "[`CUDSS_C_32F`](types.md#c.cudssDataType_t.CUDSS_C_32F \"CUDSS_C_32F\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDA_C_64F": {
+    "doc": "[`CUDSS_C_64F`](types.md#c.cudssDataType_t.CUDSS_C_64F \"CUDSS_C_64F\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDA_R_32F": {
+    "doc": "[`CUDSS_R_32F`](types.md#c.cudssDataType_t.CUDSS_R_32F \"CUDSS_R_32F\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDA_R_32I": {
+    "doc": "[`CUDSS_R_32I`](types.md#c.cudssDataType_t.CUDSS_R_32I \"CUDSS_R_32I\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDA_R_64F": {
+    "doc": "[`CUDSS_R_64F`](types.md#c.cudssDataType_t.CUDSS_R_64F \"CUDSS_R_64F\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDA_R_64I": {
+    "doc": "[`CUDSS_R_64I`](types.md#c.cudssDataType_t.CUDSS_R_64I \"CUDSS_R_64I\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_ALG_1": {
+    "doc": "[`CUDSS_REORDERING_ALG_BTF_COLAMD`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_BTF_COLAMD \"CUDSS_REORDERING_ALG_BTF_COLAMD\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_ALG_2": {
+    "doc": "[`CUDSS_REORDERING_ALG_COLAMD`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_COLAMD \"CUDSS_REORDERING_ALG_COLAMD\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_ALG_3": {
+    "doc": "[`CUDSS_REORDERING_ALG_AMD`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_AMD \"CUDSS_REORDERING_ALG_AMD\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_ALG_4": {
+    "doc": "[`CUDSS_MATCHING_ALG_MAX_DIAG_SUM`](types.md#c.cudssMatchingAlg_t.CUDSS_MATCHING_ALG_MAX_DIAG_SUM \"CUDSS_MATCHING_ALG_MAX_DIAG_SUM\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_ALG_5": {
+    "doc": "[`CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`](types.md#c.cudssMatchingAlg_t.CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT \"CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_ALG_DEFAULT": {
+    "doc": "[`CUDSS_REORDERING_ALG_DEFAULT`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_DEFAULT \"CUDSS_REORDERING_ALG_DEFAULT\") [`CUDSS_REORDERING_ALG_NESTED_DISSECTION`](types.md#c.cudssReorderingAlg_t.CUDSS_REORDERING_ALG_NESTED_DISSECTION \"CUDSS_REORDERING_ALG_NESTED_DISSECTION\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_BASE_ONE": {
+    "doc": "One-based indexing.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssindexbase-t"
+  },
+  "CUDSS_BASE_ZERO": {
+    "doc": "Zero-based indexing [default].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssindexbase-t"
+  },
+  "CUDSS_COMM_LIB": {
+    "doc": "Name or path for the [communication layer library](advanced-features.md#mgmn-enabling-label)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_CONFIG_DETERMINISTIC_MODE": {
+    "doc": "Enable deterministic mode.\nIn deterministic mode, cuDSS is guaranteed to provide the bit-wise identical result at every run when executed on GPUs with the same architecture\nand the same number of SMs (assuming the input data and solver settings are also bit-wise identical).\n\nNote: in deterministic mode cuDSS uses a different set of kernels which often might be slower than the kernels used in the default mode.\n\nAssociated parameter type: `int`\n\nDefault value: `0` (disabled).\n\nCurrently the feature is supported only for single-gpu, single rhs, and with both hybrid host/device memory mode ([`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\")) and hybrid host/device execute mode ([`CUDSS_CONFIG_HYBRID_EXECUTE_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_EXECUTE_MODE\")) disabled.\nAlso, this feature does not support iterative refinement or reordering algorithms [`CUDSS_REORDERING_ALG_BTF_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_BTF_COLAMD\") and [`CUDSS_REORDERING_ALG_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_COLAMD\").",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_DEVICE_COUNT": {
+    "doc": "Device count in case of multiple device (see [`cudssCreateMg()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudsscreatemg \"cudssCreateMg\"))\n\nNote: Maximum supported device count is 16\n\nAssociated parameter type: `int`\n\nDefault value: `1`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_DEVICE_INDICES": {
+    "doc": "A list of device indices as an integer array.\n\nNote: The calling device must be equal to the first device index from `device_indices` or `0` (if `device_indices` were `NULL` in the required prior call to [`cudssCreateMg()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudsscreatemg \"cudssCreateMg\"))\n\nAssociated parameter type: `int`\n\nDefault value: `NULL` (cuDSS will use devices from 0 to `device_count - 1`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_FACTORIZATION_ALG": {
+    "doc": "Algorithm for the factorization phase. Supported options are:\n\n* [`cudssFactorizationAlg_t::CUDSS_FACTORIZATION_ALG_DEFAULT`] - the default factorization algorithm.\n  This option chooses the best fitting factorization algorithm based on the choice of the reordering algorithm and sparsity structure produced by it.\n  It is not recommended to use other options.\n* [`cudssFactorizationAlg_t::CUDSS_FACTORIZATION_ALG_MULTIBLOCK`] - multiblock factorization algorithm. Starting with cudss 0.8.0, this option is supported only for real double data type. Suggested for use with extremely sparse matrices.\n* [`cudssFactorizationAlg_t::CUDSS_FACTORIZATION_ALG_GENERAL`] - general factorization algorithm.\n\nAssociated parameter type: [`cudssFactorizationAlg_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudssfactorizationalg-t \"cudssFactorizationAlg_t\")\n\nDefault value: [`cudssFactorizationAlg_t::CUDSS_FACTORIZATION_ALG_DEFAULT`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_HOST_NTHREADS": {
+    "doc": "Number of threads to be used by cuDSS in [MT mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-threaded-mt-mode).\nThis setting only affects execution when the multi-threaded mode is enabled.\n\nAssociated parameter type: `int`\n\nDefault value: `-1` (use number of threads returned by `cudssGetMaxThreads()`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_HYBRID_DEVICE_MEMORY_LIMIT": {
+    "doc": "User-defined device memory limit (number of bytes) for the hybrid memory mode.\n\nThis setting only affects execution when the hybrid host/device memory mode is enabled.\nFor more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode) feature.\n\nNote: In case of multiple devices ([`cudssCreateMg()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudsscreatemg \"cudssCreateMg\")), this value must be set for each device separately by calling `cudaSetDevice()` prior to [`cudssConfigSet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssconfigset \"cudssConfigSet\")\n\nAssociated parameter type: `int64_t`\n\nDefault value: `-1` (use the internal default heuristic).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_HYBRID_EXECUTE_MODE": {
+    "doc": "Execute mode: `0` (default = device-only) or `1` (hybrid = host/device).\nHybrid execute mode allows cuDSS to perform calculations on both GPU and CPU.\nCurrently it is used to speed up execution parts with low parallelization capacity.\n\nNote: Reordering part of the analysis step is performed on CPU regardless of execute mode value.\n\nNote: Hybrid execute mode should be enabled before the analysis phase ([`cudssExecute()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssexecute \"cudssExecute\") with [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`]).\n\nNote: Unlike the hybrid execution mode which controls where compute kernels are executed\n(and allows greater flexibility in placement of the input data), the hybrid host/device memory mode [`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\") only allows cuDSS to keep part of the factor values (internal data)\non the host while only the GPU is used for factorization and solve.\n\nNote: If hybrid execute mode is enabled, input matrix, right hand side and solution can be host memory pointers.\n\nFor more details, see the [Hybrid host/device execute mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode) feature.\n\nAssociated parameter type: `int`\n\nNote: For `nrhs > 1`, any non-one value must be set before the analysis phase ([`cudssExecute()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssexecute \"cudssExecute\") with [`CUDSS_PHASE_ANALYSIS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t \"CUDSS_PHASE_ANALYSIS\")); the exact value used during solve does not need to match.\n\nNote: It is strongly recommended to enable the threading layer ([`cudssSetThreadingLayer()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudsssetthreadinglayer \"cudssSetThreadingLayer\")) when hybrid execute mode is active, as all analysis step computations are enhanced by multi-threading. Expect significant performance improvements, especially for small and medium-sized matrices.\n\nDefault value: `0` (disabled). Currently not supported when [`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\") is used.\nAlso not supported when [`CUDSS_CONFIG_DETERMINISTIC_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_DETERMINISTIC_MODE\") is enabled, or, when `batchCount` is greater than 1, or when right-hand side and/or solution have a non-trivial leading dimension.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_HYBRID_MEMORY_MODE": {
+    "doc": "Memory mode: `0` (default = device-only) or `1` (hybrid = host/device).\n\nNote: Hybrid host/device memory mode should be enabled before the analysis phase ([`cudssExecute()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssexecute \"cudssExecute\") with [`CUDSS_PHASE_ANALYSIS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t \"CUDSS_PHASE_ANALYSIS\")).\nIf the decision to use the hybrid mode is done after the analysis phase, the hybrid memory mode should be enabled and analysis phase must be re-done (which is sub-optimal).\n\nNote: Unlike the hybrid host/device execution mode (see [`CUDSS_CONFIG_HYBRID_EXECUTE_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_EXECUTE_MODE\")) which controls where compute kernels are executed, the hybrid memory mode\nonly allows cuDSS to keep a part of the factor values (internal data) on the host and always uses the GPU for factorization and solve.\n\nFor more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode) feature.\n\nAssociated parameter type: `int`\n\nDefault value: `0` (disabled).\n\nCurrently not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering, or, when [`cudssFactorizationAlg_t::CUDSS_FACTORIZATION_ALG_MULTIBLOCK`] is used for the factorization.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_HYBRID_MODE": {
+    "doc": "[`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](types.md#c.cudssConfigParam_t.CUDSS_CONFIG_HYBRID_MEMORY_MODE \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_CONFIG_IR_N_STEPS": {
+    "doc": "Maximum number of steps during the iterative refinement. Refer to [`CUDSS_CONFIG_IR_TOL`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_IR_TOL\") for the details.\n\nAssociated parameter type: `int`\n\nDefault value: `0`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_IR_TOL": {
+    "doc": "Iterative refinement tolerance.\n\nWhen users set both [`CUDSS_CONFIG_IR_N_STEPS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_IR_N_STEPS\") > 0 and [`CUDSS_CONFIG_IR_TOL`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_IR_TOL\") > 0,\nthe solver performs iterative refinement with convergence checking.\n\nIn each iteration, the relative residual norm is computed as $||r||_2 / ||b||_2$ where $r = b - Ax$.\n\nThe refinement terminates early if the residual norm is less than the specified tolerance.\n\nIf [`CUDSS_CONFIG_IR_TOL`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_IR_TOL\") = 0 and [`CUDSS_CONFIG_IR_N_STEPS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_IR_N_STEPS\") > 0,\nexactly [`CUDSS_CONFIG_IR_N_STEPS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_IR_N_STEPS\") iterations are performed without convergence checking.\n\nThe actual number of iterations performed can be retrieved via [`CUDSS_DATA_IR_N_STEPS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_IR_N_STEPS\").\nIf the tolerance is not met after all iterations, [`CUDSS_STATUS_IR_FAILED`](https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t \"CUDSS_STATUS_IR_FAILED\") is returned.\n\nAssociated parameter type: `double`\n\nDefault value: `0.0` (tolerance checking disabled).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_MATCHING_ALG": {
+    "doc": "Matching is an optional preprocessing step which computes a (non-symmetric column) permutation to put larger values on the diagonal which often improves the accuracy of the solution.\nThis permutation is then combined with the permutation from the reordering.\nSet to [`CUDSS_MATCHING_ALG_NONE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t \"CUDSS_MATCHING_ALG_NONE\") to disable matching; for any other value, matching is enabled.\nWhile matching often reduces the number of perturbed pivots and improves accuracy of the solution\n(especially for ill-conditioned and badly scaled matrices) there are no guarantees that the accuracy will improve.\nEnabling matching brings an overhead during the analysis step and changes the non-zero pattern of the factors and therefore, can slow down factorization and solve.\n\nNote: matching routines require their internal workspace size to fit into the limit of 32-bit integers. The workspace limit depend on the choice of the matching algorithm.\nThe biggest requirement among them is to have `10 * nrows + nnz` &lt; `INT_MAX` (`nrows` and `nnz` for the input matrix without accounting for symmetry).\n\nSupported options are:\n\n* [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`] - matching is disabled.\n* [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_COUNT`] - this option is based on `job = 1` from MC64 algorithm (HSL).\n  Computes a column permutation of the matrix so that the permuted matrix has as many entries on its diagonal as possible. The values on the diagonal are of arbitrary size.\n  Note: this option does not use matrix values and thus can actually make the accuracy worse. It is not recommended to use this algorithm for matching unless there is a justified need.\n* [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_MIN_DIAG`] - this option is based on `job = 2` from MC64 algorithm (HSL). Computes a column permutation of the matrix so that the smallest value on the diagonal of the permuted matrix is maximized.\n* [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_MIN_DIAG_ALT`] - this option is based on `job = 3` from MC64 algorithm (HSL). Computes a column permutation of the matrix so that the smallest value on the diagonal of the permuted matrix is maximized.\n  This algorithm is different from the one used for [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_MIN_DIAG`].\n* [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_SUM`] - this option is based on `job = 4` from MC64 algorithm (HSL). Computes a column permutation of the matrix so that the sum of the diagonal entries of the permuted matrix is maximized.\n* [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`] - this option is based on `job = 5` from MC64 algorithm (HSL). Computes a column permutation of the matrix so that the product of the diagonal entries of the permuted matrix is maximized.\n  In addition, this algorithm computes the row/col scaling vectors which can further improve accuracy of the solution.\n* [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_AUTO`] - the library selects the alg to apply, currently the same as [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`] (matching with scaling, requires matrix values, the most robust option).\n\nNote: one of the options, [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`], computes scaling vectors in addition to the matching permutation. This option is considered to be the most impactful and it is recommended to use this option if accuracy of the solution needs to be improved.\nHowever, this option requires matrix values to be present during the analysis step.\n\nNote: matching is not supported for [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms (which use global pivoting to make the solution more accurate) or for matrices with type [`cudssDataType_t::CUDSS_R_64F_64F`] or for distributed matrices.\n\nAssociated parameter type: [`cudssMatchingAlg_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t \"cudssMatchingAlg_t\")\n\nDefault value: [`cudssMatchingAlg_t::CUDSS_MATCHING_ALG_NONE`] (matching disabled).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_MAX_LU_NNZ": {
+    "doc": "Upper limit on the number of nonzero entries in LU factors. This is only relevant for non-symmetric matrices and reordering algorithm set to [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].\nIf the number of non-zero entries in L and U exceeds the set limit, a runtime error happen. See also the note for [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] in the table entry for [`CUDSS_CONFIG_REORDERING_ALG`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_REORDERING_ALG\").\n\nAssociated parameter type: `int64_t`\n\nDefault value: `-1` (then the parameter value is ignored and cuDSS uses an estimate of `100 nnz` where `nnz` is the number of non-zero entries in the input matrix).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_ND_NLEVELS": {
+    "doc": "Minimum number of levels for the nested dissection reordering. The value for this parameter should be a positive integer.\nAdditionally, for the [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) the number of levels will be automatically increased (if needed) to satisfy the requirement: $2^{n_{levels}-1} \\geq n_{proc}$\nwhere $n_{proc}$ is the number of processes in the communicator. This setting only works when reordering algorithm is [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] (which is also [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_DEFAULT`]).\n\nNote: This is considered an advanced performance knob and it is recommended to use a non-default value only when optimizing for performance. Typical values to try should not be too far from the default value, e.g. from the range 8 - 11.\n\nAssociated parameter type: `int`\n\nDefault value: `10`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_ND_UBFACTOR": {
+    "doc": "Controls the balance of the nested dissection partition tree. The value represents the allowed percentage of imbalance between the two children at each level of the partition tree. Possible values are from 1 to 100.\n\nNote: Smaller values produce a more balanced partition tree. For [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) and [MG mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-mg-mode), it is recommended to use smaller values in the range 2 to 5.\n\nAssociated parameter type: `int`\n\nDefault value: `20`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_PIVOT_EPSILON": {
+    "doc": "Pivoting epsilon.\n\nBy default, this is the absolute value to test and replace small diagonal elements encountered during numerical factorization.\n\nIn case [`CUDSS_CONFIG_PIVOT_EPSILON_ALG`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_PIVOT_EPSILON_ALG\") is set to [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_SCALED`], this value will be additionally scaled (see more details in the description of [`cudssConfigParam_t::CUDSS_CONFIG_PIVOT_EPSILON_ALG`]).\n\nAssociated parameter type: `double`\n\nDefault value: `1e-5` for single precision and `1e-13` for double precision.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_PIVOT_EPSILON_ALG": {
+    "doc": "Algorithm for pivot epsilon calculation. When a pivot has magnitude smaller than the pivot epsilon threshold (see the description of [`cudssConfigParam_t::CUDSS_CONFIG_PIVOT_EPSILON`]), it is replaced by an appropriately signed value derived from the epsilon; the chosen algorithm controls how that value is computed.\n\nSupported options are:\n\n* [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_DEFAULT`] - Default behavior pre-selected by the library, currently equivalent to [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_STATIC`].\n* [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_SCALED`] - Pivots with magnitude smaller than epsilon will be replaced by the appropriately signed epsilon scaled by the maximum element in the corresponding row and column of the original matrix.\n* [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_STATIC`] - Pivots with magnitude smaller than epsilon will be replaced by the appropriately signed epsilon (no scaling).\n\nNote: [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_SCALED`] is not supported when [`CUDSS_CONFIG_REORDERING_ALG`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_REORDERING_ALG\") is set to [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`].\n\nAssociated parameter type: [`cudssPivotEpsilonAlg_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudsspivotepsilonalg-t \"cudssPivotEpsilonAlg_t\")\n\nDefault value: [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_DEFAULT`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_PIVOT_THRESHOLD": {
+    "doc": "Pivoting threshold $p_{threshold}$ which is used to determine if diagonal element is subject to pivoting and will be swapped with the maximum element in the row (or column) depending on the [type of pivoting](https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t).\nThe diagonal element will be swapped if:\n$p_{threshold} \\cdot max_{(sub)row \\\\, or \\\\, col} |a_{ij}| \\geq |a_{ii}|$\n\nFor more details, see the description of the [pivoting strategies](https://docs.nvidia.com/cuda/cudss/advanced_features.html#numerical-pivoting).\n\nNote: this parameter is only supported when reordering algorithm is set to [`CUDSS_REORDERING_ALG_BTF_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_BTF_COLAMD\") or [`CUDSS_REORDERING_ALG_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_COLAMD\").\n\nAssociated parameter type: `double`\n\nDefault value: `1.0`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_PIVOT_TYPE": {
+    "doc": "Type of pivoting\n\nThe exact meaning of this parameter depends on the choice of the reordering algorithm which can be changed through [`CUDSS_CONFIG_REORDERING_ALG`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_REORDERING_ALG\").\nFor [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] the parameter refers to the global pivoting, while for [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] and others it refers to the partial 1x1 pivoting procedure.\n\nNote that in the latter case, if the matrix type is symmetric but not positive-definite, then the pivoting is also symmetric and the pivot is searched for on the diagonal of the block, if only the pivot type is not equal to [`cudssPivotType_t::CUDSS_PIVOT_NONE`].\n\nFor more details, see the description of the [pivoting strategies](https://docs.nvidia.com/cuda/cudss/advanced_features.html#numerical-pivoting).\n\nAssociated parameter type: [`cudssPivotType_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t \"cudssPivotType_t\")\n\nDefault value: [`cudssPivotType_t::CUDSS_PIVOT_AUTO`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_REORDERING_ALG": {
+    "doc": "Algorithm for the reordering phase. Supported options are:\n\n* [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_DEFAULT`] - let the library choose (typically nested dissection).\n* [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NESTED_DISSECTION`] - a customized nested dissection algorithm based on METIS.\n* [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] - a custom combination of block triangular reordering and COLAMD algorithms which can be used together with global pivoting to increase solution pivots.\n  When this option is used for reordering, cuDSS uses an appropriate custom factorization algorithm (without the need to change the factorization setting [`CUDSS_CONFIG_FACTORIZATION_ALG`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_FACTORIZATION_ALG\")).\n* [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] - similar to [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] in that it implies using a special factorization algorithm which is tailored for a block-triangular representation but uses a trivial block structure.\n* [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_AMD`] - an approximate minimum degree (AMD) reordering.\n* [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_NONE`] - uses natural (identity) order for the internal ordering when no user permutation is supplied.\n\nNote: [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are only supported for general (non-symmetric or non-hermitian) matrices.\n\nNote: [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] uses an upper bound on the number of non-zero entries in the factors.\nIf this bound appears to be not sufficient during the factorization phase, a runtime device error is returned (which can be checked by synchronizing the stream and calling `cudssDataGet()` with [`CUDSS_DATA_INFO`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_INFO\") which will output the device error).\nIn order to set a non-default upper bound, one should call `cudssConfigSet()` with [`CUDSS_CONFIG_MAX_LU_NNZ`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_MAX_LU_NNZ\") setting.\n\nNote: [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_AMD`] does not support the matrix index type `int64_t`.\n\nAssociated parameter type: [`cudssReorderingAlg_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"cudssReorderingAlg_t\")\n\nDefault value: [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_DEFAULT`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_SCHUR_MODE": {
+    "doc": "Schur complement mode: `0` (default = disabled) or `1` (enabled).\n\nFor more details regarding the Schur complement feature, see [Schur complement feature](https://docs.nvidia.com/cuda/cudss/advanced_features.html#schur-complement).\n\nAssociated parameter type: `int`\n\nDefault value: `0` (disabled).\n\nCurrently not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering, when [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) or [multi-GPU mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-mg-mode) is used,\nor, when [`cudssFactorizationAlg_t::CUDSS_FACTORIZATION_ALG_MULTIBLOCK`] is used for the factorization. It is also not supported for uniform and non-uniform batches, or when matching is enabled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_SOLVE_ALG": {
+    "doc": "Algorithm for the solving phase. Supported options are:\n\n* [`cudssSolveAlg_t::CUDSS_SOLVE_ALG_DEFAULT`] - the default solve algorithm.\n* [`cudssSolveAlg_t::CUDSS_SOLVE_ALG_GENERAL`] - triangular solve only (forward/back substitution using existing L/U factors, without modifying them).\n\nAssociated parameter type: [`cudssSolveAlg_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudsssolvealg-t \"cudssSolveAlg_t\")\n\nDefault value: [`cudssSolveAlg_t::CUDSS_SOLVE_ALG_DEFAULT`], currently equivalent to [`cudssSolveAlg_t::CUDSS_SOLVE_ALG_GENERAL`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_SOLVE_MODE": {
+    "doc": "Potential modifier on the system matrix (e.g. transpose or conjugate transpose)\n\nAssociated parameter type: `int`\n\nDefault value: `0` (no modifier).\n\nOther values are not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_UBATCH_INDEX": {
+    "doc": "`-1` or a 0-based index of matrix in a uniform batch which will be processed during factorization or solve phase.\nSpecial value of `-1` can be used to tell cuDSS to process all matrices in the uniform batch at once.\n\nNote: [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] must be less than [`CUDSS_CONFIG_UBATCH_SIZE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_UBATCH_SIZE\").\n\nNote: if [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] is set then cuDSS will treat the input sparse matrix, right hand side and solution as regular matrices (with just one set of values).\nThus, it allows to process a uniform batch of matrices one by one while re-using the result of the analysis and keeping corresponding factors for all matrices in a single `cudssData_t` object.\n\nNote: [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`] can be set after [`CUDSS_PHASE_FACTORIZATION`](https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t \"CUDSS_PHASE_FACTORIZATION\"), in that case one could solve only one specific system\n\nAssociated parameter type: `int`\n\nDefault value: `-1`\n\nCurrently not supported when either [`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\") (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode)) or [`CUDSS_CONFIG_HYBRID_EXECUTE_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_EXECUTE_MODE\") (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode))\nare enabled, or [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) is used, or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_UBATCH_SIZE": {
+    "doc": "The number of matrices in a uniform batch of systems to be processed by cuDSS. Uniform batch of matrices is defined as a batch of matrices with the same non-zero pattern but potentially different values.\nTo create a uniform batch of matrices (unlike a non-uniform batch) one can simply use the usual [`cudssMatrixCreateCsr()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssmatrixcreatecsr \"cudssMatrixCreateCsr\") or [`cudssMatrixCreateDn()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssmatrixcreatedn \"cudssMatrixCreateDn\")\nwith the only change: as a pointer to the matrix values one should provide a buffer which holds values for all matrices in the batch.\nThus, it should have `nnz * CUDSS_CONFIG_UBATCH_SIZE` elements\nfor sparse matrices (`csr_values` only) and `nrows * ncols * CUDSS_CONFIG_UBATCH_SIZE` elements for dense matrices.\n\nNote: a single system can be viewed as a uniform batch with [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] set to 1.\n\nThere are two ways how cuDSS can process a uniform batch based on the value of the [`CUDSS_CONFIG_UBATCH_INDEX`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_UBATCH_INDEX\"): either factorizing (or solving) all matrices at once or just one at a time.\n\nFor details, see the description of [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_INDEX`].\n\nNote: [`cudssConfigParam_t::CUDSS_CONFIG_UBATCH_SIZE`] must be set before calling [`cudssPhase_t::CUDSS_PHASE_ANALYSIS`].\n\nAssociated parameter type: `int`\n\nDefault value: `1`.\n\nCurrently not supported when either [`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\") (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode)) or [`CUDSS_CONFIG_HYBRID_EXECUTE_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_EXECUTE_MODE\") (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode))\nare enabled, or [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) is used, or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_USE_CUDA_REGISTER_MEMORY": {
+    "doc": "A flag to enable or disable usage of `cudaHostRegister()` by cuDSS hybrid host/device memory mode. Since the hybrid memory mode of cuDSS uses host memory to store the factors,\nit can use `cudaHostRegister()` (if the HW supports it) to speedup associated host-to-device and device-to-host memory transfers.\nHowever, registering host memory has limitations and in some cases might lead to slowdowns. If the flag is set to `0`, cuDSS will not attempt to use `cudaHostRegister()` even if the HW supports it.\nThis setting only affects execution when the hybrid memory mode is enabled. For more details, see [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode) feature.\n\nAssociated parameter type: `int`\n\nDefault value: `1` (use `cudaHostRegister()` if the device supports it).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_CONFIG_USE_SUPERPANELS": {
+    "doc": "Use superpanel optimization: `1` (default = enabled) or `0` (disabled).\n\nNote: superpanel optimization should be enabled before the analysis phase ([`cudssExecute()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssexecute \"cudssExecute\") with [`CUDSS_PHASE_ANALYSIS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t \"CUDSS_PHASE_ANALYSIS\")).\nIf the decision to use the superpanel optimization mode is done after the analysis phase, the superpanel optimization should be enabled and analysis phase must be re-done which is sub-optimal).\n\nAssociated parameter type: `int`\n\nDefault value: `1` (enabled).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t"
+  },
+  "CUDSS_C_32F": {
+    "doc": "32-bit complex single-precision floating-point (`cuComplex`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdatatype-t"
+  },
+  "CUDSS_C_64F": {
+    "doc": "64-bit complex double-precision floating-point (`cuDoubleComplex`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdatatype-t"
+  },
+  "CUDSS_DATA_COMM_DEVICE": {
+    "doc": "Device communicator for [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).\nThe actual type of the communicator must match the device communication backend of the [communication layer](https://docs.nvidia.com/cuda/cudss/advanced_features.html#communication-layer-library-in-cudss) which must be set via calling [`cudssSetCommLayer()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudsssetcommlayer \"cudssSetCommLayer\").\nThis communicator is used for communication involving device memory buffers.\n\nDirection: in\n\nMemory: host\n\nAssociated parameter type: `void*`\n\nSee [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) for further details.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_COMM_HOST": {
+    "doc": "Host communicator for [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode).\nThe actual type of the communicator must match the host communication backend of the [communication layer](https://docs.nvidia.com/cuda/cudss/advanced_features.html#communication-layer-library-in-cudss) which must be set via calling [`cudssSetCommLayer()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudsssetcommlayer \"cudssSetCommLayer\").\nThis communicator is used for communication involving host memory buffers.\n\nDirection: in\n\nMemory: host\n\nAssociated parameter type: `void*`\n\nSee [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) for further details.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_DIAG": {
+    "doc": "Diagonal of the factorized matrix. The diagonal is returned in the original matrix order, taking into account all permutations applied during matching, reordering, and pivoting.\n\nNote: in case `batchCount` > 1 (non-uniform batch) [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") returns the accumulated values over all\nmatrices in the batch.\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: same as for the values of the sparse matrix of the system\n\nCurrently supported only when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_ELIMINATION_TREE": {
+    "doc": "[`CUDSS_DATA_ND_PARTITION_TREE`](types.md#c.cudssDataParam_t.CUDSS_DATA_ND_PARTITION_TREE \"CUDSS_DATA_ND_PARTITION_TREE\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_DATA_FLOPS": {
+    "doc": "Floating-point operation count for the factorization phase.\n\nNote: the value is available after the [`CUDSS_PHASE_ANALYSIS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t \"CUDSS_PHASE_ANALYSIS\") step.\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: `int64_t`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_HYBRID_DEVICE_MEMORY_MIN": {
+    "doc": "Minimal amount of device memory (number of bytes) required in the hybrid memory mode. This query must be done after the analysis phase and will return status [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] if it cannot be processed.\n\nNote: In case of multiple devices ([`cudssCreateMg()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudsscreatemg \"cudssCreateMg\")), minimal memory will be returned for the calling device only.\nThus, `cudaSetDevice()` must be called prior to `cudssDataGet()` to get minimal memory on corresponding device\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: `int64_t`\n\nFor more details, see the [Hybrid host/device memory mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode) feature.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_INERTIA": {
+    "doc": "Positive and negative indices of inertia for the system matrix `A` (two integer values). Valid only for symmetric/Hermitian non positive-definite matrix types.\n\nNote: in case `batchCount` > 1 (non-uniform batch) [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") returns the accumulated number over all\nmatrices in the batch.\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_INFO": {
+    "doc": "By default, this parameter can be used to detect device-side asynchronous errors (primarily, during factorization and solve).\nHowever, in the special case, when in [hybrid host/device execute mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode), factorization is done on the host at least partially,\nthis parameter can be used to retrieve host-side errors. In case execution is successful, the value is `0`.\n\nNote: the error returned via [`cudssDataParam_t::CUDSS_DATA_INFO`] is independent from the host side status of type [`cudssStatus_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t \"cudssStatus_t\") returned by all cuDSS routines, including [`cudssExecute()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssexecute \"cudssExecute\").\nOne of the noticeable use cases is when a matrix of the system is passed with an `mtype` for positive-definite matrices but it appears to have non-positive minors (at least numerically).\nIn this case, calling [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") with [`cudssDataParam_t::CUDSS_DATA_INFO`] after the factorization phase will return the 1-based index of the first encountered non-positive minor.\nThen one can set the device error back to zero via [`cudssDataSet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataset \"cudssDataSet\"), and either change the matrix type or adjust the matrix values (to make the matrix positive-definite) and call the factorization phase again.\n\nNote that the returned index is 1-based and is for the reordered matrix.\nTo get the corresponding original index, it should be combined with (inverse) permutation which can be extracted via [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") for [`CUDSS_DATA_PERM_REORDER_ROW`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_PERM_REORDER_ROW\").\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: `int`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_IR_N_STEPS": {
+    "doc": "Actual number of iterative refinement steps performed\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: `int`\n\nThis parameter stores the actual number of iterative refinement iterations performed during the solve phase.\n\nThe value can be less than [`CUDSS_CONFIG_IR_N_STEPS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_IR_N_STEPS\") if user-specified convergence tolerance is reached.\nThe value is 0 if iterative refinement is disabled or if the initial solution already satisfies the tolerance.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_LU_NNZ": {
+    "doc": "Number of non-zero entries in LU factors.\n\nNote: in case `batchCount` > 1 (non-uniform batch) [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") returns accumulated number over all\nmatrices in the batch.\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: `int64_t`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_MEMORY_ESTIMATES": {
+    "doc": "Memory estimates (in bytes) for host and device memory required for the chosen memory mode.\nThe chosen memory mode is defined as the memory mode detected during the last executed analysis phase for the current `cudssData_t` object and the state of the corresponding `cudssConfigParam_t` object during the call.\n\nSee [`cudssConfigParam_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"cudssConfigParam_t\") for more details.\n\nNote: the returned memory estimate depends not just on the settings from `cudssConfig_t` object but also on the input matrix and rhs (specifically, nrhs)\nso if the objects (or the config) change after the analysis phase, memory estimates might be not accurate anymore.\n\nValues returned in the output array at position:\n\\* 0 - permanent device memory\n\\* 1 - peak device memory\n\\* 2 - permanent host memory\n\\* 3 - peak host memory\n\\* 4 - (if in hybrid memory mode) minimum device memory for the hybrid memory mode\n\\* 5 - (if in hybrid memory mode) maximum host memory for the hybrid memory mode\n\\* 6, … 15 - reserved for future use\n\nThis query must be done after the analysis phase and will return status [`cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED`] if it cannot be processed.\n\nNote: In case of multiple devices ([`cudssCreateMg()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudsscreatemg \"cudssCreateMg\")) memory estimate will be done for the calling device only.\nThus, `cudaSetDevice()` must be called prior to `cudssDataGet()` to get memory estimate on corresponded device\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: `int64_t[16]`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_ND_PARTITION_TREE": {
+    "doc": "Nested Dissection (ND) partition tree information, also known as a separator tree or separator sizes, which are computed during the reordering phase and used for improving parallelization.\nThe number of elements in this array is $2^{n_{levels}} - 1$ with\n$n_{levels}$ from [`CUDSS_CONFIG_ND_NLEVELS`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_ND_NLEVELS\"). It can be used in combination with\n[`CUDSS_DATA_USER_PERM`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_USER_PERM\") and [`CUDSS_DATA_USER_ND_PARTITION_TREE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_USER_ND_PARTITION_TREE\") for a matrix with the same sparsity structure.\nThis avoids regenerating the same reordering information while retaining the same performance for the factorization and solve phases.\n\nSee the [Nested Dissection Partition Tree](https://docs.nvidia.com/cuda/cudss/advanced_features.html#user-provided-nested-dissection-nd-partition-tree-data-saving-reordering) section for more details.\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_NPIVOTS": {
+    "doc": "Number of pivots encountered during factorization.\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_NSUPERPANELS": {
+    "doc": "Number of superpanels in the matrix.\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_PERM_COL": {
+    "doc": "Final column permutation Q (includes effects of both reordering and pivoting) which is applied to transform the solution of the permuted system into the original solution $x_{old} = x_{new} \\circ Q^{-1}$\n\nNote: using this parameter in [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") in case `batchCount` > 1 is not supported.\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system\n\nCurrently supported only when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_PERM_MATCHING": {
+    "doc": "Matching (column) permutation `Q` such that `A[:,Q]` is reordered and then factorized.\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_PERM_REORDER_COL": {
+    "doc": "Column permutation `Q` after reordering such that `A[P,Q]` is factorized.\n\nNote: using this parameter in [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") in case `batchCount` > 1 is not supported.\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_PERM_REORDER_ROW": {
+    "doc": "Row permutation `P` after reordering such that `A[P,Q]` is factorized.\n\nNote: using this parameter in [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") in case `batchCount` > 1 is not supported.\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_PERM_ROW": {
+    "doc": "Final row permutation P (includes effects of both reordering and pivoting) which is applied to the original right-hand side of the system in the form $b_{new} = b_{old} \\circ P$\n\nNote: using this parameter in [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") in case `batchCount` > 1 is not supported.\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system\n\nCurrently supported only when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_SCALE_COL": {
+    "doc": "Column scaling the factorized matrix (corresponding to the columns of the original matrix).\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: floating point for the absolute values of the matrix of the system (i.e., always real, either float or double). Only supported when matching is enabled (i.e. [`CUDSS_CONFIG_MATCHING_ALG`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_MATCHING_ALG\") is not [`CUDSS_MATCHING_ALG_NONE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t \"CUDSS_MATCHING_ALG_NONE\")) and the chosen matching algorithm computes the scaling.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_SCALE_ROW": {
+    "doc": "Row scaling the factorized matrix (corresponding to the rows of the original matrix)\n\nDirection: out\n\nMemory: host or device\n\nAssociated parameter type: floating point for the absolute values of the matrix of the system (i.e., always real, either float or double)\n\nOnly supported when matching is enabled (i.e. [`CUDSS_CONFIG_MATCHING_ALG`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_MATCHING_ALG\") is not [`CUDSS_MATCHING_ALG_NONE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t \"CUDSS_MATCHING_ALG_NONE\")) and the chosen matching algorithm computes the scaling.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_SCHUR_MATRIX": {
+    "doc": "Schur complement matrix as a `cudssMatrix_t` object.\n\nDirection: in\n\nMemory: host (with underlying buffers on host or device)\n\nAssociated parameter type: `cudssMatrix_t`\n\nNote: the data type for matrix values, offsets and indices (if it is a sparse matrix) must be same as for the values, offsets and indices of the system matrix respectively.\n\nNote: Schur complement matrix cannot be a distributed matrix. Also, Schur complement cannot be computed for matrix batches currently. For the dense Schur complement,\nthe layout must be column-major. For sparse Schur complement, the matrix type must be [`cudssMatrixType_t::CUDSS_MTYPE_GENERAL`] and the matrix view must be [`cudssMatrixViewType_t::CUDSS_MVIEW_FULL`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_SCHUR_SHAPE": {
+    "doc": "Shape of the Schur complement matrix as a triplet `(nrows, ncols, sparse nnz)`. The last entry is only relevant when the Schur complement needs to be exported as a sparse matrix\nBy querying with [`cudssDataSet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataset \"cudssDataSet\") with [`cudssDataParam_t::CUDSS_DATA_SCHUR_SHAPE`], users can get the necessary allocation sizes for the Schur complement buffers\nwhich can then be used to create a `cudssMatrix_t` object and passed back to cuDSS to fill in the Schur complement data via [`cudssDataSet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataset \"cudssDataSet\") with [`CUDSS_DATA_SCHUR_MATRIX`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_SCHUR_MATRIX\").\n\nDirection: out\n\nMemory: host\n\nAssociated parameter type: `int64_t[3]`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_TYPE_UNSET": {
+    "doc": "Sentinel value indicating an uninitialized or unset data type. Not a valid value for user-facing API calls.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdatatype-t"
+  },
+  "CUDSS_DATA_UBATCH_MASK": {
+    "doc": "A bitmask specifying the subset of problems to be factorized or solved in the uniform batch case. Each bit position corresponds to the index of a matrix in the uniform batch; setting a bit to `1` includes that matrix in the operation.\n\nNote: [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`] can be used as an alternative to [`CUDSS_CONFIG_UBATCH_INDEX`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_UBATCH_INDEX\") to select multiple specific problems from the batch in a single call.\n\nNote: [`cudssDataParam_t::CUDSS_DATA_UBATCH_MASK`] can be set after [`CUDSS_PHASE_FACTORIZATION`](https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t \"CUDSS_PHASE_FACTORIZATION\"), in that case one could solve only a specific subset of systems.\n\nDirection: in\n\nMemory: host\n\nAssociated parameter type: `int64_t`\n\nDefault value: `-1` (all problems selected).\n\nCurrently not supported when either [`CUDSS_CONFIG_HYBRID_MEMORY_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_MEMORY_MODE\") (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-memory-mode)) or [`CUDSS_CONFIG_HYBRID_EXECUTE_MODE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssconfigparam-t \"CUDSS_CONFIG_HYBRID_EXECUTE_MODE\") (see [here](https://docs.nvidia.com/cuda/cudss/advanced_features.html#hybrid-host-device-execute-mode))\nare enabled, or [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) is used, or with [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] reordering algorithms.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_USER_ELIMINATION_TREE": {
+    "doc": "[`CUDSS_DATA_USER_ND_PARTITION_TREE`](types.md#c.cudssDataParam_t.CUDSS_DATA_USER_ND_PARTITION_TREE \"CUDSS_DATA_USER_ND_PARTITION_TREE\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_DATA_USER_HOST_INTERRUPT": {
+    "doc": "User-provided host interrupt pointer. Setting this pointer to a non-`NULL` value enables user interruption of cuDSS routines on the host.\nSpecifically, in the calls to [`cudssExecute()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssexecute \"cudssExecute\") cuDSS will perform checks on the host for the value of the pointer.\nIf it is non-zero, execution stops and cuDSS returns early (before the phase execution completes) with the status [`CUDSS_STATUS_EXECUTION_FAILED`](https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t \"CUDSS_STATUS_EXECUTION_FAILED\").\nTo resume after an interruption, set the value at that location back to `0` and call again.\nTo remove the (small) overhead of checking for the host interruption, the interruption can be completely disabled by setting [`cudssDataParam_t::CUDSS_DATA_USER_HOST_INTERRUPT`] to `NULL`.\n\nNote: since most of device kernels inside cuDSS are launched asynchronously,\nexecution on the GPU may continue some time after the host execution has been interrupted.\n\nDirection: in\n\nMemory: host\n\nDefault value: `NULL` (user interruption disabled)\n\nAssociated parameter type: pointer to a 4-byte integer (e.g. `int32_t` or `int`).\n\nNote: When setting the flag from another thread, the user must use an atomic store with release semantics so the library observes the write. A plain write to a non-atomic object from another thread is a data race and undefined behavior.\n\nNote: `std::atomic&lt;int>` (C++) or `_Atomic(int)*` (C) may be used when the object representation is a single 4-byte integer; the library does not guarantee correct behavior for all atomic types.\n\nNote: The host interruption feature is not supported when [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode) or [MG mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-mg-mode) is used.\nAlso, reordering algorithms [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] and [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] do not support the user interrupt currently.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_USER_ND_PARTITION_TREE": {
+    "doc": "User provided nested dissection (ND) partition tree information, which is used instead of running the reordering algorithm (therefore, saving runtime).\nIt must be used in combination with [`CUDSS_DATA_USER_PERM`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_USER_PERM\") to have an effect.\n\nSee [`CUDSS_DATA_ND_PARTITION_TREE`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_ND_PARTITION_TREE\") for the size and usage information. The user ND partition tree can be disabled by providing a `NULL` with zero size with [`cudssDataSet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataset \"cudssDataSet\").\n\nNote: While it is possible to construct this array outside cuDSS (e.g., extracting the so-called `sizes` array from METIS / ParMETIS), we recommend to only use this feature by extracting the ND partition tree from cuDSS,\nfollowed by passing it back in subsequent calls.\n\nDirection: in\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_USER_PERM": {
+    "doc": "User permutation to be used instead of running the reordering algorithms.\nThe user permutation can be disabled by providing a `NULL` with zero size with [`cudssDataSet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataset \"cudssDataSet\").\nThe provided buffer should be an integer array of size `n`, where `n` is the number of rows/columns of the system matrix.\nThe integer type must match the one used for the system matrix.\nThe values should represent a valid permutation vector for the set $\\\\{ index base, ..., n - index base \\\\}$\n\nNote: after [`cudssDataSet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataset \"cudssDataSet\") is called with [`cudssDataParam_t::CUDSS_DATA_USER_PERM`], the data are copied into an internal buffer so that the user buffer can be deallocated or re-used.\n\nNote: using this parameter in [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") in case `batchCount` > 1 is not supported.\n\nDirection: in\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system\n\nCurrently not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] is used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_DATA_USER_SCHUR_INDICES": {
+    "doc": "User-provided Schur complement indices. The provided buffer should be an integer array of size `n`, where `n` is the number of rows (columns) of the system matrix,\nand the integer type should match the one used for the system matrix.\nThe values should be equal to `1` for the rows/columns which are part of the Schur complement and `0` for the rest.\n\nNote: after [`cudssDataSet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataset \"cudssDataSet\") is called with [`cudssDataParam_t::CUDSS_DATA_USER_SCHUR_INDICES`], the data are copied into an internal buffer so that the user buffer can be deallocated or re-used.\n\nDirection: in\n\nMemory: host or device\n\nAssociated parameter type: same as for the indices of the sparse matrix of the system.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t"
+  },
+  "CUDSS_FACTORIZATION_ALG_DEFAULT": {
+    "doc": "The default factorization algorithm (equivalent to [`cudssFactorizationAlg_t::CUDSS_FACTORIZATION_ALG_GENERAL`], recommended).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssfactorizationalg-t"
+  },
+  "CUDSS_FACTORIZATION_ALG_GENERAL": {
+    "doc": "General factorization algorithm.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssfactorizationalg-t"
+  },
+  "CUDSS_FACTORIZATION_ALG_MULTIBLOCK": {
+    "doc": "Multiblock factorization algorithm. Supported only for real double data type (CUDA_R_64F). Suggested for use with extremely sparse matrices.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssfactorizationalg-t"
+  },
+  "CUDSS_LAYOUT_COL_MAJOR": {
+    "doc": "Column-major layout [default].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsslayout-t"
+  },
+  "CUDSS_LAYOUT_ROW_MAJOR": {
+    "doc": "Row-major layout. Currently not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsslayout-t"
+  },
+  "CUDSS_LOG_FILE": {
+    "doc": "Controls [logging](logging.md#logging-label) output file name",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_LOG_LEVEL": {
+    "doc": "Controls [logging](logging.md#logging-label) level",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_LOG_MASK": {
+    "doc": "Controls [logging](logging.md#logging-label) mask",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_MATCHING_ALG_AUTO": {
+    "doc": "Same as [`CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT`](https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t \"CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT\") (the most robust option). Matching with scaling; requires matrix values during analysis.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t"
+  },
+  "CUDSS_MATCHING_ALG_MAX_DIAG_COUNT": {
+    "doc": "Column permutation to maximize the number of diagonal entries (values arbitrary). MC64 JOB=1. Does not use matrix values; not recommended unless justified.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t"
+  },
+  "CUDSS_MATCHING_ALG_MAX_DIAG_PRODUCT": {
+    "doc": "Column permutation to maximize the product of diagonal entries; also computes row/column scaling so that nonzero diagonal entries are 1 in absolute value and off-diagonal entries are ≤ 1. MC64 JOB=5. Most impactful for accuracy; requires matrix values during analysis.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t"
+  },
+  "CUDSS_MATCHING_ALG_MAX_DIAG_SUM": {
+    "doc": "Column permutation to maximize the sum of diagonal entries. MC64 JOB=4.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t"
+  },
+  "CUDSS_MATCHING_ALG_MAX_MIN_DIAG": {
+    "doc": "Column permutation to maximize the smallest value on the diagonal. MC64 JOB=2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t"
+  },
+  "CUDSS_MATCHING_ALG_MAX_MIN_DIAG_ALT": {
+    "doc": "Alternate algorithm to maximize the smallest value on the diagonal. MC64 JOB=3. May differ in performance from [`CUDSS_MATCHING_ALG_MAX_MIN_DIAG`](https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t \"CUDSS_MATCHING_ALG_MAX_MIN_DIAG\").",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t"
+  },
+  "CUDSS_MATCHING_ALG_NONE": {
+    "doc": "Matching is disabled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatchingalg-t"
+  },
+  "CUDSS_MAX": {
+    "doc": "Maximum element is found among the reduced elements.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssoptype-t"
+  },
+  "CUDSS_MFORMAT_BATCH": {
+    "doc": "Matrix object represents a batch of matrices.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixformat-t"
+  },
+  "CUDSS_MFORMAT_CSR": {
+    "doc": "Matrix is in CSR format (applies to a single matrix and a batch equally)\n\nNote: Only 3-array CSR is supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixformat-t"
+  },
+  "CUDSS_MFORMAT_DENSE": {
+    "doc": "Matrix is dense (applied to a single matrix and a batch equally).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixformat-t"
+  },
+  "CUDSS_MFORMAT_DISTRIBUTED": {
+    "doc": "> Matrix object represents a distributed matrix (used in [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode))\n\nNote: The format flags can be combined. E.g., creating a `cudssMatrix_t`\nvia [`cudssMatrixCreateBatchCsr()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssmatrixcreatebatchcsr \"cudssMatrixCreateBatchCsr\") would set both\n[`cudssMatrixFormat_t::CUDSS_MFORMAT_CSR`] and [`cudssMatrixFormat_t::CUDSS_MFORMAT_BATCH`] flags. One can check for a mixture of flags via bit-wise operations, e.g.\n`CUDSS_MFORMAT_CSR | CUDSS_MFORMAT_BATCH` for a batch of CSR matrices.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixformat-t"
+  },
+  "CUDSS_MIN": {
+    "doc": "Minimum element is found among the reduced elements.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssoptype-t"
+  },
+  "CUDSS_MTYPE_GENERAL": {
+    "doc": "General matrix [default] `LDU` factorization will be computed with optional local or global pivoting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixtype-t"
+  },
+  "CUDSS_MTYPE_HERMITIAN": {
+    "doc": "Complex Hermitian matrix. `LDL^H` factorization will be computed with optional local pivoting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixtype-t"
+  },
+  "CUDSS_MTYPE_HPD": {
+    "doc": "Hermitian positive-definite matrix Complex Cholesky factorization will be computed with optional local pivoting\n\nNote: if the matrix passed with this matrix type appears to have zero minors (at least numerically), one can get the 1-based index of the first non-positive minor by\ncalling [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") with [`CUDSS_DATA_INFO`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_INFO\"). As this would be a device-side error, the call to `cudssExecute()` may still return [`cudssStatus_t::CUDSS_STATUS_SUCCESS`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixtype-t"
+  },
+  "CUDSS_MTYPE_SPD": {
+    "doc": "Symmetric positive-definite matrix Cholesky factorization will be computed with optional local pivoting\n\nNote: if the matrix passed with this matrix type appears to have zero minors (at least numerically), one can get the 1-based index of the first encountered non-positive minor by\ncalling [`cudssDataGet()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssdataget \"cudssDataGet\") with [`CUDSS_DATA_INFO`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_INFO\"). As this would be a device-side error, the call to `cudssExecute()` may still return [`cudssStatus_t::CUDSS_STATUS_SUCCESS`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixtype-t"
+  },
+  "CUDSS_MTYPE_SYMMETRIC": {
+    "doc": "Real symmetric matrix. `LDL^T` factorization will be computed with optional local pivoting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixtype-t"
+  },
+  "CUDSS_MVIEW_FULL": {
+    "doc": "Full matrix [default].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixviewtype-t"
+  },
+  "CUDSS_MVIEW_LOWER": {
+    "doc": "Lower-triangular matrix (including the diagonal). All values above the main diagonal will be ignored.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixviewtype-t"
+  },
+  "CUDSS_MVIEW_UPPER": {
+    "doc": "Upper-triangular matrix (including the diagonal). All values below the main diagonal will be ignored.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssmatrixviewtype-t"
+  },
+  "CUDSS_PHASE_ANALYSIS": {
+    "doc": "Reordering and symbolic factorization combined.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_FACTORIZATION": {
+    "doc": "Numerical factorization.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_REFACTORIZATION": {
+    "doc": "Numerical re-factorization.\n\nNote: For now it is only used if the reordering algorithm is set to [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`]. Otherwise, it is the same as FACTORIZATION phase.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_REORDERING": {
+    "doc": "Reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_SOLVE": {
+    "doc": "Full solving phase, combining all of the above (forward permutation + forward solve + diagonal solve + backward permutation + backward solve) and (optional) iterative refinement.\n\nNote: combining the solve sub-phases should be preferred to calling sub-phases separately.\n\nNote: Changing the sparse matrix for this phase is allowed but with restrictions, see limitations for [`cudssExecute()`](https://docs.nvidia.com/cuda/cudss/functions.html#cudssexecute \"cudssExecute\").",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_SOLVE_BWD": {
+    "doc": "Backward substitution sub-step of the solving phase.\n\nNote: this phase includes the local permutation due to the partial pivoting.\nTo remove this effect, if undesired, one can use a combination of reordering and final permutation (see [`CUDSS_DATA_PERM_REORDER_ROW`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_PERM_REORDER_ROW\") and [`CUDSS_DATA_PERM_ROW`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_PERM_ROW\")).\n\nNote: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_SOLVE_BWD_PERM": {
+    "doc": "Applying inverse reordering permutation to the intermediate solution after the backward (backward substitution).\nIf matching (and scaling) is enabled, this phase also includes applying the inverse matching permutation and inverse scaling (as the matching permutation and scalings were used to modify the matrix before the factorization).\n\nNote: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_SOLVE_DIAG": {
+    "doc": "Diagonal solve sub-step of the solving phase (only needed for symmetric/Hermitian matrix types).\n\nNote: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_SOLVE_FWD": {
+    "doc": "Forward substitution sub-step of the solving phase.\n\nNote: this phase includes the local permutation due to the partial pivoting.\nTo remove this effect, if undesired, one can use a combination of reordering and final permutation (see [`CUDSS_DATA_PERM_REORDER_ROW`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_PERM_REORDER_ROW\") and [`CUDSS_DATA_PERM_ROW`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdataparam-t \"CUDSS_DATA_PERM_ROW\")).\n\nNote: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_SOLVE_FWD_PERM": {
+    "doc": "Applying reordering permutation to the right hand side before the forward solve (forward substitution).\n\nNote: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_SOLVE_REFINEMENT": {
+    "doc": "Iterative refinement (see configuration settings [`cudssConfigParam_t::CUDSS_CONFIG_IR_N_STEPS`] and [`cudssConfigParam_t::CUDSS_CONFIG_IR_TOL`]).\n\nNote: solve sub-phases are not supported when [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_BTF_COLAMD`] or [`cudssReorderingAlg_t::CUDSS_REORDERING_ALG_COLAMD`] are used for reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PHASE_SYMBOLIC_FACTORIZATION": {
+    "doc": "Symbolic factorization\n\nNote: it is not allowed to call symbolic factorization twice without calling the reordering phase in-between.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssphase-t"
+  },
+  "CUDSS_PIVOT_AUTO": {
+    "doc": "Automatic pivoting strategy [default]. Automatically selects the appropriate\npivot type based on the reordering algorithm and matrix type:\n\n* For [`CUDSS_REORDERING_ALG_NESTED_DISSECTION`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_NESTED_DISSECTION\") and [`CUDSS_REORDERING_ALG_AMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_AMD\"):\n\n  + Symmetric/Hermitian indefinite matrices: Uses [`CUDSS_PIVOT_DIAGONAL`](https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t \"CUDSS_PIVOT_DIAGONAL\")\n  + General matrices: Uses [`CUDSS_PIVOT_LOCAL_BLOCK`](https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t \"CUDSS_PIVOT_LOCAL_BLOCK\")\n* For [`CUDSS_REORDERING_ALG_BTF_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_BTF_COLAMD\") and [`CUDSS_REORDERING_ALG_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_COLAMD\"):\n  Uses [`CUDSS_PIVOT_GLOBAL_COL`](https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t \"CUDSS_PIVOT_GLOBAL_COL\").",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t"
+  },
+  "CUDSS_PIVOT_BUNCH_KAUFMAN": {
+    "doc": "Bunch-Kaufman pivoting. Reserved for future use. Currently not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t"
+  },
+  "CUDSS_PIVOT_COL": {
+    "doc": "[`CUDSS_PIVOT_GLOBAL_COL`](types.md#c.cudssPivotType_t.CUDSS_PIVOT_GLOBAL_COL \"CUDSS_PIVOT_GLOBAL_COL\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_PIVOT_DIAGONAL": {
+    "doc": "Diagonal pivoting. Used only with reordering algorithms\n[`CUDSS_REORDERING_ALG_NESTED_DISSECTION`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_NESTED_DISSECTION\") and\n[`CUDSS_REORDERING_ALG_AMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_AMD\") (MetisND and AMD).\nFor symmetric/Hermitian indefinite matrices, searches for pivot elements\nonly within the diagonal of the supernode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t"
+  },
+  "CUDSS_PIVOT_EPSILON_ALG_DEFAULT": {
+    "doc": "The default pivot epsilon algorithm (same as [`cudssPivotEpsilonAlg_t::CUDSS_PIVOT_EPSILON_ALG_STATIC`], recommended).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivotepsilonalg-t"
+  },
+  "CUDSS_PIVOT_EPSILON_ALG_SCALED": {
+    "doc": "Pivots below the threshold are replaced by the appropriately signed epsilon scaled by the maximum element in the corresponding row and column of the original matrix. Not supported with [`CUDSS_REORDERING_ALG_BTF_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_BTF_COLAMD\") or [`CUDSS_REORDERING_ALG_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_COLAMD\").",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivotepsilonalg-t"
+  },
+  "CUDSS_PIVOT_EPSILON_ALG_STATIC": {
+    "doc": "Pivots below the threshold are replaced by the appropriately signed epsilon (no scaling). Recommended for most cases.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivotepsilonalg-t"
+  },
+  "CUDSS_PIVOT_GLOBAL_COL": {
+    "doc": "Global column pivoting. Used only with reordering algorithms\n[`CUDSS_REORDERING_ALG_BTF_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_BTF_COLAMD\") and [`CUDSS_REORDERING_ALG_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_COLAMD\").\nSearches for pivot elements within entire columns of the sub-matrix.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t"
+  },
+  "CUDSS_PIVOT_GLOBAL_ROW": {
+    "doc": "Global row pivoting. Used only with reordering algorithms\n[`CUDSS_REORDERING_ALG_BTF_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_BTF_COLAMD\") and [`CUDSS_REORDERING_ALG_COLAMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_COLAMD\").\nSearches for pivot elements within entire rows of the sub-matrix.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t"
+  },
+  "CUDSS_PIVOT_LOCAL_BLOCK": {
+    "doc": "Complete block pivoting. Used only with reordering algorithms\n[`CUDSS_REORDERING_ALG_NESTED_DISSECTION`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_NESTED_DISSECTION\") and\n[`CUDSS_REORDERING_ALG_AMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_AMD\") (MetisND and AMD).\nFor general matrices, searches for pivot elements within the entire\ndiagonal block of the supernode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t"
+  },
+  "CUDSS_PIVOT_NONE": {
+    "doc": "No pivoting. Used only with reordering algorithms\n[`CUDSS_REORDERING_ALG_NESTED_DISSECTION`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_NESTED_DISSECTION\") and\n[`CUDSS_REORDERING_ALG_AMD`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_AMD\") (MetisND and AMD).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsspivottype-t"
+  },
+  "CUDSS_PIVOT_ROW": {
+    "doc": "[`CUDSS_PIVOT_GLOBAL_ROW`](types.md#c.cudssPivotType_t.CUDSS_PIVOT_GLOBAL_ROW \"CUDSS_PIVOT_GLOBAL_ROW\")",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  },
+  "CUDSS_REORDERING_ALG_AMD": {
+    "doc": "Approximate minimum degree (AMD) reordering.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t"
+  },
+  "CUDSS_REORDERING_ALG_BTF_COLAMD": {
+    "doc": "Block triangular form (BTF) combined with COLAMD. Supports global pivoting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t"
+  },
+  "CUDSS_REORDERING_ALG_COLAMD": {
+    "doc": "COLAMD with trivial block structure. Supports global pivoting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t"
+  },
+  "CUDSS_REORDERING_ALG_DEFAULT": {
+    "doc": "The default algorithm for reordering (equivalent to\n[`CUDSS_REORDERING_ALG_NESTED_DISSECTION`](https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t \"CUDSS_REORDERING_ALG_NESTED_DISSECTION\")).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t"
+  },
+  "CUDSS_REORDERING_ALG_NESTED_DISSECTION": {
+    "doc": "Nested dissection algorithm based on METIS.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t"
+  },
+  "CUDSS_REORDERING_ALG_NONE": {
+    "doc": "Uses natural (identity) order for the internal ordering when no user permutation is supplied.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssreorderingalg-t"
+  },
+  "CUDSS_R_32F": {
+    "doc": "32-bit real single-precision floating-point (`float`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdatatype-t"
+  },
+  "CUDSS_R_32I": {
+    "doc": "32-bit signed integer (`int32_t`). Used for index and offset arrays.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdatatype-t"
+  },
+  "CUDSS_R_64F": {
+    "doc": "64-bit real double-precision floating-point (`double`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdatatype-t"
+  },
+  "CUDSS_R_64F_64F": {
+    "doc": "128-bit real double-double floating-point ([`cudss_fp64mp2_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudss-fp64mp2-t \"cudss_fp64mp2_t\")). This extended-precision type stores a value as the unevaluated sum of two `double` values (hi + lo).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdatatype-t"
+  },
+  "CUDSS_R_64I": {
+    "doc": "64-bit signed integer (`int64_t`). Used for index and offset arrays.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssdatatype-t"
+  },
+  "CUDSS_SOLVE_ALG_DEFAULT": {
+    "doc": "Let the library choose the solve algorithm (recommended).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsssolvealg-t"
+  },
+  "CUDSS_SOLVE_ALG_GENERAL": {
+    "doc": "Triangular solve only: forward/back substitution using the existing L/U factors without modifying them.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudsssolvealg-t"
+  },
+  "CUDSS_STATUS_ALLOC_FAILED": {
+    "doc": "Resource allocation failed inside the cuDSS library. This is usually caused by a device memory allocation (cudaMalloc()) or by a host memory allocation failure.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t"
+  },
+  "CUDSS_STATUS_EXECUTION_FAILED": {
+    "doc": "The GPU program failed to execute. This is often caused by a launch failure of the kernel on the GPU, which can be caused by multiple reasons.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t"
+  },
+  "CUDSS_STATUS_INTERNAL_ERROR": {
+    "doc": "An internal cuDSS operation failed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t"
+  },
+  "CUDSS_STATUS_INVALID_VALUE": {
+    "doc": "An incorrect value or parameter was passed to the function (a negative vector size, or a NULL pointer for a must-have buffer, for example).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t"
+  },
+  "CUDSS_STATUS_IR_FAILED": {
+    "doc": "Iterative refinement failed to meet the requested convergence tolerance. In this case, the iterations were performed and the refined solution is still accessible.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t"
+  },
+  "CUDSS_STATUS_NOT_INITIALIZED": {
+    "doc": "One of the input operands was not properly initialized prior to the call to a cuDSS routine. This can usually be one of the opaque objects like [`cudssHandle_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudsshandle-t \"cudssHandle_t\"), [`cudssData_t`](https://docs.nvidia.com/cuda/cudss/types.html#cudssdata-t \"cudssData_t\") or others.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t"
+  },
+  "CUDSS_STATUS_NOT_SUPPORTED": {
+    "doc": "An unsupported (but otherwise reasonable) parameter was passed to the function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t"
+  },
+  "CUDSS_STATUS_SUCCESS": {
+    "doc": "The operation completed successfully.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssstatus-t"
+  },
+  "CUDSS_SUM": {
+    "doc": "Reduced elements are added together.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/cudss/types.html#cudssoptype-t"
+  },
+  "CUDSS_THREADING_LIB": {
+    "doc": "Name or path for the [threading layer library](advanced-features.md#mt-enabling-label)",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudss/v0.8.0"
+  }
+}

@@ -1,13 +1,14 @@
 use singe_cublas::{blas::level3::ddgmm, context::Context, error::Result, types::SideMode};
+
 use singe_cuda::{context::Context as CudaContext, device::Device, memory::DeviceMemory};
 
 fn main() -> Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let cublas = Context::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&[1.0_f64, 3.0, 2.0, 4.0])?;
-    let x = DeviceMemory::from_slice(&[5.0_f64, 6.0])?;
-    let mut c = DeviceMemory::<f64>::zeroes(4)?;
+    let a = DeviceMemory::from_slice(&cuda, &[1.0_f64, 3.0, 2.0, 4.0])?;
+    let x = DeviceMemory::from_slice(&cuda, &[5.0_f64, 6.0])?;
+    let mut c = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
 
     ddgmm(&cublas, SideMode::Left, 2, 2, &a, 2, &x, 1, &mut c, 2)?;
 

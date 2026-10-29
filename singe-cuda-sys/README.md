@@ -6,4 +6,4 @@
 [![Documentation](https://docs.rs/singe-cuda-sys/badge.svg)](https://docs.rs/singe-cuda-sys)
 ![License](https://img.shields.io/crates/l/singe-cuda-sys.svg)
 
-Low-level FFI bindings for CUDA driver, runtime, NVRTC, NVVM, NVTX, and related NVIDIA APIs.
+Low-level FFI bindings for the CUDA driver and runtime APIs and the CUDA libraries that ship with them, such as NVRTC.

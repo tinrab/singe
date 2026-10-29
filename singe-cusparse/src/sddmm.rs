@@ -1,9 +1,11 @@
-use singe_cuda::{data_type::DataTypeLike, types::DevicePtr};
+use std::ptr;
 
+use singe_cuda::{data_type::DataTypeLike, view::DeviceOutputView};
 use singe_cusparse_sys as sys;
 
 use crate::{
     context::Context,
+    descriptor::workspace,
     error::Result,
     matrix::{DenseMatrixDescriptor, SparseMatrixDescriptor},
     scalar::Scalar,
@@ -12,8 +14,20 @@ use crate::{
     utility::to_usize,
 };
 
-pub fn sddmm_buffer_size<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn sddmm_buffer_size<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -23,16 +37,17 @@ pub fn sddmm_buffer_size<Compute: DataTypeLike>(
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SddmmAlgorithm,
 ) -> Result<usize> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
 
     let mut size = 0;
+    // SAFETY: `cusparseSDDMM_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusparseSDDMM_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -48,8 +63,20 @@ pub fn sddmm_buffer_size<Compute: DataTypeLike>(
     to_usize(size, "sddmm buffer size")
 }
 
-pub fn sddmm_preprocess<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -58,17 +85,20 @@ pub fn sddmm_preprocess<Compute: DataTypeLike>(
     beta: Scalar<'_, Compute>,
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SddmmAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    // SAFETY: `cusparseSDDMM_preprocess` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSDDMM_preprocess(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -78,7 +108,9 @@ pub fn sddmm_preprocess<Compute: DataTypeLike>(
             matrix_c.as_raw(),
             Compute::data_type().into(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())
@@ -210,8 +242,20 @@ pub fn sddmm_preprocess<Compute: DataTypeLike>(
 ///
 /// * CUDA graph capture.
 /// * Hardware Memory Compression.
-pub fn sddmm<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn sddmm<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -220,17 +264,20 @@ pub fn sddmm<Compute: DataTypeLike>(
     beta: Scalar<'_, Compute>,
     matrix_c: &mut SparseMatrixDescriptor,
     algorithm: SddmmAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    // SAFETY: `cusparseSDDMM` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSDDMM(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -240,7 +287,9 @@ pub fn sddmm<Compute: DataTypeLike>(
             matrix_c.as_raw(),
             Compute::data_type().into(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())

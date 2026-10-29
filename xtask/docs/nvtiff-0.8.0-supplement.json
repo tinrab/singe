@@ -1,0 +1,632 @@
+{
+  "NVTIFF_BIG_TIFF": {
+    "doc": "BigTIFF format (supports files larger than 4GB).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffVariant_t"
+  },
+  "NVTIFF_COMPRESSION_ADOBE_DEFLATE": {
+    "doc": "Adobe Deflate compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_COMPRESSION_APERIO_JP2000_RGB": {
+    "doc": "Aperio JPEG2000 RGB compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_COMPRESSION_APERIO_JP2000_YCC": {
+    "doc": "Aperio JPEG2000 YCC compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_COMPRESSION_DEFLATE": {
+    "doc": "Deflate compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_COMPRESSION_JP2000": {
+    "doc": "JPEG2000 compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_COMPRESSION_JPEG": {
+    "doc": "JPEG compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_COMPRESSION_LZW": {
+    "doc": "LZW compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_COMPRESSION_NONE": {
+    "doc": "No compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_COMPRESSION_UNKNOWN": {
+    "doc": "Unknown compression.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffCompression_t"
+  },
+  "NVTIFF_GEOKEY_BASE": {
+    "doc": "Reserved for private use.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_ELLIPSOID": {
+    "doc": "Ellipsoid.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_ELLIPSOID_INV_FLATTENING": {
+    "doc": "Ellipsoid inverse flattening.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_ELLIPSOID_SEMI_MAJOR_AXIS": {
+    "doc": "Ellipsoid semi-major axis.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_ELLIPSOID_SEMI_MINOR_AXIS": {
+    "doc": "Ellipsoid semi-minor axis.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_END": {
+    "doc": "Maximum value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GEODETIC_CITATION": {
+    "doc": "Geodetic citation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GEODETIC_CRS": {
+    "doc": "Geodetic CRS.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GEODETIC_DATUM": {
+    "doc": "Geodetic datum.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GEOG_ANGULAR_UNITS": {
+    "doc": "Geographic angular units.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GEOG_ANGULAR_UNIT_SIZE": {
+    "doc": "Geographic angular unit size.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GEOG_AZIMUTH_UNITS": {
+    "doc": "Geographic azimuth units.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GEOG_LINEAR_UNITS": {
+    "doc": "Geographic linear units.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GEOG_LINEAR_UNIT_SIZE": {
+    "doc": "Geographic linear unit size.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GT_CITATION": {
+    "doc": "Citation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GT_MODEL_TYPE": {
+    "doc": "Model type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_GT_RASTER_TYPE": {
+    "doc": "Raster type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PRIME_MERIDIAN": {
+    "doc": "Prime meridian.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PRIME_MERIDIAN_LONG": {
+    "doc": "Prime meridian longitude.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJECTED_CITATION": {
+    "doc": "Projected citation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJECTED_CRS": {
+    "doc": "Projected CRS.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJECTION": {
+    "doc": "Projection.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_AZIMUTH_ANGLE": {
+    "doc": "Azimuth angle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_CENTER_EASTING": {
+    "doc": "Center easting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_CENTER_LAT": {
+    "doc": "Center latitude.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_CENTER_LONG": {
+    "doc": "Center longitude.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_CENTER_NORTHING": {
+    "doc": "Center northing.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_EASTING": {
+    "doc": "False easting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_NORTHING": {
+    "doc": "False northing.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_EASTING": {
+    "doc": "False origin easting.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LAT": {
+    "doc": "False origin latitude.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LONG": {
+    "doc": "False origin longitude.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_NORTHING": {
+    "doc": "False origin northing.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_LINEAR_UNITS": {
+    "doc": "Projection linear units.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_LINEAR_UNIT_SIZE": {
+    "doc": "Projection linear unit size.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_METHOD": {
+    "doc": "Projection method.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LAT": {
+    "doc": "Natural origin latitude.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LONG": {
+    "doc": "Natural origin longitude.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_ORIGIN_LAT": {
+    "doc": "Origin latitude (alias for PROJ_NAT_ORIGIN_LAT).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_ORIGIN_LONG": {
+    "doc": "Origin longitude (alias for PROJ_NAT_ORIGIN_LONG).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_SCALE_AT_CENTER": {
+    "doc": "Scale at center.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_SCALE_AT_NAT_ORIGIN": {
+    "doc": "Scale at natural origin.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_SCALE_AT_ORIGIN": {
+    "doc": "Scale at origin (alias for PROJ_SCALE_AT_NAT_ORIGIN).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_STD_PARALLEL": {
+    "doc": "Standard parallel (alias for PROJ_STD_PARALLEL1).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_STD_PARALLEL1": {
+    "doc": "Standard parallel 1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_STD_PARALLEL2": {
+    "doc": "Standard parallel 2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_PROJ_STRAIGHT_VERT_POLE_LONG": {
+    "doc": "Straight vertical pole longitude.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_TYPE_ASCII": {
+    "doc": "ASCII string.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffGeoKeyDataType_t"
+  },
+  "NVTIFF_GEOKEY_TYPE_DOUBLE": {
+    "doc": "64-bit floating point.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffGeoKeyDataType_t"
+  },
+  "NVTIFF_GEOKEY_TYPE_SHORT": {
+    "doc": "16-bit unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffGeoKeyDataType_t"
+  },
+  "NVTIFF_GEOKEY_TYPE_UNKNOWN": {
+    "doc": "Unknown type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffGeoKeyDataType_t"
+  },
+  "NVTIFF_GEOKEY_VERTICAL": {
+    "doc": "Vertical CRS.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_VERTICAL_CITATION": {
+    "doc": "Vertical citation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_VERTICAL_DATUM": {
+    "doc": "Vertical datum.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_GEOKEY_VERTICAL_UNITS": {
+    "doc": "Vertical units.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffGeoKey_t"
+  },
+  "NVTIFF_IMAGETYPE_ENUM_FORCE_UINT32": {
+    "doc": "Force enum to 32-bit.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffImageType"
+  },
+  "NVTIFF_IMAGETYPE_MASK": {
+    "doc": "Transparency mask for another image.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffImageType"
+  },
+  "NVTIFF_IMAGETYPE_PAGE": {
+    "doc": "Single page of a multi-page image.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffImageType"
+  },
+  "NVTIFF_IMAGETYPE_REDUCED_IMAGE": {
+    "doc": "Reduced resolution version of another image.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffImageType"
+  },
+  "NVTIFF_IMAGE_STRIPED": {
+    "doc": "Image is organized in strips.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv425nvtiffImageGeometryType_t"
+  },
+  "NVTIFF_IMAGE_TILED": {
+    "doc": "Image is organized in tiles.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv425nvtiffImageGeometryType_t"
+  },
+  "NVTIFF_OUTPUT_RGB_I_UINT16": {
+    "doc": "Interleaved RGB with 16 bits per channel.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffOutputFormat_t"
+  },
+  "NVTIFF_OUTPUT_RGB_I_UINT8": {
+    "doc": "Interleaved RGB with 8 bits per channel.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffOutputFormat_t"
+  },
+  "NVTIFF_OUTPUT_UNCHANGED_I": {
+    "doc": "Keep original format, interleaved channels.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffOutputFormat_t"
+  },
+  "NVTIFF_PHOTOMETRIC_MASK": {
+    "doc": "Holdout mask.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t"
+  },
+  "NVTIFF_PHOTOMETRIC_MINISBLACK": {
+    "doc": "0 is black, max value is white.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t"
+  },
+  "NVTIFF_PHOTOMETRIC_MINISWHITE": {
+    "doc": "0 is white, max value is black.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t"
+  },
+  "NVTIFF_PHOTOMETRIC_PALETTE": {
+    "doc": "Color map indexed (palette color).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t"
+  },
+  "NVTIFF_PHOTOMETRIC_RGB": {
+    "doc": "RGB color model.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t"
+  },
+  "NVTIFF_PHOTOMETRIC_SEPARATED": {
+    "doc": "Color separations (e.g., CMYK).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t"
+  },
+  "NVTIFF_PHOTOMETRIC_UNKNOWN": {
+    "doc": "Unknown photometric interpretation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t"
+  },
+  "NVTIFF_PHOTOMETRIC_YCBCR": {
+    "doc": "YCbCr color space.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv422nvtiffPhotometricInt_t"
+  },
+  "NVTIFF_PLANARCONFIG_CONTIG": {
+    "doc": "Chunky format (interleaved).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffPlanarConfig_t"
+  },
+  "NVTIFF_PLANARCONFIG_SEPARATE": {
+    "doc": "Planar format (separate planes).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffPlanarConfig_t"
+  },
+  "NVTIFF_PLANARCONFIG_UNKNOWN": {
+    "doc": "Unknown planar configuration.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffPlanarConfig_t"
+  },
+  "NVTIFF_REGULAR_TIFF": {
+    "doc": "Standard TIFF format (up to 4GB file size).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv415nvtiffVariant_t"
+  },
+  "NVTIFF_SAMPLEFORMAT_COMPLEXIEEEFP": {
+    "doc": "Complex IEEE floating point data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffSampleFormat_t"
+  },
+  "NVTIFF_SAMPLEFORMAT_COMPLEXINT": {
+    "doc": "Complex integer data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffSampleFormat_t"
+  },
+  "NVTIFF_SAMPLEFORMAT_IEEEFP": {
+    "doc": "IEEE floating point data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffSampleFormat_t"
+  },
+  "NVTIFF_SAMPLEFORMAT_INT": {
+    "doc": "Signed integer data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffSampleFormat_t"
+  },
+  "NVTIFF_SAMPLEFORMAT_UINT": {
+    "doc": "Unsigned integer data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffSampleFormat_t"
+  },
+  "NVTIFF_SAMPLEFORMAT_UNKNOWN": {
+    "doc": "Unknown sample format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffSampleFormat_t"
+  },
+  "NVTIFF_SAMPLEFORMAT_VOID": {
+    "doc": "Undefined data format.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv420nvtiffSampleFormat_t"
+  },
+  "NVTIFF_STATUS_ALLOCATOR_FAILURE": {
+    "doc": "The user-provided allocator functions returned a non-zero code.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_ARCH_MISMATCH": {
+    "doc": "The device capabilities are not enough for the set of input parameters provided.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_BAD_TIFF": {
+    "doc": "Cannot parse the TIFF stream. Likely due to a corruption that cannot be handled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_EXECUTION_FAILED": {
+    "doc": "Error during the execution of the device tasks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_INTERNAL_ERROR": {
+    "doc": "Unknown error occurred in the library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_INVALID_PARAMETER": {
+    "doc": "Wrong parameter was passed. For example, a null pointer as input data, or an invalid enum value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_NOT_INITIALIZED": {
+    "doc": "The library handle was not initialized.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_NVCOMP_NOT_FOUND": {
+    "doc": "nvTIFF is unable to load the nvcomp library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_NVJPEG2K_NOT_FOUND": {
+    "doc": "nvTIFF is unable to load the nvJPEG2000 library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_NVJPEG_NOT_FOUND": {
+    "doc": "nvTIFF is unable to load the nvjpeg library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_PARAMETER_OUT_OF_BOUNDS": {
+    "doc": "Provided parameter is outside the range of possible values.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_SUCCESS": {
+    "doc": "The API call finished successfully. Note that many calls are asynchronous and some errors may only be seen after synchronization.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_TAG_NOT_FOUND": {
+    "doc": "nvTIFF is unable to find information about the provided tag.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_STATUS_TIFF_NOT_SUPPORTED": {
+    "doc": "Attempting to decode a TIFF stream that is not supported by the nvTIFF library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv414nvtiffStatus_t"
+  },
+  "NVTIFF_TAG_MODEL_PIXEL_SCALE": {
+    "doc": "GeoTIFF ModelPixelScaleTag.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv411nvtiffTag_t"
+  },
+  "NVTIFF_TAG_MODEL_TIE_POINT": {
+    "doc": "GeoTIFF ModelTiepointTag.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv411nvtiffTag_t"
+  },
+  "NVTIFF_TAG_MODEL_TRANSFORMATION": {
+    "doc": "GeoTIFF ModelTransformationTag.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv411nvtiffTag_t"
+  },
+  "NVTIFF_TAG_TYPE_ASCII": {
+    "doc": "8-bit byte containing ASCII code (null-terminated).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_BYTE": {
+    "doc": "8-bit unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_DOUBLE": {
+    "doc": "64-bit IEEE floating point.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_FLOAT": {
+    "doc": "32-bit IEEE floating point.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_IFD8": {
+    "doc": "BigTIFF 64-bit unsigned IFD offset.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_LONG": {
+    "doc": "32-bit unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_LONG8": {
+    "doc": "BigTIFF 64-bit unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_RATIONAL": {
+    "doc": "Two LONGs: numerator and denominator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_SBYTE": {
+    "doc": "8-bit signed integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_SHORT": {
+    "doc": "16-bit unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_SLONG": {
+    "doc": "32-bit signed integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_SLONG8": {
+    "doc": "BigTIFF 64-bit signed integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_SRATIONAL": {
+    "doc": "Two SLONGs: numerator and denominator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_SSHORT": {
+    "doc": "16-bit signed integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_TYPE_UNDEFINED": {
+    "doc": "8-bit byte that may contain anything.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv419nvtiffTagDataType_t"
+  },
+  "NVTIFF_TAG_UNKNOWN": {
+    "doc": "Unknown tag.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvtiff/apireference.html#_CPPv411nvtiffTag_t"
+  }
+}

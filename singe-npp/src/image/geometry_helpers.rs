@@ -1,11 +1,16 @@
-use singe_cuda::memory::DeviceMemory;
+use std::sync::Arc;
+
+use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
 use singe_npp_sys as sys;
 
 use crate::{
     error::{Error, Result},
-    image::geometry::ResizeBatchAdvanced,
-    image::view::{
-        ChannelLayout, ImageView, ImageViewMut, image_descriptors, image_descriptors_mut,
+    image::{
+        geometry::ResizeBatchAdvanced,
+        view::{
+            ChannelLayout, ImageOutputView, ImageView, ImageViewMut, image_descriptors,
+            image_descriptors_mut,
+        },
     },
     types::{
         AffineCoefficients, MirrorBatchDescriptor, PerspectiveCoefficients, Rectangle,
@@ -24,7 +29,7 @@ type ResizeBatchAdvancedDescriptors = (
     DeviceMemory<ResizeBatchRoiAdvanced>,
 );
 
-pub(super) fn validate_same_size(source: Size, destination: Size) -> Result<()> {
+pub fn validate_same_size(source: Size, destination: Size) -> Result<()> {
     if source == destination {
         return Ok(());
     }
@@ -35,23 +40,24 @@ pub(super) fn validate_same_size(source: Size, destination: Size) -> Result<()> 
     })
 }
 
-pub(super) fn rect_size(rectangle: Rectangle) -> Size {
+pub fn rect_size(rectangle: Rectangle) -> Size {
     Size {
         width: rectangle.width,
         height: rectangle.height,
     }
 }
 
-pub(super) fn resize_batch_descriptors<T, L>(
+pub fn resize_batch_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     sources: &[ImageView<'_, T, L>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<(u32, Size, Size, DeviceMemory<ResizeBatchDescriptor>)>
 where
     L: ChannelLayout,
 {
     let batch_size = batch_size(sources.len(), destinations.len())?;
     let smallest_source_size = smallest_size(sources.iter().map(ImageView::size))?;
-    let smallest_destination_size = smallest_size(destinations.iter().map(ImageViewMut::size))?;
+    let smallest_destination_size = smallest_size(destinations.iter().map(ImageOutputView::size))?;
 
     let descriptors = sources
         .iter()
@@ -68,13 +74,15 @@ where
         batch_size,
         smallest_source_size,
         smallest_destination_size,
-        DeviceMemory::from_slice(&descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors) }?,
     ))
 }
 
-pub(super) fn mirror_batch_descriptors<T, L>(
+pub fn mirror_batch_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     sources: &[ImageView<'_, T, L>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<(u32, Size, DeviceMemory<MirrorBatchDescriptor>)>
 where
     L: ChannelLayout,
@@ -97,24 +105,24 @@ where
         })
         .collect::<Vec<_>>();
 
-    Ok((batch_size, roi, DeviceMemory::from_slice(&descriptors)?))
+    // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+    Ok((batch_size, roi, unsafe {
+        DeviceMemory::from_slice_unchecked(allocation_context, &descriptors)
+    }?))
 }
 
-pub(super) fn mirror_batch_in_place_descriptors<T, L>(
+pub fn mirror_batch_in_place_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     images: &mut [ImageViewMut<'_, T, L>],
 ) -> Result<(u32, Size, DeviceMemory<MirrorBatchDescriptor>)>
 where
     L: ChannelLayout,
 {
     if images.len() <= 1 {
-        return Err(Error::OutOfRange {
-            name: "batch size".into(),
-        });
+        return Err(Error::out_of_range("batch size"));
     }
 
-    let batch_size = u32::try_from(images.len()).map_err(|_| Error::OutOfRange {
-        name: "batch size".into(),
-    })?;
+    let batch_size = u32::try_from(images.len()).map_err(|_| Error::out_of_range("batch size"))?;
     let roi = smallest_size(images.iter().map(ImageViewMut::size))?;
     let descriptors = images
         .iter_mut()
@@ -126,13 +134,17 @@ where
         })
         .collect::<Vec<_>>();
 
-    Ok((batch_size, roi, DeviceMemory::from_slice(&descriptors)?))
+    // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+    Ok((batch_size, roi, unsafe {
+        DeviceMemory::from_slice_unchecked(allocation_context, &descriptors)
+    }?))
 }
 
-pub(super) fn resize_batch_advanced_descriptors<T, L>(
+pub fn resize_batch_advanced_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     rois: &[ResizeBatchAdvanced],
     sources: &[ImageView<'_, T, L>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<ResizeBatchAdvancedDescriptors>
 where
     L: ChannelLayout,
@@ -146,20 +158,21 @@ where
         });
     }
 
+    for (roi, destination) in rois.iter().zip(destinations.iter()) {
+        roi.source_roi.validate()?;
+        roi.destination_roi.validate_within(destination.size())?;
+    }
+
     let max_destination_width = rois
         .iter()
         .map(|roi| roi.destination_roi.width)
         .max()
-        .ok_or_else(|| Error::OutOfRange {
-            name: "batch size".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("batch size"))?;
     let max_destination_height = rois
         .iter()
         .map(|roi| roi.destination_roi.height)
         .max()
-        .ok_or_else(|| Error::OutOfRange {
-            name: "batch size".into(),
-        })?;
+        .ok_or_else(|| Error::out_of_range("batch size"))?;
 
     let source_descriptors = image_descriptors(sources);
     let destination_descriptors = image_descriptors_mut(destinations);
@@ -175,16 +188,22 @@ where
         batch_size,
         max_destination_width,
         max_destination_height,
-        DeviceMemory::from_slice(&source_descriptors)?,
-        DeviceMemory::from_slice(&destination_descriptors)?,
-        DeviceMemory::from_slice(&roi_descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &source_descriptors) }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe {
+            DeviceMemory::from_slice_unchecked(allocation_context, &destination_descriptors)
+        }?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &roi_descriptors) }?,
     ))
 }
 
-pub(super) fn warp_affine_batch_descriptors<T, L>(
+pub fn warp_affine_batch_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     coefficients: &[AffineCoefficients],
     sources: &[ImageView<'_, T, L>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<(
     u32,
     Size,
@@ -203,7 +222,7 @@ where
         });
     }
     let smallest_source_size = smallest_size(sources.iter().map(ImageView::size))?;
-    let coefficient_memory = DeviceMemory::from_slice(coefficients)?;
+    let coefficient_memory = DeviceMemory::from_slice(allocation_context, coefficients)?;
 
     let descriptors = sources
         .iter()
@@ -214,7 +233,7 @@ where
             source_step: source.step(),
             destination: destination.as_mut_ptr().cast(),
             destination_step: destination.step(),
-            coefficients: unsafe { coefficient_memory.as_mut_ptr().add(index).cast() },
+            coefficients: coefficient_memory.as_mut_ptr().wrapping_add(index).cast(),
             transformed_coefficients: [[0.0; 3]; 2],
         })
         .collect::<Vec<_>>();
@@ -222,15 +241,17 @@ where
     Ok((
         batch_size,
         smallest_source_size,
-        DeviceMemory::from_slice(&descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors) }?,
         coefficient_memory,
     ))
 }
 
-pub(super) fn warp_perspective_batch_descriptors<T, L>(
+pub fn warp_perspective_batch_descriptors<T, L>(
+    allocation_context: &Arc<CudaContext>,
     coefficients: &[PerspectiveCoefficients],
     sources: &[ImageView<'_, T, L>],
-    destinations: &mut [ImageViewMut<'_, T, L>],
+    destinations: &mut [ImageOutputView<'_, T, L>],
 ) -> Result<(
     u32,
     Size,
@@ -249,7 +270,7 @@ where
         });
     }
     let smallest_source_size = smallest_size(sources.iter().map(ImageView::size))?;
-    let coefficient_memory = DeviceMemory::from_slice(coefficients)?;
+    let coefficient_memory = DeviceMemory::from_slice(allocation_context, coefficients)?;
 
     let descriptors = sources
         .iter()
@@ -261,7 +282,7 @@ where
                 source_step: source.step(),
                 destination: destination.as_mut_ptr().cast(),
                 destination_step: destination.step(),
-                coefficients: unsafe { coefficient_memory.as_mut_ptr().add(index).cast() },
+                coefficients: coefficient_memory.as_mut_ptr().wrapping_add(index).cast(),
                 transformed_coefficients: [[0.0; 3]; 3],
             },
         )
@@ -270,7 +291,8 @@ where
     Ok((
         batch_size,
         smallest_source_size,
-        DeviceMemory::from_slice(&descriptors)?,
+        // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
+        unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors) }?,
         coefficient_memory,
     ))
 }
@@ -286,7 +308,5 @@ fn smallest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
             width: left.width.min(right.width),
             height: left.height.min(right.height),
         })
-        .ok_or_else(|| Error::OutOfRange {
-            name: "batch size".into(),
-        })
+        .ok_or_else(|| Error::out_of_range("batch size"))
 }

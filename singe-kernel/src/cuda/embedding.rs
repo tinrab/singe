@@ -1,27 +1,35 @@
 //! Token embedding table lookups.
 
-#[cfg(feature = "dtype-f16")]
+use ::cutile::cuda_async::device_buffer::DevicePointer;
+#[cfg(feature = "dtype_f16")]
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceSlice, DeviceSliceMut},
+    view::{DeviceInput, DeviceOutput},
 };
 
 #[cfg(feature = "cutile")]
 use crate::cuda::cutile;
 use crate::{
-    cuda::interop::{borrowed_stream, input_pointer, output_pointer},
+    cuda::interop::input_pointer,
     error::{Error, Result},
     utility::{checked_element_count, ensure_len},
 };
 
 macro_rules! embedding_lookup_fn {
     ($name:ident, $ty:ty) => {
-        pub fn $name(
+        /// Copies each token's table row into its corresponding output row.
+        ///
+        /// # Safety
+        ///
+        /// Follow the [raw kernel execution contract](crate::cuda#raw-kernel-execution).
+        /// Input and output ranges must not overlap.
+        /// Token IDs must select valid table rows with signed 32-bit flattened offsets.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            token_ids: &impl DeviceSlice<u32>,
-            table: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            token_ids: &impl DeviceInput<u32>,
+            table: &impl DeviceInput<$ty>,
             width: usize,
         ) -> Result<()> {
             if width == 0 {
@@ -32,36 +40,45 @@ macro_rules! embedding_lookup_fn {
             if !table.len().is_multiple_of(width) {
                 return Err(Error::LengthMismatch);
             }
-            let stream = borrowed_stream(stream)?;
-            cutile::embedding::$name(
-                &stream,
-                output_pointer(out),
-                input_pointer(token_ids),
-                input_pointer(table),
-                token_ids.len(),
-                width,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::embedding::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(token_ids),
+                    input_pointer(table),
+                    token_ids.len(),
+                    width,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 embedding_lookup_fn!(embedding_lookup_f16, f16);
-#[cfg(feature = "dtype-f32")]
+
+#[cfg(feature = "dtype_f32")]
 embedding_lookup_fn!(embedding_lookup_f32, f32);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 embedding_lookup_fn!(embedding_lookup_f64, f64);
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 embedding_lookup_fn!(embedding_f16, f16);
-#[cfg(feature = "dtype-f32")]
+
+#[cfg(feature = "dtype_f32")]
 embedding_lookup_fn!(embedding_f32, f32);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 embedding_lookup_fn!(embedding_f64, f64);
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 embedding_lookup_fn!(embedding_batch_f16, f16);
-#[cfg(feature = "dtype-f32")]
+
+#[cfg(feature = "dtype_f32")]
 embedding_lookup_fn!(embedding_batch_f32, f32);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 embedding_lookup_fn!(embedding_batch_f64, f64);

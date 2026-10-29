@@ -1,18 +1,18 @@
 mod common;
 
-use singe_cuda::memory::DeviceMemory;
-use singe_npp::{
-    image::{
-        raw::filtering,
-        view::{C1, C2, ImageView, ImageViewMut},
-    },
-    types::Size,
-};
-
 use common::{
     Result, count_nonzero, create_stream, download, image_path, normalize_f32_to_u8,
     normalize_i16_c2_magnitude_to_u8, normalize_u16_to_u8, output_dir, read_raw_u8, upload,
     write_png,
+};
+use singe_cuda::{memory::DeviceMemory, view::DeviceOutputView};
+use singe_npp::{
+    context::StreamContext,
+    image::{
+        raw::filtering,
+        view::{C1, C2, ImageOutputView, ImageView},
+    },
+    types::Size,
 };
 
 fn main() -> Result<()> {
@@ -77,56 +77,89 @@ struct Outputs {
     transform: Vec<f32>,
 }
 
-fn run_case(
-    stream_context: &singe_npp::context::StreamContext,
-    filename: &str,
-    size: Size,
-) -> Result<Outputs> {
+fn run_case(stream_context: &StreamContext, filename: &str, size: Size) -> Result<Outputs> {
     let input = read_raw_u8(image_path("distance_transform", filename), size)?;
-    let source_device = upload(&input)?;
-    let source = ImageView::<u8, C1>::from_memory(&source_device, size)?;
+    let source_device = upload(stream_context.cuda_context(), &input)?;
+    let source = ImageView::<u8, C1>::from_buffer(&source_device, size)?;
 
-    let mut truncated_device =
-        DeviceMemory::<u16>::zeroes(size.width as usize * size.height as usize)?;
-    let mut voronoi_device =
-        DeviceMemory::<i16>::zeroes(size.width as usize * size.height as usize * 2)?;
-    let mut transform_device =
-        DeviceMemory::<f32>::zeroes(size.width as usize * size.height as usize)?;
+    let mut truncated_device = DeviceMemory::<u16>::create_uninit(
+        stream_context.cuda_context(),
+        size.width as usize * size.height as usize,
+    )?;
+    let mut voronoi_device = DeviceMemory::<i16>::create_uninit(
+        stream_context.cuda_context(),
+        size.width as usize * size.height as usize * 2,
+    )?;
+    let mut transform_device = DeviceMemory::<f32>::create_uninit(
+        stream_context.cuda_context(),
+        size.width as usize * size.height as usize,
+    )?;
 
-    let mut truncated = ImageViewMut::<u16, C1>::from_memory(&mut truncated_device, size)?;
-    let mut voronoi = ImageViewMut::<i16, C2>::from_memory(&mut voronoi_device, size)?;
-    let mut transform = ImageViewMut::<f32, C1>::from_memory(&mut transform_device, size)?;
+    let mut truncated = ImageOutputView::<u16, C1>::from_output(
+        DeviceOutputView::from_output(&mut truncated_device),
+        size,
+    )?;
+    let mut voronoi = ImageOutputView::<i16, C2>::from_output(
+        DeviceOutputView::from_output(&mut voronoi_device),
+        size,
+    )?;
+    let mut transform = ImageOutputView::<f32, C1>::from_output(
+        DeviceOutputView::from_output(&mut transform_device),
+        size,
+    )?;
 
-    filtering::distance_transform_pba_u8_to_u16_c1(
-        stream_context,
-        &source,
-        0,
-        0,
-        None,
-        None,
-        None,
-        Some(&mut truncated),
-    )?;
-    filtering::distance_transform_pba_u8_to_u16_c1(
-        stream_context,
-        &source,
-        0,
-        0,
-        Some(&mut voronoi),
-        None,
-        None,
-        None,
-    )?;
-    filtering::distance_transform_pba_u8_to_f32_c1(
-        stream_context,
-        &source,
-        0,
-        0,
-        None,
-        None,
-        None,
-        Some(&mut transform),
-    )?;
+    stream_context.sync_scope(|| {
+        // SAFETY: the initialized inputs and writable outputs remain borrowed through stream completion.
+        unsafe {
+            filtering::distance_transform_pba_u8_to_u16_c1(
+                stream_context,
+                &source,
+                0,
+                0,
+                None,
+                None,
+                None,
+                Some(&mut truncated),
+            )
+        }
+    })?;
+    stream_context.sync_scope(|| {
+        // SAFETY: the initialized inputs and writable outputs remain borrowed through stream completion.
+        unsafe {
+            filtering::distance_transform_pba_u8_to_u16_c1(
+                stream_context,
+                &source,
+                0,
+                0,
+                Some(&mut voronoi),
+                None,
+                None,
+                None,
+            )
+        }
+    })?;
+    stream_context.sync_scope(|| {
+        // SAFETY: the initialized inputs and writable outputs remain borrowed through stream completion.
+        unsafe {
+            filtering::distance_transform_pba_u8_to_f32_c1(
+                stream_context,
+                &source,
+                0,
+                0,
+                None,
+                None,
+                None,
+                Some(&mut transform),
+            )
+        }
+    })?;
+
+    // SAFETY: the call above completed and wrote every element.
+    let truncated_device = unsafe { truncated_device.assume_init() };
+    // SAFETY: the call above completed and wrote every element.
+    let voronoi_device = unsafe { voronoi_device.assume_init() };
+    // SAFETY: the call above completed and wrote every element.
+    let transform_device = unsafe { transform_device.assume_init() };
 
     Ok(Outputs {
         truncated: download(&truncated_device)?,

@@ -1,5 +1,7 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+
 use singe_core::{impl_enum_conversion, impl_enum_display};
+
 use singe_cublas_sys as sys;
 
 /// Selects whether cuBLASXt may pin host memory passed to its routines.
@@ -8,8 +10,8 @@ use singe_cublas_sys as sys;
 /// [`Context::set_pinning_memory_mode`](crate::xt::context::Context::set_pinning_memory_mode)
 /// and
 /// [`Context::pinning_memory_mode`](crate::xt::context::Context::pinning_memory_mode).
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum PinningMemoryMode {
     /// cuBLASXt does not pin pageable host memory on behalf of the caller.
@@ -31,8 +33,8 @@ impl_enum_display!(PinningMemoryMode, {
 /// [`Context::set_cpu_ratio`](crate::xt::context::Context::set_cpu_ratio)
 /// and the raw [`cublasXtSetCpuRoutine`](sys::cublasXtSetCpuRoutine) API to configure hybrid CPU/GPU
 /// execution for a routine.
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum OperationType {
     /// Single-precision real values.
@@ -59,8 +61,8 @@ impl_enum_display!(OperationType, {
 /// cuBLASXt uses this selector with
 /// [`Context::set_cpu_ratio`](crate::xt::context::Context::set_cpu_ratio)
 /// and the raw [`cublasXtSetCpuRoutine`](sys::cublasXtSetCpuRoutine) API to configure hybrid CPU/GPU execution for a routine.
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum BlasOperation {
     /// Matrix-matrix multiplication.

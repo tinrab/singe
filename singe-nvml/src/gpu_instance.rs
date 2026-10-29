@@ -12,14 +12,27 @@ use crate::{
         EnableState, GpuInstanceInfo, VgpuInstanceId, VgpuPlacementId, VgpuSchedulerEngine,
         VgpuSchedulerLog, VgpuSchedulerState, VgpuTypeId, try_from_nvml_enum,
     },
-    utility::struct_version,
+    utility::{struct_version, to_u32},
     vgpu_instance::VgpuInstance,
 };
 
+/// Borrowed NVML GPU instance handle.
+///
+/// Clones refer to the same native instance.
+/// Destruction responsibility remains with the owner, such as [`OwnedGpuInstance`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct GpuInstance(sys::nvmlGpuInstance_t);
 
+// SAFETY: NVML is thread-safe, and a GPU instance handle is an opaque identifier that the wrapper never
+// dereferences.
+unsafe impl Send for GpuInstance {}
+
+unsafe impl Sync for GpuInstance {}
+
+/// Owns an NVML GPU instance and requests its destruction on drop.
+///
+/// [`Self::into_inner`] and [`Self::into_raw`] transfer destruction responsibility to the caller.
 #[derive(Debug)]
 pub struct OwnedGpuInstance(GpuInstance);
 
@@ -34,10 +47,14 @@ impl GpuInstance {
         Self(handle)
     }
 
+    /// Returns the borrowed native instance handle.
+    #[must_use]
     pub const fn as_raw(&self) -> sys::nvmlGpuInstance_t {
         self.0
     }
 
+    /// Returns whether the stored native handle is null.
+    #[must_use]
     pub const fn is_null(&self) -> bool {
         self.0.is_null()
     }
@@ -54,20 +71,36 @@ impl GpuInstance {
     /// NVML has not been initialized.
     pub fn info(&self) -> Result<GpuInstanceInfo> {
         let mut info = sys::nvmlGpuInstanceInfo_t::default();
+        // SAFETY: `nvmlGpuInstanceGetInfo` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetInfo(self.0, &raw mut info))?;
         }
         Ok(info.into())
     }
 
+    /// Returns the physical GPU containing this GPU instance.
+    ///
+    /// # Errors
+    ///
+    /// Propagates instance-info query errors from [`Self::info`], including an invalid or unavailable instance handle.
     pub fn parent_device(&self) -> Result<Device> {
         Ok(self.info()?.device)
     }
 
+    /// Returns the GPU instance identifier.
+    ///
+    /// # Errors
+    ///
+    /// Propagates instance-info query errors from [`Self::info`], including an invalid or unavailable instance handle.
     pub fn id(&self) -> Result<u32> {
         Ok(self.info()?.id)
     }
 
+    /// Returns the GPU instance profile identifier.
+    ///
+    /// # Errors
+    ///
+    /// Propagates instance-info query errors from [`Self::info`], including an invalid or unavailable instance handle.
     pub fn profile_id(&self) -> Result<u32> {
         Ok(self.info()?.profile_id)
     }
@@ -94,6 +127,7 @@ impl GpuInstance {
             version: struct_version::<sys::nvmlComputeInstanceProfileInfo_v3_t>(3),
             ..Default::default()
         };
+        // SAFETY: `nvmlGpuInstanceGetComputeInstanceProfileInfoV` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstanceProfileInfoV(
                 self.0,
@@ -118,6 +152,7 @@ impl GpuInstance {
     /// to perform the operation, or if NVML has not been initialized.
     pub fn compute_instance_remaining_capacity(&self, profile_id: u32) -> Result<u32> {
         let mut count = 0;
+        // SAFETY: `nvmlGpuInstanceGetComputeInstanceRemainingCapacity` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstanceRemainingCapacity(
                 self.0,
@@ -151,6 +186,7 @@ impl GpuInstance {
         profile_id: u32,
     ) -> Result<Vec<ComputeInstancePlacement>> {
         let mut count = 0;
+        // SAFETY: `nvmlGpuInstanceGetComputeInstancePossiblePlacements` receives valid output locations.
         let status = unsafe {
             sys::nvmlGpuInstanceGetComputeInstancePossiblePlacements(
                 self.0,
@@ -167,6 +203,7 @@ impl GpuInstance {
         }
 
         let mut placements = vec![sys::nvmlComputeInstancePlacement_t::default(); count as usize];
+        // SAFETY: `nvmlGpuInstanceGetComputeInstancePossiblePlacements` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstancePossiblePlacements(
                 self.0,
@@ -192,6 +229,7 @@ impl GpuInstance {
     /// lacks permission, or if NVML has not been initialized.
     pub fn compute_instance_by_id(&self, id: u32) -> Result<ComputeInstance> {
         let mut instance = ptr::null_mut();
+        // SAFETY: `nvmlGpuInstanceGetComputeInstanceById` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstanceById(
                 self.0,
@@ -218,6 +256,7 @@ impl GpuInstance {
     /// the current process lacks permission, or if NVML has not been initialized.
     pub fn create_compute_instance(&self, profile_id: u32) -> Result<OwnedComputeInstance> {
         let mut instance = ptr::null_mut();
+        // SAFETY: `nvmlGpuInstanceCreateComputeInstance` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceCreateComputeInstance(
                 self.0,
@@ -250,6 +289,7 @@ impl GpuInstance {
     ) -> Result<OwnedComputeInstance> {
         let placement = sys::nvmlComputeInstancePlacement_t::from(placement);
         let mut instance = ptr::null_mut();
+        // SAFETY: `nvmlGpuInstanceCreateComputeInstanceWithPlacement` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceCreateComputeInstanceWithPlacement(
                 self.0,
@@ -274,6 +314,7 @@ impl GpuInstance {
     /// NVML has not been initialized.
     pub fn compute_instances(&self, profile_id: u32) -> Result<Vec<ComputeInstance>> {
         let mut count = 0;
+        // SAFETY: `nvmlGpuInstanceGetComputeInstances` receives valid output locations.
         let status = unsafe {
             sys::nvmlGpuInstanceGetComputeInstances(
                 self.0,
@@ -290,6 +331,7 @@ impl GpuInstance {
         }
 
         let mut instances = vec![ptr::null_mut(); count as usize];
+        // SAFETY: `nvmlGpuInstanceGetComputeInstances` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetComputeInstances(
                 self.0,
@@ -301,6 +343,7 @@ impl GpuInstance {
         instances.truncate(count as usize);
         Ok(instances
             .into_iter()
+            // SAFETY: NVML filled these handles, truncated to the reported count.
             .map(|instance| unsafe { ComputeInstance::from_raw(instance) })
             .collect())
     }
@@ -324,6 +367,7 @@ impl GpuInstance {
             vgpuCount: 0,
             ..Default::default()
         };
+        // SAFETY: `nvmlGpuInstanceGetCreatableVgpus` receives valid output locations.
         let status = unsafe { sys::nvmlGpuInstanceGetCreatableVgpus(self.0, &raw mut info) };
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.vgpuCount == 0 {
             return Ok(Vec::new());
@@ -334,6 +378,7 @@ impl GpuInstance {
 
         let mut types = vec![0u32; info.vgpuCount as usize];
         info.vgpuTypeIds = types.as_mut_ptr();
+        // SAFETY: `nvmlGpuInstanceGetCreatableVgpus` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetCreatableVgpus(self.0, &raw mut info))?;
         }
@@ -358,6 +403,7 @@ impl GpuInstance {
             ..Default::default()
         };
 
+        // SAFETY: `nvmlGpuInstanceGetActiveVgpus` receives valid output locations.
         let status = unsafe { sys::nvmlGpuInstanceGetActiveVgpus(self.0, &raw mut info) };
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.vgpuCount == 0 {
             return Ok(Vec::new());
@@ -368,6 +414,7 @@ impl GpuInstance {
 
         let mut instances = vec![0u32; info.vgpuCount as usize];
         info.vgpuInstances = instances.as_mut_ptr();
+        // SAFETY: `nvmlGpuInstanceGetActiveVgpus` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetActiveVgpus(self.0, &raw mut info))?;
         }
@@ -384,7 +431,7 @@ impl GpuInstance {
     ///
     /// On success, returns the current vGPU heterogeneous mode as [`EnableState::Enabled`] or [`EnableState::Disabled`].
     ///
-    /// For Blackwell &tm GB20x; or newer fully supported devices.
+    /// For Blackwell &tm `GB20x`; or newer fully supported devices.
     ///
     /// # Errors
     ///
@@ -397,6 +444,7 @@ impl GpuInstance {
             version: struct_version::<sys::nvmlVgpuHeterogeneousMode_t>(1),
             ..Default::default()
         };
+        // SAFETY: `nvmlGpuInstanceGetVgpuHeterogeneousMode` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetVgpuHeterogeneousMode(
                 self.0,
@@ -408,7 +456,7 @@ impl GpuInstance {
 
     /// Query the creatable vGPU placement ID of the vGPU type within a GPU instance.
     ///
-    /// For Blackwell &tm GB20x; or newer fully supported devices.
+    /// For Blackwell &tm `GB20x`; or newer fully supported devices.
     ///
     /// The returned placement IDs correspond to the given `vgpu_type_id`.
     /// This wrapper performs the NVML size query internally and returns the placement IDs as a [`Vec`].
@@ -428,11 +476,12 @@ impl GpuInstance {
         let mut info = sys::nvmlVgpuCreatablePlacementInfo_t {
             version: struct_version::<sys::nvmlVgpuCreatablePlacementInfo_t>(1),
             vgpuTypeId: vgpu_type_id.0,
-            placementSize: size_of::<u32>() as u32,
+            placementSize: to_u32(size_of::<u32>(), "NVML buffer length")?,
             ..Default::default()
         };
 
         let status =
+            // SAFETY: `nvmlGpuInstanceGetVgpuTypeCreatablePlacements` receives valid output locations.
             unsafe { sys::nvmlGpuInstanceGetVgpuTypeCreatablePlacements(self.0, &raw mut info) };
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.count == 0 {
             return Ok(Vec::new());
@@ -443,6 +492,7 @@ impl GpuInstance {
 
         let mut placements = vec![0u32; info.count as usize];
         info.placementIds = placements.as_mut_ptr();
+        // SAFETY: `nvmlGpuInstanceGetVgpuTypeCreatablePlacements` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetVgpuTypeCreatablePlacements(
                 self.0,
@@ -456,7 +506,7 @@ impl GpuInstance {
     /// Returns the vGPU scheduler state for the given GPU instance.
     /// The returned scheduler-state details are not relevant when the scheduler policy is best effort.
     ///
-    /// For Blackwell &tm GB20x; or newer fully supported devices.
+    /// For Blackwell &tm `GB20x`; or newer fully supported devices.
     ///
     /// # Errors
     ///
@@ -468,6 +518,7 @@ impl GpuInstance {
             engineId: engine as u32,
             ..Default::default()
         };
+        // SAFETY: `nvmlGpuInstanceGetVgpuSchedulerState_v2` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetVgpuSchedulerState_v2(
                 self.0,
@@ -483,7 +534,7 @@ impl GpuInstance {
     ///
     /// To get the entire logs, call this method at least 5 times a second.
     ///
-    /// For Blackwell &tm GB20x; or newer fully supported devices.
+    /// For Blackwell &tm `GB20x`; or newer fully supported devices.
     ///
     /// # Errors
     ///
@@ -495,13 +546,14 @@ impl GpuInstance {
             engineId: engine as u32,
             ..Default::default()
         };
+        // SAFETY: `nvmlGpuInstanceGetVgpuSchedulerLog_v2` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetVgpuSchedulerLog_v2(
                 self.0,
                 &raw mut info,
             ))?;
         }
-        VgpuSchedulerLog::from_raw(info)
+        VgpuSchedulerLog::from_raw(&info)
     }
 }
 
@@ -518,13 +570,20 @@ impl OwnedGpuInstance {
         Self(GpuInstance(handle))
     }
 
+    /// Borrows the instance handle without transferring destruction responsibility.
+    #[must_use]
     pub const fn as_gpu_instance(&self) -> &GpuInstance {
         &self.0
     }
 
+    /// Transfers destruction responsibility and returns the borrowed GPU instance wrapper.
+    ///
+    /// The caller must eventually destroy the native instance or place it in another owner.
+    #[must_use]
     pub fn into_inner(self) -> GpuInstance {
         let this = ManuallyDrop::new(self);
-        unsafe { ptr::read(&this.0) }
+        // SAFETY: `this` is never dropped, so the field moves out exactly once.
+        unsafe { ptr::read(&raw const this.0) }
     }
 
     /// Transfers this owned GPU instance handle to the caller.
@@ -532,6 +591,7 @@ impl OwnedGpuInstance {
     /// After this call, the wrapper will not destroy the GPU instance. The
     /// caller becomes responsible for eventually passing the handle to
     /// `nvmlGpuInstanceDestroy` or otherwise transferring ownership.
+    #[must_use]
     pub fn into_raw(self) -> sys::nvmlGpuInstance_t {
         self.into_inner().0
     }
@@ -547,8 +607,12 @@ impl Deref for OwnedGpuInstance {
 
 impl Drop for OwnedGpuInstance {
     fn drop(&mut self) {
+        // SAFETY: `nvmlGpuInstanceDestroy` receives only plain values.
         unsafe {
-            let _ = sys::nvmlGpuInstanceDestroy(self.0.0);
+            if let Err(error) = try_ffi!(sys::nvmlGpuInstanceDestroy(self.0.0)) {
+                #[cfg(debug_assertions)]
+                eprintln!("failed to destroy nvml gpu instance: {error}");
+            }
         }
     }
 }

@@ -3,14 +3,37 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
+    #[must_use]
+    pub fn propagate_nan_reduction<const BN: i32>(
+        value: Tile<f32, { [1] }>,
+        input: Tile<f32, { [1, BN] }>,
+        valid: Tile<bool, { [1, BN] }>,
+    ) -> Tile<f32, { [1] }> {
+        let tile_shape = const_shape![1, BN];
+        let nan = cmpf(input, input, predicate::NotEqual, cmp_ordering::Unordered);
+        let one = constant(1i32, tile_shape);
+        let zero = constant(0i32, tile_shape);
+        let count: Tile<i32, { [1] }> = reduce_sum(select(valid & nan, one, zero), 1i32);
+        let row_shape = const_shape![1];
+        let zero_row: Tile<i32, { [1] }> = constant(0i32, row_shape);
+        let nan_bits: Tile<u32, { [1] }> = constant(0x7fc0_0000u32, row_shape);
+        let nan_row: Tile<f32, { [1] }> = bitcast(nan_bits);
+        let has_nan = cmpi(count, zero_row, predicate::GreaterThan);
+        select(has_nan, nan_row, value)
+    }
     pub fn reduce_impl<const OP: i32, const BN: i32>(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f32, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -53,6 +76,103 @@ mod kernels {
             let one = constant(1.0f32, tile_shape);
             reduce_prod(select(valid_cols, input_tile_raw, one), 1i32)
         };
+        let value = if OP == 2 || OP == 3 {
+            propagate_nan_reduction(value, input_tile_raw, valid_cols)
+        } else {
+            value
+        };
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+    pub fn reduce_sum_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let zero = constant(0.0f32, tile_shape);
+        let input_tile = select(valid_cols, input_tile_raw, zero);
+        let value: Tile<f32, { [1] }> = reduce_sum(input_tile, 1i32);
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+    pub fn reduce_mean_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+        divisor: f32,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let zero = constant(0.0f32, tile_shape);
+        let input_tile = select(valid_cols, input_tile_raw, zero);
+        let sum: Tile<f32, { [1] }> = reduce_sum(input_tile, 1i32);
+        let divisor = broadcast_scalar(divisor, const_shape![1]);
+        let value: Tile<f32, { [1] }> = sum / divisor;
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+    pub fn reduce_max_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let fill: Tile<f32, { [1, BN] }> = constant(f32::NEG_INFINITY, tile_shape);
+        let value: Tile<f32, { [1] }> = reduce_max(select(valid_cols, input_tile_raw, fill), 1i32);
+        let value = propagate_nan_reduction(value, input_tile_raw, valid_cols);
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+    pub fn reduce_min_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let fill: Tile<f32, { [1, BN] }> = constant(f32::INFINITY, tile_shape);
+        let value: Tile<f32, { [1] }> = reduce_min(select(valid_cols, input_tile_raw, fill), 1i32);
+        let value = propagate_nan_reduction(value, input_tile_raw, valid_cols);
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+    pub fn reduce_product_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let one = constant(1.0f32, tile_shape);
+        let value: Tile<f32, { [1] }> = reduce_prod(select(valid_cols, input_tile_raw, one), 1i32);
         out.store(value.reshape(const_shape![1i32, 1i32]));
     }
     pub fn arg_reduce_impl<const OP: i32, const BN: i32>(
@@ -60,7 +180,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f32, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -74,21 +194,27 @@ mod kernels {
             predicate::Equal,
             cmp_ordering::Ordered,
         );
+        let nan = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::NotEqual,
+            cmp_ordering::Unordered,
+        );
         let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
         let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
-        let numeric_i32 = select(valid_cols & numeric, one_i32, zero_i32);
-        let numeric_count: Tile<i32, { [1] }> = reduce_sum(numeric_i32, 1i32);
+        let nan_i32: Tile<i32, { [1, BN] }> = select(valid_cols & nan, one_i32, zero_i32);
+        let nan_count: Tile<i32, { [1] }> = reduce_sum(nan_i32, 1i32);
         let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
-        let has_numeric = cmpi(
-            numeric_count.reshape(const_shape![1i32, 1i32]),
-            zero_row,
-            predicate::GreaterThan,
-        )
-        .broadcast(tile_shape);
-        let no_numeric = cmpi(
-            numeric_count.reshape(const_shape![1i32, 1i32]),
+        let no_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
             zero_row,
             predicate::Equal,
+        )
+        .broadcast(tile_shape);
+        let has_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::GreaterThan,
         )
         .broadcast(tile_shape);
         let candidates = if OP == 0 {
@@ -112,10 +238,146 @@ mod kernels {
             predicate::Equal,
             cmp_ordering::Ordered,
         );
-        let best_nan = no_numeric & valid_cols;
-        let best = (has_numeric & valid_cols & numeric & best_numeric) | best_nan;
+        let best_nan = has_nan & valid_cols & nan;
+        let best = (no_nan & valid_cols & numeric & best_numeric) | best_nan;
         let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
-        let best_indices = select(best, col_iota, sentinel);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
+        let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
+        let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
+        let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);
+        let zero_pair: Tile<i32, { [1, 2] }> = constant(0i32, const_shape![1i32, 2i32]);
+        let first_lane = cmpi(lane_iota, zero_pair, predicate::Equal);
+        let best_index = best_index
+            .reshape(const_shape![1i32, 1i32])
+            .broadcast(const_shape![1i32, 2i32]);
+        out.store(select(first_lane, best_index, zero_pair));
+    }
+    pub fn argmax_f32_impl<const BN: i32>(
+        out: &mut Tensor<i32, { [1, 2] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let numeric = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::Equal,
+            cmp_ordering::Ordered,
+        );
+        let nan = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::NotEqual,
+            cmp_ordering::Unordered,
+        );
+        let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
+        let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
+        let nan_i32: Tile<i32, { [1, BN] }> = select(valid_cols & nan, one_i32, zero_i32);
+        let nan_count: Tile<i32, { [1] }> = reduce_sum(nan_i32, 1i32);
+        let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
+        let no_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::Equal,
+        )
+        .broadcast(tile_shape);
+        let has_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::GreaterThan,
+        )
+        .broadcast(tile_shape);
+        let fill: Tile<f32, { [1, BN] }> = constant(f32::NEG_INFINITY, tile_shape);
+        let candidates = select(valid_cols & numeric, input_tile_raw, fill);
+        let best_value: Tile<f32, { [1] }> = reduce_max(candidates, 1i32);
+        let best_value = best_value
+            .reshape(const_shape![1i32, 1i32])
+            .broadcast(tile_shape);
+        let best_numeric = cmpf(
+            input_tile_raw,
+            best_value,
+            predicate::Equal,
+            cmp_ordering::Ordered,
+        );
+        let best_nan = has_nan & valid_cols & nan;
+        let best = (no_nan & valid_cols & numeric & best_numeric) | best_nan;
+        let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
+        let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
+        let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
+        let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);
+        let zero_pair: Tile<i32, { [1, 2] }> = constant(0i32, const_shape![1i32, 2i32]);
+        let first_lane = cmpi(lane_iota, zero_pair, predicate::Equal);
+        let best_index = best_index
+            .reshape(const_shape![1i32, 1i32])
+            .broadcast(const_shape![1i32, 2i32]);
+        out.store(select(first_lane, best_index, zero_pair));
+    }
+    pub fn argmin_f32_impl<const BN: i32>(
+        out: &mut Tensor<i32, { [1, 2] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let numeric = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::Equal,
+            cmp_ordering::Ordered,
+        );
+        let nan = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::NotEqual,
+            cmp_ordering::Unordered,
+        );
+        let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
+        let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
+        let nan_i32: Tile<i32, { [1, BN] }> = select(valid_cols & nan, one_i32, zero_i32);
+        let nan_count: Tile<i32, { [1] }> = reduce_sum(nan_i32, 1i32);
+        let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
+        let no_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::Equal,
+        )
+        .broadcast(tile_shape);
+        let has_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::GreaterThan,
+        )
+        .broadcast(tile_shape);
+        let fill: Tile<f32, { [1, BN] }> = constant(f32::INFINITY, tile_shape);
+        let candidates = select(valid_cols & numeric, input_tile_raw, fill);
+        let best_value: Tile<f32, { [1] }> = reduce_min(candidates, 1i32);
+        let best_value = best_value
+            .reshape(const_shape![1i32, 1i32])
+            .broadcast(tile_shape);
+        let best_numeric = cmpf(
+            input_tile_raw,
+            best_value,
+            predicate::Equal,
+            cmp_ordering::Ordered,
+        );
+        let best_nan = has_nan & valid_cols & nan;
+        let best = (no_nan & valid_cols & numeric & best_numeric) | best_nan;
+        let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
         let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
         let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
         let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);
@@ -128,47 +390,47 @@ mod kernels {
     }
     #[cutile::entry()]
     pub fn reduce_sum_f32_1(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<0i32, 1i32>(out, input, 1.0f32);
+        reduce_sum_impl::<1i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_sum_f32_8(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<0i32, 8i32>(out, input, 1.0f32);
+        reduce_sum_impl::<8i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_sum_f32_32(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<0i32, 32i32>(out, input, 1.0f32);
+        reduce_sum_impl::<32i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_sum_f32_64(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<0i32, 64i32>(out, input, 1.0f32);
+        reduce_sum_impl::<64i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_sum_f32_128(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<0i32, 128i32>(out, input, 1.0f32);
+        reduce_sum_impl::<128i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_sum_f32_256(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<0i32, 256i32>(out, input, 1.0f32);
+        reduce_sum_impl::<256i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_sum_f32_512(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<0i32, 512i32>(out, input, 1.0f32);
+        reduce_sum_impl::<512i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_sum_f32_1024(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<0i32, 1024i32>(out, input, 1.0f32);
+        reduce_sum_impl::<1024i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_mean_f32_1(
@@ -176,7 +438,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
-        reduce_impl::<1i32, 1i32>(out, input, divisor);
+        reduce_mean_impl::<1i32>(out, input, divisor);
     }
     #[cutile::entry()]
     pub fn reduce_mean_f32_8(
@@ -184,7 +446,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
-        reduce_impl::<1i32, 8i32>(out, input, divisor);
+        reduce_mean_impl::<8i32>(out, input, divisor);
     }
     #[cutile::entry()]
     pub fn reduce_mean_f32_32(
@@ -192,7 +454,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
-        reduce_impl::<1i32, 32i32>(out, input, divisor);
+        reduce_mean_impl::<32i32>(out, input, divisor);
     }
     #[cutile::entry()]
     pub fn reduce_mean_f32_64(
@@ -200,7 +462,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
-        reduce_impl::<1i32, 64i32>(out, input, divisor);
+        reduce_mean_impl::<64i32>(out, input, divisor);
     }
     #[cutile::entry()]
     pub fn reduce_mean_f32_128(
@@ -208,7 +470,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
-        reduce_impl::<1i32, 128i32>(out, input, divisor);
+        reduce_mean_impl::<128i32>(out, input, divisor);
     }
     #[cutile::entry()]
     pub fn reduce_mean_f32_256(
@@ -216,7 +478,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
-        reduce_impl::<1i32, 256i32>(out, input, divisor);
+        reduce_mean_impl::<256i32>(out, input, divisor);
     }
     #[cutile::entry()]
     pub fn reduce_mean_f32_512(
@@ -224,7 +486,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
-        reduce_impl::<1i32, 512i32>(out, input, divisor);
+        reduce_mean_impl::<512i32>(out, input, divisor);
     }
     #[cutile::entry()]
     pub fn reduce_mean_f32_1024(
@@ -232,151 +494,151 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
-        reduce_impl::<1i32, 1024i32>(out, input, divisor);
+        reduce_mean_impl::<1024i32>(out, input, divisor);
     }
     #[cutile::entry()]
     pub fn reduce_max_f32_1(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<2i32, 1i32>(out, input, 1.0f32);
+        reduce_max_impl::<1i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_max_f32_8(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<2i32, 8i32>(out, input, 1.0f32);
+        reduce_max_impl::<8i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_max_f32_32(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<2i32, 32i32>(out, input, 1.0f32);
+        reduce_max_impl::<32i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_max_f32_64(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<2i32, 64i32>(out, input, 1.0f32);
+        reduce_max_impl::<64i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_max_f32_128(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<2i32, 128i32>(out, input, 1.0f32);
+        reduce_max_impl::<128i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_max_f32_256(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<2i32, 256i32>(out, input, 1.0f32);
+        reduce_max_impl::<256i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_max_f32_512(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<2i32, 512i32>(out, input, 1.0f32);
+        reduce_max_impl::<512i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_max_f32_1024(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<2i32, 1024i32>(out, input, 1.0f32);
+        reduce_max_impl::<1024i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_min_f32_1(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<3i32, 1i32>(out, input, 1.0f32);
+        reduce_min_impl::<1i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_min_f32_8(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<3i32, 8i32>(out, input, 1.0f32);
+        reduce_min_impl::<8i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_min_f32_32(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<3i32, 32i32>(out, input, 1.0f32);
+        reduce_min_impl::<32i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_min_f32_64(out: &mut Tensor<f32, { [1, 1] }>, input: &Tensor<f32, { [-1, -1] }>) {
-        reduce_impl::<3i32, 64i32>(out, input, 1.0f32);
+        reduce_min_impl::<64i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_min_f32_128(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<3i32, 128i32>(out, input, 1.0f32);
+        reduce_min_impl::<128i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_min_f32_256(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<3i32, 256i32>(out, input, 1.0f32);
+        reduce_min_impl::<256i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_min_f32_512(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<3i32, 512i32>(out, input, 1.0f32);
+        reduce_min_impl::<512i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_min_f32_1024(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<3i32, 1024i32>(out, input, 1.0f32);
+        reduce_min_impl::<1024i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_product_f32_1(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<4i32, 1i32>(out, input, 1.0f32);
+        reduce_product_impl::<1i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_product_f32_8(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<4i32, 8i32>(out, input, 1.0f32);
+        reduce_product_impl::<8i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_product_f32_32(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<4i32, 32i32>(out, input, 1.0f32);
+        reduce_product_impl::<32i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_product_f32_64(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<4i32, 64i32>(out, input, 1.0f32);
+        reduce_product_impl::<64i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_product_f32_128(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<4i32, 128i32>(out, input, 1.0f32);
+        reduce_product_impl::<128i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_product_f32_256(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<4i32, 256i32>(out, input, 1.0f32);
+        reduce_product_impl::<256i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_product_f32_512(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<4i32, 512i32>(out, input, 1.0f32);
+        reduce_product_impl::<512i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_product_f32_1024(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        reduce_impl::<4i32, 1024i32>(out, input, 1.0f32);
+        reduce_product_impl::<1024i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_variance_f32<const BN: i32>(
@@ -399,84 +661,84 @@ mod kernels {
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<0i32, 1i32>(out, input);
+        argmax_f32_impl::<1i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmax_f32_8(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<0i32, 8i32>(out, input);
+        argmax_f32_impl::<8i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmax_f32_128(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<0i32, 128i32>(out, input);
+        argmax_f32_impl::<128i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmax_f32_256(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<0i32, 256i32>(out, input);
+        argmax_f32_impl::<256i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmax_f32_512(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<0i32, 512i32>(out, input);
+        argmax_f32_impl::<512i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmax_f32_1024(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<0i32, 1024i32>(out, input);
+        argmax_f32_impl::<1024i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmin_f32_1(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<1i32, 1i32>(out, input);
+        argmin_f32_impl::<1i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmin_f32_8(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<1i32, 8i32>(out, input);
+        argmin_f32_impl::<8i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmin_f32_128(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<1i32, 128i32>(out, input);
+        argmin_f32_impl::<128i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmin_f32_256(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<1i32, 256i32>(out, input);
+        argmin_f32_impl::<256i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmin_f32_512(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<1i32, 512i32>(out, input);
+        argmin_f32_impl::<512i32>(out, input);
     }
     #[cutile::entry()]
     pub fn reduce_argmin_f32_1024(
         out: &mut Tensor<i32, { [1, 2] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        arg_reduce_impl::<1i32, 1024i32>(out, input);
+        argmin_f32_impl::<1024i32>(out, input);
     }
 }
 pub use kernels::*;

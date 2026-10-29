@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     pub fn reduce_impl<const OP: i32, const BN: i32>(
         out: &mut Tensor<f64, { [1, 1] }>,
@@ -10,7 +15,7 @@ mod kernels {
         divisor: f64,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f64, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -60,7 +65,7 @@ mod kernels {
         input: &Tensor<f64, { [-1, -1] }>,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f64, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -76,7 +81,7 @@ mod kernels {
         );
         let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
         let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
-        let numeric_i32 = select(valid_cols & numeric, one_i32, zero_i32);
+        let numeric_i32: Tile<i32, { [1, BN] }> = select(valid_cols & numeric, one_i32, zero_i32);
         let numeric_count: Tile<i32, { [1] }> = reduce_sum(numeric_i32, 1i32);
         let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
         let has_numeric = cmpi(
@@ -115,7 +120,7 @@ mod kernels {
         let best_nan = no_numeric & valid_cols;
         let best = (has_numeric & valid_cols & numeric & best_numeric) | best_nan;
         let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
-        let best_indices = select(best, col_iota, sentinel);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
         let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
         let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
         let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);

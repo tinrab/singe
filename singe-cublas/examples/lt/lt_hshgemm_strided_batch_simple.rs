@@ -8,6 +8,7 @@ use singe_cublas::{
     },
     types::{ComputeType, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
     types::f16,
@@ -28,10 +29,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let three = f16::from_f32(3.0);
     let four = f16::from_f32(4.0);
 
-    let a = DeviceMemory::from_slice(&[one, three, two, four, two, four, one, three])?;
-    let b = DeviceMemory::from_slice(&[one, one, one, one, one, two, three, four])?;
-    let c = DeviceMemory::<f16>::zeroes((M * N * BATCH_COUNT as u64) as usize)?;
-    let mut d = DeviceMemory::<f16>::zeroes((M * N * BATCH_COUNT as u64) as usize)?;
+    let a = DeviceMemory::from_slice(&cuda, &[one, three, two, four, two, four, one, three])?;
+    let b = DeviceMemory::from_slice(&cuda, &[one, one, one, one, one, two, three, four])?;
+    let c = DeviceMemory::<f16>::zeroed(&cuda, (M * N * BATCH_COUNT as u64) as usize)?;
+    let mut d = DeviceMemory::<f16>::zeroed(&cuda, (M * N * BATCH_COUNT as u64) as usize)?;
 
     let mut a_layout = MatrixLayout::create(DataType::F16, M, K, M as i64)?;
     a_layout.set_batch_count(BATCH_COUNT)?;
@@ -66,26 +67,30 @@ fn main() -> Result<(), Box<dyn Error>> {
         1,
     )?;
 
-    let mut workspace = DeviceMemory::<u8>::create(heuristics[0].workspace_size)?;
+    let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, heuristics[0].workspace_size)?;
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
-    matmul(
-        &lt,
-        &desc,
-        &alpha,
-        &a,
-        &a_layout,
-        &b,
-        &b_layout,
-        &beta,
-        &c,
-        &c_layout,
-        &mut d,
-        &d_layout,
-        Some(&heuristics[0].algorithm),
-        Some(&mut workspace),
-        None,
-    )?;
+    // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
+    unsafe {
+        matmul(
+            &lt,
+            &desc,
+            &alpha,
+            &a,
+            &a_layout,
+            &b,
+            &b_layout,
+            &beta,
+            &c,
+            &c_layout,
+            &mut d,
+            &d_layout,
+            Some(&heuristics[0].algorithm),
+            Some(&mut workspace),
+            None,
+        )
+    }?;
+    cuda.synchronize()?;
 
     let result = d.copy_to_host_vec()?;
     println!("lt_hshgemm_strided_batch_simple result: {result:?}");

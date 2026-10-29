@@ -1,20 +1,32 @@
 //! Prefill/decode attention kernels and related attention variants.
+//!
+//! Destinations and split-K scratch accept pending storage. Attention writes
+//! the configured active query/head/feature positions; LSE writes the
+//! corresponding query/head slots, or slots for each active split. Selectors
+//! write their configured index, position, and validity-mask outputs.
+//! Stride gaps, inactive rows, and unused capacity are not initialized by these
+//! operations. Promote only ranges whose producers have completed successfully.
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use singe_cuda::types::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceSlice, DeviceSliceMut, DeviceView},
+    view::{DeviceInput, DeviceOutput},
 };
 
 #[cfg(feature = "cutile")]
 use crate::cuda::cutile;
 use crate::{
-    cuda::interop::{borrowed_stream, input_pointer, output_pointer},
+    cuda::{
+        autotune::{
+            self, DeviceFingerprint, TuneOptions, TuneProblemKey, TuneReport, TuningChoice,
+        },
+        interop::{input_pointer, write_only_pointer},
+    },
     error::{Error, Result},
-    utility::{checked_element_count, checked_i32_value, ensure_len, ensure_len_at_least},
+    utility::{checked_element_count, checked_i32_value, ensure_len_at_least},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -355,6 +367,7 @@ pub struct MlaDecodeSplitKConfig {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FmhaDecodeConfig {
     pub batch: usize,
     pub key_len: usize,
@@ -427,6 +440,67 @@ pub struct SoftcappedWindowDecodeSplitKConfig {
     pub decode: FmhaDecodeSplitKConfig,
     pub window_size: usize,
     pub soft_cap: Option<f32>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AttentionSplitKTuning {
+    pub splits: usize,
+}
+
+impl AttentionSplitKTuning {
+    pub const fn create(splits: usize) -> Self {
+        Self { splits }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FmhaDecodeSplitKReduceConfig {
+    pub decode: FmhaDecodeConfig,
+    pub max_splits: usize,
+    pub tuning: TuningChoice<AttentionSplitKTuning>,
+}
+
+impl FmhaDecodeSplitKReduceConfig {
+    pub fn contiguous(
+        batch: usize,
+        key_len: usize,
+        heads: usize,
+        kv_heads: usize,
+        head_dim: usize,
+        max_splits: usize,
+        scale: f32,
+    ) -> Result<Self> {
+        let config = Self {
+            decode: FmhaDecodeConfig::contiguous(batch, key_len, heads, kv_heads, head_dim, scale)?,
+            max_splits,
+            tuning: TuningChoice::Default,
+        };
+        validate_fmha_decode_splitk_reduce_config(config)?;
+        Ok(config)
+    }
+
+    pub const fn with_tuning(mut self, tuning: TuningChoice<AttentionSplitKTuning>) -> Self {
+        self.tuning = tuning;
+        self
+    }
+
+    pub const fn explicit_tuning(self, tuning: AttentionSplitKTuning) -> Self {
+        self.with_tuning(TuningChoice::Explicit(tuning))
+    }
+
+    pub const fn cached_tuning(self) -> Self {
+        self.with_tuning(TuningChoice::Cached)
+    }
+
+    pub const fn tune(self, options: TuneOptions) -> Self {
+        self.with_tuning(TuningChoice::Tune(options))
+    }
+
+    pub const fn retune(self, options: TuneOptions) -> Self {
+        self.with_tuning(TuningChoice::Retune(options))
+    }
 }
 
 impl SlidingWindowAttentionConfig {
@@ -593,6 +667,7 @@ impl SwaAttentionConfig {
         }
     }
 
+    #[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
     fn validate_lengths(
         self,
         out_len: usize,
@@ -2291,6 +2366,202 @@ impl SplitKReduceConfig {
     }
 }
 
+fn attention_splitk_candidates(config: FmhaDecodeSplitKReduceConfig) -> Vec<AttentionSplitKTuning> {
+    let max_splits = config.max_splits.min(config.decode.key_len);
+    let mut splits = [1, 2, 4, 8, 16, 32, 64]
+        .into_iter()
+        .filter(|&splits| splits <= max_splits)
+        .collect::<Vec<_>>();
+    if max_splits > 0 && splits.last().copied() != Some(max_splits) {
+        splits.push(max_splits);
+    }
+    splits.sort_unstable();
+    splits.dedup();
+    splits
+        .into_iter()
+        .map(AttentionSplitKTuning::create)
+        .collect()
+}
+
+fn attention_splitk_tune_key(
+    stream: &Stream,
+    op: &'static str,
+    dtype: &'static str,
+    config: FmhaDecodeSplitKReduceConfig,
+) -> Result<autotune::TuneKey> {
+    let decode = config.decode;
+    let device = DeviceFingerprint::create(stream.context().device())?;
+    Ok(autotune::TuneKey::create(
+        op,
+        "cutile",
+        device,
+        TuneProblemKey::AttentionSplitK {
+            dtype: dtype.to_owned(),
+            op_kind: op.to_owned(),
+            batch: decode.batch,
+            key_len: decode.key_len,
+            heads: decode.heads,
+            kv_heads: decode.kv_heads,
+            head_dim: decode.head_dim,
+            max_splits: config.max_splits,
+            query_batch_stride: decode.query_batch_stride,
+            key_batch_stride: decode.key_batch_stride,
+            value_batch_stride: decode.value_batch_stride,
+            output_batch_stride: decode.output_batch_stride,
+            query_head_stride: decode.query_head_stride,
+            key_sequence_stride: decode.key_sequence_stride,
+            value_sequence_stride: decode.value_sequence_stride,
+            output_head_stride: decode.output_head_stride,
+            key_head_stride: decode.key_head_stride,
+            value_head_stride: decode.value_head_stride,
+        },
+    ))
+}
+
+fn resolve_attention_splitk_tuning<C, F>(
+    stream: &Stream,
+    op: &'static str,
+    key: autotune::TuneKey,
+    choice: TuningChoice<AttentionSplitKTuning>,
+    candidates: C,
+    tune: F,
+) -> Result<Option<AttentionSplitKTuning>>
+where
+    C: FnOnce() -> Vec<AttentionSplitKTuning>,
+    F: FnOnce(TuneOptions, Vec<AttentionSplitKTuning>) -> Result<TuneReport<AttentionSplitKTuning>>,
+{
+    match choice {
+        TuningChoice::Default => Ok(None),
+        TuningChoice::Explicit(tuning) => Ok(Some(tuning)),
+        TuningChoice::Cached => {
+            if let Some(tuning) = autotune::cache().get(&key)? {
+                Ok(Some(tuning))
+            } else {
+                Err(autotune::cache_miss_error(op, stream.capture_status()?))
+            }
+        }
+        TuningChoice::Tune(options) => {
+            if let Some(tuning) = autotune::cache().get(&key)? {
+                return Ok(Some(tuning));
+            }
+            let report = tune(options, candidates())?;
+            autotune::cache().insert(key, report.best);
+            Ok(Some(report.best))
+        }
+        TuningChoice::Retune(options) => {
+            let report = tune(options, candidates())?;
+            autotune::cache().insert(key, report.best);
+            Ok(Some(report.best))
+        }
+    }
+}
+
+fn fmha_splitk_decode_config(
+    config: FmhaDecodeSplitKReduceConfig,
+    tuning: AttentionSplitKTuning,
+) -> FmhaDecodeSplitKConfig {
+    let decode = config.decode;
+    let splits = tuning.splits;
+    let kv_len_per_split = decode.key_len.div_ceil(splits);
+    let split_values = splits * decode.head_dim;
+    FmhaDecodeSplitKConfig {
+        batch: decode.batch,
+        key_len: decode.key_len,
+        heads: decode.heads,
+        kv_heads: decode.kv_heads,
+        splits,
+        kv_len_per_split,
+        head_dim: decode.head_dim,
+        query_batch_stride: decode.query_batch_stride,
+        key_batch_stride: decode.key_batch_stride,
+        value_batch_stride: decode.value_batch_stride,
+        output_batch_stride: decode.heads * split_values,
+        query_head_stride: decode.query_head_stride,
+        key_sequence_stride: decode.key_sequence_stride,
+        value_sequence_stride: decode.value_sequence_stride,
+        output_head_stride: split_values,
+        output_split_stride: decode.head_dim,
+        key_head_stride: decode.key_head_stride,
+        value_head_stride: decode.value_head_stride,
+        lse_batch_stride: decode.heads * splits,
+        lse_head_stride: splits,
+        scale: decode.scale,
+    }
+}
+
+fn fmha_splitk_reduce_config(
+    config: FmhaDecodeSplitKReduceConfig,
+    tuning: AttentionSplitKTuning,
+) -> SplitKReduceConfig {
+    let decode = config.decode;
+    let splits = tuning.splits;
+    let split_values = splits * decode.head_dim;
+    SplitKReduceConfig {
+        batch: decode.batch,
+        heads: decode.heads,
+        splits,
+        head_dim: decode.head_dim,
+        attn_batch_stride: decode.heads * split_values,
+        attn_head_stride: split_values,
+        attn_split_stride: decode.head_dim,
+        lse_batch_stride: decode.heads * splits,
+        lse_head_stride: splits,
+        output_batch_stride: decode.output_batch_stride,
+        output_head_stride: decode.output_head_stride,
+    }
+}
+
+fn validate_fmha_decode_splitk_reduce_lengths(
+    config: FmhaDecodeSplitKReduceConfig,
+    out_len: usize,
+    attn_scratch_len: usize,
+    lse_scratch_len: usize,
+    query_len: usize,
+    key_len: usize,
+    value_len: usize,
+) -> Result<()> {
+    validate_fmha_decode_splitk_reduce_config(config)?;
+    config.decode.validate_lengths(
+        out_len,
+        checked_element_count(config.decode.batch, config.decode.heads)?,
+        query_len,
+        key_len,
+        value_len,
+    )?;
+    let effective_splits = config.max_splits.min(config.decode.key_len);
+    let scratch_values = checked_element_count(
+        checked_element_count(config.decode.batch, config.decode.heads)?,
+        effective_splits,
+    )?;
+    ensure_len_at_least(
+        attn_scratch_len,
+        checked_element_count(scratch_values, config.decode.head_dim)?,
+    )?;
+    ensure_len_at_least(lse_scratch_len, scratch_values)?;
+    Ok(())
+}
+
+fn validate_attention_splitk_tuning(
+    config: FmhaDecodeSplitKReduceConfig,
+    tuning: AttentionSplitKTuning,
+) -> Result<()> {
+    if tuning.splits == 0
+        || tuning.splits > config.max_splits
+        || tuning.splits > config.decode.key_len
+    {
+        return Err(Error::InvalidLength);
+    }
+    Ok(())
+}
+
+fn validate_fmha_decode_splitk_reduce_config(config: FmhaDecodeSplitKReduceConfig) -> Result<()> {
+    validate_fmha_decode_config(config.decode)?;
+    if config.max_splits == 0 {
+        return Err(Error::InvalidLength);
+    }
+    Ok(())
+}
+
 impl SoftcappedWindowDecodeConfig {
     pub fn bnsd_contiguous(
         batch: usize,
@@ -2532,3178 +2803,59 @@ impl AttentionSinkDecodeSplitKConfig {
     }
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 /// Causal left-window attention.
 ///
 /// For query absolute position `q_abs`, only keys satisfying
 /// `key_abs <= q_abs` and `key_abs + window > q_abs` are visible. KV heads are
 /// mapped with contiguous grouped-query attention semantics.
-pub fn sliding_window_attention_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: SlidingWindowAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::sliding_window_attention_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_start,
-        config.key_start,
-        config.window,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.output_scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-
-pub fn mla_prefill_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    query_pe: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    key_pe: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: MlaPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        query_pe.len(),
-        key.len(),
-        key_pe.len(),
-        value.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_prefill_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key),
-        input_pointer(key_pe),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-
-pub fn mla_prefill_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    query: &impl DeviceSlice<f16>,
-    query_pe: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    key_pe: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: MlaPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        query_pe.len(),
-        key.len(),
-        key_pe.len(),
-        value.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_prefill_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key),
-        input_pointer(key_pe),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-
-pub fn mla_prefill_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    query: &impl DeviceSlice<bf16>,
-    query_pe: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    key_pe: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: MlaPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        query_pe.len(),
-        key.len(),
-        key_pe.len(),
-        value.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_prefill_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key),
-        input_pointer(key_pe),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-
-pub fn sparse_mla_prefill_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    query_pe: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    key_pe: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    indices: &impl DeviceSlice<i32>,
-    config: SparseMlaPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        query_pe.len(),
-        key.len(),
-        key_pe.len(),
-        value.len(),
-        indices.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::sparse_mla_prefill_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key),
-        input_pointer(key_pe),
-        input_pointer(value),
-        input_pointer(indices),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.pe_dim,
-        config.topk,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-
-pub fn mla_decode_lse_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    query_pe: &impl DeviceSlice<f32>,
-    key_value: &impl DeviceSlice<f32>,
-    key_pe: &impl DeviceSlice<f32>,
-    config: MlaDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value.len(),
-        key_pe.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_decode_lse_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value),
-        input_pointer(key_pe),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-
-pub fn paged_mla_decode_attention_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    query_pe: &impl DeviceSlice<f32>,
-    key_value_cache: &impl DeviceSlice<f32>,
-    key_pe_cache: &impl DeviceSlice<f32>,
-    actual_seq_lens: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedMlaDecodeAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value_cache.len(),
-        key_pe_cache.len(),
-        actual_seq_lens.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_mla_decode_attention_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value_cache),
-        input_pointer(key_pe_cache),
-        input_pointer(actual_seq_lens),
-        input_pointer(block_table),
-        config.batch,
-        config.heads,
-        config.head_dim,
-        config.pe_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.scale,
-        config.output_scale,
-    )
-}
-#[cfg(feature = "dtype-f16")]
-
-pub fn paged_mla_decode_attention_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    query_pe: &impl DeviceSlice<f16>,
-    key_value_cache: &impl DeviceSlice<f16>,
-    key_pe_cache: &impl DeviceSlice<f16>,
-    actual_seq_lens: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedMlaDecodeAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value_cache.len(),
-        key_pe_cache.len(),
-        actual_seq_lens.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_mla_decode_attention_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value_cache),
-        input_pointer(key_pe_cache),
-        input_pointer(actual_seq_lens),
-        input_pointer(block_table),
-        config.batch,
-        config.heads,
-        config.head_dim,
-        config.pe_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.scale,
-        config.output_scale,
-    )
-}
-#[cfg(feature = "dtype-bf16")]
-
-pub fn paged_mla_decode_attention_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    query_pe: &impl DeviceSlice<bf16>,
-    key_value_cache: &impl DeviceSlice<bf16>,
-    key_pe_cache: &impl DeviceSlice<bf16>,
-    actual_seq_lens: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedMlaDecodeAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value_cache.len(),
-        key_pe_cache.len(),
-        actual_seq_lens.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_mla_decode_attention_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value_cache),
-        input_pointer(key_pe_cache),
-        input_pointer(actual_seq_lens),
-        input_pointer(block_table),
-        config.batch,
-        config.heads,
-        config.head_dim,
-        config.pe_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.scale,
-        config.output_scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-
-pub fn mla_decode_lse_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    query_pe: &impl DeviceSlice<f16>,
-    key_value: &impl DeviceSlice<f16>,
-    key_pe: &impl DeviceSlice<f16>,
-    config: MlaDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value.len(),
-        key_pe.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_decode_lse_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value),
-        input_pointer(key_pe),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-
-pub fn mla_decode_lse_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    query_pe: &impl DeviceSlice<bf16>,
-    key_value: &impl DeviceSlice<bf16>,
-    key_pe: &impl DeviceSlice<bf16>,
-    config: MlaDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value.len(),
-        key_pe.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_decode_lse_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value),
-        input_pointer(key_pe),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-
-pub fn mla_decode_splitk_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    query_pe: &impl DeviceSlice<f32>,
-    key_value: &impl DeviceSlice<f32>,
-    key_pe: &impl DeviceSlice<f32>,
-    config: MlaDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value.len(),
-        key_pe.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_decode_splitk_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value),
-        input_pointer(key_pe),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.splits,
-        config.kv_len_per_split,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-
-pub fn mla_decode_splitk_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    query_pe: &impl DeviceSlice<f16>,
-    key_value: &impl DeviceSlice<f16>,
-    key_pe: &impl DeviceSlice<f16>,
-    config: MlaDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value.len(),
-        key_pe.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_decode_splitk_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value),
-        input_pointer(key_pe),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.splits,
-        config.kv_len_per_split,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-
-pub fn mla_decode_splitk_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    query_pe: &impl DeviceSlice<bf16>,
-    key_value: &impl DeviceSlice<bf16>,
-    key_pe: &impl DeviceSlice<bf16>,
-    config: MlaDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        query_pe.len(),
-        key_value.len(),
-        key_pe.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::mla_decode_splitk_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(query_pe),
-        input_pointer(key_value),
-        input_pointer(key_pe),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.splits,
-        config.kv_len_per_split,
-        config.head_dim,
-        config.pe_dim,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn fmha_prefill_lse_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: FmhaPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_prefill_lse_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn fmha_prefill_lse_mma_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: FmhaPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_prefill_lse_mma_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn fmha_prefill_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: FmhaPrefillConfig,
-) -> Result<()> {
-    config.validate_output_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_prefill_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn attention_sink_prefill_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    sinks: &impl DeviceSlice<f32>,
-    config: AttentionSinkPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len(), sinks.len())?;
-    let attention = config.attention;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::attention_sink_prefill_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(sinks),
-        attention.batch,
-        attention.query_len,
-        attention.key_len,
-        attention.heads,
-        attention.kv_heads,
-        attention.head_dim,
-        attention.query_batch_stride,
-        attention.key_batch_stride,
-        attention.value_batch_stride,
-        attention.output_batch_stride,
-        attention.query_sequence_stride,
-        attention.key_sequence_stride,
-        attention.value_sequence_stride,
-        attention.output_sequence_stride,
-        attention.query_head_stride,
-        attention.key_head_stride,
-        attention.value_head_stride,
-        attention.output_head_stride,
-        config.start_q,
-        config.window,
-        attention.scale,
-        attention.causal,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn softcapped_window_attention_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: SoftcappedWindowAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let attention = config.attention;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_attention_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        attention.batch,
-        attention.query_len,
-        attention.key_len,
-        attention.heads,
-        attention.kv_heads,
-        attention.head_dim,
-        attention.query_batch_stride,
-        attention.key_batch_stride,
-        attention.value_batch_stride,
-        attention.output_batch_stride,
-        attention.query_sequence_stride,
-        attention.key_sequence_stride,
-        attention.value_sequence_stride,
-        attention.output_sequence_stride,
-        attention.query_head_stride,
-        attention.key_head_stride,
-        attention.value_head_stride,
-        attention.output_head_stride,
-        attention.scale,
-        attention.causal,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn softcapped_window_attention_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: SoftcappedWindowAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let attention = config.attention;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_attention_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        attention.batch,
-        attention.query_len,
-        attention.key_len,
-        attention.heads,
-        attention.kv_heads,
-        attention.head_dim,
-        attention.query_batch_stride,
-        attention.key_batch_stride,
-        attention.value_batch_stride,
-        attention.output_batch_stride,
-        attention.query_sequence_stride,
-        attention.key_sequence_stride,
-        attention.value_sequence_stride,
-        attention.output_sequence_stride,
-        attention.query_head_stride,
-        attention.key_head_stride,
-        attention.value_head_stride,
-        attention.output_head_stride,
-        attention.scale,
-        attention.causal,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn softcapped_window_attention_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: SoftcappedWindowAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let attention = config.attention;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_attention_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        attention.batch,
-        attention.query_len,
-        attention.key_len,
-        attention.heads,
-        attention.kv_heads,
-        attention.head_dim,
-        attention.query_batch_stride,
-        attention.key_batch_stride,
-        attention.value_batch_stride,
-        attention.output_batch_stride,
-        attention.query_sequence_stride,
-        attention.key_sequence_stride,
-        attention.value_sequence_stride,
-        attention.output_sequence_stride,
-        attention.query_head_stride,
-        attention.key_head_stride,
-        attention.value_head_stride,
-        attention.output_head_stride,
-        attention.scale,
-        attention.causal,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn fmha_decode_lse_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: FmhaDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_decode_lse_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_head_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn softcapped_window_decode_lse_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: SoftcappedWindowDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let decode = config.decode;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_decode_lse_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        decode.batch,
-        decode.key_len,
-        decode.heads,
-        decode.kv_heads,
-        decode.head_dim,
-        decode.query_batch_stride,
-        decode.key_batch_stride,
-        decode.value_batch_stride,
-        decode.output_batch_stride,
-        decode.query_head_stride,
-        decode.key_sequence_stride,
-        decode.value_sequence_stride,
-        decode.output_head_stride,
-        decode.key_head_stride,
-        decode.value_head_stride,
-        decode.scale,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn softcapped_window_decode_lse_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: SoftcappedWindowDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let decode = config.decode;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_decode_lse_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        decode.batch,
-        decode.key_len,
-        decode.heads,
-        decode.kv_heads,
-        decode.head_dim,
-        decode.query_batch_stride,
-        decode.key_batch_stride,
-        decode.value_batch_stride,
-        decode.output_batch_stride,
-        decode.query_head_stride,
-        decode.key_sequence_stride,
-        decode.value_sequence_stride,
-        decode.output_head_stride,
-        decode.key_head_stride,
-        decode.value_head_stride,
-        decode.scale,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn softcapped_window_decode_lse_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: SoftcappedWindowDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let decode = config.decode;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_decode_lse_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        decode.batch,
-        decode.key_len,
-        decode.heads,
-        decode.kv_heads,
-        decode.head_dim,
-        decode.query_batch_stride,
-        decode.key_batch_stride,
-        decode.value_batch_stride,
-        decode.output_batch_stride,
-        decode.query_head_stride,
-        decode.key_sequence_stride,
-        decode.value_sequence_stride,
-        decode.output_head_stride,
-        decode.key_head_stride,
-        decode.value_head_stride,
-        decode.scale,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn fmha_prefill_lse_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: FmhaPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_prefill_lse_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn fmha_prefill_lse_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: FmhaPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_prefill_lse_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn fmha_prefill_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: FmhaPrefillConfig,
-) -> Result<()> {
-    config.validate_output_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_prefill_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn fmha_prefill_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: FmhaPrefillConfig,
-) -> Result<()> {
-    config.validate_output_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_prefill_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn attention_sink_prefill_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    sinks: &impl DeviceSlice<f32>,
-    config: AttentionSinkPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len(), sinks.len())?;
-    let attention = config.attention;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::attention_sink_prefill_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(sinks),
-        attention.batch,
-        attention.query_len,
-        attention.key_len,
-        attention.heads,
-        attention.kv_heads,
-        attention.head_dim,
-        attention.query_batch_stride,
-        attention.key_batch_stride,
-        attention.value_batch_stride,
-        attention.output_batch_stride,
-        attention.query_sequence_stride,
-        attention.key_sequence_stride,
-        attention.value_sequence_stride,
-        attention.output_sequence_stride,
-        attention.query_head_stride,
-        attention.key_head_stride,
-        attention.value_head_stride,
-        attention.output_head_stride,
-        config.start_q,
-        config.window,
-        attention.scale,
-        attention.causal,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn attention_sink_prefill_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    sinks: &impl DeviceSlice<f32>,
-    config: AttentionSinkPrefillConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len(), sinks.len())?;
-    let attention = config.attention;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::attention_sink_prefill_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(sinks),
-        attention.batch,
-        attention.query_len,
-        attention.key_len,
-        attention.heads,
-        attention.kv_heads,
-        attention.head_dim,
-        attention.query_batch_stride,
-        attention.key_batch_stride,
-        attention.value_batch_stride,
-        attention.output_batch_stride,
-        attention.query_sequence_stride,
-        attention.key_sequence_stride,
-        attention.value_sequence_stride,
-        attention.output_sequence_stride,
-        attention.query_head_stride,
-        attention.key_head_stride,
-        attention.value_head_stride,
-        attention.output_head_stride,
-        config.start_q,
-        config.window,
-        attention.scale,
-        attention.causal,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn fmha_decode_lse_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: FmhaDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_decode_lse_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_head_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn fmha_decode_lse_dynpos_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    position_start: &impl DeviceSlice<u32>,
-    config: FmhaDecodeConfig,
-) -> Result<()> {
-    ensure_len(position_start.len(), 1)?;
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_decode_lse_dynpos_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(position_start),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_head_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn fmha_decode_lse_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: FmhaDecodeConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_decode_lse_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_head_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn splitk_reduce_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    attn_splitk: &impl DeviceSlice<f32>,
-    lse_splitk: &impl DeviceSlice<f32>,
-    config: SplitKReduceConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), attn_splitk.len(), lse_splitk.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::splitk_reduce_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(attn_splitk),
-        input_pointer(lse_splitk),
-        config.batch,
-        config.heads,
-        config.splits,
-        config.head_dim,
-        config.attn_batch_stride,
-        config.attn_head_stride,
-        config.attn_split_stride,
-        config.lse_batch_stride,
-        config.lse_head_stride,
-        config.output_batch_stride,
-        config.output_head_stride,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn fmha_decode_splitk_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: FmhaDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_decode_splitk_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.splits,
-        config.kv_len_per_split,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_head_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_head_stride,
-        config.output_split_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.lse_batch_stride,
-        config.lse_head_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn softcapped_window_decode_splitk_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: SoftcappedWindowDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let decode = config.decode;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_decode_splitk_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        decode.batch,
-        decode.key_len,
-        decode.heads,
-        decode.kv_heads,
-        decode.splits,
-        decode.kv_len_per_split,
-        decode.head_dim,
-        decode.query_batch_stride,
-        decode.key_batch_stride,
-        decode.value_batch_stride,
-        decode.output_batch_stride,
-        decode.query_head_stride,
-        decode.key_sequence_stride,
-        decode.value_sequence_stride,
-        decode.output_head_stride,
-        decode.output_split_stride,
-        decode.key_head_stride,
-        decode.value_head_stride,
-        decode.lse_batch_stride,
-        decode.lse_head_stride,
-        decode.scale,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn softcapped_window_decode_splitk_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: SoftcappedWindowDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let decode = config.decode;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_decode_splitk_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        decode.batch,
-        decode.key_len,
-        decode.heads,
-        decode.kv_heads,
-        decode.splits,
-        decode.kv_len_per_split,
-        decode.head_dim,
-        decode.query_batch_stride,
-        decode.key_batch_stride,
-        decode.value_batch_stride,
-        decode.output_batch_stride,
-        decode.query_head_stride,
-        decode.key_sequence_stride,
-        decode.value_sequence_stride,
-        decode.output_head_stride,
-        decode.output_split_stride,
-        decode.key_head_stride,
-        decode.value_head_stride,
-        decode.lse_batch_stride,
-        decode.lse_head_stride,
-        decode.scale,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn softcapped_window_decode_splitk_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: SoftcappedWindowDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let decode = config.decode;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::softcapped_window_decode_splitk_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        decode.batch,
-        decode.key_len,
-        decode.heads,
-        decode.kv_heads,
-        decode.splits,
-        decode.kv_len_per_split,
-        decode.head_dim,
-        decode.query_batch_stride,
-        decode.key_batch_stride,
-        decode.value_batch_stride,
-        decode.output_batch_stride,
-        decode.query_head_stride,
-        decode.key_sequence_stride,
-        decode.value_sequence_stride,
-        decode.output_head_stride,
-        decode.output_split_stride,
-        decode.key_head_stride,
-        decode.value_head_stride,
-        decode.lse_batch_stride,
-        decode.lse_head_stride,
-        decode.scale,
-        config.window_size,
-        config.soft_cap,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn fmha_decode_splitk_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: FmhaDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_decode_splitk_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.splits,
-        config.kv_len_per_split,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_head_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_head_stride,
-        config.output_split_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.lse_batch_stride,
-        config.lse_head_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn fmha_decode_splitk_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: FmhaDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fmha_decode_splitk_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.splits,
-        config.kv_len_per_split,
-        config.head_dim,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_head_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_head_stride,
-        config.output_split_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.lse_batch_stride,
-        config.lse_head_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn attention_sink_decode_splitk_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    sinks: &impl DeviceSlice<f32>,
-    config: AttentionSinkDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key.len(),
-        value.len(),
-        sinks.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::attention_sink_decode_splitk_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(sinks),
-        config.decode.batch,
-        config.decode.key_len,
-        config.decode.heads,
-        config.decode.kv_heads,
-        config.decode.splits,
-        config.decode.kv_len_per_split,
-        config.decode.head_dim,
-        config.decode.query_batch_stride,
-        config.decode.key_batch_stride,
-        config.decode.value_batch_stride,
-        config.decode.output_batch_stride,
-        config.decode.query_head_stride,
-        config.decode.key_sequence_stride,
-        config.decode.value_sequence_stride,
-        config.decode.output_head_stride,
-        config.decode.output_split_stride,
-        config.decode.key_head_stride,
-        config.decode.value_head_stride,
-        config.decode.lse_batch_stride,
-        config.decode.lse_head_stride,
-        config.start_q,
-        config.window,
-        config.decode.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn attention_sink_decode_splitk_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    sinks: &impl DeviceSlice<f32>,
-    config: AttentionSinkDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key.len(),
-        value.len(),
-        sinks.len(),
-    )?;
-    let decode = config.decode;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::attention_sink_decode_splitk_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(sinks),
-        decode.batch,
-        decode.key_len,
-        decode.heads,
-        decode.kv_heads,
-        decode.splits,
-        decode.kv_len_per_split,
-        decode.head_dim,
-        decode.query_batch_stride,
-        decode.key_batch_stride,
-        decode.value_batch_stride,
-        decode.output_batch_stride,
-        decode.query_head_stride,
-        decode.key_sequence_stride,
-        decode.value_sequence_stride,
-        decode.output_head_stride,
-        decode.output_split_stride,
-        decode.key_head_stride,
-        decode.value_head_stride,
-        decode.lse_batch_stride,
-        decode.lse_head_stride,
-        config.start_q,
-        config.window,
-        decode.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn attention_sink_decode_splitk_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    sinks: &impl DeviceSlice<f32>,
-    config: AttentionSinkDecodeSplitKConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key.len(),
-        value.len(),
-        sinks.len(),
-    )?;
-    let decode = config.decode;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::attention_sink_decode_splitk_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(sinks),
-        decode.batch,
-        decode.key_len,
-        decode.heads,
-        decode.kv_heads,
-        decode.splits,
-        decode.kv_len_per_split,
-        decode.head_dim,
-        decode.query_batch_stride,
-        decode.key_batch_stride,
-        decode.value_batch_stride,
-        decode.output_batch_stride,
-        decode.query_head_stride,
-        decode.key_sequence_stride,
-        decode.value_sequence_stride,
-        decode.output_head_stride,
-        decode.output_split_stride,
-        decode.key_head_stride,
-        decode.value_head_stride,
-        decode.lse_batch_stride,
-        decode.lse_head_stride,
-        config.start_q,
-        config.window,
-        decode.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-/// Causal left-window attention.
 ///
-/// See [`sliding_window_attention_f32`] for mask and grouped-query semantics.
-pub fn sliding_window_attention_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: SlidingWindowAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::sliding_window_attention_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_start,
-        config.key_start,
-        config.window,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.output_scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-/// Causal left-window attention.
+/// # Safety
 ///
-/// See [`sliding_window_attention_f32`] for mask and grouped-query semantics.
-pub fn sliding_window_attention_bf16(
+/// Follow the [raw kernel execution contract](crate::cuda#raw-kernel-execution).
+pub unsafe fn sliding_window_attention_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<f32>,
+    query: &impl DeviceInput<f32>,
+    key: &impl DeviceInput<f32>,
+    value: &impl DeviceInput<f32>,
     config: SlidingWindowAttentionConfig,
 ) -> Result<()> {
     config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::sliding_window_attention_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.query_start,
-        config.key_start,
-        config.window,
-        config.query_batch_stride,
-        config.key_batch_stride,
-        config.value_batch_stride,
-        config.output_batch_stride,
-        config.query_sequence_stride,
-        config.key_sequence_stride,
-        config.value_sequence_stride,
-        config.output_sequence_stride,
-        config.query_head_stride,
-        config.key_head_stride,
-        config.value_head_stride,
-        config.output_head_stride,
-        config.scale,
-        config.output_scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn swa_attention_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: SwaAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::swa_attention_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.head_dim,
-        config.effective_window(),
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn swa_attention_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: SwaAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::swa_attention_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.head_dim,
-        config.effective_window(),
-        config.scale,
-        config.causal,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn fused_neighborhood_attention_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    config: FusedNeighborhoodAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fused_neighborhood_attention_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.seq_len,
-        config.heads,
-        config.head_dim,
-        config.kernel_size,
-        config.dilation,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn heavily_compressed_attention_compress_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    hidden: &impl DeviceSlice<f32>,
-    weight_kv: &impl DeviceSlice<f32>,
-    weight_z: &impl DeviceSlice<f32>,
-    bias: &impl DeviceSlice<f32>,
-    config: HeavilyCompressedAttentionConfig,
-) -> Result<()> {
-    config.validate_compress_lengths(
-        out.len(),
-        hidden.len(),
-        weight_kv.len(),
-        weight_z.len(),
-        bias.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::heavily_compressed_attention_compress_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(hidden),
-        input_pointer(weight_kv),
-        input_pointer(weight_z),
-        input_pointer(bias),
-        config.batch,
-        config.seq_len,
-        config.hidden_dim,
-        config.head_dim,
-        config.compression_block,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn compressed_sparse_attention_compress_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    hidden: &impl DeviceSlice<f32>,
-    weight_a_kv: &impl DeviceSlice<f32>,
-    weight_b_kv: &impl DeviceSlice<f32>,
-    weight_a_z: &impl DeviceSlice<f32>,
-    weight_b_z: &impl DeviceSlice<f32>,
-    bias_a: &impl DeviceSlice<f32>,
-    bias_b: &impl DeviceSlice<f32>,
-    config: CompressedSparseAttentionCompressConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        hidden.len(),
-        weight_a_kv.len(),
-        weight_b_kv.len(),
-        weight_a_z.len(),
-        weight_b_z.len(),
-        bias_a.len(),
-        bias_b.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::compressed_sparse_attention_compress_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(hidden),
-        input_pointer(weight_a_kv),
-        input_pointer(weight_b_kv),
-        input_pointer(weight_a_z),
-        input_pointer(weight_b_z),
-        input_pointer(bias_a),
-        input_pointer(bias_b),
-        config.batch,
-        config.seq_len,
-        config.hidden_dim,
-        config.head_dim,
-        config.compression_block,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn compressed_sparse_attention_lightning_indexer_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    indexer_query: &impl DeviceSlice<f32>,
-    indexer_key: &impl DeviceSlice<f32>,
-    indexer_weight: &impl DeviceSlice<f32>,
-    config: CompressedSparseAttentionLightningIndexerConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        indexer_query.len(),
-        indexer_key.len(),
-        indexer_weight.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::compressed_sparse_attention_lightning_indexer_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(indexer_query),
-        input_pointer(indexer_key),
-        input_pointer(indexer_weight),
-        config.batch,
-        config.query_len,
-        config.blocks,
-        config.index_heads,
-        config.index_dim,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn compressed_sparse_attention_topk_selector_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    selected_indices: &mut impl DeviceSliceMut<i32>,
-    scores: &impl DeviceSlice<f32>,
-    compressed_kv: &impl DeviceSlice<f32>,
-    query_positions: &impl DeviceSlice<i32>,
-    config: CompressedSparseAttentionTopkSelectorConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        selected_indices.len(),
-        scores.len(),
-        compressed_kv.len(),
-        query_positions.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::compressed_sparse_attention_topk_selector_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(selected_indices),
-        input_pointer(scores),
-        input_pointer(compressed_kv),
-        input_pointer(query_positions),
-        config.batch,
-        config.query_len,
-        config.blocks,
-        config.head_dim,
-        config.top_k,
-        config.compression_block,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn compressed_sparse_attention_shared_mqa_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    kv_entries: &impl DeviceSlice<f32>,
-    valid_mask: &impl DeviceSlice<i32>,
-    sink: &impl DeviceSlice<f32>,
-    config: CompressedSparseAttentionSharedMqaConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        kv_entries.len(),
-        valid_mask.len(),
-        sink.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::compressed_sparse_attention_shared_mqa_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(kv_entries),
-        input_pointer(valid_mask),
-        input_pointer(sink),
-        config.batch,
-        config.query_len,
-        config.heads,
-        config.head_dim,
-        config.kv_len,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn minimax_sparse_attention_block_max_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    scores: &impl DeviceSlice<f32>,
-    config: MiniMaxSparseAttentionBlockMaxConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), scores.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::minimax_sparse_attention_block_max_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(scores),
-        config.batch,
-        config.rows,
-        config.key_len,
-        config.block_size,
-    )
-}
-
-pub fn minimax_sparse_attention_selected_token_positions_i32(
-    stream: &Stream,
-    positions: &mut impl DeviceSliceMut<i32>,
-    valid_mask: &mut impl DeviceSliceMut<i32>,
-    selected_blocks: &impl DeviceSlice<i32>,
-    query_positions: &impl DeviceSlice<i32>,
-    config: MiniMaxSparseAttentionSelectedTokenPositionsConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        positions.len(),
-        valid_mask.len(),
-        selected_blocks.len(),
-        query_positions.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::minimax_sparse_attention_selected_token_positions_i32(
-        &stream,
-        output_pointer(positions),
-        output_pointer(valid_mask),
-        input_pointer(selected_blocks),
-        input_pointer(query_positions),
-        config.batch,
-        config.rows,
-        config.selected_blocks,
-        config.block_size,
-        config.seq_len,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn minimax_sparse_attention_select_topk_blocks_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<i32>,
-    block_scores: &impl DeviceSlice<f32>,
-    local_blocks: &impl DeviceSlice<i32>,
-    config: MiniMaxSparseAttentionSelectTopkBlocksConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), block_scores.len(), local_blocks.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::minimax_sparse_attention_select_topk_blocks_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(block_scores),
-        input_pointer(local_blocks),
-        config.batch,
-        config.rows,
-        config.blocks,
-        config.top_k,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn minimax_sparse_attention_gathered_gqa_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    positions: &impl DeviceSlice<i32>,
-    valid_mask: &impl DeviceSlice<i32>,
-    config: MiniMaxSparseAttentionGatheredGqaConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        key.len(),
-        value.len(),
-        positions.len(),
-        valid_mask.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::minimax_sparse_attention_gathered_gqa_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(positions),
-        input_pointer(valid_mask),
-        config.batch,
-        config.query_len,
-        config.key_len,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.selected_keys,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn heavily_compressed_attention_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    compressed_kv: &impl DeviceSlice<f32>,
-    weight_group: &impl DeviceSlice<f32>,
-    weight_final: &impl DeviceSlice<f32>,
-    config: HeavilyCompressedAttentionConfig,
-) -> Result<()> {
-    config.validate_attention_lengths(
-        out.len(),
-        query.len(),
-        compressed_kv.len(),
-        weight_group.len(),
-        weight_final.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::heavily_compressed_attention_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(compressed_kv),
-        input_pointer(weight_group),
-        input_pointer(weight_final),
-        config.batch,
-        config.seq_len,
-        config.heads,
-        config.head_dim,
-        config.compression_block,
-        config.groups,
-        config.group_dim,
-        config.hidden_dim,
-        1.0 / (config.head_dim as f32).sqrt(),
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn fused_neighborhood_attention_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    config: FusedNeighborhoodAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fused_neighborhood_attention_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.seq_len,
-        config.heads,
-        config.head_dim,
-        config.kernel_size,
-        config.dilation,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn fused_neighborhood_attention_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    config: FusedNeighborhoodAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(out.len(), query.len(), key.len(), value.len())?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::fused_neighborhood_attention_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        config.batch,
-        config.seq_len,
-        config.heads,
-        config.head_dim,
-        config.kernel_size,
-        config.dilation,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn multi_token_attention_f32<B>(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    scores: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
-    bias: Option<&B>,
-    config: MultiTokenAttentionConfig,
-) -> Result<()>
-where
-    B: DeviceSlice<f32>,
-{
-    config.validate_lengths(
-        out.len(),
-        scores.len(),
-        weight.len(),
-        bias.map(|bias| bias.len()),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    let scores_pointer = input_pointer(scores);
-    cutile::attention::multi_token_attention_f32(
-        &stream,
-        output_pointer(out),
-        scores_pointer,
-        input_pointer(weight),
-        bias.map_or(scores_pointer, input_pointer),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.seq_len,
-        config.kernel_h,
-        config.kernel_w,
-        config.stride_h,
-        config.stride_w,
-        config.padding_h,
-        config.padding_w,
-        config.dilation_h,
-        config.dilation_w,
-        config.groups,
-        bias.is_some(),
-        false,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn multi_token_attention_sparse_f32<B>(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    scores: &impl DeviceSlice<f32>,
-    weight: &impl DeviceSlice<f32>,
-    bias: Option<&B>,
-    config: MultiTokenAttentionConfig,
-) -> Result<()>
-where
-    B: DeviceSlice<f32>,
-{
-    config.validate_lengths(
-        out.len(),
-        scores.len(),
-        weight.len(),
-        bias.map(|bias| bias.len()),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    let scores_pointer = input_pointer(scores);
-    cutile::attention::multi_token_attention_f32(
-        &stream,
-        output_pointer(out),
-        scores_pointer,
-        input_pointer(weight),
-        bias.map_or(scores_pointer, input_pointer),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.seq_len,
-        config.kernel_h,
-        config.kernel_w,
-        config.stride_h,
-        config.stride_w,
-        config.padding_h,
-        config.padding_w,
-        config.dilation_h,
-        config.dilation_w,
-        config.groups,
-        bias.is_some(),
-        true,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn multi_token_attention_f16<B>(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    scores: &impl DeviceSlice<f16>,
-    weight: &impl DeviceSlice<f16>,
-    bias: Option<&B>,
-    config: MultiTokenAttentionConfig,
-) -> Result<()>
-where
-    B: DeviceSlice<f16>,
-{
-    config.validate_lengths(
-        out.len(),
-        scores.len(),
-        weight.len(),
-        bias.map(|bias| bias.len()),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    let scores_pointer = input_pointer(scores);
-    cutile::attention::multi_token_attention_f16(
-        &stream,
-        output_pointer(out),
-        scores_pointer,
-        input_pointer(weight),
-        bias.map_or(scores_pointer, input_pointer),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.seq_len,
-        config.kernel_h,
-        config.kernel_w,
-        config.stride_h,
-        config.stride_w,
-        config.padding_h,
-        config.padding_w,
-        config.dilation_h,
-        config.dilation_w,
-        config.groups,
-        bias.is_some(),
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn multi_token_attention_sparse_f16<B>(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    scores: &impl DeviceSlice<f16>,
-    weight: &impl DeviceSlice<f16>,
-    bias: Option<&B>,
-    config: MultiTokenAttentionConfig,
-) -> Result<()>
-where
-    B: DeviceSlice<f16>,
-{
-    config.validate_lengths(
-        out.len(),
-        scores.len(),
-        weight.len(),
-        bias.map(|bias| bias.len()),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    let scores_pointer = input_pointer(scores);
-    cutile::attention::multi_token_attention_sparse_f16(
-        &stream,
-        output_pointer(out),
-        scores_pointer,
-        input_pointer(weight),
-        bias.map_or(scores_pointer, input_pointer),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.seq_len,
-        config.kernel_h,
-        config.kernel_w,
-        config.stride_h,
-        config.stride_w,
-        config.padding_h,
-        config.padding_w,
-        config.dilation_h,
-        config.dilation_w,
-        config.groups,
-        bias.is_some(),
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn multi_token_attention_bf16<B>(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    scores: &impl DeviceSlice<bf16>,
-    weight: &impl DeviceSlice<bf16>,
-    bias: Option<&B>,
-    config: MultiTokenAttentionConfig,
-) -> Result<()>
-where
-    B: DeviceSlice<bf16>,
-{
-    config.validate_lengths(
-        out.len(),
-        scores.len(),
-        weight.len(),
-        bias.map(|bias| bias.len()),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    let scores_pointer = input_pointer(scores);
-    cutile::attention::multi_token_attention_bf16(
-        &stream,
-        output_pointer(out),
-        scores_pointer,
-        input_pointer(weight),
-        bias.map_or(scores_pointer, input_pointer),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.seq_len,
-        config.kernel_h,
-        config.kernel_w,
-        config.stride_h,
-        config.stride_w,
-        config.padding_h,
-        config.padding_w,
-        config.dilation_h,
-        config.dilation_w,
-        config.groups,
-        bias.is_some(),
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn multi_token_attention_sparse_bf16<B>(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    scores: &impl DeviceSlice<bf16>,
-    weight: &impl DeviceSlice<bf16>,
-    bias: Option<&B>,
-    config: MultiTokenAttentionConfig,
-) -> Result<()>
-where
-    B: DeviceSlice<bf16>,
-{
-    config.validate_lengths(
-        out.len(),
-        scores.len(),
-        weight.len(),
-        bias.map(|bias| bias.len()),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    let scores_pointer = input_pointer(scores);
-    cutile::attention::multi_token_attention_sparse_bf16(
-        &stream,
-        output_pointer(out),
-        scores_pointer,
-        input_pointer(weight),
-        bias.map_or(scores_pointer, input_pointer),
-        config.batch,
-        config.channels_in,
-        config.channels_out,
-        config.seq_len,
-        config.kernel_h,
-        config.kernel_w,
-        config.stride_h,
-        config.stride_w,
-        config.padding_h,
-        config.padding_w,
-        config.dilation_h,
-        config.dilation_w,
-        config.groups,
-        bias.is_some(),
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn sliding_window_attention_packed_qkv_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    qkv: &impl DeviceSlice<f32>,
-    config: PackedQkvAttentionConfig,
-) -> Result<()> {
-    validate_packed_qkv_attention_config(qkv.len(), config)?;
-    let query = unsafe {
-        DeviceView::from_raw_parts(
-            qkv.as_device_ptr().add(config.query_offset),
-            qkv.len() - config.query_offset,
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::attention::sliding_window_attention_f32(
+            &stream,
+            write_only_pointer(out),
+            input_pointer(query),
+            input_pointer(key),
+            input_pointer(value),
+            config.batch,
+            config.query_len,
+            config.key_len,
+            config.heads,
+            config.kv_heads,
+            config.head_dim,
+            config.query_start,
+            config.key_start,
+            config.window,
+            config.query_batch_stride,
+            config.key_batch_stride,
+            config.value_batch_stride,
+            config.output_batch_stride,
+            config.query_sequence_stride,
+            config.key_sequence_stride,
+            config.value_sequence_stride,
+            config.output_sequence_stride,
+            config.query_head_stride,
+            config.key_head_stride,
+            config.value_head_stride,
+            config.output_head_stride,
+            config.scale,
+            config.output_scale,
         )
-    };
-    let key = unsafe {
-        DeviceView::from_raw_parts(
-            qkv.as_device_ptr().add(config.key_offset),
-            qkv.len() - config.key_offset,
-        )
-    };
-    let value = unsafe {
-        DeviceView::from_raw_parts(
-            qkv.as_device_ptr().add(config.value_offset),
-            qkv.len() - config.value_offset,
-        )
-    };
-    sliding_window_attention_f32(stream, out, &query, &key, &value, config.attention)
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn sliding_window_attention_paged_kv_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key_cache: &impl DeviceSlice<f32>,
-    value_cache: &impl DeviceSlice<f32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedKvAttentionConfig,
-) -> Result<()> {
-    validate_paged_kv_attention_config(
-        out.len(),
-        query.len(),
-        key_cache.len(),
-        value_cache.len(),
-        block_table.len(),
-        config,
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::sliding_window_attention_paged_kv_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key_cache),
-        input_pointer(value_cache),
-        input_pointer(block_table),
-        config.attention.batch,
-        config.attention.query_len,
-        config.attention.key_len,
-        config.attention.heads,
-        config.attention.kv_heads,
-        config.attention.head_dim,
-        config.attention.query_start,
-        config.attention.key_start,
-        config.attention.window,
-        config.attention.query_batch_stride,
-        config.attention.output_batch_stride,
-        config.attention.query_sequence_stride,
-        config.attention.key_sequence_stride,
-        config.attention.value_sequence_stride,
-        config.attention.output_sequence_stride,
-        config.attention.query_head_stride,
-        config.attention.key_head_stride,
-        config.attention.value_head_stride,
-        config.attention.output_head_stride,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.key_cache_block_stride,
-        config.value_cache_block_stride,
-        config.attention.scale,
-        config.attention.output_scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-pub fn paged_kv_decode_attention_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key_cache: &impl DeviceSlice<f32>,
-    value_cache: &impl DeviceSlice<f32>,
-    actual_seq_lens: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedKvDecodeAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        key_cache.len(),
-        value_cache.len(),
-        actual_seq_lens.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_kv_decode_attention_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key_cache),
-        input_pointer(value_cache),
-        input_pointer(actual_seq_lens),
-        input_pointer(block_table),
-        config.batch,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn paged_kv_decode_attention_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    query: &impl DeviceSlice<f16>,
-    key_cache: &impl DeviceSlice<f16>,
-    value_cache: &impl DeviceSlice<f16>,
-    actual_seq_lens: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedKvDecodeAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        key_cache.len(),
-        value_cache.len(),
-        actual_seq_lens.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_kv_decode_attention_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key_cache),
-        input_pointer(value_cache),
-        input_pointer(actual_seq_lens),
-        input_pointer(block_table),
-        config.batch,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-pub fn paged_kv_decode_attention_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    query: &impl DeviceSlice<bf16>,
-    key_cache: &impl DeviceSlice<bf16>,
-    value_cache: &impl DeviceSlice<bf16>,
-    actual_seq_lens: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedKvDecodeAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        query.len(),
-        key_cache.len(),
-        value_cache.len(),
-        actual_seq_lens.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_kv_decode_attention_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(query),
-        input_pointer(key_cache),
-        input_pointer(value_cache),
-        input_pointer(actual_seq_lens),
-        input_pointer(block_table),
-        config.batch,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-
-pub fn paged_kv_prefill_attention_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key_cache: &impl DeviceSlice<f32>,
-    value_cache: &impl DeviceSlice<f32>,
-    actual_seq_lens_q: &impl DeviceSlice<i32>,
-    actual_seq_lens_kv: &impl DeviceSlice<i32>,
-    actual_seq_offsets: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedKvPrefillAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key_cache.len(),
-        value_cache.len(),
-        actual_seq_lens_q.len(),
-        actual_seq_lens_kv.len(),
-        actual_seq_offsets.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_kv_prefill_attention_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key_cache),
-        input_pointer(value_cache),
-        input_pointer(actual_seq_lens_q),
-        input_pointer(actual_seq_lens_kv),
-        input_pointer(actual_seq_offsets),
-        input_pointer(block_table),
-        config.batch,
-        config.total_query_tokens,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.causal,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-
-pub fn paged_kv_prefill_attention_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key_cache: &impl DeviceSlice<f16>,
-    value_cache: &impl DeviceSlice<f16>,
-    actual_seq_lens_q: &impl DeviceSlice<i32>,
-    actual_seq_lens_kv: &impl DeviceSlice<i32>,
-    actual_seq_offsets: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedKvPrefillAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key_cache.len(),
-        value_cache.len(),
-        actual_seq_lens_q.len(),
-        actual_seq_lens_kv.len(),
-        actual_seq_offsets.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_kv_prefill_attention_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key_cache),
-        input_pointer(value_cache),
-        input_pointer(actual_seq_lens_q),
-        input_pointer(actual_seq_lens_kv),
-        input_pointer(actual_seq_offsets),
-        input_pointer(block_table),
-        config.batch,
-        config.total_query_tokens,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.causal,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-bf16")]
-
-pub fn paged_kv_prefill_attention_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    key_cache: &impl DeviceSlice<bf16>,
-    value_cache: &impl DeviceSlice<bf16>,
-    actual_seq_lens_q: &impl DeviceSlice<i32>,
-    actual_seq_lens_kv: &impl DeviceSlice<i32>,
-    actual_seq_offsets: &impl DeviceSlice<i32>,
-    block_table: &impl DeviceSlice<u32>,
-    config: PagedKvPrefillAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key_cache.len(),
-        value_cache.len(),
-        actual_seq_lens_q.len(),
-        actual_seq_lens_kv.len(),
-        actual_seq_offsets.len(),
-        block_table.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::paged_kv_prefill_attention_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key_cache),
-        input_pointer(value_cache),
-        input_pointer(actual_seq_lens_q),
-        input_pointer(actual_seq_lens_kv),
-        input_pointer(actual_seq_offsets),
-        input_pointer(block_table),
-        config.batch,
-        config.total_query_tokens,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.block_size,
-        config.physical_blocks,
-        config.block_table_batch_stride,
-        config.causal,
-        config.scale,
-    )
-}
-
-#[cfg(feature = "dtype-f32")]
-
-pub fn ragged_kv_prefill_attention_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f32>,
-    key: &impl DeviceSlice<f32>,
-    value: &impl DeviceSlice<f32>,
-    actual_seq_lens_q: &impl DeviceSlice<i32>,
-    actual_seq_lens_kv: &impl DeviceSlice<i32>,
-    actual_seq_offsets: &impl DeviceSlice<i32>,
-    config: RaggedKvPrefillAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key.len(),
-        value.len(),
-        actual_seq_lens_q.len(),
-        actual_seq_lens_kv.len(),
-        actual_seq_offsets.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::ragged_kv_prefill_attention_f32(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(actual_seq_lens_q),
-        input_pointer(actual_seq_lens_kv),
-        input_pointer(actual_seq_offsets),
-        config.batch,
-        config.total_query_tokens,
-        config.total_kv_tokens,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.causal,
-        config.scale,
-    )
-}
-#[cfg(feature = "dtype-f16")]
-
-pub fn ragged_kv_prefill_attention_f16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<f16>,
-    key: &impl DeviceSlice<f16>,
-    value: &impl DeviceSlice<f16>,
-    actual_seq_lens_q: &impl DeviceSlice<i32>,
-    actual_seq_lens_kv: &impl DeviceSlice<i32>,
-    actual_seq_offsets: &impl DeviceSlice<i32>,
-    config: RaggedKvPrefillAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key.len(),
-        value.len(),
-        actual_seq_lens_q.len(),
-        actual_seq_lens_kv.len(),
-        actual_seq_offsets.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::ragged_kv_prefill_attention_f16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(actual_seq_lens_q),
-        input_pointer(actual_seq_lens_kv),
-        input_pointer(actual_seq_offsets),
-        config.batch,
-        config.total_query_tokens,
-        config.total_kv_tokens,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.causal,
-        config.scale,
-    )
-}
-#[cfg(feature = "dtype-bf16")]
-
-pub fn ragged_kv_prefill_attention_bf16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lse: &mut impl DeviceSliceMut<f32>,
-    query: &impl DeviceSlice<bf16>,
-    key: &impl DeviceSlice<bf16>,
-    value: &impl DeviceSlice<bf16>,
-    actual_seq_lens_q: &impl DeviceSlice<i32>,
-    actual_seq_lens_kv: &impl DeviceSlice<i32>,
-    actual_seq_offsets: &impl DeviceSlice<i32>,
-    config: RaggedKvPrefillAttentionConfig,
-) -> Result<()> {
-    config.validate_lengths(
-        out.len(),
-        lse.len(),
-        query.len(),
-        key.len(),
-        value.len(),
-        actual_seq_lens_q.len(),
-        actual_seq_lens_kv.len(),
-        actual_seq_offsets.len(),
-    )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::attention::ragged_kv_prefill_attention_bf16(
-        &stream,
-        output_pointer(out),
-        output_pointer(lse),
-        input_pointer(query),
-        input_pointer(key),
-        input_pointer(value),
-        input_pointer(actual_seq_lens_q),
-        input_pointer(actual_seq_lens_kv),
-        input_pointer(actual_seq_offsets),
-        config.batch,
-        config.total_query_tokens,
-        config.total_kv_tokens,
-        config.heads,
-        config.kv_heads,
-        config.head_dim,
-        config.causal,
-        config.scale,
-    )
+    }
 }
 
 fn validate_packed_qkv_attention_config(
@@ -6500,326 +3652,102 @@ fn batched_reach(batch: usize, item_len: usize, batch_stride: usize) -> Result<u
     batch_span.checked_add(item_len).ok_or(Error::SizeOverflow)
 }
 
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+mod fmha;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+mod local;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+mod mla;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+mod multi_token;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+mod paged;
+mod sparse;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+mod splitk;
+
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+pub use fmha::*;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+pub use local::*;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+pub use mla::*;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+pub use multi_token::*;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+pub use paged::*;
+pub use sparse::*;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+pub use splitk::*;
+
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::error::Error;
+mod tests;
 
-    #[test]
-    fn mla_prefill_validation_accepts_exact_lengths() -> Result<()> {
-        let config = MlaPrefillConfig::contiguous(2, 3, 5, 4, 2, 8, 3, 0.5)?;
-        config.validate_lengths(192, 192, 72, 160, 60, 160)
-    }
-
-    #[test]
-    fn mla_prefill_validation_rejects_bad_head_mapping() {
-        assert!(matches!(
-            MlaPrefillConfig::contiguous(2, 3, 5, 3, 2, 8, 3, 0.5),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    #[test]
-    fn mla_prefill_validation_rejects_short_query_pe() -> Result<()> {
-        let config = MlaPrefillConfig::contiguous(2, 3, 5, 4, 2, 8, 3, 0.5)?;
-        assert!(matches!(
-            config.validate_lengths(192, 192, 71, 160, 60, 160),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn mla_decode_validation_accepts_exact_lengths() -> Result<()> {
-        let config = MlaDecodeConfig::contiguous(2, 5, 4, 8, 3, 0.5)?;
-        config.validate_lengths(64, 8, 64, 24, 80, 30)
-    }
-
-    #[test]
-    fn mla_decode_validation_rejects_short_lse() -> Result<()> {
-        let config = MlaDecodeConfig::contiguous(2, 5, 4, 8, 3, 0.5)?;
-        assert!(matches!(
-            config.validate_lengths(64, 7, 64, 24, 80, 30),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn paged_mla_decode_attention_validation_accepts_exact_lengths() -> Result<()> {
-        let config = PagedMlaDecodeAttentionConfig::contiguous(2, 4, 8, 3, 3, 5, 4, 0.5, 1.0)?;
-        config.validate_lengths(64, 8, 64, 24, 120, 45, 2, 8)
-    }
-
-    #[test]
-    fn paged_mla_decode_attention_validation_rejects_short_key_pe_cache() -> Result<()> {
-        let config = PagedMlaDecodeAttentionConfig::contiguous(2, 4, 8, 3, 3, 5, 4, 0.5, 1.0)?;
-        assert!(matches!(
-            config.validate_lengths(64, 8, 64, 24, 120, 44, 2, 8),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn mla_decode_splitk_validation_accepts_exact_lengths() -> Result<()> {
-        let config = MlaDecodeSplitKConfig::contiguous(2, 5, 4, 3, 2, 8, 3, 0.5)?;
-        config.validate_lengths(192, 24, 64, 24, 80, 30)
-    }
-
-    #[test]
-    fn mla_decode_splitk_validation_rejects_short_split_output() -> Result<()> {
-        let config = MlaDecodeSplitKConfig::contiguous(2, 5, 4, 3, 2, 8, 3, 0.5)?;
-        assert!(matches!(
-            config.validate_lengths(191, 24, 64, 24, 80, 30),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn splitk_reduce_validation_accepts_padded_strides() -> Result<()> {
-        let mut config = SplitKReduceConfig::contiguous(2, 4, 3, 8)?;
-        config.attn_batch_stride = 104;
-        config.attn_head_stride = 25;
-        config.lse_batch_stride = 16;
-        config.output_batch_stride = 40;
-        config.validate_lengths(72, 208, 32)
-    }
-
-    #[test]
-    fn splitk_reduce_validation_rejects_short_lse() -> Result<()> {
-        let config = SplitKReduceConfig::contiguous(2, 4, 3, 8)?;
-        assert!(matches!(
-            config.validate_lengths(64, 192, 23),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn swa_attention_validation_accepts_exact_lengths_and_zero_window() -> Result<()> {
-        let config = SwaAttentionConfig::contiguous(2, 3, 5, 4, 8, 0, 0.5, true)?;
-        config.validate_lengths(192, 192, 320, 320)
-    }
-
-    #[test]
-    fn swa_attention_validation_rejects_short_key() -> Result<()> {
-        let config = SwaAttentionConfig::contiguous(2, 3, 5, 4, 8, 2, 0.5, true)?;
-        assert!(matches!(
-            config.validate_lengths(192, 192, 319, 320),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn swa_attention_validation_rejects_non_causal() {
-        assert!(matches!(
-            SwaAttentionConfig::contiguous(2, 3, 5, 4, 8, 2, 0.5, false),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    #[test]
-    fn fused_neighborhood_attention_validation_accepts_exact_lengths() -> Result<()> {
-        let config = FusedNeighborhoodAttentionConfig::contiguous(2, 3, 4, 8, 3, 1, 0.5)?;
-        config.validate_lengths(192, 192, 192, 192)
-    }
-
-    #[test]
-    fn fused_neighborhood_attention_validation_rejects_short_key() -> Result<()> {
-        let config = FusedNeighborhoodAttentionConfig::contiguous(2, 3, 4, 8, 3, 1, 0.5)?;
-        assert!(matches!(
-            config.validate_lengths(192, 192, 191, 192),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn fused_neighborhood_attention_validation_rejects_zero_dilation() {
-        assert!(matches!(
-            FusedNeighborhoodAttentionConfig::contiguous(2, 3, 4, 8, 3, 0, 0.5),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    #[test]
-    fn multi_token_attention_validation_accepts_exact_lengths() -> Result<()> {
-        let config = MultiTokenAttentionConfig::same_padding_1x1(2, 3, 4, 5)?;
-        config.validate_lengths(200, 150, 12, Some(4))
-    }
-
-    #[test]
-    fn multi_token_attention_validation_rejects_short_bias() -> Result<()> {
-        let config = MultiTokenAttentionConfig::same_padding_1x1(2, 3, 4, 5)?;
-        assert!(matches!(
-            config.validate_lengths(200, 150, 12, Some(3)),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn multi_token_attention_validation_rejects_uneven_groups() {
-        let config = MultiTokenAttentionConfig {
-            groups: 2,
-            ..MultiTokenAttentionConfig::same_padding_1x1(2, 3, 4, 5).unwrap()
-        };
-        assert!(matches!(
-            validate_multi_token_attention_config(config),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    #[test]
-    fn paged_kv_attention_validation_accepts_exact_lengths() -> Result<()> {
-        let config = paged_kv_validation_config();
-        validate_paged_kv_attention_config(192, 192, 96, 96, 7, config)
-    }
-
-    #[test]
-    fn paged_kv_attention_validation_rejects_short_block_table() {
-        let config = paged_kv_validation_config();
-        assert!(matches!(
-            validate_paged_kv_attention_config(192, 192, 96, 96, 6, config),
-            Err(Error::LengthMismatch)
-        ));
-    }
-
-    #[test]
-    fn paged_kv_attention_validation_rejects_short_key_cache() {
-        let config = paged_kv_validation_config();
-        assert!(matches!(
-            validate_paged_kv_attention_config(192, 192, 95, 96, 7, config),
-            Err(Error::LengthMismatch)
-        ));
-    }
-
-    #[test]
-    fn paged_kv_attention_validation_rejects_zero_block_size() {
-        let mut config = paged_kv_validation_config();
-        config.block_size = 0;
-        assert!(matches!(
-            validate_paged_kv_attention_config(192, 192, 96, 96, 7, config),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    #[test]
-    fn paged_kv_decode_attention_validation_accepts_exact_lengths() -> Result<()> {
-        let config = PagedKvDecodeAttentionConfig::contiguous(2, 4, 2, 8, 3, 5, 4, 0.5)?;
-        config.validate_lengths(64, 64, 240, 240, 2, 8)
-    }
-
-    #[test]
-    fn paged_kv_decode_attention_validation_rejects_short_block_table() -> Result<()> {
-        let config = PagedKvDecodeAttentionConfig::contiguous(2, 4, 2, 8, 3, 5, 4, 0.5)?;
-        assert!(matches!(
-            config.validate_lengths(64, 64, 240, 240, 2, 7),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn paged_kv_decode_attention_validation_rejects_invalid_head_mapping() {
-        assert!(matches!(
-            PagedKvDecodeAttentionConfig::contiguous(2, 3, 2, 8, 3, 5, 4, 0.5),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    #[test]
-    fn paged_kv_prefill_attention_validation_accepts_exact_lengths() -> Result<()> {
-        let config = PagedKvPrefillAttentionConfig::contiguous(2, 7, 4, 2, 8, 3, 5, 4, true, 0.5)?;
-        config.validate_lengths(224, 28, 224, 240, 240, 2, 2, 2, 8)
-    }
-
-    #[test]
-    fn paged_kv_prefill_attention_validation_rejects_short_lse() -> Result<()> {
-        let config = PagedKvPrefillAttentionConfig::contiguous(2, 7, 4, 2, 8, 3, 5, 4, true, 0.5)?;
-        assert!(matches!(
-            config.validate_lengths(224, 27, 224, 240, 240, 2, 2, 2, 8),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn paged_kv_prefill_attention_validation_rejects_invalid_head_mapping() {
-        assert!(matches!(
-            PagedKvPrefillAttentionConfig::contiguous(2, 7, 3, 2, 8, 3, 5, 4, true, 0.5),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    #[test]
-    fn ragged_kv_prefill_attention_validation_accepts_exact_lengths() -> Result<()> {
-        let config = RaggedKvPrefillAttentionConfig::contiguous(2, 7, 8, 4, 2, 8, true, 0.5)?;
-        config.validate_lengths(224, 28, 224, 128, 128, 2, 2, 2)
-    }
-
-    #[test]
-    fn ragged_kv_prefill_attention_validation_rejects_short_key() -> Result<()> {
-        let config = RaggedKvPrefillAttentionConfig::contiguous(2, 7, 8, 4, 2, 8, true, 0.5)?;
-        assert!(matches!(
-            config.validate_lengths(224, 28, 224, 127, 128, 2, 2, 2),
-            Err(Error::LengthMismatch)
-        ));
-        Ok(())
-    }
-
-    #[test]
-    fn ragged_kv_prefill_attention_validation_rejects_invalid_head_mapping() {
-        assert!(matches!(
-            RaggedKvPrefillAttentionConfig::contiguous(2, 7, 8, 3, 2, 8, true, 0.5),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    fn paged_kv_validation_config() -> PagedKvAttentionConfig {
-        let batch = 2usize;
-        let query_len = 3usize;
-        let key_len = 5usize;
-        let heads = 4usize;
-        let kv_heads = 2usize;
-        let head_dim = 8usize;
-        let query_features = heads * head_dim;
-        let kv_features = kv_heads * head_dim;
-        let block_size = 2usize;
-        PagedKvAttentionConfig {
-            attention: SlidingWindowAttentionConfig {
-                batch,
-                query_len,
-                key_len,
-                heads,
-                kv_heads,
-                head_dim,
-                query_start: 0,
-                key_start: 0,
-                window: key_len,
-                query_batch_stride: query_len * query_features,
-                key_batch_stride: key_len * kv_features,
-                value_batch_stride: key_len * kv_features,
-                output_batch_stride: query_len * query_features,
-                query_sequence_stride: query_features,
-                key_sequence_stride: kv_features,
-                value_sequence_stride: kv_features,
-                output_sequence_stride: query_features,
-                query_head_stride: head_dim,
-                key_head_stride: head_dim,
-                value_head_stride: head_dim,
-                output_head_stride: head_dim,
-                scale: 1.0,
-                output_scale: 1.0,
-            },
-            block_size,
-            physical_blocks: 3,
-            block_table_batch_stride: 4,
-            key_cache_block_stride: block_size * kv_features,
-            value_cache_block_stride: block_size * kv_features,
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
+macro_rules! fmha_prefill_mma_half_fns {
+    ($ty:ty, $plain:ident, $with_lse:ident) => {
+        /// Enqueues tiled MMA prefill attention with f32 accumulation.
+        ///
+        /// # Safety
+        ///
+        /// Follow the [raw kernel execution contract](crate::cuda#raw-kernel-execution).
+        pub unsafe fn $plain(
+            stream: &Stream,
+            out: &mut impl DeviceOutput<$ty>,
+            query: &impl DeviceInput<$ty>,
+            key: &impl DeviceInput<$ty>,
+            value: &impl DeviceInput<$ty>,
+            config: FmhaPrefillConfig,
+        ) -> Result<()> {
+            config.validate_output_lengths(out.len(), query.len(), key.len(), value.len())?;
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::attention::fmha_prefill_mma(
+                    &stream,
+                    write_only_pointer(out),
+                    None,
+                    input_pointer(query),
+                    input_pointer(key),
+                    input_pointer(value),
+                    config,
+                )
+            }
         }
-    }
+        /// Enqueues tiled MMA prefill attention and writes f32 natural-log LSE values.
+        ///
+        /// # Safety
+        ///
+        /// Follow the [raw kernel execution contract](crate::cuda#raw-kernel-execution).
+        pub unsafe fn $with_lse(
+            stream: &Stream,
+            out: &mut impl DeviceOutput<$ty>,
+            lse: &mut impl DeviceOutput<f32>,
+            query: &impl DeviceInput<$ty>,
+            key: &impl DeviceInput<$ty>,
+            value: &impl DeviceInput<$ty>,
+            config: FmhaPrefillConfig,
+        ) -> Result<()> {
+            config.validate_lengths(out.len(), lse.len(), query.len(), key.len(), value.len())?;
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::attention::fmha_prefill_mma(
+                    &stream,
+                    write_only_pointer(out),
+                    Some(write_only_pointer(lse)),
+                    input_pointer(query),
+                    input_pointer(key),
+                    input_pointer(value),
+                    config,
+                )
+            }
+        }
+    };
 }
+
+#[cfg(feature = "dtype_f16")]
+fmha_prefill_mma_half_fns!(f16, fmha_prefill_mma_f16, fmha_prefill_lse_mma_f16);
+
+#[cfg(feature = "dtype_bf16")]
+fmha_prefill_mma_half_fns!(bf16, fmha_prefill_mma_bf16, fmha_prefill_lse_mma_bf16);

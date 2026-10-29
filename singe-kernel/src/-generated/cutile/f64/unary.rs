@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     pub fn unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f64, { [B] }>,
@@ -15,7 +20,7 @@ mod kernels {
         let third = constant(0.3333333333333333f64, out.shape());
         let three = constant(3.0f64, out.shape());
         let six = constant(6.0f64, out.shape());
-        let pi = constant(std::f64::consts::PI, out.shape());
+        let pi = constant(3.141592653589793f64, out.shape());
         let one_eighty = constant(180.0f64, out.shape());
         let selu_alpha = constant(1.6732632423543772f64, out.shape());
         let selu_scale = constant(1.0507009873554805f64, out.shape());
@@ -72,7 +77,8 @@ mod kernels {
         } else if OP == 22 {
             half * log((one + x) / (one - x))
         } else if OP == 23 {
-            max_tile(x, zero)
+            let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
+            select(negative, zero, x)
         } else if OP == 24 {
             one / (one + exp(zero - x))
         } else if OP == 25 {
@@ -94,7 +100,7 @@ mod kernels {
         } else if OP == 31 {
             log2(x)
         } else if OP == 32 {
-            let ln_10 = constant(std::f64::consts::LN_10, out.shape());
+            let ln_10 = constant(2.302585092994046f64, out.shape());
             log(x) / ln_10
         } else if OP == 33 {
             let root = pow(absf(x), third);

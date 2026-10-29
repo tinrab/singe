@@ -1,0 +1,460 @@
+{
+  "NVRTC_INSTALL_HEADERS_FORCE_OVERWRITE": {
+    "doc": "Clear existing directory contents before installation. Guarantees consistency by removing any existing files first.",
+    "members": {},
+    "source": "nvrtc.h"
+  },
+  "NVRTC_INSTALL_HEADERS_NO_WAIT": {
+    "doc": "Return NVRTC_ERROR_BUSY immediately if installation is in progress by another process, instead of waiting for the lock. Can be combined with FORCE_OVERWRITE using bitwise OR.",
+    "members": {},
+    "source": "nvrtc.h"
+  },
+  "NVRTC_INSTALL_HEADERS_SKIP_IF_EXISTS": {
+    "doc": "Skip installation if version marker exists and version matches. This is the default behavior when flags=0.",
+    "members": {},
+    "source": "nvrtc.h"
+  },
+  "nvrtcAddNameExpression": {
+    "doc": "nvrtcAddNameExpression notes the given name expression denoting the address of a __global__ function or __device__/__constant__ variable.\n\nThe identical name expression string must be provided on a subsequent call to nvrtcGetLoweredName to extract the lowered name.\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_NO_NAME_EXPRESSIONS_AFTER_COMPILATION`\n\n\n\nSee also: ::nvrtcGetLoweredName",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "name_expression": {
+        "doc": "constant expression denoting the address of a __global__ function or __device__/__constant__ variable."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcBundledHeadersInfo": {
+    "doc": "Structure containing information about bundled headers.",
+    "members": {
+      "available": {
+        "doc": "Non-zero if bundled headers are available"
+      },
+      "compressedSize": {
+        "doc": "Size of compressed archive in bytes"
+      },
+      "cudaVersionMajor": {
+        "doc": "CUDA major version of bundled headers"
+      },
+      "cudaVersionMinor": {
+        "doc": "CUDA minor version of bundled headers"
+      },
+      "numFiles": {
+        "doc": "Number of header files in the bundle"
+      },
+      "uncompressedSize": {
+        "doc": "Estimated size when extracted in bytes"
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcCompileProgram": {
+    "doc": "nvrtcCompileProgram compiles the given program.\n\n\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_OUT_OF_MEMORY`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n- `NVRTC_ERROR_INVALID_OPTION`\n- `NVRTC_ERROR_COMPILATION`\n- `NVRTC_ERROR_BUILTIN_OPERATION_FAILURE`\n- `NVRTC_ERROR_TIME_FILE_WRITE_FAILED`\n- `NVRTC_ERROR_CANCELLED`\n\nIt supports compile options listed in `options`.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "numOptions": {
+        "doc": "Number of compiler options passed."
+      },
+      "options": {
+        "doc": "Compiler options in the form of C string array. `options` can be `NULL` when `numOptions` is 0."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcCreateProgram": {
+    "doc": "nvrtcCreateProgram creates an instance of nvrtcProgram with the given input parameters, and sets the output parameter `prog` with it.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_OUT_OF_MEMORY`\n- `NVRTC_ERROR_PROGRAM_CREATION_FAILURE`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcDestroyProgram",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "headers": {
+        "doc": "Sources of the headers. `headers` can be `NULL` when `numHeaders` is 0."
+      },
+      "includeNames": {
+        "doc": "Name of each header by which they can be included in the CUDA program source. `includeNames` can be `NULL` when `numHeaders` is 0. These headers must be included with the exact names specified here."
+      },
+      "name": {
+        "doc": "CUDA program name. `name` can be `NULL`; `\"default_program\"` is used when `name` is `NULL` or \"\"."
+      },
+      "numHeaders": {
+        "doc": "Number of headers used. `numHeaders` must be greater than or equal to 0."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "src": {
+        "doc": "CUDA program source."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcDestroyProgram": {
+    "doc": "nvrtcDestroyProgram destroys the given program.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcCreateProgram",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetBundledHeadersInfo": {
+    "doc": "nvrtcGetBundledHeadersInfo queries information about the bundled headers without extracting them.\n\nThis function allows users to determine if bundled headers are available and get size estimates before calling nvrtcInstallBundledHeaders.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT` (info is NULL)\n- `NVRTC_ERROR_BUILTIN_OPERATION_FAILURE` (failed to query bundled headers)",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "errorLog": {
+        "doc": "Optional pointer to receive detailed error message on failure. If non-NULL, `*errorLog` will be set to point to a string describing the error cause. Note: subsequent API calls from the same thread may overwrite this message. May be NULL if error details are not needed."
+      },
+      "info": {
+        "doc": "Pointer to structure to receive header information."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetCUBIN": {
+    "doc": "nvrtcGetCUBIN stores the cubin generated by the previous compilation of `prog` in the memory pointed by `cubin`. No cubin is available if the value specified to `-arch` is a virtual architecture instead of an actual architecture. The cubin does not contain code for the Tile functions (`__tile__` / `__tile_global__)` or variables (`__tile__)`; use `nvrtcGetTileIR()` to extract the cuda_tile IR generated for Tile code.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetCUBINSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "cubin": {
+        "doc": "Compiled and assembled result."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetCUBINSize": {
+    "doc": "nvrtcGetCUBINSize sets the value of `cubinSizeRet` with the size of the cubin generated by the previous compilation of `prog`. The value of cubinSizeRet is set to 0 if the value specified to `-arch` is a virtual architecture instead of an actual architecture.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetCUBIN",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "cubinSizeRet": {
+        "doc": "Size of the generated cubin."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetErrorString": {
+    "doc": "nvrtcGetErrorString is a helper function that returns a string describing the given nvrtcResult code, e.g., NVRTC_SUCCESS to `\"NVRTC_SUCCESS\"`. For unrecognized enumeration values, it returns `\"NVRTC_ERROR` unknown\".\n\n\n\n# Return value\n\nMessage string for the given #nvrtcResult code.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "result": {
+        "doc": "CUDA Runtime Compilation API result code."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetLTOIR": {
+    "doc": "nvrtcGetLTOIR stores the LTO IR generated by the previous compilation of `prog` in the memory pointed by `LTOIR`. No LTO IR is available if the program was compiled without `-dlto`.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetLTOIRSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "LTOIR": {
+        "doc": "Compiled result."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetLTOIRSize": {
+    "doc": "nvrtcGetLTOIRSize sets the value of `LTOIRSizeRet` with the size of the LTO IR generated by the previous compilation of `prog`. The value of LTOIRSizeRet is set to 0 if the program was not compiled with `-dlto`.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetLTOIR",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "LTOIRSizeRet": {
+        "doc": "Size of the generated LTO IR."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetLoweredName": {
+    "doc": "nvrtcGetLoweredName extracts the lowered (mangled) name for a __global__ function or __device__/__constant__ variable, and updates *lowered_name to point to it. The memory containing the name is released when the NVRTC program is destroyed by nvrtcDestroyProgram. The identical name expression must have been previously provided to nvrtcAddNameExpression.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_NO_LOWERED_NAMES_BEFORE_COMPILATION`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_NAME_EXPRESSION_NOT_VALID`\n\n\n\nSee also: ::nvrtcAddNameExpression",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "lowered_name": {
+        "doc": "initialized by the function to point to a C string containing the lowered (mangled) name corresponding to the provided name expression."
+      },
+      "name_expression": {
+        "doc": "constant expression denoting the address of a __global__ function or __device__/__constant__ variable."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetNumSupportedArchs": {
+    "doc": "nvrtcGetNumSupportedArchs sets the output parameter `numArchs` with the number of architectures supported by NVRTC. This can then be used to pass an array to ::nvrtcGetSupportedArchs to get the supported architectures.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n\nsee    ::nvrtcGetSupportedArchs",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "numArchs": {
+        "doc": "number of supported architectures."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetOptiXIR": {
+    "doc": "nvrtcGetOptiXIR stores the OptiX IR generated by the previous compilation of `prog` in the memory pointed by `optixir`. No OptiX IR is available if the program was compiled with options incompatible with OptiX IR generation.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetOptiXIRSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "optixir": {
+        "doc": "Optix IR Compiled result."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetOptiXIRSize": {
+    "doc": "nvrtcGetOptiXIRSize sets the value of `optixirSizeRet` with the size of the OptiX IR generated by the previous compilation of `prog`. The value of nvrtcGetOptiXIRSize is set to 0 if the program was compiled with options incompatible with OptiX IR generation.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetOptiXIR",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "optixirSizeRet": {
+        "doc": "Size of the generated LTO IR."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetPCHCreateStatus": {
+    "doc": "returns the PCH creation status.\n\n\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_NO_PCH_CREATE_ATTEMPTED`\n- `NVRTC_ERROR_PCH_CREATE`\n- `NVRTC_ERROR_PCH_CREATE_HEAP_EXHAUSTED`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\nNVRTC_SUCCESS indicates that the PCH was successfully created. NVRTC_ERROR_NO_PCH_CREATE_ATTEMPTED indicates that no PCH creation was attempted, either because PCH functionality was not requested during the preceding nvrtcCompileProgram call, or automatic PCH processing was requested, and compiler chose not to create a PCH file. NVRTC_ERROR_PCH_CREATE_HEAP_EXHAUSTED indicates that a PCH file could potentially have been created, but the compiler ran out space in the PCH heap. In this scenario, the nvrtcGetPCHHeapSizeRequired() can be used to query the required heap size, the heap can be reallocated for this size with nvrtcSetPCHHeapSize() and PCH creation may be reattempted again invoking nvrtcCompileProgram() with a new NVRTC program instance. NVRTC_ERROR_PCH_CREATE indicates that an error condition prevented the PCH file from being created.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetPCHHeapSize": {
+    "doc": "retrieve the current size of the PCH Heap.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "ret": {
+        "doc": "pointer to location where the size of the PCH Heap will be stored"
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetPCHHeapSizeRequired": {
+    "doc": "retrieve the required size of the PCH heap required to compile the given program.\n\n\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n- `NVRTC_ERROR_INVALID_INPUT` The size retrieved using this function is only valid if nvrtcGetPCHCreateStatus() returned NVRTC_SUCCESS or NVRTC_ERROR_PCH_CREATE_HEAP_EXHAUSTED",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "size": {
+        "doc": "pointer to location where the required size of the PCH Heap will be stored"
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetPTX": {
+    "doc": "nvrtcGetPTX stores the PTX generated by the previous compilation of `prog` in the memory pointed by `ptx`.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetPTXSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "ptx": {
+        "doc": "Compiled result."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetPTXSize": {
+    "doc": "nvrtcGetPTXSize sets the value of `ptxSizeRet` with the size of the PTX generated by the previous compilation of `prog` (including the trailing `NULL)`.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetPTX",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      },
+      "ptxSizeRet": {
+        "doc": "Size of the generated PTX (including the trailing `NULL)`."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetProgramLog": {
+    "doc": "nvrtcGetProgramLog stores the log generated by the previous compilation of `prog` in the memory pointed by `log`.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetProgramLogSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "log": {
+        "doc": "Compilation log."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetProgramLogSize": {
+    "doc": "nvrtcGetProgramLogSize sets `logSizeRet` with the size of the log generated by the previous compilation of `prog` (including the trailing `NULL)`.\n\nNote that compilation log may be generated with warnings and informative messages, even when the compilation of `prog` succeeds.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetProgramLog",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "logSizeRet": {
+        "doc": "Size of the compilation log (including the trailing `NULL)`."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetSupportedArchs": {
+    "doc": "nvrtcGetSupportedArchs populates the array passed via the output parameter `supportedArchs` with the architectures supported by NVRTC. The array is sorted in the ascending order. The size of the array to be passed can be determined using ::nvrtcGetNumSupportedArchs.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n\nsee    ::nvrtcGetNumSupportedArchs",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "supportedArchs": {
+        "doc": "sorted array of supported architectures."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetTileIR": {
+    "doc": "nvrtcGetTileIR stores the cuda_tile IR generated by the previous compilation of `prog` in the memory pointed by `TileIR`.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetTileIRSize",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "TileIR": {
+        "doc": "Generated cuda_tile IR."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcGetTileIRSize": {
+    "doc": "nvrtcGetTileIRSize sets the value of `TileIRSizeRet` with the size of the cuda_tile IR generated by the previous compilation of `prog`.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n\n\n\nSee also: ::nvrtcGetTileIR",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "TileIRSizeRet": {
+        "doc": "Size of the generated cuda_tile IR."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcInstallBundledHeaders": {
+    "doc": "nvrtcInstallBundledHeaders extracts CUDA headers bundled with NVRTC to a specified directory for use during compilation.\n\nNVRTC bundles a set of CUDA Toolkit headers and CUDA C++ Core Libraries (CCCL) within libnvrtc-builtins. This function extracts these headers to the specified directory, allowing NVRTC programs to compile without requiring a separate CUDA Toolkit installation. The bundled headers match those available in the CUDA Toolkit plus CCCL libraries.\n\nAfter extraction, users can compile kernels by passing appropriate include paths (such as \"-I<installPath>\" and \"-I<installPath>/cccl\") to nvrtcCompileProgram.\n\nA version marker file (.nvrtc_headers_version) is created in the installation directory to track the installed version.\n\nThis function is thread-safe and process-safe. Concurrent calls from multiple threads or processes will be serialized using file locking. By default, the function waits for the lock; use NVRTC_INSTALL_HEADERS_NO_WAIT to return immediately with NVRTC_ERROR_BUSY if another process holds the lock.\n\n\n\nNote: Use NVRTC_INSTALL_HEADERS_SKIP_IF_EXISTS to avoid reinstalling if headers already exist. Use NVRTC_INSTALL_HEADERS_FORCE_OVERWRITE to guarantee consistency by clearing the directory first.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT` (invalid path or conflicting flags like SKIP_IF_EXISTS | FORCE_OVERWRITE)\n- `NVRTC_ERROR_BUILTIN_OPERATION_FAILURE` (extraction failed or version mismatch)\n- `NVRTC_ERROR_BUSY` (lock held by another process and NVRTC_INSTALL_HEADERS_NO_WAIT was specified)\n\n\n\nSee also: nvrtcCompileProgram",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "errorLog": {
+        "doc": "Optional pointer to receive detailed error message on failure. If non-NULL, `*errorLog` will be set to point to a string describing the error cause. Note: subsequent API calls from the same thread may overwrite this message. May be NULL if error details are not needed."
+      },
+      "flags": {
+        "doc": "NVRTC_INSTALL_HEADERS_* flags:\n- 0 (SKIP_IF_EXISTS): Skip if version marker exists and version matches. This is the default.\n- NVRTC_INSTALL_HEADERS_FORCE_OVERWRITE: Clear directory first, then install. Guarantees consistency.\n- NVRTC_INSTALL_HEADERS_NO_WAIT: Return NVRTC_ERROR_BUSY immediately if lock cannot be acquired. NO_WAIT can be combined with FORCE_OVERWRITE."
+      },
+      "installPath": {
+        "doc": "Path where headers should be extracted (UTF-8 encoded). The directory will be created if it doesn't exist."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcProgram": {
+    "doc": "nvrtcProgram is the unit of compilation, and an opaque handle for a program.\n\nTo compile a CUDA program string, an instance of nvrtcProgram must be created first with ::nvrtcCreateProgram, then compiled with ::nvrtcCompileProgram.",
+    "members": {},
+    "source": "nvrtc.h"
+  },
+  "nvrtcRemoveBundledHeaders": {
+    "doc": "nvrtcRemoveBundledHeaders removes previously installed bundled headers.\n\nThis function removes the headers installed by nvrtcInstallBundledHeaders, helping users manage disk space. It recursively removes all files and subdirectories within the installation directory.\n\n\n\nNote: This function will remove ALL contents of the specified directory, not just files installed by NVRTC. Use with caution.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT` (invalid path)\n- `NVRTC_ERROR_BUILTIN_OPERATION_FAILURE` (removal failed)",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "errorLog": {
+        "doc": "Optional pointer to receive detailed error message on failure. If non-NULL, `*errorLog` will be set to point to a string describing the error cause. Note: subsequent API calls from the same thread may overwrite this message. May be NULL if error details are not needed."
+      },
+      "installPath": {
+        "doc": "Path where headers were previously installed. Must be the same path used with nvrtcInstallBundledHeaders."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcResult": {
+    "doc": "The enumerated type nvrtcResult defines API call result codes. NVRTC API functions return nvrtcResult to indicate the call result.",
+    "members": {},
+    "source": "nvrtc.h"
+  },
+  "nvrtcSetFlowCallback": {
+    "doc": "nvrtcSetFlowCallback registers a callback function that the compiler will invoke at different points during a call to nvrtcCompileProgram, and the callback function can decide whether to cancel compilation by returning specific values.\n\nThe callback function must satisfy the following constraints:\n\n(1) Its signature should be:\n\n\n\n```text\n     int callback(void* param1, void* param2);\n```\n\nWhen invoking the callback, the compiler will always pass `payload` to param1 so that the callback may make decisions based on `payload` . It'll always pass NULL to param2 for now which is reserved for future extensions.\n\n(2) It must return 1 to cancel compilation or 0 to continue. Other return values are reserved for future use.\n\n(3) It must return consistent values. Once it returns 1 at one point, it must return 1 in all following invocations during the current nvrtcCompileProgram call in progress.\n\n(4) It must be thread-safe.\n\n(5) It must not invoke any nvrtc/libnvvm/ptx APIs.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_PROGRAM`\n- `NVRTC_ERROR_INVALID_INPUT`",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "callback": {
+        "doc": "the callback that issues cancellation signal."
+      },
+      "payload": {
+        "doc": "to be passed as a parameter when invoking the callback."
+      },
+      "prog": {
+        "doc": "CUDA Runtime Compilation program."
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcSetPCHHeapSize": {
+    "doc": "set the size of the PCH Heap.\n\n\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n\nThe requested size may be rounded up to a platform dependent alignment (e.g. page size). If the PCH Heap has already been allocated, the heap memory will be freed and a new PCH Heap will be allocated.",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "size": {
+        "doc": "requested size of the PCH Heap, in bytes"
+      }
+    },
+    "source": "nvrtc.h"
+  },
+  "nvrtcVersion": {
+    "doc": "nvrtcVersion sets the output parameters `major` and `minor` with the CUDA Runtime Compilation version number.\n\n\n\n# Return value\n\n- `NVRTC_SUCCESS`\n- `NVRTC_ERROR_INVALID_INPUT`",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "major": {
+        "doc": "CUDA Runtime Compilation major version number."
+      },
+      "minor": {
+        "doc": "CUDA Runtime Compilation minor version number."
+      }
+    },
+    "source": "nvrtc.h"
+  }
+}

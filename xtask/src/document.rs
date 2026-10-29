@@ -2,175 +2,233 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
     io::ErrorKind,
+    iter,
     path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use syn::{
-    Attribute, Field, File, ForeignItemFn, ItemConst, ItemEnum, ItemStatic, ItemStruct, ItemType,
-    ItemUnion, Variant, parse_file, visit_mut::VisitMut,
+    Attribute, Field, File, ForeignItemFn, ImplItem, ImplItemConst, ImplItemFn, ItemConst,
+    ItemEnum, ItemImpl, ItemStatic, ItemStruct, ItemType, ItemUnion, Variant, parse_file,
+    visit_mut::{self, VisitMut},
 };
 
 use crate::utility::workspace_root;
 
-pub fn document() -> Result<()> {
+/// Injects scraped API comments into the selected generated binding files.
+///
+/// An empty `paths` slice selects every entry in the binding documentation catalog.
+/// Paths are relative to the workspace root.
+/// With `comments_only`, existing deprecation attributes remain unchanged.
+///
+/// # Errors
+///
+/// Returns an error for an unknown target, unreadable input, invalid JSON or Rust,
+/// or an output file that cannot be written.
+pub fn document(paths: &[PathBuf], comments_only: bool) -> Result<()> {
     let root = workspace_root()?;
-
-    for target in document_targets(&root) {
-        document_binding_file(&target)?;
+    let targets = document_targets(&root);
+    if paths.is_empty() {
+        for target in &targets {
+            document_binding_file(target, comments_only)?;
+        }
+    } else {
+        for path in paths {
+            let path = root.join(path);
+            let target = targets
+                .iter()
+                .find(|target| target.rust_path == path)
+                .with_context(|| format!("no documentation target for {}", path.display()))?;
+            document_binding_file(target, comments_only)?;
+        }
     }
 
     Ok(())
 }
 
+struct DocumentTargetSpec {
+    json_paths: &'static [&'static str],
+    rust_path: &'static str,
+    scope_path: Option<&'static str>,
+    scope_module: Option<&'static str>,
+}
+
+const DOCUMENT_TARGETS: &[DocumentTargetSpec] = &[
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cublas-13.4.2-api.json"],
+        rust_path: "singe-cublas-sys/src/sys_130800.rs",
+        scope_path: Some("singe-cublas-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cublas-13.4.2-api.json"],
+        rust_path: "singe-cublas-sys/src/sys_lt_130800.rs",
+        scope_path: Some("singe-cublas-sys/src/lib.rs"),
+        scope_module: Some("lt_bindings"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cublas-13.4.2-api.json"],
+        rust_path: "singe-cublas-sys/src/sys_xt_130800.rs",
+        scope_path: Some("singe-cublas-sys/src/lib.rs"),
+        scope_module: Some("xt_bindings"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cutensor-2.8.1-api.json"],
+        rust_path: "singe-cutensor-sys/src/sys_20800.rs",
+        scope_path: Some("singe-cutensor-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cutensor-2.8.1-api.json"],
+        rust_path: "singe-cutensor-sys/src/mg_20800.rs",
+        scope_path: Some("singe-cutensor-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cutensor-2.8.1-api.json"],
+        rust_path: "singe-cutensor-sys/src/mp_20800.rs",
+        scope_path: Some("singe-cutensor-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cudnn-9.27.0-api.json"],
+        rust_path: "singe-cudnn-sys/src/sys_92700.rs",
+        scope_path: Some("singe-cudnn-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cusolver-13.4.2-api.json"],
+        rust_path: "singe-cusolver-sys/src/sys_12304.rs",
+        scope_path: Some("singe-cusolver-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cudss-0.8.0-api.json"],
+        rust_path: "singe-cudss-sys/src/sys_800.rs",
+        scope_path: Some("singe-cudss-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cusparse-13.4.2-api.json"],
+        rust_path: "singe-cusparse-sys/src/sys_12806.rs",
+        scope_path: Some("singe-cusparse-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cufft-13.4.2-api.json"],
+        rust_path: "singe-cufft-sys/src/sys_12400.rs",
+        scope_path: Some("singe-cufft-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cufft-13.4.2-api.json"],
+        rust_path: "singe-cufft-sys/src/device_12400.rs",
+        scope_path: Some("singe-cufft-sys/src/lib.rs"),
+        scope_module: Some("device"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cufft-13.4.2-api.json"],
+        rust_path: "singe-cufft-sys/src/xt_12400.rs",
+        scope_path: Some("singe-cufft-sys/src/lib.rs"),
+        scope_module: Some("xt"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/curand-13.4.2-api.json"],
+        rust_path: "singe-curand-sys/src/sys_10404.rs",
+        scope_path: Some("singe-curand-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cuda-driver-13.4.2-api.json"],
+        rust_path: "singe-cuda-sys/src/driver_sys_13040.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("driver"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cuda-driver-13.4.2-api.json"],
+        rust_path: "singe-cuda-sys/src/profiler_sys_13040.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("profiler"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cuda-runtime-13.4.2-api.json"],
+        rust_path: "singe-cuda-sys/src/driver_types_sys_13040.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("runtime"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cuda-runtime-13.4.2-api.json"],
+        rust_path: "singe-cuda-sys/src/library_types_sys_13040.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("library_types"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cuda-runtime-13.4.2-api.json"],
+        rust_path: "singe-cuda-sys/src/runtime_sys_13040.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("runtime"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cufile-1.19.1-api.json"],
+        rust_path: "singe-cufile-sys/src/sys_1190.rs",
+        scope_path: Some("singe-cufile-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/cupti-13.4.2-api.json"],
+        rust_path: "singe-cupti-sys/src/cupti_sys_130401.rs",
+        scope_path: Some("singe-cupti-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvrtc-13.4.2-api.json"],
+        rust_path: "singe-cuda-sys/src/nvrtc_sys_13040.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("nvrtc"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/libnvvm-13.4.2-api.json"],
+        rust_path: "singe-cuda-sys/src/nvvm_sys_13040.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("nvvm"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvtx-3.6.0-api.json"],
+        rust_path: "singe-cuda-sys/src/nvtx_sys_3.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("nvtx"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvml-615-api.json"],
+        rust_path: "singe-nvml-sys/src/nvml_sys_13.rs",
+        scope_path: Some("singe-nvml-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/nccl-2.32.3-api.json"],
+        rust_path: "singe-nccl-sys/src/sys_23203.rs",
+        scope_path: Some("singe-nccl-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/npp-13.4.2-api.json"],
+        rust_path: "singe-npp-sys/src/sys_13200.rs",
+        scope_path: Some("singe-npp-sys/src/lib.rs"),
+        scope_module: None,
+    },
+];
+
 fn document_targets(root: &Path) -> Vec<DocumentTarget> {
-    vec![
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cublas-13.3-api.json")],
-            rust_path: root.join("singe-cublas-sys/src/sys_130501.rs"),
-            scope_path: Some(root.join("singe-cublas-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cublas-13.3-api.json")],
-            rust_path: root.join("singe-cublas-sys/src/sys_lt_130501.rs"),
-            scope_path: Some(root.join("singe-cublas-sys/src/lib.rs")),
-            scope_module: Some("lt_bindings"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cublas-13.3-api.json")],
-            rust_path: root.join("singe-cublas-sys/src/sys_xt_130501.rs"),
-            scope_path: Some(root.join("singe-cublas-sys/src/lib.rs")),
-            scope_module: Some("xt_bindings"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cutensor-2.6-api.json")],
-            rust_path: root.join("singe-cutensor-sys/src/sys_20600.rs"),
-            scope_path: Some(root.join("singe-cutensor-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cutensor-2.6-api.json")],
-            rust_path: root.join("singe-cutensor-sys/src/mg_20600.rs"),
-            scope_path: Some(root.join("singe-cutensor-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cutensor-2.6-api.json")],
-            rust_path: root.join("singe-cutensor-sys/src/mp_20600.rs"),
-            scope_path: Some(root.join("singe-cutensor-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cudnn-9.22-api.json")],
-            rust_path: root.join("singe-cudnn-sys/src/sys_92200.rs"),
-            scope_path: Some(root.join("singe-cudnn-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cusolver-12.2-api.json")],
-            rust_path: root.join("singe-cusolver-sys/src/sys_12202.rs"),
-            scope_path: Some(root.join("singe-cusolver-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cudss-0.8-api.json")],
-            rust_path: root.join("singe-cudss-sys/src/sys_800.rs"),
-            scope_path: Some(root.join("singe-cudss-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cusparse-12.8-api.json")],
-            rust_path: root.join("singe-cusparse-sys/src/sys_12801.rs"),
-            scope_path: Some(root.join("singe-cusparse-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cufft-13.3-api.json")],
-            rust_path: root.join("singe-cufft-sys/src/sys_12300.rs"),
-            scope_path: Some(root.join("singe-cufft-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/curand-13.3-api.json")],
-            rust_path: root.join("singe-curand-sys/src/sys_10403.rs"),
-            scope_path: Some(root.join("singe-curand-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cuda-driver-13.3-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/driver_sys_13030.rs"),
-            scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
-            scope_module: Some("driver"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cuda-driver-13.3-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/profiler_sys_13030.rs"),
-            scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
-            scope_module: Some("profiler"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cuda-runtime-13.3-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/driver_types_sys_13030.rs"),
-            scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
-            scope_module: Some("runtime"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cuda-runtime-13.3-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/runtime_sys_13030.rs"),
-            scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
-            scope_module: Some("runtime"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cufile-1.18-api.json")],
-            rust_path: root.join("singe-cufile-sys/src/sys_1180.rs"),
-            scope_path: Some(root.join("singe-cufile-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/cupti-13.3-api.json")],
-            rust_path: root.join("singe-cupti-sys/src/cupti_sys_130300.rs"),
-            scope_path: Some(root.join("singe-cupti-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/nvrtc-13.3.json")],
-            rust_path: root.join("singe-cuda-sys/src/nvrtc_sys_13030.rs"),
-            scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
-            scope_module: Some("nvrtc"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/libnvvm-13.3-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/nvvm_sys_13030.rs"),
-            scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
-            scope_module: Some("nvvm"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/nvtx-3-api.json")],
-            rust_path: root.join("singe-cuda-sys/src/nvtx_sys_3.rs"),
-            scope_path: Some(root.join("singe-cuda-sys/src/lib.rs")),
-            scope_module: Some("nvtx"),
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/nvml-13.3-api.json")],
-            rust_path: root.join("singe-nvml-sys/src/nvml_sys_13.rs"),
-            scope_path: Some(root.join("singe-nvml-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/nccl-2.28-api.json")],
-            rust_path: root.join("singe-nccl-sys/src/sys_22807.rs"),
-            scope_path: Some(root.join("singe-nccl-sys/src/lib.rs")),
-            scope_module: None,
-        },
-        DocumentTarget {
-            json_paths: vec![root.join("xtask/docs/npp-13.3-api.json")],
-            rust_path: root.join("singe-npp-sys/src/sys_13102.rs"),
-            scope_path: Some(root.join("singe-npp-sys/src/lib.rs")),
-            scope_module: None,
-        },
-    ]
+    DOCUMENT_TARGETS
+        .iter()
+        .map(|spec| DocumentTarget {
+            json_paths: spec.json_paths.iter().map(|path| root.join(path)).collect(),
+            rust_path: root.join(spec.rust_path),
+            scope_path: spec.scope_path.map(|path| root.join(path)),
+            scope_module: spec.scope_module,
+        })
+        .collect()
 }
 
 struct DocumentTarget {
@@ -180,12 +238,12 @@ struct DocumentTarget {
     scope_module: Option<&'static str>,
 }
 
-fn document_binding_file(target: &DocumentTarget) -> Result<()> {
+fn document_binding_file(target: &DocumentTarget, comments_only: bool) -> Result<()> {
     ensure_rust_path_exists(&target.rust_path)?;
 
     let source = fs::read_to_string(&target.rust_path)
         .with_context(|| format!("failed to read {}", target.rust_path.display()))?;
-    let docs = load_docs(&target.json_paths)?;
+    let mut docs = load_docs(&target.json_paths)?;
     let preamble = generated_preamble(&source);
     let mut file = parse_file(&source)
         .with_context(|| format!("failed to parse {}", target.rust_path.display()))?;
@@ -195,10 +253,12 @@ fn document_binding_file(target: &DocumentTarget) -> Result<()> {
         target.scope_path.as_deref(),
         target.scope_module,
     )?;
+    docs.document_opaque_tags(&file, &symbols);
 
     BindingDocumenter {
         docs: &docs,
         symbols: &symbols,
+        comments_only,
     }
     .visit_file_mut(&mut file);
 
@@ -357,12 +417,25 @@ fn collect_symbols_from_item(item: &syn::Item, symbols: &mut SymbolIndex) {
         }
         syn::Item::Struct(item) => {
             symbols.insert_name(item.ident.to_string());
+            if item.fields.iter().any(|field| {
+                field
+                    .ident
+                    .as_ref()
+                    .is_some_and(|name| name.to_string().starts_with("_bitfield_"))
+            }) {
+                symbols.bitfield_records.insert(item.ident.to_string());
+            }
         }
         syn::Item::Trait(item) => {
             symbols.insert_name(item.ident.to_string());
         }
         syn::Item::Type(item) => {
             symbols.insert_name(item.ident.to_string());
+            if let syn::Type::Path(path) = item.ty.as_ref()
+                && let Some(target) = path.path.get_ident()
+            {
+                symbols.insert_alias(item.ident.to_string(), target.to_string());
+            }
         }
         syn::Item::Union(item) => {
             symbols.insert_name(item.ident.to_string());
@@ -388,19 +461,66 @@ fn collect_symbols_from_use_tree(tree: &syn::UseTree, symbols: &mut SymbolIndex)
         syn::UseTree::Path(path) => {
             collect_symbols_from_use_tree(&path.tree, symbols);
         }
-        _ => {}
+        syn::UseTree::Glob(_) => {}
     }
 }
 
 fn load_docs(paths: &[PathBuf]) -> Result<DocDatabase> {
     let mut entries = BTreeMap::new();
+    let mut seen = BTreeSet::new();
+    let mut sources = Vec::new();
+    if let Some(directory) = paths.first().and_then(|path| path.parent()) {
+        // CUDA types also appear in bindings for libraries built on the toolkit.
+        for name in [
+            "cuda-driver-13.4.2-api.json",
+            "cuda-runtime-13.4.2-api.json",
+        ] {
+            sources.push(directory.join(name));
+        }
+    }
+    sources.extend_from_slice(paths);
+    if let Some(directory) = paths.first().and_then(|path| path.parent()) {
+        sources.push(directory.join("binding-representations.json"));
+    }
 
-    for path in paths {
-        let contents = fs::read_to_string(path)
-            .with_context(|| format!("failed to read {}", path.display()))?;
-        let path_entries: BTreeMap<String, RawDocEntry> = serde_json::from_str(&contents)
-            .with_context(|| format!("failed to parse {}", path.display()))?;
-        entries.extend(path_entries);
+    for source in sources {
+        let sidecars: Vec<_> = ["-supplement.json", "-headers.json"]
+            .into_iter()
+            .filter_map(|suffix| {
+                let name = source.file_name()?.to_str()?;
+                Some(source.with_file_name(name.replace("-api.json", suffix)))
+            })
+            .filter(|path| path.is_file())
+            .collect();
+        for (index, path) in iter::once(source).chain(sidecars).enumerate() {
+            if !seen.insert(path.clone()) {
+                continue;
+            }
+            let contents = fs::read_to_string(&path)
+                .with_context(|| format!("failed to read {}", path.display()))?;
+            let path_entries: BTreeMap<String, RawDocEntry> = serde_json::from_str(&contents)
+                .with_context(|| format!("failed to parse {}", path.display()))?;
+            for (name, mut entry) in path_entries {
+                entry.supplemental = index != 0
+                    || path
+                        .file_name()
+                        .is_some_and(|name| name == "binding-representations.json");
+                if index == 0
+                    && path
+                        .file_name()
+                        .is_none_or(|name| name != "binding-representations.json")
+                {
+                    if let Some(previous) = entries.remove(&name) {
+                        entry.fill_missing(previous);
+                    }
+                    entries.insert(name, entry);
+                } else if let Some(existing) = entries.get_mut(&name) {
+                    existing.fill_missing(entry);
+                } else {
+                    entries.insert(name, entry);
+                }
+            }
+        }
     }
 
     Ok(DocDatabase::from_entries(entries))
@@ -430,9 +550,13 @@ fn render_file(file: &File, preamble: Option<&str>) -> String {
 }
 
 fn write_if_changed(path: &Path, contents: &str) -> Result<()> {
-    let existing = fs::read_to_string(path).ok();
-    if existing.as_deref() == Some(contents) {
-        return Ok(());
+    match fs::read_to_string(path) {
+        Ok(existing) if existing == contents => return Ok(()),
+        Ok(_) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to read {}", path.display()));
+        }
     }
 
     fs::write(path, contents).with_context(|| format!("failed to write {}", path.display()))
@@ -442,8 +566,10 @@ fn rel<'a>(root: &'a Path, path: &'a Path) -> &'a Path {
     path.strip_prefix(root).unwrap_or(path)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct RawDocEntry {
+    #[serde(skip)]
+    supplemental: bool,
     #[serde(default)]
     doc: String,
     #[serde(default)]
@@ -462,11 +588,57 @@ struct RawDocEntry {
     member_ranges: Vec<RawMemberRangeDoc>,
 }
 
+impl RawDocEntry {
+    fn fill_missing(&mut self, other: Self) {
+        if self.doc.trim().is_empty() {
+            self.doc = other.doc;
+        }
+        for (name, value) in other.parameters {
+            let existing = self
+                .parameters
+                .entry(name)
+                .or_insert_with(|| RawParameterDocEntry { doc: String::new() });
+            if existing.doc.trim().is_empty() {
+                existing.doc = value.doc;
+            }
+        }
+        if self.return_value.is_none() {
+            self.return_value = other.return_value;
+        }
+        for (target, additional) in [
+            (&mut self.members, other.members),
+            (&mut self.fields, other.fields),
+            (&mut self.children, other.children),
+        ] {
+            for (name, value) in additional {
+                if let Some(existing) = target.get_mut(&name) {
+                    existing.fill_missing(value);
+                } else {
+                    target.insert(name, value);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum RawMemberDoc {
     Entry(RawMemberDocEntry),
     Text(String),
+}
+
+impl RawMemberDoc {
+    fn fill_missing(&mut self, other: Self) {
+        let additional = RawMemberDocEntry::from(other);
+        let doc = match self {
+            Self::Entry(entry) => &mut entry.doc,
+            Self::Text(text) => text,
+        };
+        if doc.trim().is_empty() {
+            *doc = additional.doc;
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -528,6 +700,7 @@ struct DocDatabase {
 
 #[derive(Debug)]
 struct DocEntry {
+    supplemental: bool,
     item_doc: Option<String>,
     deprecated: bool,
     parameters: BTreeMap<String, String>,
@@ -565,6 +738,7 @@ struct SymbolIndex {
     names: BTreeSet<String>,
     aliases: BTreeMap<String, String>,
     variant_owners: BTreeMap<String, BTreeSet<String>>,
+    bitfield_records: BTreeSet<String>,
 }
 
 impl SymbolIndex {
@@ -614,15 +788,16 @@ impl SymbolIndex {
     }
 
     fn contains_variant_path(&self, owner: &str, variant: &str) -> bool {
-        let owner = self.aliases.get(owner).map(String::as_str).unwrap_or(owner);
+        let owner = self.aliases.get(owner).map_or(owner, String::as_str);
         self.variant_owners
             .get(variant)
             .is_some_and(|owners| owners.contains(owner))
     }
 
-    fn extend(&mut self, other: SymbolIndex) {
+    fn extend(&mut self, other: Self) {
         self.names.extend(other.names);
         self.aliases.extend(other.aliases);
+        self.bitfield_records.extend(other.bitfield_records);
         for (variant, owners) in other.variant_owners {
             self.variant_owners
                 .entry(variant)
@@ -633,13 +808,44 @@ impl SymbolIndex {
 }
 
 impl DocDatabase {
+    fn document_opaque_tags(&mut self, file: &File, symbols: &SymbolIndex) {
+        for item in &file.items {
+            let syn::Item::Type(alias) = item else {
+                continue;
+            };
+            let syn::Type::Ptr(pointer) = alias.ty.as_ref() else {
+                continue;
+            };
+            let syn::Type::Path(target) = pointer.elem.as_ref() else {
+                continue;
+            };
+            let Some(target) = target.path.get_ident() else {
+                continue;
+            };
+            let opaque = file.items.iter().any(|item| {
+                matches!(item, syn::Item::Struct(item) if item.ident == *target
+                    && item.fields.len() == 1
+                    && item.fields.iter().all(|field| field.ident.as_ref().is_some_and(|name| name == "_unused")))
+            });
+            if opaque && self.find_item_doc(&target.to_string(), symbols).is_none() {
+                self.entries.insert(
+                    target.to_string(),
+                    DocEntry::from_raw(RawDocEntry {
+                        doc: format!("Incomplete native type used by `{}` handles. The native API owns its layout.", alias.ident),
+                        ..RawDocEntry::default()
+                    }),
+                );
+            }
+        }
+    }
+
     fn from_entries(entries: BTreeMap<String, RawDocEntry>) -> Self {
         let mut exact_entries = BTreeMap::new();
         let mut placeholder_entries = Vec::new();
 
         for (name, entry) in entries {
             let entry = DocEntry::from_raw(entry);
-            if name.contains("<t>") {
+            if name.contains("<t>") || name.contains("<t1><t2>") {
                 placeholder_entries.push(PlaceholderDocEntry {
                     template_name: name,
                     entry,
@@ -661,18 +867,10 @@ impl DocDatabase {
                 return Some(doc);
             }
 
-            for placeholder in &self.placeholder_entries {
-                let Some(type_token) =
-                    match_type_placeholder(&placeholder.template_name, &candidate)
-                else {
-                    continue;
-                };
-
-                let Some(doc) = &placeholder.entry.item_doc else {
-                    continue;
-                };
-
-                return Some(expand_type_placeholder_doc(doc, &type_token, symbols));
+            if let Some((entry, arguments)) = self.find_placeholder_entry(&candidate)
+                && let Some(doc) = &entry.item_doc
+            {
+                return Some(expand_type_argument_doc(doc, &arguments, symbols));
             }
         }
 
@@ -682,7 +880,27 @@ impl DocDatabase {
             }
         }
 
+        let mut target = name;
+        let mut seen = BTreeSet::new();
+        while let Some(next) = symbols.aliases.get(target)
+            && seen.insert(next)
+        {
+            for candidate in binding_name_candidates(next) {
+                if let Some(doc) = self.item_doc(&candidate) {
+                    return Some(doc);
+                }
+            }
+            target = next;
+        }
+
         None
+    }
+
+    fn find_placeholder_entry(&self, name: &str) -> Option<(&DocEntry, BTreeMap<String, String>)> {
+        self.placeholder_entries.iter().find_map(|placeholder| {
+            let arguments = match_type_arguments(&placeholder.template_name, name)?;
+            Some((&placeholder.entry, arguments))
+        })
     }
 
     fn item_doc(&self, name: &str) -> Option<String> {
@@ -692,7 +910,15 @@ impl DocDatabase {
     }
 
     fn find_member_doc(&self, parent: &str, member: &str, symbols: &SymbolIndex) -> Option<&str> {
-        self.find_entry(parent, symbols)?.find_member_doc(member)
+        self.find_entry(parent, symbols)
+            .and_then(|entry| {
+                entry.find_member_doc(member).or_else(|| {
+                    member
+                        .strip_suffix('_')
+                        .and_then(|name| entry.find_member_doc(name))
+                })
+            })
+            .or_else(|| self.entries.get(member)?.item_doc.as_deref())
     }
 
     fn find_entry(&self, name: &str, symbols: &SymbolIndex) -> Option<&DocEntry> {
@@ -713,6 +939,7 @@ impl DocDatabase {
 impl DocEntry {
     fn from_raw(entry: RawDocEntry) -> Self {
         let RawDocEntry {
+            supplemental,
             doc,
             deprecated,
             parameters,
@@ -758,6 +985,7 @@ impl DocEntry {
         }
 
         Self {
+            supplemental,
             item_doc: build_item_doc(&doc),
             deprecated,
             parameters: parameters
@@ -793,8 +1021,7 @@ impl DocEntry {
         self.ranged_members
             .iter()
             .find(|range| range.matches(member))
-            .map(|range| range.deprecated)
-            .unwrap_or(false)
+            .is_some_and(|range| range.deprecated)
     }
 }
 
@@ -821,8 +1048,7 @@ impl ParsedNumericName {
         let start = name.find(|ch: char| ch.is_ascii_digit())?;
         let end = name[start..]
             .find(|ch: char| !ch.is_ascii_digit())
-            .map(|offset| start + offset)
-            .unwrap_or(name.len());
+            .map_or(name.len(), |offset| start + offset);
 
         Some(Self {
             prefix: name[..start].to_string(),
@@ -851,10 +1077,63 @@ fn binding_name_candidates(name: &str) -> Vec<String> {
             pending.push(format!("{stripped}_t"));
         }
 
-        for suffix in ["_v2_64", "_64", "_v2"] {
+        if let Some((base, version)) = candidate.rsplit_once("_v")
+            && !version.is_empty()
+            && version.chars().all(|digit| digit.is_ascii_digit())
+        {
+            pending.push(base.to_string());
+        }
+        if candidate.starts_with("__nvJitLink") {
+            let mut parts = candidate.rsplitn(3, '_');
+            if let (Some(minor), Some(major), Some(base)) =
+                (parts.next(), parts.next(), parts.next())
+                && !major.is_empty()
+                && !minor.is_empty()
+                && major
+                    .chars()
+                    .chain(minor.chars())
+                    .all(|digit| digit.is_ascii_digit())
+            {
+                pending.push(base.trim_start_matches('_').to_owned());
+            }
+        }
+        for suffix in ["_v2_64", "_64", "_ptsz", "_ptds"] {
             if let Some(stripped) = candidate.strip_suffix(suffix) {
                 pending.push(stripped.to_string());
             }
+        }
+        // The native dot/ger reference pages group conjugated and
+        // unconjugated complex entry points under the same <t> template.
+        if let Some(operation) = candidate.strip_prefix("cublas")
+            && let Some(operation) = operation.strip_prefix(['C', 'Z'])
+            && matches!(operation, "dotu" | "dotc" | "geru" | "gerc")
+        {
+            pending.push(candidate[..candidate.len() - 1].to_owned());
+        }
+        // cuSOLVER reference pages group complex unitary/Hermitian routines
+        // under the corresponding orthogonal/symmetric routine template.
+        if let Some(operation) = candidate.strip_prefix("cusolverDn")
+            && let Some(grouped) =
+                operation
+                    .strip_prefix(['C', 'Z'])
+                    .and_then(|operation| match operation {
+                        "ungqr" => Some("orgqr"),
+                        "unmqr" => Some("ormqr"),
+                        "ungbr" => Some("orgbr"),
+                        "hetrd" => Some("sytrd"),
+                        "ungtr" => Some("orgtr"),
+                        "unmtr" => Some("ormtr"),
+                        "heevd" => Some("syevd"),
+                        "heevdx" => Some("syevdx"),
+                        "hegvd" => Some("sygvd"),
+                        "hegvdx" => Some("sygvdx"),
+                        "heevj" => Some("syevj"),
+                        "heevjBatched" => Some("syevjBatched"),
+                        "hegvj" => Some("sygvj"),
+                        _ => None,
+                    })
+        {
+            pending.push(format!("cusolverDn{}{grouped}", &operation[..1]));
         }
 
         candidates.push(candidate);
@@ -863,23 +1142,51 @@ fn binding_name_candidates(name: &str) -> Vec<String> {
     candidates
 }
 
-fn match_type_placeholder(template: &str, concrete: &str) -> Option<String> {
-    let (prefix, suffix) = template.split_once("<t>")?;
-    if !concrete.starts_with(prefix) || !concrete.ends_with(suffix) {
-        return None;
+fn match_type_arguments(template: &str, concrete: &str) -> Option<BTreeMap<String, String>> {
+    if let Some((prefix, suffix)) = template.split_once("<t>") {
+        let middle = concrete.strip_prefix(prefix)?.strip_suffix(suffix)?;
+        return (!middle.is_empty()).then(|| BTreeMap::from([("t".to_owned(), middle.to_owned())]));
     }
-
-    let middle = &concrete[prefix.len()..concrete.len() - suffix.len()];
-    (!middle.is_empty()).then(|| middle.to_string())
+    let (prefix, suffix) = template.split_once("<t1><t2>")?;
+    let middle = concrete.strip_prefix(prefix)?.strip_suffix(suffix)?;
+    let mut characters = middle.chars();
+    let (Some(input), Some(internal), None) =
+        (characters.next(), characters.next(), characters.next())
+    else {
+        return None;
+    };
+    (input.is_ascii_uppercase() && internal.is_ascii_uppercase()).then(|| {
+        BTreeMap::from([
+            ("t1".to_owned(), input.to_string()),
+            ("t2".to_owned(), internal.to_string()),
+        ])
+    })
 }
 
 fn expand_type_placeholder(text: &str, type_token: &str) -> String {
     text.replace("<t>", type_token)
 }
 
-fn expand_type_placeholder_doc(doc: &str, type_token: &str, symbols: &SymbolIndex) -> String {
-    let expanded = expand_type_placeholder(doc, type_token);
-    rewrite_internal_markdown_links(&expanded, Some(type_token), symbols)
+fn expand_type_argument_doc(
+    doc: &str,
+    arguments: &BTreeMap<String, String>,
+    symbols: &SymbolIndex,
+) -> String {
+    let mut expanded = doc.to_owned();
+    for (name, value) in arguments {
+        for name in [name.to_owned(), name.to_uppercase()] {
+            for placeholder in [
+                format!("&lt;{name}&gt;"),
+                format!("&lt;{name}>"),
+                format!("\\<{name}\\>"),
+                format!("\\<{name}>"),
+                format!("<{name}>"),
+            ] {
+                expanded = expanded.replace(&placeholder, value);
+            }
+        }
+    }
+    rewrite_internal_markdown_links(&expanded, arguments.get("t").map(String::as_str), symbols)
 }
 
 fn build_item_doc(doc: &str) -> Option<String> {
@@ -909,10 +1216,47 @@ fn build_return_value_doc(return_value: Option<RawReturnValueDoc>) -> Option<Ret
 struct BindingDocumenter<'a> {
     docs: &'a DocDatabase,
     symbols: &'a SymbolIndex,
+    comments_only: bool,
 }
 
 impl BindingDocumenter<'_> {
+    fn bitfield_accessor_doc(&self, owner: &str, function: &ImplItemFn) -> Option<String> {
+        if !self.symbols.bitfield_records.contains(owner) {
+            return None;
+        }
+        let name = function.sig.ident.to_string();
+        if name.starts_with("new_bitfield_") {
+            return Some("Constructs packed native bitfield storage from the supplied field values. Only the bits assigned to each field are stored; remaining bits are zero.".to_owned());
+        }
+        let raw = name.ends_with("_raw");
+        let field = name.strip_suffix("_raw").unwrap_or(&name);
+        let setter = field.starts_with("set_");
+        let field = field.strip_prefix("set_").unwrap_or(field);
+        let native = self.docs.find_member_doc(owner, field, self.symbols)?;
+        let mut doc = if setter {
+            format!(
+                "Writes the `{field}` bitfield. Only the low bits that fit in the field are stored.\n\n{native}"
+            )
+        } else if raw {
+            format!("Reads the `{field}` bitfield through a raw pointer.\n\n{native}")
+        } else {
+            return None;
+        };
+        if raw && matches!(function.sig.safety, syn::Safety::Unsafe(_)) {
+            doc.push_str("\n\n# Safety\n\n`this` must address a live native record whose bitfield storage is initialized. ");
+            doc.push_str(if setter {
+                "The bytes containing the field must be writable and exclusively accessible during the call."
+            } else {
+                "The bytes containing the field must remain readable and must not be modified concurrently during the call."
+            });
+        }
+        Some(doc)
+    }
+
     fn update_deprecated_attr(&self, attrs: &mut Vec<Attribute>, deprecated: bool) {
+        if self.comments_only {
+            return;
+        }
         attrs.retain(|attr| !attr.path().is_ident("deprecated"));
         if deprecated {
             attrs.insert(0, syn::parse_quote!(#[deprecated]));
@@ -920,11 +1264,13 @@ impl BindingDocumenter<'_> {
     }
 
     fn update_attrs(&self, attrs: &mut Vec<Attribute>, doc: Option<String>) {
-        attrs.retain(|attr| !attr.path().is_ident("doc"));
-
         let Some(doc) = doc else {
             return;
         };
+
+        attrs.retain(|attr| {
+            !(attr.path().is_ident("doc") && matches!(&attr.meta, syn::Meta::NameValue(_)))
+        });
 
         for line in normalize_doc_text(&doc, self.symbols).lines().rev() {
             let line = line.trim_end();
@@ -941,8 +1287,7 @@ impl BindingDocumenter<'_> {
         let deprecated = self
             .docs
             .find_entry(&ident.to_string(), self.symbols)
-            .map(|entry| entry.deprecated)
-            .unwrap_or(false);
+            .is_some_and(|entry| entry.deprecated);
         self.update_deprecated_attr(attrs, deprecated);
         self.update_attrs(
             attrs,
@@ -950,22 +1295,56 @@ impl BindingDocumenter<'_> {
         );
     }
 
-    fn document_field(&self, parent: &str, field: &mut Field) {
-        let Some(ident) = &field.ident else {
-            return;
-        };
+    fn document_field(&self, parent: &str, index: usize, field: &mut Field) {
+        let name = field
+            .ident
+            .as_ref()
+            .map_or_else(|| index.to_string(), ToString::to_string);
 
         let deprecated = self
             .docs
             .find_entry(parent, self.symbols)
-            .map(|entry| entry.find_member_deprecated(&ident.to_string()))
-            .unwrap_or(false);
+            .is_some_and(|entry| entry.find_member_deprecated(&name));
         self.update_deprecated_attr(&mut field.attrs, deprecated);
+        let has_docs = field.attrs.iter().any(|attr| attr.path().is_ident("doc"));
         self.update_attrs(
             &mut field.attrs,
             self.docs
-                .find_member_doc(parent, &ident.to_string(), self.symbols)
-                .map(ToOwned::to_owned),
+                .find_member_doc(parent, &name, self.symbols)
+                .map(ToOwned::to_owned)
+                .or_else(|| {
+                    if name.starts_with("_bitfield_align_") {
+                        Some("Zero-length marker used by bindgen to preserve native bitfield alignment.".to_owned())
+                    } else if has_docs {
+                        None
+                    } else if name.starts_with("__bindgen_padding_") {
+                        Some(
+                            "Padding inserted by bindgen to preserve the native ABI layout."
+                                .to_owned(),
+                        )
+                    } else if name == "reserved"
+                        || name.starts_with("reserved") && matches!(&field.ty, syn::Type::Array(_))
+                    {
+                        Some("Reserved storage in the native ABI.".to_owned())
+                    } else if name == "_internal_padding" {
+                        Some("Internal padding in the native ABI layout.".to_owned())
+                    } else if name == "_oversize" {
+                        Some("Storage that fixes the native union's ABI size.".to_owned())
+                    } else if name == "bindgen_union_field" {
+                        Some("Backing storage shared by the members of this bindgen-emulated C union.".to_owned())
+                    } else if name.starts_with("_bitfield_") {
+                        Some("Packed storage for native C bitfields. Use the generated accessors to read or update individual fields.".to_owned())
+                    } else if name.starts_with("__bindgen_anon_")
+                        && let syn::Type::Path(path) = &field.ty
+                        && let Some(target) = path.path.get_ident()
+                    {
+                        Some(format!(
+                            "Anonymous native member. See `{target}` for its fields."
+                        ))
+                    } else {
+                        None
+                    }
+                }),
         );
     }
 
@@ -974,12 +1353,26 @@ impl BindingDocumenter<'_> {
         let deprecated = self
             .docs
             .find_entry(&name, self.symbols)
-            .map(|entry| entry.deprecated)
-            .unwrap_or(false);
+            .is_some_and(|entry| entry.deprecated);
         let doc = self
             .docs
             .find_entry(&name, self.symbols)
+            .filter(|entry| !entry.supplemental)
             .and_then(|entry| self.build_foreign_fn_doc(entry, item))
+            .or_else(|| {
+                binding_name_candidates(&name)
+                    .into_iter()
+                    .find_map(|candidate| {
+                        let (entry, arguments) = self.docs.find_placeholder_entry(&candidate)?;
+                        let doc = self.build_foreign_fn_doc(entry, item)?;
+                        Some(expand_type_argument_doc(&doc, &arguments, self.symbols))
+                    })
+            })
+            .or_else(|| {
+                self.docs
+                    .find_entry(&name, self.symbols)
+                    .and_then(|entry| self.build_foreign_fn_doc(entry, item))
+            })
             .or_else(|| self.docs.find_item_doc(&name, self.symbols));
         self.update_deprecated_attr(&mut item.attrs, deprecated);
         self.update_attrs(&mut item.attrs, doc);
@@ -1001,6 +1394,13 @@ impl BindingDocumenter<'_> {
                     syn::Pat::Ident(ident) => entry
                         .parameters
                         .get(&ident.ident.to_string())
+                        .or_else(|| {
+                            ident
+                                .ident
+                                .to_string()
+                                .strip_suffix('_')
+                                .and_then(|name| entry.parameters.get(name))
+                        })
                         .map(|doc| format!("- `{}`: {}", ident.ident, doc)),
                     _ => None,
                 },
@@ -1011,7 +1411,8 @@ impl BindingDocumenter<'_> {
             sections.push(format!("# Parameters\n\n{}", parameter_lines.join("\n")));
         }
 
-        let return_value_lines = build_return_value_lines(&entry.return_value, self.symbols);
+        let return_value_lines =
+            build_return_value_lines(entry.return_value.as_ref(), self.symbols);
         if !return_value_lines.is_empty() {
             sections.push(format!(
                 "# Return value\n\n{}",
@@ -1024,7 +1425,7 @@ impl BindingDocumenter<'_> {
 }
 
 fn build_return_value_lines(
-    return_value: &Option<ReturnValueDoc>,
+    return_value: Option<&ReturnValueDoc>,
     symbols: &SymbolIndex,
 ) -> Vec<String> {
     let Some(return_value) = return_value else {
@@ -1063,14 +1464,54 @@ fn format_return_value_label(
     }
 
     resolve_doc_symbol(name, symbols)
-        .map(|symbol| format!("[`{symbol}`]"))
-        .unwrap_or_else(|| format!("`{name}`"))
+        .map_or_else(|| format!("`{name}`"), |symbol| format!("[`{symbol}`]"))
 }
 
 impl VisitMut for BindingDocumenter<'_> {
+    fn visit_item_impl_mut(&mut self, item: &mut ItemImpl) {
+        if item.trait_.is_none()
+            && let syn::Type::Path(path) = item.self_ty.as_ref()
+            && let Some(segment) = path.path.segments.last()
+        {
+            let owner = segment.ident.to_string();
+            for member in &mut item.items {
+                if let ImplItem::Fn(function) = member {
+                    let doc = self
+                        .docs
+                        .find_member_doc(&owner, &function.sig.ident.to_string(), self.symbols)
+                        .map(ToOwned::to_owned)
+                        .or_else(|| self.bitfield_accessor_doc(&owner, function));
+                    self.update_attrs(&mut function.attrs, doc);
+                }
+            }
+        }
+        visit_mut::visit_item_impl_mut(self, item);
+    }
+
+    fn visit_impl_item_const_mut(&mut self, item: &mut ImplItemConst) {
+        self.document_item(&item.ident, &mut item.attrs);
+        if !item.attrs.iter().any(|attr| attr.path().is_ident("doc"))
+            && let syn::Expr::Path(value) = &item.expr
+            && value.path.segments.len() == 2
+        {
+            let mut segments = value.path.segments.iter();
+            if let (Some(owner), Some(variant)) = (segments.next(), segments.next())
+                && self
+                    .symbols
+                    .contains_variant_path(&owner.ident.to_string(), &variant.ident.to_string())
+            {
+                self.update_attrs(
+                    &mut item.attrs,
+                    Some(format!("Alias for `{}::{}`.", owner.ident, variant.ident)),
+                );
+            }
+        }
+        visit_mut::visit_impl_item_const_mut(self, item);
+    }
+
     fn visit_item_const_mut(&mut self, item: &mut ItemConst) {
         self.document_item(&item.ident, &mut item.attrs);
-        syn::visit_mut::visit_item_const_mut(self, item);
+        visit_mut::visit_item_const_mut(self, item);
     }
 
     fn visit_item_enum_mut(&mut self, item: &mut ItemEnum) {
@@ -1082,8 +1523,7 @@ impl VisitMut for BindingDocumenter<'_> {
             let deprecated = self
                 .docs
                 .find_entry(&item_name, self.symbols)
-                .map(|entry| entry.find_member_deprecated(&member_name))
-                .unwrap_or(false);
+                .is_some_and(|entry| entry.find_member_deprecated(&member_name));
             self.update_deprecated_attr(&mut variant.attrs, deprecated);
             self.update_attrs(
                 &mut variant.attrs,
@@ -1098,37 +1538,37 @@ impl VisitMut for BindingDocumenter<'_> {
         let item_name = item.ident.to_string();
         self.document_item(&item.ident, &mut item.attrs);
 
-        for field in &mut item.fields {
-            self.document_field(&item_name, field);
+        for (index, field) in item.fields.iter_mut().enumerate() {
+            self.document_field(&item_name, index, field);
         }
 
-        syn::visit_mut::visit_item_struct_mut(self, item);
+        visit_mut::visit_item_struct_mut(self, item);
     }
 
     fn visit_item_union_mut(&mut self, item: &mut ItemUnion) {
         let item_name = item.ident.to_string();
         self.document_item(&item.ident, &mut item.attrs);
 
-        for field in &mut item.fields.named {
-            self.document_field(&item_name, field);
+        for (index, field) in item.fields.named.iter_mut().enumerate() {
+            self.document_field(&item_name, index, field);
         }
 
-        syn::visit_mut::visit_item_union_mut(self, item);
+        visit_mut::visit_item_union_mut(self, item);
     }
 
     fn visit_item_type_mut(&mut self, item: &mut ItemType) {
         self.document_item(&item.ident, &mut item.attrs);
-        syn::visit_mut::visit_item_type_mut(self, item);
+        visit_mut::visit_item_type_mut(self, item);
     }
 
     fn visit_item_static_mut(&mut self, item: &mut ItemStatic) {
         self.document_item(&item.ident, &mut item.attrs);
-        syn::visit_mut::visit_item_static_mut(self, item);
+        visit_mut::visit_item_static_mut(self, item);
     }
 
     fn visit_foreign_item_fn_mut(&mut self, item: &mut ForeignItemFn) {
         self.document_foreign_fn(item);
-        syn::visit_mut::visit_foreign_item_fn_mut(self, item);
+        visit_mut::visit_foreign_item_fn_mut(self, item);
     }
 
     fn visit_variant_mut(&mut self, _item: &mut Variant) {}
@@ -1136,7 +1576,11 @@ impl VisitMut for BindingDocumenter<'_> {
 
 fn normalize_doc_text(doc: &str, symbols: &SymbolIndex) -> String {
     let doc = doc.replace("\r\n", "\n");
-    rewrite_non_math_doc_text(&doc, symbols)
+    let doc = doc
+        .trim_start()
+        .strip_prefix("!<")
+        .map_or(doc.as_str(), str::trim_start);
+    rewrite_non_math_doc_text(doc, symbols)
 }
 
 fn rewrite_non_math_doc_text(doc: &str, symbols: &SymbolIndex) -> String {
@@ -1256,11 +1700,10 @@ fn normalize_emphasized_identifier(content: &str, symbols: &SymbolIndex) -> Opti
         return None;
     }
 
-    if let Some(symbol) = resolve_doc_symbol(symbol, symbols) {
-        Some(format!("[`{symbol}`]"))
-    } else {
-        Some(format!("`{content}`"))
-    }
+    Some(
+        resolve_doc_symbol(symbol, symbols)
+            .map_or_else(|| format!("`{content}`"), |symbol| format!("[`{symbol}`]")),
+    )
 }
 
 fn escape_code_fence_brackets(text: &str) -> String {
@@ -1470,7 +1913,10 @@ fn rewrite_backticked_symbols(text: &str, symbols: &SymbolIndex) -> String {
 }
 
 fn rewrite_backticked_symbol(content: &str, symbols: &SymbolIndex) -> Option<String> {
-    let symbol = content.trim().strip_suffix("()").unwrap_or(content.trim());
+    let symbol = content
+        .trim()
+        .strip_suffix("()")
+        .unwrap_or_else(|| content.trim());
     if matches!(symbol, "size_t") {
         return None;
     }
@@ -1502,6 +1948,7 @@ fn rewrite_internal_markdown_links(
             if let Some(end_target) = after_target_start.find(')') {
                 let label = &after_start[..end_label];
                 let target = &after_target_start[..end_target];
+                out.push_str("[`");
                 out.push('[');
                 out.push_str(label);
                 out.push_str("](");
@@ -1585,15 +2032,14 @@ fn rewrite_external_code_symbol_links(text: &str, symbols: &SymbolIndex) -> Stri
         };
 
         let target = &after_target_start[..end_target];
+        out.push_str("[`");
         if is_external_markdown_target(target)
             && let Some(symbol) =
                 resolve_doc_symbol(label.strip_suffix("()").unwrap_or(label), symbols)
         {
-            out.push_str("[`");
             out.push_str(&symbol);
             out.push_str("`]");
         } else {
-            out.push_str("[`");
             out.push_str(label);
             out.push_str("`](");
             out.push_str(target);

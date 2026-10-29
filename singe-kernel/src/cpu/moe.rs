@@ -1,47 +1,59 @@
 //! Mixture-of-experts routing and alignment helpers.
 
+#[must_use]
 pub fn moe_align_block_size_i32(
     topk_ids: &[i32],
     expert_count: usize,
     block_size: usize,
 ) -> (Vec<i32>, Vec<i32>, i32, Vec<i32>, i32) {
-    let sentinel = topk_ids.len() as i32;
+    let sentinel =
+        i32::try_from(topk_ids.len()).expect("kernel dimension or index exceeds the i32 interface");
     let max_num_tokens_padded = topk_ids.len() + expert_count * (block_size - 1);
     let mut sorted_token_ids = vec![sentinel; max_num_tokens_padded];
     let mut cumsum = vec![0i32; expert_count + 1];
     let mut total = 0usize;
     let mut max_count = 0usize;
     for (expert, cumsum_slot) in cumsum.iter_mut().enumerate().take(expert_count) {
-        *cumsum_slot = total as i32;
+        *cumsum_slot =
+            i32::try_from(total).expect("kernel dimension or index exceeds the i32 interface");
         let mut count = 0usize;
         for (token, &id) in topk_ids.iter().enumerate() {
-            if id == expert as i32 {
-                sorted_token_ids[total + count] = token as i32;
+            if id
+                == i32::try_from(expert)
+                    .expect("kernel dimension or index exceeds the i32 interface")
+            {
+                sorted_token_ids[total + count] = i32::try_from(token)
+                    .expect("kernel dimension or index exceeds the i32 interface");
                 count += 1;
             }
         }
         max_count = max_count.max(count);
         total += ceil_div(count, block_size) * block_size;
     }
-    cumsum[expert_count] = total as i32;
+    cumsum[expert_count] =
+        i32::try_from(total).expect("kernel dimension or index exceeds the i32 interface");
     let expert_ids = (0..total / block_size)
         .map(|block| {
-            let token_offset = (block * block_size) as i32;
+            let token_offset = i32::try_from(block * block_size)
+                .expect("padded token offset exceeds the i32 interface");
             cumsum
                 .windows(2)
                 .position(|range| token_offset >= range[0] && token_offset < range[1])
-                .unwrap_or(expert_count - 1) as i32
+                .unwrap_or(expert_count - 1)
+                .try_into()
+                .expect("expert index exceeds the i32 interface")
         })
         .collect::<Vec<_>>();
     (
         sorted_token_ids,
         expert_ids,
-        total as i32,
+        i32::try_from(total).expect("kernel dimension or index exceeds the i32 interface"),
         cumsum,
-        max_count as i32,
+        i32::try_from(max_count).expect("kernel dimension or index exceeds the i32 interface"),
     )
 }
 
+#[must_use]
 pub fn fused_moe_f32(
     input: &[f32],
     weight: &[f32],
@@ -63,7 +75,7 @@ pub fn fused_moe_f32(
                 let input_offset = token * reduction + reduction_index;
                 let weight_offset =
                     expert * columns * reduction + column * reduction + reduction_index;
-                sum += input[input_offset] * weight[weight_offset];
+                sum = input[input_offset].mul_add(weight[weight_offset], sum);
             }
             if mul_routed_weight {
                 sum *= routed_weight[slot];
@@ -74,6 +86,7 @@ pub fn fused_moe_f32(
     out
 }
 
+#[must_use]
 pub fn fused_moe_f8e4m3_block_scaled_f32(
     input: &[u8],
     weight: &[u8],
@@ -106,10 +119,10 @@ pub fn fused_moe_f8e4m3_block_scaled_f32(
                 let input_scale = input_scales[token * k_groups + k_group];
                 let weight_scale = weight_scales
                     [expert * n_groups * k_groups + (column / group_n) * k_groups + k_group];
-                sum += f8e4m3_value(input[input_offset])
+                sum = (f8e4m3_value(input[input_offset])
                     * f8e4m3_value(weight[weight_offset])
-                    * input_scale
-                    * weight_scale;
+                    * input_scale)
+                    .mul_add(weight_scale, sum);
             }
             if mul_routed_weight {
                 sum *= routed_weight[slot];
@@ -120,6 +133,7 @@ pub fn fused_moe_f8e4m3_block_scaled_f32(
     out
 }
 
+#[must_use]
 pub fn ceil_div(lhs: usize, rhs: usize) -> usize {
     lhs.div_ceil(rhs)
 }
@@ -134,9 +148,9 @@ fn f8e4m3_value(value: u8) -> f32 {
         if mantissa == 0 {
             sign * 0.0
         } else {
-            sign * (mantissa as f32 / 8.0) * 2f32.powi(-6)
+            sign * (f32::from(mantissa) / 8.0) * 2f32.powi(-6)
         }
     } else {
-        sign * (1.0 + mantissa as f32 / 8.0) * 2f32.powi(exponent as i32 - 7)
+        sign * (1.0 + f32::from(mantissa) / 8.0) * 2f32.powi(i32::from(exponent) - 7)
     }
 }

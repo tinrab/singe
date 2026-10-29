@@ -1,11 +1,11 @@
 use std::ptr;
 
-use singe_cuda::{data_type::DataTypeLike, types::DevicePtr};
-
+use singe_cuda::{data_type::DataTypeLike, view::DeviceOutputView};
 use singe_cusparse_sys as sys;
 
 use crate::{
     context::Context,
+    descriptor::workspace,
     error::{Error, Result},
     matrix::{DenseMatrixDescriptor, SparseMatrixDescriptor},
     operation::SpMmOpPlan,
@@ -41,7 +41,7 @@ use crate::{
 /// It provides performance advantages with [`SpMmAlgorithm::Csr1`] or [`SpMmAlgorithm::Csr3`].
 /// It has no effect for all other formats and algorithms.
 ///
-/// Calling [`spmm_preprocess`] with `buffer` makes that buffer active for `matrix_a` SpMM calls.
+/// Calling [`spmm_preprocess`] with `buffer` makes that buffer active for `matrix_a` `SpMM` calls.
 /// Subsequent calls to [`spmm`] with `matrix_a` and the active buffer must use the same values for all parameters as the call to [`spmm_preprocess`].
 /// The exceptions are: `alpha`, `beta`, `matrix_b`, `matrix_c`, and the values (but not indices) of `matrix_a` may be different.
 /// Importantly, the buffer contents must be unmodified since the call to [`spmm_preprocess`].
@@ -168,7 +168,7 @@ use crate::{
 ///
 /// **Performance notes:**
 ///
-/// * Blocked-ELL SpMM provides the best performance with Power-of-2 Block-Sizes.
+/// * Blocked-ELL `SpMM` provides the best performance with Power-of-2 Block-Sizes.
 /// * Large block sizes, such as 64 or greater, provide the best performance.
 ///
 /// This operation has the following limitations:
@@ -185,8 +185,12 @@ use crate::{
 /// algorithm are incompatible, a required workspace buffer is missing or
 /// invalid, the data type combination is unsupported, or cuSPARSE rejects the
 /// operation.
-pub fn spmm<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+pub unsafe fn spmm<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -195,17 +199,20 @@ pub fn spmm<Compute: DataTypeLike>(
     beta: Scalar<'_, Compute>,
     matrix_c: &mut DenseMatrixDescriptor,
     algorithm: SpMmAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    // SAFETY: `cusparseSpMM` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpMM(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -215,14 +222,28 @@ pub fn spmm<Compute: DataTypeLike>(
             matrix_c.as_raw(),
             Compute::data_type().into(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())
 }
 
-pub fn spmm_buffer_size<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spmm_buffer_size<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -232,16 +253,17 @@ pub fn spmm_buffer_size<Compute: DataTypeLike>(
     matrix_c: &mut DenseMatrixDescriptor,
     algorithm: SpMmAlgorithm,
 ) -> Result<usize> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
 
     let mut size = 0;
+    // SAFETY: `cusparseSpMM_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusparseSpMM_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -257,8 +279,20 @@ pub fn spmm_buffer_size<Compute: DataTypeLike>(
     to_usize(size, "spmm buffer size")
 }
 
-pub fn spmm_preprocess<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spmm_preprocess<Compute: DataTypeLike>(
+    context: &Context,
     op_a: Operation,
     op_b: Operation,
     alpha: Scalar<'_, Compute>,
@@ -267,17 +301,20 @@ pub fn spmm_preprocess<Compute: DataTypeLike>(
     beta: Scalar<'_, Compute>,
     matrix_c: &mut DenseMatrixDescriptor,
     algorithm: SpMmAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix_a.ensure_context(ctx)?;
-    matrix_b.ensure_context(ctx)?;
-    matrix_c.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
+    matrix_a.ensure_context(context)?;
+    matrix_b.ensure_context(context)?;
+    matrix_c.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    // SAFETY: `cusparseSpMM_preprocess` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpMM_preprocess(
-            ctx.as_raw(),
+            context.as_raw(),
             op_a.into(),
             op_b.into(),
             alpha.ptr().cast(),
@@ -287,19 +324,30 @@ pub fn spmm_preprocess<Compute: DataTypeLike>(
             matrix_c.as_raw(),
             Compute::data_type().into(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())
 }
 
-pub fn spmm_op(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns `Error::PlanContextMismatch` unless `context` is the exact context owned by `plan`. Also propagates workspace-context, insufficient workspace, context-binding, and native execution errors from [`SpMmOpPlan::execute`].
+pub unsafe fn spmm_op(
+    context: &Context,
     plan: &SpMmOpPlan<'_>,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    if !ptr::eq(ctx, plan.context()) {
+    if !ptr::eq(context, plan.context()) {
         return Err(Error::PlanContextMismatch);
     }
-    plan.execute(external_buffer)
+    // SAFETY: the caller retains the plan and scratch through completed execution.
+    unsafe { plan.execute(external_buffer) }
 }

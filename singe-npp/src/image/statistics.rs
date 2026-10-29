@@ -1,59 +1,52 @@
-use singe_cuda::{memory::DeviceMemory, types::Complex32};
-use singe_npp_sys as sys;
+//! Native image operations on an explicitly selected stream.
+//!
+//! # Safety
+//! Retain each allocation until completion or its last captured replay and establish access ordering.
+//! Input and read-write storage must contain valid initialized values for the complete native footprint.
+//! Non-border spatial operations require initialized source halo beyond the output ROI.
+//! Outputs promise writable capacity only; promotion requires all logical samples to be initialized.
+//! Helpers owning temporary scratch or device descriptors complete their native use before releasing it.
+//! Such helpers reject capture before allocating those temporary resources.
 
-use crate::{
-    context::StreamContext,
-    error::{Error, Result},
-    image::view::{AC4, C1, C2, C3, C4, ImageView, ImageViewMut},
-    try_ffi,
-    types::{ComplexI16, ComplexI32, DataTypeLike, Point, Point32f, ProfileData, Size},
-    utility::to_usize,
+pub use crate::image::{
+    statistics_batch_metrics::*, statistics_histograms::*, statistics_integral::*,
+    statistics_pair_metrics::*, statistics_template::*,
 };
 
-use super::statistics_validation::*;
-
-pub use super::statistics_batch_metrics::*;
-pub use super::statistics_histograms::*;
-pub use super::statistics_integral::*;
-pub use super::statistics_pair_metrics::*;
-pub use super::statistics_template::*;
-
-#[path = "statistics_profiles.rs"]
 mod profiles;
+
 pub use profiles::*;
 
 #[macro_use]
-#[path = "statistics_direct_macros.rs"]
 mod direct_macros;
 
 #[macro_use]
-#[path = "statistics_generic_macros.rs"]
 mod generic_macros;
 
-#[path = "statistics_mean.rs"]
 mod mean;
+
 pub use mean::*;
 
-#[path = "statistics_scalar.rs"]
 mod scalar;
+
 pub use scalar::*;
 
-#[path = "statistics_indexed.rs"]
 mod indexed;
+
 pub use indexed::*;
 
-#[path = "statistics_dot_product.rs"]
 mod dot_product;
+
 pub use dot_product::*;
 
-#[path = "statistics_every.rs"]
 mod every;
+
 pub use every::*;
 
-#[path = "statistics_error_metrics.rs"]
 mod error_metrics;
+
 pub use error_metrics::*;
 
-#[path = "statistics_norms.rs"]
 mod norms;
+
 pub use norms::*;

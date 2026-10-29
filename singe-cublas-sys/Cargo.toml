@@ -4,7 +4,7 @@ description = "Low-level FFI bindings for the NVIDIA cuBLAS dense linear algebra
 version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "cublas", "bindings", "ffi"]
 include.workspace = true
@@ -13,11 +13,11 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cublas_13_5"]
+default = ["cublas_13_8"]
 
-cublas_13_5 = ["singe-cuda-sys/runtime_13_3"]
-lt = ["cublas_13_5"]
-xt = ["cublas_13_5"]
+cublas_13_8 = ["singe-cuda-sys/runtime_13_4"]
+lt = ["cublas_13_8"]
+xt = ["cublas_13_8"]
 
 [dependencies]
 singe-cuda-sys.workspace = true

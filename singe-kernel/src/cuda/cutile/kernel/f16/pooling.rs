@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     #[cutile::entry()]
     pub unsafe fn max_pool2d_f16(
         out: *mut f16,
@@ -41,6 +43,8 @@ mod kernels {
         let ow: Tile<i32, { [128] }> = rem_c - oh * broadcast_scalar(output_width, tile_shape);
 
         let mut values: Tile<f16, { [128] }> = constant(f16::NEG_INFINITY, tile_shape);
+        let padding: Tile<f16, { [] }> = constant(f16::NEG_INFINITY, const_shape![]);
+        let padding: f16 = tile_to_scalar(padding);
         for kh in 0i32..kernel_height {
             for kw in 0i32..kernel_width {
                 let ih: Tile<i32, { [128] }> = oh * broadcast_scalar(stride_height, tile_shape)
@@ -72,15 +76,17 @@ mod kernels {
                 let input_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(tile_shape);
                 let input_ptrs: PointerTile<*mut f16, { [128] }> =
                     input_ptrs.offset_tile(source_offsets);
-                let result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-                    input_ptrs,
-                    ordering::Weak,
-                    None::<scope::TileBlock>,
-                    Some(valid),
-                    Some(f16::NEG_INFINITY),
-                    None,
-                    Latency::<0>,
-                );
+                let result: (Tile<f16, { [128] }>, Token) = unsafe {
+                    load_ptr_tko(
+                        input_ptrs,
+                        ordering::Weak,
+                        None::<scope::TileBlock>,
+                        Some(valid),
+                        Some(padding),
+                        None,
+                        Latency::<0>,
+                    )
+                };
                 values = maxf(values, result.0, nan::Enabled, ftz::Disabled);
             }
         }
@@ -89,15 +95,17 @@ mod kernels {
         let out_base: PointerTile<*mut f16, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(output_mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(output_mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -123,6 +131,7 @@ mod kernels {
         count_include_pad: i32,
         len: i32,
     ) {
+        let zero_f16: f16 = convert_scalar(0.0f32);
         let pid: (i32, i32, i32) = get_tile_block_id();
         let tile_shape = const_shape![128];
         let offsets: Tile<i32, { [128] }> =
@@ -196,15 +205,17 @@ mod kernels {
                 let input_ptrs: PointerTile<*mut f16, { [128] }> = input_base.broadcast(tile_shape);
                 let input_ptrs: PointerTile<*mut f16, { [128] }> =
                     input_ptrs.offset_tile(source_offsets);
-                let result: (Tile<f16, { [128] }>, Token) = load_ptr_tko(
-                    input_ptrs,
-                    ordering::Weak,
-                    None::<scope::TileBlock>,
-                    Some(valid),
-                    Some(f16::from_f32(0.0)),
-                    None,
-                    Latency::<0>,
-                );
+                let result: (Tile<f16, { [128] }>, Token) = unsafe {
+                    load_ptr_tko(
+                        input_ptrs,
+                        ordering::Weak,
+                        None::<scope::TileBlock>,
+                        Some(valid),
+                        Some(zero_f16),
+                        None,
+                        Latency::<0>,
+                    )
+                };
                 let values: Tile<f32, { [128] }> = convert_tile(result.0);
                 sum = sum + values;
                 count = count + select(valid, one_f32, zero_f32);
@@ -223,19 +234,22 @@ mod kernels {
             cmp_ordering::Ordered,
         );
         let values = select(has_denominator, sum / denominator, zero_f32);
+        let values: Tile<f16, { [128] }> = convert_tile(values);
         let out_base: PointerTile<*mut f16, { [] }> = pointer_to_tile(out);
         let out_base: PointerTile<*mut f16, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            convert_tile(values),
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(output_mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(output_mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 }
 

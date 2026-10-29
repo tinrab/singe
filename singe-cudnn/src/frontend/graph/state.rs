@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     sync::{Arc, Mutex},
 };
 
@@ -7,28 +7,32 @@ use bomboni_serde as serde_helpers;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    data_type::DataType,
-    device::DeviceProperties,
-    error::{Error, Result},
-    execution::{KernelCache, OperationGraph},
-    frontend::{
-        lower::LoweredGraph,
-        operation::Operation,
-        plan::{BindingReplacement, PlanCache},
+    backend::{
+        device::{DeviceProperties, DevicePropertiesJson},
+        execution::{KernelCache, KernelCacheJson},
+        tensor::{TensorId, TensorSpec},
     },
-    scalar::ScalarValue,
-    tensor::{Shape, TensorId, TensorSpec},
+    frontend::{
+        graph::{GraphConfig, RuntimeShapeConstraints},
+        operation::{AttentionBackwardHeuristicOverride, Operation, TensorAccess},
+        plan::PlanCache,
+    },
 };
 
 /// Runtime-only state attached to a frontend graph.
 ///
-/// This stores process-local objects such as a shared kernel cache or device
-/// properties alongside the serializable graph description.
+/// Stores construction bookkeeping and process-local objects such as a shared
+/// kernel cache or device properties alongside the serializable graph description.
 #[derive(Debug, Clone, Default)]
 pub struct GraphRuntimeState {
-    pub(super) kernel_cache: Option<Arc<Mutex<KernelCache>>>,
-    pub(super) device_properties: Option<Arc<DeviceProperties>>,
-    pub(super) plan_cache: Option<Arc<Mutex<PlanCache>>>,
+    /// New declaration identities, allowing inference checkpoints to record a count instead of copying all IDs.
+    pub(crate) tensor_insertions: Vec<TensorId>,
+    /// Operations whose nested score-graph identities have been reserved for automatic allocation.
+    pub(crate) indexed_operation_count: usize,
+    pub(crate) reserved_tensor_ids: HashSet<TensorId>,
+    pub(crate) kernel_cache: Option<Arc<Mutex<KernelCache>>>,
+    pub(crate) device_properties: Option<Arc<DeviceProperties>>,
+    pub(crate) plan_cache: Option<Arc<Mutex<PlanCache>>>,
 }
 
 /// Declarative cuDNN frontend operation graph.
@@ -41,83 +45,21 @@ pub struct GraphRuntimeState {
 /// This mirrors the high-level C++ frontend graph API model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Graph {
-    pub(crate) name: Option<String>,
+    pub(crate) config: GraphConfig,
     pub(crate) tensors: BTreeMap<TensorId, TensorSpec>,
+    #[serde(default)]
+    pub(crate) vector_aligned_tensors: BTreeSet<TensorId>,
     pub(crate) operations: Vec<Operation>,
-    pub(crate) alias_bindings: Vec<AliasBinding>,
-    pub(crate) sm_count_target: Option<i64>,
-    pub(crate) sm_version: Option<i32>,
-    pub(crate) dynamic_shape_enabled: bool,
-    pub(crate) override_shape_enabled: bool,
+    pub(crate) storage_views: Vec<StorageView>,
     pub(crate) kernel_cache_enabled: bool,
-    pub(crate) kernel_cache_json: Option<String>,
-    pub(crate) device_properties_json: Option<String>,
+    pub(crate) kernel_cache_json: Option<KernelCacheJson>,
+    pub(crate) device_properties_json: Option<DevicePropertiesJson>,
     #[serde(default)]
-    pub(crate) data_type_policy: DataTypePolicy,
-    #[serde(default)]
-    pub(crate) dynamic_shape_constraints: BTreeMap<TensorId, RuntimeShapeConstraints>,
+    pub(crate) runtime_shape_constraints: BTreeMap<TensorId, RuntimeShapeConstraints>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) attention_backward_heuristic_overrides: Vec<AttentionBackwardHeuristicOverride>,
     #[serde(skip, default)]
     pub(crate) runtime: GraphRuntimeState,
-}
-
-/// Static graph construction options.
-///
-/// Runtime-only handles such as shared kernel and plan caches are intentionally
-/// attached to [`Graph`] after construction because they require validation or
-/// process-local ownership.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GraphConfig {
-    pub name: Option<String>,
-    pub sm_count_target: Option<i64>,
-    pub sm_version: Option<i32>,
-    pub dynamic_shape_enabled: bool,
-    pub override_shape_enabled: bool,
-    pub data_type_policy: DataTypePolicy,
-}
-
-impl GraphConfig {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub fn with_sm_count_target(mut self, sm_count_target: i64) -> Self {
-        self.sm_count_target = Some(sm_count_target);
-        self
-    }
-
-    pub fn with_sm_version(mut self, sm_version: i32) -> Self {
-        self.sm_version = Some(sm_version);
-        self
-    }
-
-    pub fn with_dynamic_shape(mut self) -> Self {
-        self.dynamic_shape_enabled = true;
-        self
-    }
-
-    pub fn with_override_shape(mut self) -> Self {
-        self.override_shape_enabled = true;
-        self
-    }
-
-    pub fn with_data_type_policy(mut self, policy: DataTypePolicy) -> Self {
-        self.data_type_policy = policy;
-        self
-    }
-}
-
-/// Lowered representation produced while preparing a [`Graph`] for planning.
-pub struct PreparedGraph {
-    pub(crate) expanded: Graph,
-    pub(crate) lowered: LoweredGraph,
-    pub(crate) scalar_bindings: Vec<(TensorId, ScalarValue)>,
-    pub(crate) binding_replacements: Vec<BindingReplacement>,
-    pub(crate) operation_graph: OperationGraph,
 }
 
 /// Binds one tensor as an alias of another tensor at a byte offset.
@@ -125,140 +67,34 @@ pub struct PreparedGraph {
 /// This models in-place or aliased graph tensors while preserving the logical
 /// tensor IDs used by the frontend graph.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct AliasBinding {
+pub struct StorageView {
+    /// Frontend identity supplying the aliased device allocation.
     pub source: TensorId,
+    /// Frontend identity whose declared layout uses this storage view.
     pub target: TensorId,
+    /// Nonnegative byte displacement added to the source address for the target.
     #[serde(with = "serde_helpers::as_string")]
     pub byte_offset: i64,
 }
 
-/// Graph-level default data types used by infer-style frontend helpers.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DataTypePolicy {
-    io: Option<DataType>,
-    intermediate: Option<DataType>,
-    compute: Option<DataType>,
-}
-
-impl DataTypePolicy {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_io(mut self, data_type: DataType) -> Self {
-        self.io = Some(data_type);
-        self
-    }
-
-    pub fn io(&self) -> Option<DataType> {
-        self.io
-    }
-
-    pub(crate) fn effective_io(self, default: DataType) -> DataType {
-        self.io.unwrap_or(default)
-    }
-
-    pub fn with_intermediate(mut self, data_type: DataType) -> Self {
-        self.intermediate = Some(data_type);
-        self
-    }
-
-    pub fn intermediate(&self) -> Option<DataType> {
-        self.intermediate
-    }
-
-    pub(crate) fn effective_intermediate(self, default: DataType) -> DataType {
-        self.intermediate.unwrap_or(default)
-    }
-
-    pub fn with_compute(mut self, data_type: DataType) -> Self {
-        self.compute = Some(data_type);
-        self
-    }
-
-    pub fn compute(&self) -> Option<DataType> {
-        self.compute
-    }
-
-    pub(crate) fn effective_compute(self, default: DataType) -> DataType {
-        self.compute.unwrap_or(default)
-    }
-
-    pub(crate) fn inherit_compute_policy_from(&mut self, parent: Self) {
-        self.intermediate = parent.intermediate;
-        self.compute = parent.compute;
-    }
-}
-
-/// Inclusive runtime shape bounds accepted for one dynamic-shape tensor.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RuntimeShapeConstraints {
-    pub min_dimensions: Vec<i64>,
-    pub max_dimensions: Vec<i64>,
-}
-
-impl RuntimeShapeConstraints {
-    pub fn create(
-        min_dimensions: impl Into<Vec<i64>>,
-        max_dimensions: impl Into<Vec<i64>>,
-    ) -> Result<Self> {
-        let min_dimensions = min_dimensions.into();
-        let max_dimensions = max_dimensions.into();
-        validate_runtime_shape_constraint_dimensions(&min_dimensions, &max_dimensions)?;
-        Ok(Self {
-            min_dimensions,
-            max_dimensions,
-        })
-    }
-
-    pub fn contains(&self, dimensions: &[i64]) -> bool {
-        dimensions.len() == self.min_dimensions.len()
-            && self
-                .min_dimensions
-                .iter()
-                .zip(&self.max_dimensions)
-                .zip(dimensions)
-                .all(|((min_dimension, max_dimension), dimension)| {
-                    *min_dimension <= *dimension && *dimension <= *max_dimension
-                })
-    }
-}
-
-pub(crate) fn validate_runtime_shape_constraint_dimensions(
-    min_dimensions: &[i64],
-    max_dimensions: &[i64],
-) -> Result<()> {
-    if min_dimensions.len() != max_dimensions.len() {
-        return Err(Error::LengthMismatch {
-            name: "dynamic_shape_constraints_max_rank".into(),
-            expected: min_dimensions.len(),
-            actual: max_dimensions.len(),
-        });
-    }
-    Shape::contiguous(min_dimensions)?;
-    Shape::contiguous(max_dimensions)?;
-    if min_dimensions
-        .iter()
-        .zip(max_dimensions)
-        .any(|(min_dimension, max_dimension)| min_dimension > max_dimension)
-    {
-        return Err(Error::FrontendDynamicShapeBoundsInvalid {
-            min_dimensions: min_dimensions.to_vec(),
-            max_dimensions: max_dimensions.to_vec(),
-        });
-    }
-    Ok(())
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct TensorRecord {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "native capabilities and tensor properties are independent flags"
+)]
+pub struct TensorRecord {
+    pub access: Option<TensorAccess>,
+    pub reads_initial_state: bool,
+    pub indexes_memory: bool,
+    pub requires_vector_alignment: bool,
+    pub requires_int32_filter_offsets: bool,
     pub(crate) tensor: TensorSpec,
     pub(crate) id: TensorId,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct GraphMutationCheckpoint {
-    pub(super) tensor_ids: HashSet<TensorId>,
-    pub(super) operation_count: usize,
-    pub(super) alias_binding_count: usize,
+#[derive(Debug, Clone, Copy)]
+pub struct GraphMutationCheckpoint {
+    pub(crate) tensor_insertions: usize,
+    pub(crate) operations: usize,
+    pub(crate) storage_views: usize,
 }

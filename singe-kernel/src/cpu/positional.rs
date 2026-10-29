@@ -1,12 +1,12 @@
-//! RoPE and positional embedding variants.
+//! `RoPE` and positional embedding variants.
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use half::f16;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-/// Three-axis half-split RoPE config for Q/K tensors.
+/// Three-axis half-split `RoPE` config for Q/K tensors.
 ///
 /// The cosine and sine tables are split into temporal, height, and width sections.
 /// Each section rotates dimensions from the first half of the head with the corresponding dimensions in the second half.
@@ -22,7 +22,7 @@ pub struct MultiaxisRopeConfig {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-/// Interleaved complex-frequency RoPE config for Q/K tensors.
+/// Interleaved complex-frequency `RoPE` config for Q/K tensors.
 ///
 /// Adjacent dimensions are treated as real/imaginary pairs and multiplied by a precomputed complex frequency table laid out as `[seq_len, head_dim]`.
 pub struct InterleavedComplexRopeConfig {
@@ -44,7 +44,7 @@ pub struct BnsdQkRopeConfig {
     pub rotary_pairs: usize,
 }
 
-/// Applies three-axis half-split RoPE to query and key tensors.
+/// Applies three-axis half-split `RoPE` to query and key tensors.
 ///
 /// Query and key use `[batch, seq_len, heads, head_dim]` layout.
 /// The cosine and sine tables contain temporal, height, and width sections.
@@ -60,7 +60,7 @@ pub fn multiaxis_rope_qk(
     rotate_multiaxis_rope_tensor(key, cos, sin, config, config.key_heads);
 }
 
-/// Applies interleaved complex-frequency RoPE to query and key tensors.
+/// Applies interleaved complex-frequency `RoPE` to query and key tensors.
 ///
 /// Query and key use `[batch, seq_len, heads, head_dim]` layout.
 /// Adjacent dimensions `(0, 1)`, `(2, 3)`, and so on are treated as real/imaginary pairs
@@ -96,8 +96,8 @@ fn rotate_interleaved_complex_rope_tensor(
                     let freq_imag = freqs[freq_base + imag_dim];
                     let real = values[real_index];
                     let imag = values[imag_index];
-                    values[real_index] = real * freq_real - imag * freq_imag;
-                    values[imag_index] = real * freq_imag + imag * freq_real;
+                    values[real_index] = imag.mul_add(-freq_imag, real * freq_real);
+                    values[imag_index] = imag.mul_add(freq_real, real * freq_imag);
                 }
             }
         }
@@ -131,8 +131,8 @@ fn rotate_multiaxis_rope_tensor(
                     let real = values[base];
                     let imag_index = base + head_dim_half;
                     let imag = values[imag_index];
-                    values[base] = real * cos[trig_index] - imag * sin[trig_index];
-                    values[imag_index] = imag * cos[trig_index] + real * sin[trig_index];
+                    values[base] = imag.mul_add(-sin[trig_index], real * cos[trig_index]);
+                    values[imag_index] = real.mul_add(sin[trig_index], imag * cos[trig_index]);
                 }
             }
         }
@@ -169,8 +169,8 @@ fn rotate_bnsd_rope_tensor(
                     let imag_index = base + config.rotary_pairs + pair;
                     let real = values[real_index];
                     let imag = values[imag_index];
-                    values[real_index] = real * cos[trig_index] - imag * sin[trig_index];
-                    values[imag_index] = imag * cos[trig_index] + real * sin[trig_index];
+                    values[real_index] = imag.mul_add(-sin[trig_index], real * cos[trig_index]);
+                    values[imag_index] = real.mul_add(sin[trig_index], imag * cos[trig_index]);
                 }
             }
         }
@@ -180,9 +180,10 @@ fn rotate_bnsd_rope_tensor(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::fused::rms_norm_weight_offset;
 
     #[test]
-    fn rope_conventions_match_reference_values() {
+    fn test_rope_conventions_match_reference_values() {
         let mut interleaved = vec![1.0f32, 2.0, 3.0, 4.0];
         let mut half_split = interleaved.clone();
         let mut unused_key = Vec::new();
@@ -222,13 +223,13 @@ mod tests {
     }
 
     #[test]
-    fn rms_norm_offset_then_rope_sequence_matches_reference_values() {
+    fn test_rms_norm_offset_then_rope_sequence_matches_reference_values() {
         let input = [1.0f32, 2.0, 3.0, 4.0];
         let weight = [0.5f32, 1.5, 2.0, 0.25];
         let cos = [0.5f32, 0.25];
         let sin = [0.75f32, -0.5];
         let eps = 1e-5f32;
-        let mut query = crate::cpu::fused::rms_norm_weight_offset(&input, &weight, 1, 4, eps, 1.0);
+        let mut query = rms_norm_weight_offset(&input, &weight, 1, 4, eps, 1.0);
         let mut unused_key = Vec::new();
         let rms = ((input.iter().map(|value| value * value).sum::<f32>() / 4.0) + eps).sqrt();
         let normalized = [
@@ -264,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn rope_interleaved_and_half_split_conventions_differ() {
+    fn test_rope_interleaved_and_half_split_conventions_differ() {
         let mut interleaved = vec![1.0f32, 2.0, 3.0, 4.0];
         let mut half_split = interleaved.clone();
         let mut unused_key = Vec::new();
@@ -303,22 +304,22 @@ mod tests {
     }
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 pub fn half_vec(values: &[f32]) -> Vec<f16> {
     values.iter().copied().map(f16::from_f32).collect()
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 pub fn half_to_f32(values: &[f16]) -> Vec<f32> {
     values.iter().map(|value| value.to_f32()).collect()
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 pub fn bfloat_vec(values: &[f32]) -> Vec<bf16> {
     values.iter().copied().map(bf16::from_f32).collect()
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 pub fn bfloat_to_f32(values: &[bf16]) -> Vec<f32> {
     values.iter().map(|value| value.to_f32()).collect()
 }

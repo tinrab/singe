@@ -1,7 +1,27 @@
-use super::*;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+use std::sync::Arc;
 
-#[cfg(feature = "dtype-f32")]
-pub fn multi_token_attention_f32(
+#[cfg(feature = "dtype_bf16")]
+use cutile::half::bf16;
+#[cfg(feature = "dtype_f16")]
+use cutile::half::f16;
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
+
+#[cfg(any(feature = "dtype_bf16", feature = "dtype_f16", feature = "dtype_f32"))]
+use crate::{
+    cuda::cutile::{
+        DeviceOpExt, attention::MultiTokenAttention, kernel::attention as kernel_attention,
+        runtime::tile_kernel::TileKernel, utility::checked_device_pointer,
+    },
+    error::Result,
+};
+
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn multi_token_attention_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     scores: DevicePointer<f32>,
@@ -23,11 +43,11 @@ pub fn multi_token_attention_f32(
     has_bias: bool,
     sparse: bool,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(scores)?;
-    checked_device_pointer(weight)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&scores)?;
+    checked_device_pointer(&weight)?;
     if has_bias {
-        checked_device_pointer(bias)?;
+        checked_device_pointer(&bias)?;
     }
 
     let params = MultiTokenAttention::create(
@@ -46,6 +66,7 @@ pub fn multi_token_attention_f32(
         groups,
         has_bias,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_attention::multi_token_attention_f32(
             out,
@@ -76,9 +97,13 @@ pub fn multi_token_attention_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! multi_token_attention_half_fn {
     ($name:ident, $dtype:ty, $kernel:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$dtype>,
             scores: DevicePointer<$dtype>,
@@ -99,11 +124,11 @@ macro_rules! multi_token_attention_half_fn {
             groups: usize,
             has_bias: bool,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(scores)?;
-            checked_device_pointer(weight)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&scores)?;
+            checked_device_pointer(&weight)?;
             if has_bias {
-                checked_device_pointer(bias)?;
+                checked_device_pointer(&bias)?;
             }
 
             let params = MultiTokenAttention::create(
@@ -122,6 +147,7 @@ macro_rules! multi_token_attention_half_fn {
                 groups,
                 has_bias,
             )?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -154,15 +180,19 @@ macro_rules! multi_token_attention_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 multi_token_attention_half_fn!(multi_token_attention_f16, f16, multi_token_attention_f16);
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 multi_token_attention_half_fn!(multi_token_attention_bf16, bf16, multi_token_attention_bf16);
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! multi_token_attention_sparse_half_fn {
     ($name:ident, $dtype:ty, $kernel:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$dtype>,
             scores: DevicePointer<$dtype>,
@@ -183,11 +213,11 @@ macro_rules! multi_token_attention_sparse_half_fn {
             groups: usize,
             has_bias: bool,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(scores)?;
-            checked_device_pointer(weight)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&scores)?;
+            checked_device_pointer(&weight)?;
             if has_bias {
-                checked_device_pointer(bias)?;
+                checked_device_pointer(&bias)?;
             }
 
             let params = MultiTokenAttention::create(
@@ -206,6 +236,7 @@ macro_rules! multi_token_attention_sparse_half_fn {
                 groups,
                 has_bias,
             )?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_attention::$kernel(
                     out,
@@ -238,14 +269,14 @@ macro_rules! multi_token_attention_sparse_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 multi_token_attention_sparse_half_fn!(
     multi_token_attention_sparse_f16,
     f16,
     multi_token_attention_f16
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 multi_token_attention_sparse_half_fn!(
     multi_token_attention_sparse_bf16,
     bf16,

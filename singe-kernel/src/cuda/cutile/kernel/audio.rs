@@ -2,6 +2,8 @@
 mod kernels {
     use cutile::core::*;
 
+    use crate::cuda::cutile::runtime as cutile;
+
     const VECTOR_TILE_SIZE: i32 = 128;
 
     #[cutile::entry()]
@@ -16,14 +18,16 @@ mod kernels {
             predicate::LessThan,
         );
         let spectrum_offsets = offsets * broadcast_scalar(2i32, tile_shape);
-        let real = load_vector(spectrum, spectrum_offsets, valid, 0.0f32);
-        let imag = load_vector(
-            spectrum,
-            spectrum_offsets + broadcast_scalar(1i32, tile_shape),
-            valid,
-            0.0f32,
-        );
-        store_vector(out, offsets, real * real + imag * imag, valid);
+        let real = unsafe { load_vector(spectrum, spectrum_offsets, valid, 0.0f32) };
+        let imag = unsafe {
+            load_vector(
+                spectrum,
+                spectrum_offsets + broadcast_scalar(1i32, tile_shape),
+                valid,
+                0.0f32,
+            )
+        };
+        unsafe { store_vector(out, offsets, real * real + imag * imag, valid) };
     }
 
     #[cutile::entry()]
@@ -41,20 +45,22 @@ mod kernels {
         pad: i32,
         pad_mode: i32,
     ) {
-        stft_r2c_stage1_f32::<16, 25, 400>(
-            workspace,
-            input,
-            window,
-            dft_real,
-            dft_imag,
-            input_len,
-            batch,
-            frames,
-            first_frame,
-            hop_length,
-            pad,
-            pad_mode,
-        );
+        unsafe {
+            stft_r2c_stage1_f32::<16, 25, 400>(
+                workspace,
+                input,
+                window,
+                dft_real,
+                dft_imag,
+                input_len,
+                batch,
+                frames,
+                first_frame,
+                hop_length,
+                pad,
+                pad_mode,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -66,7 +72,11 @@ mod kernels {
         batch: i32,
         frames: i32,
     ) {
-        stft_r2c_stage2_f32::<16, 25, 400, 201>(out, workspace, dft_real, dft_imag, batch, frames);
+        unsafe {
+            stft_r2c_stage2_f32::<16, 25, 400, 201>(
+                out, workspace, dft_real, dft_imag, batch, frames,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -85,21 +95,23 @@ mod kernels {
         first_frame: i32,
         output_frame_stride: i32,
     ) {
-        log_mel_f32::<201, 128>(
-            out,
-            power,
-            mel_filters,
-            batch,
-            frames,
-            floor_value,
-            reference_max,
-            dynamic_range,
-            offset,
-            scale,
-            layout,
-            first_frame,
-            output_frame_stride,
-        );
+        unsafe {
+            log_mel_f32::<201, 128>(
+                out,
+                power,
+                mel_filters,
+                batch,
+                frames,
+                floor_value,
+                reference_max,
+                dynamic_range,
+                offset,
+                scale,
+                layout,
+                first_frame,
+                output_frame_stride,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -112,15 +124,17 @@ mod kernels {
         partial_per_batch: i32,
         floor_value: f32,
     ) {
-        log_mel_partial_max_f32::<201, 128>(
-            partial,
-            power,
-            mel_filters,
-            batch,
-            frames,
-            partial_per_batch,
-            floor_value,
-        );
+        unsafe {
+            log_mel_partial_max_f32::<201, 128>(
+                partial,
+                power,
+                mel_filters,
+                batch,
+                frames,
+                partial_per_batch,
+                floor_value,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -135,9 +149,9 @@ mod kernels {
             iota(tile_shape) + broadcast_scalar(pid.0 * partial_len, tile_shape);
         let end = broadcast_scalar((pid.0 + 1i32) * partial_len, tile_shape);
         let valid = cmpi(offsets, end, predicate::LessThan);
-        let values = load_vector_1024(partial, offsets, valid, -3.4028235e38f32);
+        let values = unsafe { load_vector_1024(partial, offsets, valid, -3.4028235e38f32) };
         let value: Tile<f32, { [1] }> = reduce_max(values, 0i32);
-        store_first_lane(reference_max, pid.0, value);
+        unsafe { store_first_lane(reference_max, pid.0, value) };
     }
 
     #[cutile::entry()]
@@ -156,24 +170,26 @@ mod kernels {
         first_frame: i32,
         output_frame_stride: i32,
     ) {
-        log_mel_dynamic_reference_f32::<201, 128>(
-            out,
-            power,
-            mel_filters,
-            reference_max,
-            batch,
-            frames,
-            floor_value,
-            dynamic_range,
-            offset,
-            scale,
-            layout,
-            first_frame,
-            output_frame_stride,
-        );
+        unsafe {
+            log_mel_dynamic_reference_f32::<201, 128>(
+                out,
+                power,
+                mel_filters,
+                reference_max,
+                batch,
+                frames,
+                floor_value,
+                dynamic_range,
+                offset,
+                scale,
+                layout,
+                first_frame,
+                output_frame_stride,
+            )
+        };
     }
 
-    fn stft_r2c_stage1_f32<const R: i32, const M: i32, const N_FFT: i32>(
+    unsafe fn stft_r2c_stage1_f32<const R: i32, const M: i32, const N_FFT: i32>(
         workspace: *mut f32,
         input: *mut f32,
         window: *mut f32,
@@ -229,29 +245,36 @@ mod kernels {
             let input_index = batch_index * broadcast_scalar(input_len, tile_shape)
                 + select(zero_padded, zero_input_index, reflected_index);
             let input_mask = valid & select(zero_padded, in_bounds, true_tile);
-            let input_value = load_vector(input, input_index, input_mask, 0.0f32);
-            let window_value = load_vector(window, sample, valid, 0.0f32);
+            let input_value = unsafe { load_vector(input, input_index, input_mask, 0.0f32) };
+            let window_value = unsafe { load_vector(window, sample, valid, 0.0f32) };
             let weighted = input_value * window_value;
 
             let twiddle_sample = broadcast_scalar(R * m, tile_shape);
             let table_offset = q * broadcast_scalar(N_FFT, tile_shape) + twiddle_sample;
-            let table_real = load_vector(dft_real, table_offset, valid, 0.0f32);
-            let table_imag = load_vector(dft_imag, table_offset, valid, 0.0f32);
+            let table_real = unsafe { load_vector(dft_real, table_offset, valid, 0.0f32) };
+            let table_imag = unsafe { load_vector(dft_imag, table_offset, valid, 0.0f32) };
             real = real + weighted * table_real;
             imag = imag + weighted * table_imag;
         }
 
         let output_offsets = offsets * broadcast_scalar(2i32, tile_shape);
-        store_vector(workspace, output_offsets, real, valid);
-        store_vector(
-            workspace,
-            output_offsets + broadcast_scalar(1i32, tile_shape),
-            imag,
-            valid,
-        );
+        unsafe { store_vector(workspace, output_offsets, real, valid) };
+        unsafe {
+            store_vector(
+                workspace,
+                output_offsets + broadcast_scalar(1i32, tile_shape),
+                imag,
+                valid,
+            )
+        };
     }
 
-    fn stft_r2c_stage2_f32<const R: i32, const M: i32, const N_FFT: i32, const N_FREQ: i32>(
+    unsafe fn stft_r2c_stage2_f32<
+        const R: i32,
+        const M: i32,
+        const N_FFT: i32,
+        const N_FREQ: i32,
+    >(
         out: *mut f32,
         workspace: *mut f32,
         dft_real: *mut f32,
@@ -282,33 +305,37 @@ mod kernels {
             let workspace_offsets =
                 (frame_workspace_base + broadcast_scalar(residue * M, tile_shape) + q)
                     * broadcast_scalar(2i32, tile_shape);
-            let partial_real = load_vector(workspace, workspace_offsets, valid, 0.0f32);
-            let partial_imag = load_vector(
-                workspace,
-                workspace_offsets + broadcast_scalar(1i32, tile_shape),
-                valid,
-                0.0f32,
-            );
+            let partial_real = unsafe { load_vector(workspace, workspace_offsets, valid, 0.0f32) };
+            let partial_imag = unsafe {
+                load_vector(
+                    workspace,
+                    workspace_offsets + broadcast_scalar(1i32, tile_shape),
+                    valid,
+                    0.0f32,
+                )
+            };
 
             let table_offset = frequency * broadcast_scalar(N_FFT, tile_shape)
                 + broadcast_scalar(residue, tile_shape);
-            let twiddle_real = load_vector(dft_real, table_offset, valid, 0.0f32);
-            let twiddle_imag = load_vector(dft_imag, table_offset, valid, 0.0f32);
+            let twiddle_real = unsafe { load_vector(dft_real, table_offset, valid, 0.0f32) };
+            let twiddle_imag = unsafe { load_vector(dft_imag, table_offset, valid, 0.0f32) };
             real = real + partial_real * twiddle_real - partial_imag * twiddle_imag;
             imag = imag + partial_real * twiddle_imag + partial_imag * twiddle_real;
         }
 
         let output_offsets = offsets * broadcast_scalar(2i32, tile_shape);
-        store_vector(out, output_offsets, real, valid);
-        store_vector(
-            out,
-            output_offsets + broadcast_scalar(1i32, tile_shape),
-            imag,
-            valid,
-        );
+        unsafe { store_vector(out, output_offsets, real, valid) };
+        unsafe {
+            store_vector(
+                out,
+                output_offsets + broadcast_scalar(1i32, tile_shape),
+                imag,
+                valid,
+            )
+        };
     }
 
-    fn log_mel_f32<const N_FREQ: i32, const N_MEL: i32>(
+    unsafe fn log_mel_f32<const N_FREQ: i32, const N_MEL: i32>(
         out: *mut f32,
         power: *mut f32,
         mel_filters: *mut f32,
@@ -343,8 +370,8 @@ mod kernels {
                 + broadcast_scalar(frequency, tile_shape);
             let filter_offsets = mel * broadcast_scalar(N_FREQ, tile_shape)
                 + broadcast_scalar(frequency, tile_shape);
-            let power_values = load_vector(power, power_offsets, valid, 0.0f32);
-            let filter_values = load_vector(mel_filters, filter_offsets, valid, 0.0f32);
+            let power_values = unsafe { load_vector(power, power_offsets, valid, 0.0f32) };
+            let filter_values = unsafe { load_vector(mel_filters, filter_offsets, valid, 0.0f32) };
             sum = sum + power_values * filter_values;
         }
 
@@ -370,10 +397,10 @@ mod kernels {
         let frames_first_offsets =
             batch_base + absolute_frame * broadcast_scalar(N_MEL, tile_shape) + mel;
         let output_offsets = select(mels_first, mels_first_offsets, frames_first_offsets);
-        store_vector(out, output_offsets, value, valid);
+        unsafe { store_vector(out, output_offsets, value, valid) };
     }
 
-    fn log_mel_partial_max_f32<const N_FREQ: i32, const N_MEL: i32>(
+    unsafe fn log_mel_partial_max_f32<const N_FREQ: i32, const N_MEL: i32>(
         partial: *mut f32,
         power: *mut f32,
         mel_filters: *mut f32,
@@ -402,10 +429,10 @@ mod kernels {
         let invalid: Tile<f32, { [128] }> = constant(-3.4028235e38f32, tile_shape);
         let value = select(valid, value, invalid);
         let max_value: Tile<f32, { [1] }> = reduce_max(value, 0i32);
-        store_first_lane(partial, pid.0, max_value);
+        unsafe { store_first_lane(partial, pid.0, max_value) };
     }
 
-    fn log_mel_dynamic_reference_f32<const N_FREQ: i32, const N_MEL: i32>(
+    unsafe fn log_mel_dynamic_reference_f32<const N_FREQ: i32, const N_MEL: i32>(
         out: *mut f32,
         power: *mut f32,
         mel_filters: *mut f32,
@@ -441,7 +468,7 @@ mod kernels {
             valid,
             floor_value,
         );
-        let reference_values = load_vector(reference_max, batch_index, valid, 0.0f32);
+        let reference_values = unsafe { load_vector(reference_max, batch_index, valid, 0.0f32) };
         let lower = reference_values - broadcast_scalar(dynamic_range, tile_shape);
         value = max_tile(value, lower);
         value =
@@ -460,10 +487,10 @@ mod kernels {
         let frames_first_offsets =
             batch_base + absolute_frame * broadcast_scalar(N_MEL, tile_shape) + mel;
         let output_offsets = select(mels_first, mels_first_offsets, frames_first_offsets);
-        store_vector(out, output_offsets, value, valid);
+        unsafe { store_vector(out, output_offsets, value, valid) };
     }
 
-    fn log_mel_unclamped_values_batched<const N_FREQ: i32, const N_MEL: i32>(
+    unsafe fn log_mel_unclamped_values_batched<const N_FREQ: i32, const N_MEL: i32>(
         power: *mut f32,
         mel_filters: *mut f32,
         offsets: Tile<i32, { [128] }>,
@@ -484,8 +511,8 @@ mod kernels {
                 + broadcast_scalar(frequency, tile_shape);
             let filter_offsets = mel * broadcast_scalar(N_FREQ, tile_shape)
                 + broadcast_scalar(frequency, tile_shape);
-            let power_values = load_vector(power, power_offsets, valid, 0.0f32);
-            let filter_values = load_vector(mel_filters, filter_offsets, valid, 0.0f32);
+            let power_values = unsafe { load_vector(power, power_offsets, valid, 0.0f32) };
+            let filter_values = unsafe { load_vector(mel_filters, filter_offsets, valid, 0.0f32) };
             sum = sum + power_values * filter_values;
         }
 
@@ -495,7 +522,7 @@ mod kernels {
         log(sum) / ln_10
     }
 
-    fn log_mel_unclamped_values<const N_FREQ: i32, const N_MEL: i32>(
+    unsafe fn log_mel_unclamped_values<const N_FREQ: i32, const N_MEL: i32>(
         power: *mut f32,
         mel_filters: *mut f32,
         offsets: Tile<i32, { [128] }>,
@@ -513,14 +540,14 @@ mod kernels {
                 + broadcast_scalar(frequency, tile_shape);
             let filter_offsets = mel * broadcast_scalar(N_FREQ, tile_shape)
                 + broadcast_scalar(frequency, tile_shape);
-            let power_values = load_vector(power, power_offsets, valid, 0.0f32);
-            let filter_values = load_vector(mel_filters, filter_offsets, valid, 0.0f32);
+            let power_values = unsafe { load_vector(power, power_offsets, valid, 0.0f32) };
+            let filter_values = unsafe { load_vector(mel_filters, filter_offsets, valid, 0.0f32) };
             sum = sum + power_values * filter_values;
         }
 
         let floor_tile = broadcast_scalar(floor_value, tile_shape);
         let sum = max_tile(sum, floor_tile);
-        let ln_10 = broadcast_scalar(std::f32::consts::LN_10, tile_shape);
+        let ln_10 = broadcast_scalar(2.3025851f32, tile_shape);
         log(sum) / ln_10
     }
 
@@ -543,7 +570,7 @@ mod kernels {
         )
     }
 
-    fn load_vector(
+    unsafe fn load_vector(
         input: *mut f32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -555,19 +582,21 @@ mod kernels {
         let input_base: PointerTile<*mut f32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    fn load_vector_1024(
+    unsafe fn load_vector_1024(
         input: *mut f32,
         offsets: Tile<i32, { [1024] }>,
         mask: Tile<bool, { [1024] }>,
@@ -580,19 +609,21 @@ mod kernels {
         let input_ptrs: PointerTile<*mut f32, { [1024] }> =
             input_base.broadcast(const_shape![1024]);
         let input_ptrs: PointerTile<*mut f32, { [1024] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f32, { [1024] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f32, { [1024] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    fn store_vector(
+    unsafe fn store_vector(
         out: *mut f32,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -604,25 +635,27 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    fn store_first_lane(out: *mut f32, offset: i32, value: Tile<f32, { [1] }>) {
+    unsafe fn store_first_lane(out: *mut f32, offset: i32, value: Tile<f32, { [1] }>) {
         let tile_shape = const_shape![128];
         let lane: Tile<i32, { [128] }> = iota(tile_shape);
         let offsets = broadcast_scalar(offset, tile_shape);
         let values = value.reshape(const_shape![1]).broadcast(tile_shape);
         let zero: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         let mask = cmpi(lane, zero, predicate::Equal);
-        store_vector(out, offsets, values, mask);
+        unsafe { store_vector(out, offsets, values, mask) };
     }
 }
 

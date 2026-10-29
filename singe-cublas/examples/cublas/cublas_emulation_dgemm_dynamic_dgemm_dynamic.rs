@@ -11,13 +11,18 @@ use singe_cuda::{
 
 fn main() -> Result<()> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
+    let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, 1 << 20)?;
     let cublas = Context::create(&cuda)?;
-    let mut workspace = DeviceMemory::<u8>::create(1 << 20)?;
-    cublas.set_workspace(Some(&mut workspace))?;
+    // The workspace precedes the handle, so it survives handle destruction on every path.
+    // The completed GEMM below releases its borrowed operands only after CUDA completion.
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        cublas.set_workspace(Some(workspace.output()))?;
+    }
 
-    let a = DeviceMemory::from_slice(&[1.0_f64, 2.0, 3.0, 4.0])?;
-    let b = DeviceMemory::from_slice(&[5.0_f64, 6.0, 7.0, 8.0])?;
-    let mut c = DeviceMemory::<f64>::zeroes(4)?;
+    let a = DeviceMemory::from_slice(&cuda, &[1.0_f64, 2.0, 3.0, 4.0])?;
+    let b = DeviceMemory::from_slice(&cuda, &[5.0_f64, 6.0, 7.0, 8.0])?;
+    let mut c = DeviceMemory::<f64>::zeroed(&cuda, 4)?;
 
     cublas.set_math_mode(MathMode::FP64_EMULATED_FIXED_POINT)?;
     cublas.set_emulation_strategy(EmulationStrategy::Eager)?;

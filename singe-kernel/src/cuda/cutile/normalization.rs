@@ -1,24 +1,31 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use cutile::half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
 use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
+    core::ElementType,
+    cuda_async::device_buffer::DevicePointer,
+    cuda_core::{DType, Stream},
+    tile_kernel::CompileOptions,
 };
 
-#[cfg(any(feature = "dtype-f16", feature = "dtype-bf16"))]
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 use crate::cuda::cutile::kernel::f16::normalization as kernel_f16;
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 use crate::cuda::cutile::kernel::f32::normalization as kernel_f32;
-#[cfg(feature = "dtype-f64")]
+#[cfg(feature = "dtype_f64")]
 use crate::cuda::cutile::kernel::f64::normalization as kernel_f64;
 use crate::{
-    cuda::cutile::{
-        DeviceOpExt,
-        adapter::TensorAdapter,
-        utility::{VectorLaunch, checked_device_pointer},
+    cuda::{
+        autotune::{KernelCompileConfig, Tile2d},
+        cutile::{
+            DeviceOpExt, TileKernel,
+            adapter::TensorAdapter,
+            kernel::normalization as kernel_normalization,
+            utility::{VectorLaunch, checked_device_pointer},
+        },
     },
     error::{Error, Result},
     utility::{checked_element_count, checked_i32_value},
@@ -44,6 +51,21 @@ fn normalization_tile_width(cols: usize) -> Result<usize> {
     }
 }
 
+fn normalization_compile_options(compile: KernelCompileConfig) -> CompileOptions {
+    let mut options = CompileOptions::default();
+    if let Some(occupancy) = compile.occupancy {
+        options = options.occupancy(occupancy);
+    }
+    if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
+        options = options.num_cta_in_cga(num_cta_in_cga);
+    }
+    if let Some(max_divisibility) = compile.max_divisibility {
+        options = options.max_divisibility(max_divisibility);
+    }
+    options
+}
+
+#[cfg(feature = "dtype_f64")]
 macro_rules! dispatch_normalization {
     ($kernel:ident::$kernel_fn:ident, $out:expr, $input:expr, $weight:expr, $bias:expr, $has_weight:expr, $has_bias:expr, $eps:expr, $weight_offset:expr, $stream:expr, $bn:expr) => {{
         match $bn {
@@ -153,13 +175,17 @@ macro_rules! dispatch_normalization {
                 });
             }
         };
-        Ok::<(), crate::error::Error>(())
+        Ok::<(), $crate::error::Error>(())
     }};
 }
 
+#[cfg(feature = "dtype_f64")]
 macro_rules! normalization_fn {
-    ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+    ($name:ident, $ty:ty, $scalar:ty, $kernel:ident, $kernel_fn:ident, $wide:ident, $op:literal) => {
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -169,31 +195,47 @@ macro_rules! normalization_fn {
             has_bias: bool,
             rows: usize,
             cols: usize,
-            eps: $ty,
-            weight_offset: $ty,
+            eps: $scalar,
+            weight_offset: $scalar,
         ) -> Result<()> {
             if cols == 0 {
                 return Err(Error::InvalidLength);
             }
             let len = checked_element_count(rows, cols)?;
+            checked_i32_value(len)?;
             if len == 0 {
-                return Ok::<(), crate::error::Error>(());
-            }
-            if cols > NORMALIZATION_MAX_TILE_WIDTH {
-                return Err(Error::UnsupportedWidth {
-                    op: "normalization".into(),
-                    width: cols,
-                });
-            }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
-            if has_weight {
-                checked_device_pointer(weight)?;
-            }
-            if has_bias {
-                checked_device_pointer(bias)?;
+                return Ok::<(), $crate::error::Error>(());
             }
 
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            if has_weight {
+                checked_device_pointer(&weight)?;
+            }
+            if has_bias {
+                checked_device_pointer(&bias)?;
+            }
+
+            if cols > NORMALIZATION_MAX_TILE_WIDTH {
+                // SAFETY: the caller upholds this function's safety contract.
+                unsafe {
+                    $kernel::$wide(
+                        out,
+                        input,
+                        weight,
+                        bias,
+                        checked_i32_value(cols)?,
+                        i32::from(has_weight),
+                        i32::from(has_bias),
+                        eps,
+                        weight_offset,
+                    )
+                }
+                .generics(vec![$op.to_string()])
+                .grid((u32::try_from(rows).map_err(|_| Error::SizeOverflow)?, 1, 1))
+                .enqueue_on(stream)?;
+                return Ok(());
+            }
             let bn = normalization_tile_width(cols)?;
             let out = TensorAdapter::contiguous_2d(out, rows, cols)?.partition([1, bn])?;
             let input = TensorAdapter::contiguous_2d(input, rows, cols)?;
@@ -214,7 +256,7 @@ macro_rules! normalization_fn {
                 stream,
                 bn
             )?;
-            Ok::<(), crate::error::Error>(())
+            Ok::<(), $crate::error::Error>(())
         }
     };
 }
@@ -238,13 +280,536 @@ macro_rules! dispatch_sparsemax {
                 });
             }
         };
-        Ok::<(), crate::error::Error>(())
+        Ok::<(), $crate::error::Error>(())
     }};
+}
+
+macro_rules! enqueue_normalization_op {
+    ($op:expr, $stream:expr, $compile:expr) => {{
+        if $compile.is_default() {
+            $op.enqueue_on($stream)?;
+        } else {
+            $op.compile_options(normalization_compile_options($compile))
+                .enqueue_on($stream)?;
+        }
+    }};
+}
+
+macro_rules! dispatch_sparsemax_tuned {
+    ($kernel:ident::$kernel_fn:ident, $out:expr, $input:expr, $stream:expr, $bn:expr, $compile:expr) => {{
+        match $bn {
+            1 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            8 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            32 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            64 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            128 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            256 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            512 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            1024 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            2048 => enqueue_normalization_op!($kernel::$kernel_fn($out, $input), $stream, $compile),
+            _ => {
+                return Err(Error::UnsupportedWidth {
+                    op: "sparsemax".into(),
+                    width: $bn,
+                });
+            }
+        };
+        Ok::<(), $crate::error::Error>(())
+    }};
+}
+
+#[cfg(feature = "dtype_f64")]
+macro_rules! dispatch_normalization_tuned {
+    ($kernel:ident::$kernel_fn:ident, $out:expr, $input:expr, $weight:expr, $bias:expr, $has_weight:expr, $has_bias:expr, $eps:expr, $weight_offset:expr, $stream:expr, $bn:expr, $compile:expr) => {{
+        match $bn {
+            1 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            8 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            32 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            64 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            128 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            256 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            512 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            1024 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            2048 => enqueue_normalization_op!(
+                $kernel::$kernel_fn(
+                    $out,
+                    $input,
+                    $weight,
+                    $bias,
+                    $has_weight,
+                    $has_bias,
+                    $eps,
+                    $weight_offset,
+                ),
+                $stream,
+                $compile
+            ),
+            _ => {
+                return Err(Error::UnsupportedWidth {
+                    op: "normalization".into(),
+                    width: $bn,
+                });
+            }
+        };
+        Ok::<(), $crate::error::Error>(())
+    }};
+}
+
+#[cfg(feature = "dtype_f64")]
+macro_rules! normalization_tuned_fn {
+    ($name:ident, $ty:ty, $scalar:ty, $kernel:ident, $kernel_fn:ident, $wide:ident, $op:literal) => {
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
+            stream: &Arc<Stream>,
+            out: DevicePointer<$ty>,
+            input: DevicePointer<$ty>,
+            weight: DevicePointer<$ty>,
+            bias: DevicePointer<$ty>,
+            has_weight: bool,
+            has_bias: bool,
+            rows: usize,
+            cols: usize,
+            eps: $scalar,
+            weight_offset: $scalar,
+            tile: Tile2d,
+            compile: KernelCompileConfig,
+        ) -> Result<()> {
+            let (rows_per_block, tile_width) = (tile.rows, tile.columns);
+            if rows_per_block != 1 {
+                return Err(Error::InvalidLength);
+            }
+            if cols == 0 {
+                return Err(Error::InvalidLength);
+            }
+            let len = checked_element_count(rows, cols)?;
+            checked_i32_value(len)?;
+            if len == 0 {
+                return Ok::<(), $crate::error::Error>(());
+            }
+
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            if has_weight {
+                checked_device_pointer(&weight)?;
+            }
+            if has_bias {
+                checked_device_pointer(&bias)?;
+            }
+
+            if cols > NORMALIZATION_MAX_TILE_WIDTH {
+                if tile_width != 128 {
+                    return Err(Error::UnsupportedWidth {
+                        op: "normalization chunk".into(),
+                        width: tile_width,
+                    });
+                }
+                // SAFETY: the caller upholds this function's safety contract.
+                unsafe {
+                    $kernel::$wide(
+                        out,
+                        input,
+                        weight,
+                        bias,
+                        checked_i32_value(cols)?,
+                        i32::from(has_weight),
+                        i32::from(has_bias),
+                        eps,
+                        weight_offset,
+                    )
+                }
+                .generics(vec![$op.to_string()])
+                .grid((u32::try_from(rows).map_err(|_| Error::SizeOverflow)?, 1, 1))
+                .compile_options(normalization_compile_options(compile))
+                .enqueue_on(stream)?;
+                return Ok(());
+            }
+            if tile_width < cols {
+                return Err(Error::UnsupportedWidth {
+                    op: "normalization".into(),
+                    width: cols,
+                });
+            }
+            let out = TensorAdapter::contiguous_2d(out, rows, cols)?.partition([1, tile_width])?;
+            let input = TensorAdapter::contiguous_2d(input, rows, cols)?;
+            let weight = TensorAdapter::contiguous_1d(weight, cols)?;
+            let bias = TensorAdapter::contiguous_1d(bias, cols)?;
+            let has_weight = i32::from(has_weight);
+            let has_bias = i32::from(has_bias);
+            dispatch_normalization_tuned!(
+                $kernel::$kernel_fn,
+                out,
+                input,
+                weight,
+                bias,
+                has_weight,
+                has_bias,
+                eps,
+                weight_offset,
+                stream,
+                tile_width,
+                compile
+            )?;
+            Ok::<(), $crate::error::Error>(())
+        }
+    };
+}
+
+macro_rules! tiled_normalization_fn {
+    ($name:ident, $ty:ty, $kernel:ident, $wide:ident, $op:literal) => {
+        /// # Safety
+        /// Buffers must cover the configured matrix and remain live and disjoint through completion and replay.
+        pub unsafe fn $name(
+            stream: &Arc<Stream>,
+            out: DevicePointer<$ty>,
+            input: DevicePointer<$ty>,
+            weight: DevicePointer<$ty>,
+            bias: DevicePointer<$ty>,
+            has_weight: bool,
+            has_bias: bool,
+            rows: usize,
+            cols: usize,
+            eps: f32,
+            weight_offset: f32,
+        ) -> Result<()> {
+            let width = if cols > 8192 {
+                128
+            } else {
+                cols.max(1).next_power_of_two()
+            };
+            // SAFETY: forwarded from this launcher's caller.
+            unsafe {
+                launch_tiled_normalization::<$ty>(
+                    stream,
+                    out,
+                    input,
+                    weight,
+                    bias,
+                    has_weight,
+                    has_bias,
+                    rows,
+                    cols,
+                    eps,
+                    weight_offset,
+                    Tile2d::create(1, width),
+                    KernelCompileConfig::default(),
+                    $op,
+                    stringify!($ty),
+                    |stream,
+                     out,
+                     input,
+                     weight,
+                     bias,
+                     cols,
+                     has_weight,
+                     has_bias,
+                     eps,
+                     offset,
+                     compile| {
+                        $kernel::$wide(
+                            out, input, weight, bias, cols, has_weight, has_bias, eps, offset,
+                        )
+                        .generics(vec![$op.to_string()])
+                        .grid((
+                            u32::try_from(rows).map_err(|_| Error::LengthExceedsI32)?,
+                            1,
+                            1,
+                        ))
+                        .compile_options(normalization_compile_options(compile))
+                        .enqueue_on(stream)?;
+                        Ok(())
+                    },
+                )
+            }
+        }
+    };
+}
+
+macro_rules! tiled_normalization_tuned_fn {
+    ($name:ident, $ty:ty, $kernel:ident, $wide:ident, $op:literal) => {
+        /// # Safety
+        /// Buffers must cover the configured matrix and remain live and disjoint through completion and replay.
+        pub unsafe fn $name(
+            stream: &Arc<Stream>,
+            out: DevicePointer<$ty>,
+            input: DevicePointer<$ty>,
+            weight: DevicePointer<$ty>,
+            bias: DevicePointer<$ty>,
+            has_weight: bool,
+            has_bias: bool,
+            rows: usize,
+            cols: usize,
+            eps: f32,
+            weight_offset: f32,
+            tile: Tile2d,
+            compile: KernelCompileConfig,
+        ) -> Result<()> {
+            // SAFETY: forwarded from this launcher's caller.
+            unsafe {
+                launch_tiled_normalization::<$ty>(
+                    stream,
+                    out,
+                    input,
+                    weight,
+                    bias,
+                    has_weight,
+                    has_bias,
+                    rows,
+                    cols,
+                    eps,
+                    weight_offset,
+                    tile,
+                    compile,
+                    $op,
+                    stringify!($ty),
+                    |stream,
+                     out,
+                     input,
+                     weight,
+                     bias,
+                     cols,
+                     has_weight,
+                     has_bias,
+                     eps,
+                     offset,
+                     compile| {
+                        $kernel::$wide(
+                            out, input, weight, bias, cols, has_weight, has_bias, eps, offset,
+                        )
+                        .generics(vec![$op.to_string()])
+                        .grid((
+                            u32::try_from(rows).map_err(|_| Error::LengthExceedsI32)?,
+                            1,
+                            1,
+                        ))
+                        .compile_options(normalization_compile_options(compile))
+                        .enqueue_on(stream)?;
+                        Ok(())
+                    },
+                )
+            }
+        }
+    };
+}
+
+unsafe fn launch_tiled_normalization<T: ElementType + DType + Send>(
+    stream: &Arc<Stream>,
+    out: DevicePointer<T>,
+    input: DevicePointer<T>,
+    weight: DevicePointer<T>,
+    bias: DevicePointer<T>,
+    has_weight: bool,
+    has_bias: bool,
+    rows: usize,
+    cols: usize,
+    eps: f32,
+    offset: f32,
+    tile: Tile2d,
+    compile: KernelCompileConfig,
+    op: i32,
+    dtype: &str,
+    wide: impl FnOnce(
+        &Arc<Stream>,
+        DevicePointer<T>,
+        DevicePointer<T>,
+        DevicePointer<T>,
+        DevicePointer<T>,
+        i32,
+        i32,
+        i32,
+        f32,
+        f32,
+        KernelCompileConfig,
+    ) -> Result<()>,
+) -> Result<()> {
+    if cols == 0 {
+        return Err(Error::InvalidLength);
+    }
+    checked_i32_value(checked_element_count(rows, cols)?)?;
+    let (bm, bn) = (tile.rows, tile.columns);
+    if ![1, 2, 4, 8].contains(&bm) || !bn.is_power_of_two() {
+        return Err(Error::InvalidLength);
+    }
+    if rows == 0 {
+        return Ok(());
+    }
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    if has_weight {
+        checked_device_pointer(&weight)?;
+    }
+    if has_bias {
+        checked_device_pointer(&bias)?;
+    }
+    if cols > 8192 {
+        if bm != 1 || bn != 128 {
+            return Err(Error::UnsupportedWidth {
+                op: "normalization chunk".into(),
+                width: bn,
+            });
+        }
+        return wide(
+            stream,
+            out,
+            input,
+            weight,
+            bias,
+            checked_i32_value(cols)?,
+            i32::from(has_weight),
+            i32::from(has_bias),
+            eps,
+            offset,
+            compile,
+        );
+    }
+    if bn < cols || bm.checked_mul(bn).is_none_or(|n| n > 8192) {
+        return Err(Error::UnsupportedWidth {
+            op: "normalization tile".into(),
+            width: bn,
+        });
+    }
+    // SAFETY: validated dimensions and the caller's retained input/output buffers cover this tile grid.
+    unsafe {
+        kernel_normalization::normalization(
+            out,
+            input,
+            weight,
+            bias,
+            checked_i32_value(rows)?,
+            checked_i32_value(cols)?,
+            i32::from(has_weight),
+            i32::from(has_bias),
+            eps,
+            offset,
+        )
+    }
+    .generics(vec![
+        dtype.into(),
+        bm.to_string(),
+        bn.to_string(),
+        op.to_string(),
+    ])
+    .grid((
+        u32::try_from(rows.div_ceil(bm)).map_err(|_| Error::SizeOverflow)?,
+        1,
+        1,
+    ))
+    .compile_options(normalization_compile_options(compile))
+    .enqueue_on(stream)?;
+    Ok(())
 }
 
 macro_rules! sparsemax_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident, $wide_kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -255,15 +820,17 @@ macro_rules! sparsemax_fn {
                 return Err(Error::InvalidLength);
             }
             let len = checked_element_count(rows, cols)?;
+            checked_i32_value(len)?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
 
             if cols > NORMALIZATION_MAX_TILE_WIDTH {
                 checked_i32_value(rows)?;
                 checked_i32_value(cols)?;
+                // SAFETY: the caller upholds this function's safety contract.
                 unsafe {
                     $kernel::$wide_kernel_fn(
                         out,
@@ -286,7 +853,53 @@ macro_rules! sparsemax_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+macro_rules! sparsemax_tuned_fn {
+    ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
+            stream: &Arc<Stream>,
+            out: DevicePointer<$ty>,
+            input: DevicePointer<$ty>,
+            rows: usize,
+            cols: usize,
+            tile_width: usize,
+            compile: KernelCompileConfig,
+        ) -> Result<()> {
+            if cols == 0 {
+                return Err(Error::InvalidLength);
+            }
+            let len = checked_element_count(rows, cols)?;
+            checked_i32_value(len)?;
+            if len == 0 {
+                return Ok(());
+            }
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            if cols > NORMALIZATION_MAX_TILE_WIDTH || tile_width < cols {
+                return Err(Error::UnsupportedWidth {
+                    op: "sparsemax".into(),
+                    width: cols,
+                });
+            }
+
+            let out = TensorAdapter::contiguous_2d(out, rows, cols)?.partition([1, tile_width])?;
+            let input = TensorAdapter::contiguous_2d(input, rows, cols)?;
+            dispatch_sparsemax_tuned!(
+                $kernel::$kernel_fn,
+                out,
+                input,
+                stream,
+                tile_width,
+                compile
+            )?;
+            Ok(())
+        }
+    };
+}
+
+#[cfg(feature = "dtype_f32")]
 sparsemax_fn!(
     sparsemax_f32,
     f32,
@@ -295,7 +908,10 @@ sparsemax_fn!(
     sparsemax_f32_wide
 );
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f32")]
+sparsemax_tuned_fn!(sparsemax_f32_tuned, f32, kernel_f32, sparsemax_f32);
+
+#[cfg(feature = "dtype_f16")]
 sparsemax_fn!(
     sparsemax_f16,
     f16,
@@ -304,7 +920,10 @@ sparsemax_fn!(
     sparsemax_f16_wide
 );
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_f16")]
+sparsemax_tuned_fn!(sparsemax_f16_tuned, f16, kernel_f16, sparsemax_f16);
+
+#[cfg(feature = "dtype_bf16")]
 sparsemax_fn!(
     sparsemax_bf16,
     bf16,
@@ -313,9 +932,14 @@ sparsemax_fn!(
     sparsemax_bf16_wide
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_bf16")]
+sparsemax_tuned_fn!(sparsemax_bf16_tuned, bf16, kernel_f16, sparsemax_bf16);
 
-pub fn group_norm_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn group_norm_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -330,7 +954,7 @@ pub fn group_norm_f32(
     if batch == 0 || channels == 0 || groups == 0 || spatial_len == 0 {
         return Err(Error::InvalidLength);
     }
-    if channels % groups != 0 {
+    if !channels.is_multiple_of(groups) {
         return Err(Error::LengthMismatch);
     }
     let len = checked_element_count(checked_element_count(batch, channels)?, spatial_len)?;
@@ -338,12 +962,13 @@ pub fn group_norm_f32(
     checked_i32_value(channels)?;
     checked_i32_value(groups)?;
     checked_i32_value(spatial_len)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(bias)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    checked_device_pointer(&bias)?;
     let batch_blocks = u32::try_from(batch).map_err(|_| Error::SizeOverflow)?;
     let group_blocks = u32::try_from(groups).map_err(|_| Error::SizeOverflow)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::group_norm_f32(
             out,
@@ -361,9 +986,11 @@ pub fn group_norm_f32(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f16")]
-
-pub fn group_norm_f16(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn group_norm_f16(
     stream: &Arc<Stream>,
     out: DevicePointer<f16>,
     input: DevicePointer<f16>,
@@ -378,7 +1005,7 @@ pub fn group_norm_f16(
     if batch == 0 || channels == 0 || groups == 0 || spatial_len == 0 {
         return Err(Error::InvalidLength);
     }
-    if channels % groups != 0 {
+    if !channels.is_multiple_of(groups) {
         return Err(Error::LengthMismatch);
     }
     let len = checked_element_count(checked_element_count(batch, channels)?, spatial_len)?;
@@ -386,12 +1013,13 @@ pub fn group_norm_f16(
     checked_i32_value(channels)?;
     checked_i32_value(groups)?;
     checked_i32_value(spatial_len)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(bias)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    checked_device_pointer(&bias)?;
     let batch_blocks = u32::try_from(batch).map_err(|_| Error::SizeOverflow)?;
     let group_blocks = u32::try_from(groups).map_err(|_| Error::SizeOverflow)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f16::group_norm_f16(
             out,
@@ -409,9 +1037,11 @@ pub fn group_norm_f16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-bf16")]
-
-pub fn group_norm_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn group_norm_bf16(
     stream: &Arc<Stream>,
     out: DevicePointer<bf16>,
     input: DevicePointer<bf16>,
@@ -426,7 +1056,7 @@ pub fn group_norm_bf16(
     if batch == 0 || channels == 0 || groups == 0 || spatial_len == 0 {
         return Err(Error::InvalidLength);
     }
-    if channels % groups != 0 {
+    if !channels.is_multiple_of(groups) {
         return Err(Error::LengthMismatch);
     }
     let len = checked_element_count(checked_element_count(batch, channels)?, spatial_len)?;
@@ -434,12 +1064,13 @@ pub fn group_norm_bf16(
     checked_i32_value(channels)?;
     checked_i32_value(groups)?;
     checked_i32_value(spatial_len)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(bias)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    checked_device_pointer(&bias)?;
     let batch_blocks = u32::try_from(batch).map_err(|_| Error::SizeOverflow)?;
     let group_blocks = u32::try_from(groups).map_err(|_| Error::SizeOverflow)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f16::group_norm_bf16(
             out,
@@ -457,29 +1088,134 @@ pub fn group_norm_bf16(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-normalization_fn!(layer_norm_f32, f32, kernel_f32, layer_norm_f32);
-#[cfg(feature = "dtype-f32")]
-normalization_fn!(rms_norm_f32, f32, kernel_f32, rms_norm_f32);
+#[cfg(feature = "dtype_f32")]
+tiled_normalization_fn!(layer_norm_f32, f32, kernel_f32, normalization_wide_f32, 0);
 
-#[cfg(feature = "dtype-f16")]
-normalization_fn!(layer_norm_f16, f16, kernel_f16, layer_norm_f16);
-#[cfg(feature = "dtype-f16")]
-normalization_fn!(rms_norm_f16, f16, kernel_f16, rms_norm_f16);
+#[cfg(feature = "dtype_f32")]
+tiled_normalization_tuned_fn!(
+    layer_norm_f32_tuned,
+    f32,
+    kernel_f32,
+    normalization_wide_f32,
+    0
+);
 
-#[cfg(feature = "dtype-bf16")]
-normalization_fn!(layer_norm_bf16, bf16, kernel_f16, layer_norm_bf16);
-#[cfg(feature = "dtype-bf16")]
-normalization_fn!(rms_norm_bf16, bf16, kernel_f16, rms_norm_bf16);
+#[cfg(feature = "dtype_f32")]
+tiled_normalization_fn!(rms_norm_f32, f32, kernel_f32, normalization_wide_f32, 1);
 
-#[cfg(feature = "dtype-f64")]
-normalization_fn!(layer_norm_f64, f64, kernel_f64, layer_norm_f64);
-#[cfg(feature = "dtype-f64")]
-normalization_fn!(rms_norm_f64, f64, kernel_f64, rms_norm_f64);
+#[cfg(feature = "dtype_f32")]
+tiled_normalization_tuned_fn!(
+    rms_norm_f32_tuned,
+    f32,
+    kernel_f32,
+    normalization_wide_f32,
+    1
+);
+
+#[cfg(feature = "dtype_f16")]
+tiled_normalization_fn!(layer_norm_f16, f16, kernel_f16, normalization_wide_f16, 0);
+
+#[cfg(feature = "dtype_f16")]
+tiled_normalization_tuned_fn!(
+    layer_norm_f16_tuned,
+    f16,
+    kernel_f16,
+    normalization_wide_f16,
+    0
+);
+
+#[cfg(feature = "dtype_f16")]
+tiled_normalization_fn!(rms_norm_f16, f16, kernel_f16, normalization_wide_f16, 1);
+
+#[cfg(feature = "dtype_f16")]
+tiled_normalization_tuned_fn!(
+    rms_norm_f16_tuned,
+    f16,
+    kernel_f16,
+    normalization_wide_f16,
+    1
+);
+
+#[cfg(feature = "dtype_bf16")]
+tiled_normalization_fn!(
+    layer_norm_bf16,
+    bf16,
+    kernel_f16,
+    normalization_wide_bf16,
+    0
+);
+
+#[cfg(feature = "dtype_bf16")]
+tiled_normalization_tuned_fn!(
+    layer_norm_bf16_tuned,
+    bf16,
+    kernel_f16,
+    normalization_wide_bf16,
+    0
+);
+
+#[cfg(feature = "dtype_bf16")]
+tiled_normalization_fn!(rms_norm_bf16, bf16, kernel_f16, normalization_wide_bf16, 1);
+
+#[cfg(feature = "dtype_bf16")]
+tiled_normalization_tuned_fn!(
+    rms_norm_bf16_tuned,
+    bf16,
+    kernel_f16,
+    normalization_wide_bf16,
+    1
+);
+
+#[cfg(feature = "dtype_f64")]
+normalization_fn!(
+    layer_norm_f64,
+    f64,
+    f64,
+    kernel_f64,
+    layer_norm_f64,
+    normalization_wide_f64,
+    0
+);
+
+#[cfg(feature = "dtype_f64")]
+normalization_tuned_fn!(
+    layer_norm_f64_tuned,
+    f64,
+    f64,
+    kernel_f64,
+    layer_norm_f64,
+    normalization_wide_f64,
+    0
+);
+
+#[cfg(feature = "dtype_f64")]
+normalization_fn!(
+    rms_norm_f64,
+    f64,
+    f64,
+    kernel_f64,
+    rms_norm_f64,
+    normalization_wide_f64,
+    1
+);
+
+#[cfg(feature = "dtype_f64")]
+normalization_tuned_fn!(
+    rms_norm_f64_tuned,
+    f64,
+    f64,
+    kernel_f64,
+    rms_norm_f64,
+    normalization_wide_f64,
+    1
+);
 
 macro_rules! batch_norm_inference_fn {
-    ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+    ($name:ident, $ty:ty, $scalar:ty, $kernel:ident, $kernel_fn:ident) => {
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -493,11 +1229,11 @@ macro_rules! batch_norm_inference_fn {
             has_bias: bool,
             has_running_mean: bool,
             has_running_var: bool,
-            eps: $ty,
+            eps: $scalar,
             len: usize,
         ) -> Result<()> {
             if len == 0 {
-                return Ok::<(), crate::error::Error>(());
+                return Ok::<(), $crate::error::Error>(());
             }
             if feature_count == 0 || spatial_len == 0 {
                 return Err(Error::InvalidLength);
@@ -506,23 +1242,24 @@ macro_rules! batch_norm_inference_fn {
             if len % feature_period != 0 {
                 return Err(Error::LengthMismatch);
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             if has_weight {
-                checked_device_pointer(weight)?;
+                checked_device_pointer(&weight)?;
             }
             if has_bias {
-                checked_device_pointer(bias)?;
+                checked_device_pointer(&bias)?;
             }
             if has_running_mean {
-                checked_device_pointer(running_mean)?;
+                checked_device_pointer(&running_mean)?;
             }
             if has_running_var {
-                checked_device_pointer(running_var)?;
+                checked_device_pointer(&running_var)?;
             }
             let feature_count = checked_i32_value(feature_count)?;
             let spatial_len = checked_i32_value(spatial_len)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -543,28 +1280,33 @@ macro_rules! batch_norm_inference_fn {
             }
             .grid(launch.grid)
             .enqueue_on(stream)?;
-            Ok::<(), crate::error::Error>(())
+            Ok::<(), $crate::error::Error>(())
         }
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 batch_norm_inference_fn!(
     batch_norm_inference_f32,
+    f32,
     f32,
     kernel_f32,
     batch_norm_inference_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 batch_norm_inference_fn!(
     batch_norm_inference_f16,
     f16,
+    f32,
     kernel_f16,
     batch_norm_inference_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 batch_norm_inference_fn!(
     batch_norm_inference_f64,
+    f64,
     f64,
     kernel_f64,
     batch_norm_inference_f64
@@ -582,9 +1324,9 @@ mod tests {
         error::Result,
     };
 
-    #[cfg(feature = "dtype-f32")]
+    #[cfg(feature = "dtype_f32")]
     #[test]
-    fn layer_norm_affine_f32() -> Result<()> {
+    fn test_layer_norm_affine_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -619,27 +1361,30 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[rows * cols]).sync_on(&stream)?;
 
-        layer_norm_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            true,
-            true,
-            rows,
-            cols,
-            eps,
-            0.0,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            layer_norm_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                true,
+                true,
+                rows,
+                cols,
+                eps,
+                0.0,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f32")]
+    #[cfg(feature = "dtype_f32")]
     #[test]
-    fn group_norm_f32() -> Result<()> {
+    fn test_group_norm_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -671,26 +1416,29 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[batch * channels * spatial_len]).sync_on(&stream)?;
 
-        group_norm_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            groups,
-            spatial_len,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::group_norm_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                groups,
+                spatial_len,
+                eps,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected_out, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn group_norm_f16() -> Result<()> {
+    fn test_group_norm_f16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -749,18 +1497,21 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[batch * channels * spatial_len]).sync_on(&stream)?;
 
-        group_norm_f16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            groups,
-            spatial_len,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::group_norm_f16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                groups,
+                spatial_len,
+                eps,
+            )
+        }?;
 
         let out_host = out
             .to_host_vec()
@@ -778,9 +1529,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn group_norm_bf16() -> Result<()> {
+    fn test_group_norm_bf16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -839,18 +1590,21 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<bf16>(&[batch * channels * spatial_len]).sync_on(&stream)?;
 
-        group_norm_bf16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            groups,
-            spatial_len,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::group_norm_bf16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                groups,
+                spatial_len,
+                eps,
+            )
+        }?;
 
         let out_host = out
             .to_host_vec()
@@ -868,9 +1622,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f32")]
+    #[cfg(feature = "dtype_f32")]
     #[test]
-    fn sparsemax_f32() -> Result<()> {
+    fn test_sparsemax_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -885,21 +1639,24 @@ mod tests {
         let input = api::copy_host_vec_to_device(&Arc::new(input_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[rows * cols]).sync_on(&stream)?;
 
-        sparsemax_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            rows,
-            cols,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::sparsemax_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                rows,
+                cols,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f32")]
+    #[cfg(feature = "dtype_f32")]
     #[test]
-    fn sparsemax_f32_wide() -> Result<()> {
+    fn test_sparsemax_f32_wide() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -918,21 +1675,24 @@ mod tests {
         let input = api::copy_host_vec_to_device(&Arc::new(input_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[rows * cols]).sync_on(&stream)?;
 
-        sparsemax_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            rows,
-            cols,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::sparsemax_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                rows,
+                cols,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-5);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn sparsemax_f16() -> Result<()> {
+    fn test_sparsemax_f16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -961,13 +1721,16 @@ mod tests {
         let input = api::copy_host_vec_to_device(&Arc::new(input_host)).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[rows * cols]).sync_on(&stream)?;
 
-        sparsemax_f16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            rows,
-            cols,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::sparsemax_f16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                rows,
+                cols,
+            )
+        }?;
 
         let out_host = out
             .to_host_vec()
@@ -979,9 +1742,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn sparsemax_f16_wide() -> Result<()> {
+    fn test_sparsemax_f16_wide() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1009,13 +1772,16 @@ mod tests {
         let input = api::copy_host_vec_to_device(&Arc::new(input_host)).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[rows * cols]).sync_on(&stream)?;
 
-        sparsemax_f16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            rows,
-            cols,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::sparsemax_f16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                rows,
+                cols,
+            )
+        }?;
 
         let out_host = out
             .to_host_vec()
@@ -1027,9 +1793,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn sparsemax_bf16() -> Result<()> {
+    fn test_sparsemax_bf16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1058,13 +1824,16 @@ mod tests {
         let input = api::copy_host_vec_to_device(&Arc::new(input_host)).sync_on(&stream)?;
         let out = api::zeros::<bf16>(&[rows * cols]).sync_on(&stream)?;
 
-        sparsemax_bf16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            rows,
-            cols,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::sparsemax_bf16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                rows,
+                cols,
+            )
+        }?;
 
         let out_host = out
             .to_host_vec()
@@ -1076,9 +1845,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn sparsemax_bf16_wide() -> Result<()> {
+    fn test_sparsemax_bf16_wide() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1106,13 +1875,16 @@ mod tests {
         let input = api::copy_host_vec_to_device(&Arc::new(input_host)).sync_on(&stream)?;
         let out = api::zeros::<bf16>(&[rows * cols]).sync_on(&stream)?;
 
-        sparsemax_bf16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            rows,
-            cols,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::sparsemax_bf16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                rows,
+                cols,
+            )
+        }?;
 
         let out_host = out
             .to_host_vec()

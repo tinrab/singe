@@ -1,149 +1,139 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{ImageView, ImageViewMut},
+    image::view::{ImageOutputView, ImageView, ImageViewMut},
     types::RoundMode,
 };
 
-#[path = "operation_device_constant_shapes.rs"]
 mod device_constant_shapes;
 
-pub(super) use device_constant_shapes::{
+pub use device_constant_shapes::{
     DeviceConstantInPlaceOperation, DeviceConstantOperation, DeviceConstantScaleInPlaceOperation,
     DeviceConstantScaleOperation,
 };
 
-pub(super) type BinaryImageOperation<T, L> = for<'left, 'right, 'destination> fn(
+pub type BinaryImageOperation<T, L> = for<'left, 'right, 'destination> fn(
     &StreamContext,
     &ImageView<'left, T, L>,
     &ImageView<'right, T, L>,
-    &mut ImageViewMut<'destination, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
 ) -> Result<()>;
 
-pub(super) type BinaryImageInPlaceOperation<T, L> = for<'source, 'destination> fn(
+pub type BinaryImageInPlaceOperation<T, L> = for<'source, 'destination> fn(
     &StreamContext,
     &ImageView<'source, T, L>,
     &mut ImageViewMut<'destination, T, L>,
 ) -> Result<()>;
 
-pub(super) type RoundedBinaryImageOperation<T, L> =
-    for<'left, 'right, 'destination> fn(
-        &StreamContext,
-        &ImageView<'left, T, L>,
-        &ImageView<'right, T, L>,
-        &mut ImageViewMut<'destination, T, L>,
-        i32,
-        RoundMode,
-    ) -> Result<()>;
-
-pub(super) type RoundedBinaryImageInPlaceOperation<T, L> =
-    for<'source, 'destination> fn(
-        &StreamContext,
-        &ImageView<'source, T, L>,
-        &mut ImageViewMut<'destination, T, L>,
-        i32,
-        RoundMode,
-    ) -> Result<()>;
-
-pub(super) type ConstantShiftImageOperation<T, L, C> = for<'source, 'destination> fn(
+pub type RoundedBinaryImageOperation<T, L> = for<'left, 'right, 'destination> fn(
     &StreamContext,
-    &ImageView<'source, T, L>,
-    C,
-    &mut ImageViewMut<'destination, T, L>,
+    &ImageView<'left, T, L>,
+    &ImageView<'right, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
+    i32,
+    RoundMode,
 ) -> Result<()>;
 
-pub(super) type ConstantOperation<T, L, C> = for<'source, 'destination> fn(
+pub type RoundedBinaryImageInPlaceOperation<T, L> = for<'source, 'destination> fn(
+    &StreamContext,
+    &ImageView<'source, T, L>,
+    &mut ImageViewMut<'destination, T, L>,
+    i32,
+    RoundMode,
+) -> Result<()>;
+
+pub type ConstantShiftImageOperation<T, L, C> = for<'source, 'destination> fn(
     &StreamContext,
     &ImageView<'source, T, L>,
     C,
-    &mut ImageViewMut<'destination, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
 ) -> Result<()>;
 
-pub(super) type ConstantInPlaceOperation<T, L, C> =
+pub type ConstantOperation<T, L, C> = for<'source, 'destination> fn(
+    &StreamContext,
+    &ImageView<'source, T, L>,
+    C,
+    &mut ImageOutputView<'destination, T, L>,
+) -> Result<()>;
+
+pub type ConstantInPlaceOperation<T, L, C> =
     for<'destination> fn(&StreamContext, C, &mut ImageViewMut<'destination, T, L>) -> Result<()>;
 
-pub(super) type ConstantScaleOperation<T, L, C> = for<'source, 'destination> fn(
+pub type ConstantScaleOperation<T, L, C> = for<'source, 'destination> fn(
     &StreamContext,
     &ImageView<'source, T, L>,
+    C,
+    &mut ImageOutputView<'destination, T, L>,
+    i32,
+) -> Result<()>;
+
+pub type ConstantScaleInPlaceOperation<T, L, C> = for<'destination> fn(
+    &StreamContext,
     C,
     &mut ImageViewMut<'destination, T, L>,
     i32,
 ) -> Result<()>;
 
-pub(super) type ConstantScaleInPlaceOperation<T, L, C> = for<'destination> fn(
-    &StreamContext,
-    C,
-    &mut ImageViewMut<'destination, T, L>,
-    i32,
-) -> Result<()>;
-
-pub(super) type ScaledUnaryImageOperation<T, L> = for<'source, 'destination> fn(
+pub type ScaledUnaryImageOperation<T, L> = for<'source, 'destination> fn(
     &StreamContext,
     &ImageView<'source, T, L>,
-    &mut ImageViewMut<'destination, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
     i32,
 ) -> Result<()>;
 
-pub(super) type ScaledUnaryPowerImageOperation<T, L> = for<'source, 'destination> fn(
+pub type ScaledUnaryPowerImageOperation<T, L> = for<'source, 'destination> fn(
     &StreamContext,
     &ImageView<'source, T, L>,
-    &mut ImageViewMut<'destination, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
     i32,
 ) -> Result<()>;
 
-pub(super) type ScaledBinaryImageOperation<T, L> = for<'left, 'right, 'destination> fn(
+pub type ScaledBinaryImageOperation<T, L> = for<'left, 'right, 'destination> fn(
     &StreamContext,
     &ImageView<'left, T, L>,
     &ImageView<'right, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
+    i32,
+) -> Result<()>;
+
+pub type ScaledBinaryImageInPlaceOperation<T, L> = for<'source, 'destination> fn(
+    &StreamContext,
+    &ImageView<'source, T, L>,
     &mut ImageViewMut<'destination, T, L>,
     i32,
-)
-    -> Result<()>;
+) -> Result<()>;
 
-pub(super) type ScaledBinaryImageInPlaceOperation<T, L> =
-    for<'source, 'destination> fn(
-        &StreamContext,
-        &ImageView<'source, T, L>,
-        &mut ImageViewMut<'destination, T, L>,
-        i32,
-    ) -> Result<()>;
+pub type OutOfPlaceBinaryImageOperation<T, L> = for<'left, 'right, 'destination> fn(
+    &StreamContext,
+    &ImageView<'left, T, L>,
+    &ImageView<'right, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
+) -> Result<()>;
 
-pub(super) type OutOfPlaceBinaryImageOperation<T, L> =
-    for<'left, 'right, 'destination> fn(
-        &StreamContext,
-        &ImageView<'left, T, L>,
-        &ImageView<'right, T, L>,
-        &mut ImageViewMut<'destination, T, L>,
-    ) -> Result<()>;
+pub type ScaledSubtractImageOperation<T, L> = for<'left, 'right, 'destination> fn(
+    &StreamContext,
+    &ImageView<'left, T, L>,
+    &ImageView<'right, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
+    i32,
+) -> Result<()>;
 
-pub(super) type ScaledSubtractImageOperation<T, L> =
-    for<'left, 'right, 'destination> fn(
-        &StreamContext,
-        &ImageView<'left, T, L>,
-        &ImageView<'right, T, L>,
-        &mut ImageViewMut<'destination, T, L>,
-        i32,
-    ) -> Result<()>;
+pub type ScaledSubtractImageInPlaceOperation<T, L> = for<'source, 'destination> fn(
+    &StreamContext,
+    &ImageView<'source, T, L>,
+    &mut ImageViewMut<'destination, T, L>,
+    i32,
+) -> Result<()>;
 
-pub(super) type ScaledSubtractImageInPlaceOperation<T, L> =
-    for<'source, 'destination> fn(
-        &StreamContext,
-        &ImageView<'source, T, L>,
-        &mut ImageViewMut<'destination, T, L>,
-        i32,
-    ) -> Result<()>;
+pub type UnscaledBinaryImageOperation<T, L> = for<'left, 'right, 'destination> fn(
+    &StreamContext,
+    &ImageView<'left, T, L>,
+    &ImageView<'right, T, L>,
+    &mut ImageOutputView<'destination, T, L>,
+) -> Result<()>;
 
-pub(super) type UnscaledBinaryImageOperation<T, L> =
-    for<'left, 'right, 'destination> fn(
-        &StreamContext,
-        &ImageView<'left, T, L>,
-        &ImageView<'right, T, L>,
-        &mut ImageViewMut<'destination, T, L>,
-    ) -> Result<()>;
-
-pub(super) type UnscaledBinaryImageInPlaceOperation<T, L> =
-    for<'source, 'destination> fn(
-        &StreamContext,
-        &ImageView<'source, T, L>,
-        &mut ImageViewMut<'destination, T, L>,
-    ) -> Result<()>;
+pub type UnscaledBinaryImageInPlaceOperation<T, L> = for<'source, 'destination> fn(
+    &StreamContext,
+    &ImageView<'source, T, L>,
+    &mut ImageViewMut<'destination, T, L>,
+) -> Result<()>;

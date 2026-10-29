@@ -1,171 +1,174 @@
-use std::ops::Range;
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 use crate::{
-    data_type::DataType,
+    backend::tensor::{Shape, TensorId, TensorSpec},
     error::{Error, Result},
     frontend::{
-        graph::Graph,
-        infer::{
-            infer_concat_output, infer_strided_slice_output, infer_transpose_output,
-            slice_byte_offset,
-        },
+        error::Error as FrontendError,
+        graph::{Graph, RuntimeShapeConstraints, TensorOutputConfig},
         operation::{
-            AttentionPrimitiveOperation, ConcatInPlaceMode, DiagonalBandMaskConfig, Operation,
-            PointwiseOperation, TensorOperation,
+            AttentionPrimitiveOperation, ConcatConfig, DiagonalBandMaskConfig, Operation,
+            SdpaOperation, SliceConfig, TensorOperation, TransposeConfig,
         },
-        shape::shape_preserving_stride_order,
-        support,
     },
-    math::NanPropagation,
-    pointwise::PointwiseMode,
-    tensor::{TensorId, TensorSpec},
-    utility::{check_range, to_usize},
-    version,
+    utility::to_i64,
 };
+
+/// Projects the layouts that fused scalar inputs receive during native preparation.
+fn concat_input_shapes<'a>(
+    inputs: &[&'a TensorSpec],
+    output: Option<&TensorSpec>,
+) -> Result<Vec<Cow<'a, Shape>>> {
+    let rank = inputs
+        .iter()
+        .copied()
+        .filter(|tensor| !tensor.is_by_value())
+        .map(|tensor| tensor.shape.rank())
+        .chain(
+            output
+                .filter(|tensor| !tensor.is_by_value())
+                .map(|tensor| tensor.shape.rank()),
+        )
+        .max()
+        .unwrap_or(1);
+    inputs
+        .iter()
+        .map(|&tensor| tensor.shape_with_scalar_rank(rank))
+        .collect()
+}
 
 impl Graph {
     /// Adds a slice operation with an explicit output tensor.
     ///
     /// Slice extracts a half-open window `[start, limit)` along each dimension.
-    /// This Rust helper currently records the compatible pointer-offset form.
+    /// The output may be virtual or have its own storage and layout.
+    /// Missing step entries use one; extra entries must be positive and are otherwise ignored.
+    /// Caller-declared output strides and names remain independent of the configuration.
+    /// Fused scalar inputs use unit dimensions at the slice-window rank before validation.
     ///
-    pub fn slice(
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, invalid scalar-rank promotion, invalid slice ranges or supplied steps, incompatible output dimensions or encoding, or unrepresentable slice geometry.
+    pub fn slice_into(
         &mut self,
         input: TensorId,
         output: TensorId,
-        slices: &[Range<i64>],
+        config: SliceConfig,
     ) -> Result<()> {
-        self.strided_slice(input, output, slices, Vec::new())
-    }
-
-    /// Adds a strided slice operation with an explicit output tensor.
-    ///
-    /// Missing stride entries default to `1`, matching C++ cudnn-frontend
-    /// `Slice_attributes`.
-    pub fn strided_slice(
-        &mut self,
-        input: TensorId,
-        output: TensorId,
-        slices: &[Range<i64>],
-        slice_strides: impl Into<Vec<i64>>,
-    ) -> Result<()> {
-        let slice_strides = slice_strides.into();
-        let input_tensor = self.tensor_config(input)?.clone();
-        let slice_bounds = Self::slice_bounds(slices);
-        let effective_strides = Self::effective_slice_strides(slice_bounds.len(), &slice_strides);
-        let expected_output =
-            infer_strided_slice_output(&input_tensor.shape, &slice_bounds, &effective_strides)?;
-        self.validate_tensor_data_type_and_dimensions(
+        let operation = TensorOperation::Slice {
+            input,
             output,
-            input_tensor.data_type,
-            expected_output.dimensions(),
-            "slice output",
-        )?;
-
-        let byte_offset = slice_byte_offset(
-            &input_tensor.shape,
-            &slice_bounds,
-            input_tensor.data_type.size(),
-        )?;
-        self.operations
-            .push(Operation::Tensor(TensorOperation::Slice {
-                input,
-                output,
-                starts: slice_bounds.iter().map(|(start, _)| *start).collect(),
-                limits: slice_bounds.iter().map(|(_, limit)| *limit).collect(),
-                strides: effective_strides,
-                byte_offset,
-            }));
+            config,
+        };
+        operation.validate_graph(self)?;
+        self.operations.push(Operation::Tensor(operation));
 
         Ok(())
     }
 
-    /// Adds a slice operation and creates the output tensor.
-    pub fn slice_infer(&mut self, input: TensorId, slices: &[Range<i64>]) -> Result<TensorId> {
-        self.strided_slice_infer(input, slices, Vec::new())
-    }
-
-    /// Adds a strided slice operation and creates the output tensor.
-    pub fn strided_slice_infer(
+    /// Creates a slice result with the requested placement and encoding.
+    /// The selected encoding must match the input, as required by C++ and native cuDNN.
+    /// Preserves the input vector lanes and vectorized axis.
+    /// Slice ranges and strides use descriptor dimensions, which count vectors
+    /// on the vectorized axis.
+    /// Omitted stride entries use `1`; extra positive entries are ignored.
+    /// A singleton output axis retains its source stride if multiplying by the step would overflow.
+    /// Placement selects I/O or intermediate encoding defaults; the result must retain input encoding.
+    /// A configured scope names the inferred result `name::Y`.
+    /// Fused scalar geometry uses the slice-window rank without changing the input declaration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input is unknown, scalar-rank promotion or slice geometry is invalid, output strides or vectorization cannot be represented, or the selected output encoding differs from the input.
+    pub fn slice(
         &mut self,
         input: TensorId,
-        slices: &[Range<i64>],
-        slice_strides: impl Into<Vec<i64>>,
+        config: SliceConfig,
+        output: TensorOutputConfig,
     ) -> Result<TensorId> {
-        let checkpoint = self.mutation_checkpoint();
-        let slice_strides = slice_strides.into();
-        let input_tensor = self.tensor_config(input)?.clone();
-        let slice_bounds = Self::slice_bounds(slices);
-        let effective_strides = Self::effective_slice_strides(slice_bounds.len(), &slice_strides);
-        let output = self.tensor(TensorSpec::new(
+        let input_tensor = self.tensor_spec(input)?;
+        let input_shape = input_tensor.shape_with_scalar_rank(config.slices().len())?;
+        let mut output_spec = output.into_spec(
+            self.config.data_type_policy,
             input_tensor.data_type,
-            infer_strided_slice_output(&input_tensor.shape, &slice_bounds, &effective_strides)?,
-        ));
-        if let Err(error) = self.strided_slice(input, output, slices, effective_strides) {
+            config.infer_output_shape(&input_shape)?,
+        );
+        if let Some((count, axis)) = input_tensor.vectorization()? {
+            output_spec = output_spec.with_vectorization(count, axis)?;
+        }
+        let checkpoint = self.mutation_checkpoint();
+        let output = self.inferred_tensor(output_spec, config.name(), "Y");
+        if let Err(error) = self.slice_into(input, output, config) {
             self.rollback_to(checkpoint);
             return Err(error);
         }
         Ok(output)
     }
 
-    fn slice_bounds(slices: &[Range<i64>]) -> Vec<(i64, i64)> {
-        slices
-            .iter()
-            .map(|range| (range.start, range.end))
-            .collect()
-    }
-
-    fn effective_slice_strides(rank: usize, slice_strides: &[i64]) -> Vec<i64> {
-        (0..rank)
-            .map(|index| slice_strides.get(index).copied().unwrap_or(1))
-            .collect()
-    }
-
     /// Adds a transpose operation with an explicit output tensor.
     ///
-    /// The current checked-in cuDNN bindings predate the native backend
-    /// transpose descriptor, so this records a frontend transpose node and uses
-    /// a zero-offset alias fallback during lowering.
-    pub fn transpose(
+    /// Output strides may differ from the inferred view layout.
+    /// Explicit output names are preserved independently of the configured scope.
+    /// Fused scalar inputs use unit dimensions at the permutation rank before validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, invalid scalar-rank promotion, an empty or invalid axis permutation, or incompatible output dimensions or encoding.
+    pub fn transpose_into(
         &mut self,
         input: TensorId,
         output: TensorId,
-        permutation: impl Into<Vec<i64>>,
+        config: TransposeConfig,
     ) -> Result<()> {
-        let permutation = permutation.into();
-        let input_tensor = self.tensor_config(input)?.clone();
-        let expected_output = infer_transpose_output(&input_tensor.shape, &permutation)?;
-        self.validate_tensor_data_type_and_dimensions(
+        let operation = TensorOperation::Transpose {
+            input,
             output,
-            input_tensor.data_type,
-            expected_output.dimensions(),
-            "transpose output",
-        )?;
-        self.validate_tensor_strides(output, expected_output.strides(), "transpose output")?;
-
-        self.operations
-            .push(Operation::Tensor(TensorOperation::Transpose {
-                input,
-                output,
-                permutation,
-            }));
+            config,
+        };
+        operation.validate_graph(self)?;
+        self.operations.push(Operation::Tensor(operation));
         Ok(())
     }
 
     /// Adds a transpose operation and creates the output tensor.
-    pub fn transpose_infer(
+    ///
+    /// Preserves the input vector lanes and moves the vectorized axis with its
+    /// corresponding dimension in the permutation.
+    /// Fused scalar geometry uses the permutation rank without changing the input declaration.
+    /// Placement selects I/O or intermediate encoding defaults; the result must retain input encoding.
+    /// A configured scope names the inferred result `name::Y`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input is unknown, scalar-rank promotion or the axis permutation is invalid, output vectorization cannot be represented, or output validation finds incompatible dimensions or encoding.
+    pub fn transpose(
         &mut self,
         input: TensorId,
-        permutation: impl Into<Vec<i64>>,
+        config: TransposeConfig,
+        output: TensorOutputConfig,
     ) -> Result<TensorId> {
-        let checkpoint = self.mutation_checkpoint();
-        let permutation = permutation.into();
-        let input_tensor = self.tensor_config(input)?.clone();
-        let output = self.tensor(TensorSpec::new(
+        let input_tensor = self.tensor_spec(input)?;
+        let input_shape = input_tensor.shape_with_scalar_rank(config.permutation().len())?;
+        let mut output_spec = output.into_spec(
+            self.config.data_type_policy,
             input_tensor.data_type,
-            infer_transpose_output(&input_tensor.shape, &permutation)?,
-        ));
-        if let Err(error) = self.transpose(input, output, permutation) {
+            config.infer_output_shape(&input_shape)?,
+        );
+        if let Some((count, input_axis)) = input_tensor.vectorization()? {
+            let output_axis = config
+                .permutation()
+                .iter()
+                .position(|&axis| axis == input_axis)
+                .ok_or_else(|| Error::out_of_range("transpose vector dimension"))?;
+            output_spec = output_spec
+                .with_vectorization(count, to_i64(output_axis, "transpose vector dimension")?)?;
+        }
+        let checkpoint = self.mutation_checkpoint();
+        let output = self.inferred_tensor(output_spec, config.name(), "Y");
+        if let Err(error) = self.transpose_into(input, output, config) {
             self.rollback_to(checkpoint);
             return Err(error);
         }
@@ -176,91 +179,50 @@ impl Graph {
     ///
     /// Diagonal band masks support causal and sliding-window attention score
     /// modification in the frontend SDPA API.
-    pub fn diagonal_band_mask(
+    /// Rank-one sequence-length tensors and their dynamic bounds are promoted to
+    /// native four-dimensional layouts after validation succeeds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, a nonscalar replacement operand, incompatible replacement encoding or output dimensions, invalid bound-tensor shapes or sequence-length layouts, or failure to promote sequence metadata and its runtime bounds.
+    pub fn diagonal_band_mask_into(
         &mut self,
         x: TensorId,
         b: TensorId,
         y: TensorId,
         config: DiagonalBandMaskConfig,
     ) -> Result<()> {
-        let x_tensor = self.tensor_config(x)?.clone();
-
-        self.validate_tensor_data_type(b, x_tensor.data_type, "diagonal band mask b")?;
-        self.validate_tensor_dimensions(
-            y,
-            x_tensor.shape.dimensions(),
-            "diagonal band mask output shape",
-        )?;
-        self.validate_tensor_element_count(b, 1, "diagonal band mask b shape")?;
-        if config.left_bound().is_some() && config.shift_right_bound().is_some() {
-            return Err(Error::FrontendDiagonalBandMaskBoundsConflict);
-        }
-        if let Some(sequence_length_query) = config.sequence_length_query() {
-            self.validate_tensor_data_type(
-                sequence_length_query,
-                DataType::I32,
-                "diagonal band mask seq len q",
-            )?;
-            self.validate_tensor_dimensions(
-                sequence_length_query,
-                &[x_tensor.shape.dimensions()[0], 1, 1, 1],
-                "diagonal band mask seq len q shape",
-            )?;
-        }
-        if let Some(sequence_length_key_value) = config.sequence_length_key_value() {
-            self.validate_tensor_data_type(
-                sequence_length_key_value,
-                DataType::I32,
-                "diagonal band mask seq len kv",
-            )?;
-            self.validate_tensor_dimensions(
-                sequence_length_key_value,
-                &[x_tensor.shape.dimensions()[0], 1, 1, 1],
-                "diagonal band mask seq len kv shape",
-            )?;
-        }
-        if let Some(left_bound) = config.left_bound() {
-            self.validate_tensor_element_count(
-                left_bound,
-                1,
-                "diagonal band mask left bound shape",
-            )?;
-        }
-        if let Some(shift_right_bound) = config.shift_right_bound() {
-            self.validate_tensor_element_count(
-                shift_right_bound,
-                1,
-                "diagonal band mask shift right bound shape",
-            )?;
-        }
-
-        self.operations.push(Operation::AttentionPrimitive(
-            AttentionPrimitiveOperation::DiagonalBandMask {
-                x,
-                b,
-                y,
-                comparison_mode: config.comparison_mode(),
-                sequence_length_query: config.sequence_length_query(),
-                sequence_length_key_value: config.sequence_length_key_value(),
-                left_bound: config.left_bound(),
-                shift_right_bound: config.shift_right_bound(),
-            },
-        ));
+        let sequence = config.sequence_inputs();
+        let operation = AttentionPrimitiveOperation::DiagonalBandMask { x, b, y, config };
+        operation.validate_graph(self)?;
+        self.promote_index_tensors(sequence.tensors())?;
+        self.operations
+            .push(Operation::AttentionPrimitive(operation));
         Ok(())
     }
 
-    /// Adds a diagonal band mask operation and creates the output tensor.
-    pub fn diagonal_band_mask_infer(
+    /// Creates a diagonal band mask result with independent placement and encoding.
+    /// A configured scope names the inferred result `name::Y`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for unknown tensor identities, a nonscalar replacement operand, incompatible replacement encoding or output dimensions, invalid bound-tensor shapes or sequence-length layouts, or failure to promote sequence metadata and its runtime bounds.
+    pub fn diagonal_band_mask(
         &mut self,
         x: TensorId,
         b: TensorId,
         config: DiagonalBandMaskConfig,
+        output: TensorOutputConfig,
     ) -> Result<TensorId> {
+        let x_tensor = self.tensor_spec(x)?;
+        let output_spec = output.into_spec(
+            self.config.data_type_policy,
+            x_tensor.data_type,
+            x_tensor.shape.clone(),
+        );
         let checkpoint = self.mutation_checkpoint();
-        let x_tensor = self.tensor_config(x)?.clone();
-        let output_data_type = self.effective_io_data_type(x_tensor.data_type);
-        let y = self.tensor(TensorSpec::new(output_data_type, x_tensor.shape.clone()));
-        if let Err(error) = self.diagonal_band_mask(x, b, y, config) {
+        let y = self.inferred_tensor(output_spec, config.name(), "Y");
+        if let Err(error) = self.diagonal_band_mask_into(x, b, y, config) {
             self.rollback_to(checkpoint);
             return Err(error);
         }
@@ -269,303 +231,225 @@ impl Graph {
 
     /// Adds a concatenate operation with an explicit output tensor.
     ///
-    /// Concatenate merges two or more tensors along the selected axis and may
+    /// Concatenate merges one or more tensors along the selected axis and may
     /// optionally request in-place behavior through an input index.
-    pub fn concat(
+    /// Fused scalar inputs use unit dimensions at the non-scalar operands' rank during validation.
+    /// Their original declarations remain unchanged until graph preparation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for empty or unknown inputs, invalid scalar-rank promotion, an invalid axis or in-place input index, incompatible ranks or non-concatenated dimensions, overflowing output extents, or incompatible output dimensions.
+    pub fn concat_into(
         &mut self,
         inputs: &[TensorId],
         output: TensorId,
-        axis: i64,
-        inplace_index: Option<i64>,
+        config: ConcatConfig,
     ) -> Result<()> {
-        if inputs.is_empty() {
-            return Err(Error::EmptyList {
-                name: "inputs".into(),
-            });
-        }
-        self.validate_concat_support_surface_for_version(version()?.raw())?;
-        let in_place = ConcatInPlaceMode::from_index(inplace_index);
-        self.validate_concat(inputs, output, axis, in_place)?;
-        self.operations
-            .push(Operation::Tensor(TensorOperation::Concat {
-                inputs: inputs.to_vec(),
-                output,
-                axis,
-                in_place,
-            }));
+        let operation = TensorOperation::Concat {
+            inputs: inputs.to_vec(),
+            output,
+            config,
+        };
+        operation.validate_graph(self)?;
+        self.operations.push(Operation::Tensor(operation));
         Ok(())
     }
 
     /// Adds a concatenate operation and creates the output tensor.
-    pub fn concat_infer(&mut self, inputs: &[TensorId], axis: i64) -> Result<TensorId> {
-        let checkpoint = self.mutation_checkpoint();
-        if inputs.is_empty() {
-            return Err(Error::EmptyList {
-                name: "inputs".into(),
-            });
-        }
+    ///
+    /// Preserves the first input's stride order and vectorization.
+    /// The concatenation axis and dimensions use descriptor units.
+    /// In-place mode requires the selected input to occupy its final region in
+    /// the output allocation, with strides matching that region.
+    /// Placement and encoding are selected independently of the in-place request.
+    /// Fused scalar dimensions and stride order reflect their native rank promotion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for empty or unknown inputs, invalid scalar-rank promotion, an invalid axis or in-place input index, incompatible ranks or non-concatenated dimensions, overflowing output extents, or incompatible output dimensions. Inferred stride layout and vectorization must also be representable.
+    pub fn concat(
+        &mut self,
+        inputs: &[TensorId],
+        config: ConcatConfig,
+        output: TensorOutputConfig,
+    ) -> Result<TensorId> {
         let input_tensors = inputs
             .iter()
-            .map(|tensor| self.tensor_config(*tensor))
+            .map(|tensor| self.tensor_spec(*tensor))
             .collect::<Result<Vec<_>>>()?;
-        let shapes = input_tensors
-            .iter()
-            .map(|tensor| &tensor.shape)
-            .collect::<Vec<_>>();
-        let output_data_type = self.effective_io_data_type(input_tensors[0].data_type);
-        let output_dimensions = infer_concat_output(&shapes, axis)?.dimensions().to_vec();
-        let output_shape =
-            shape_preserving_stride_order(&input_tensors[0].shape, output_dimensions)?;
-        let output = self.tensor(TensorSpec::new(output_data_type, output_shape));
-        if let Err(error) = self.concat(inputs, output, axis, None) {
+        let input_shapes = concat_input_shapes(&input_tensors, None)?;
+        let output_shape = config.infer_output_shape(input_shapes.iter().map(AsRef::as_ref))?;
+        let mut output_spec = output.into_spec(
+            self.config.data_type_policy,
+            input_tensors[0].data_type,
+            output_shape,
+        );
+        if let Some((count, axis)) = input_tensors[0].vectorization()? {
+            output_spec = output_spec.with_vectorization(count, axis)?;
+        }
+        let checkpoint = self.mutation_checkpoint();
+        let output = self.inferred_tensor(output_spec, config.name(), "Y");
+        if let Err(error) = self.concat_into(inputs, output, config) {
             self.rollback_to(checkpoint);
             return Err(error);
         }
         Ok(output)
     }
 
-    pub(crate) fn expand_diagonal_band_mask_for_legacy_runtime(
-        &mut self,
-        x: TensorId,
-        b: TensorId,
-        y: TensorId,
-        comparison_mode: PointwiseMode,
-        sequence_length_query: Option<TensorId>,
-        sequence_length_key_value: Option<TensorId>,
-        left_bound: Option<TensorId>,
-        shift_right_bound: Option<TensorId>,
-    ) -> Result<()> {
-        let x_tensor = self.tensor_config(x)?.clone();
-        let index_shape = x_tensor.shape.clone();
-
-        let row = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        let col = self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: x,
-            output: row,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            axis: Some(2),
-        });
-        self.pointwise(PointwiseOperation::Unary {
-            mode: PointwiseMode::GenIndex,
-            input: x,
-            output: col,
-            compute_type: DataType::F32,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            axis: Some(3),
-        });
-
-        let compare = if let Some(left_bound) = left_bound {
-            let mut col_index =
-                self.tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-            self.pointwise(PointwiseOperation::Binary {
-                mode: PointwiseMode::Add,
-                lhs: col,
-                rhs: left_bound,
-                output: col_index,
-                compute_type: DataType::I32,
-                nan_propagation: NanPropagation::NotPropagate,
-                alpha1: 1.0,
-                alpha2: 1.0,
-            });
-            if let Some(sequence_length_key_value) = sequence_length_key_value {
-                let next = self
-                    .tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-                self.pointwise(PointwiseOperation::Binary {
-                    mode: PointwiseMode::Sub,
-                    lhs: col_index,
-                    rhs: sequence_length_key_value,
-                    output: next,
-                    compute_type: DataType::I32,
-                    nan_propagation: NanPropagation::NotPropagate,
-                    alpha1: 1.0,
-                    alpha2: 1.0,
-                });
-                col_index = next;
-            }
-            if let Some(sequence_length_query) = sequence_length_query {
-                let next = self
-                    .tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-                self.pointwise(PointwiseOperation::Binary {
-                    mode: PointwiseMode::Add,
-                    lhs: col_index,
-                    rhs: sequence_length_query,
-                    output: next,
-                    compute_type: DataType::I32,
-                    nan_propagation: NanPropagation::NotPropagate,
-                    alpha1: 1.0,
-                    alpha2: 1.0,
-                });
-                col_index = next;
-            }
-
-            let compare = self
-                .tensor(TensorSpec::new(DataType::Boolean, index_shape.clone()).virtual_tensor());
-            self.pointwise(PointwiseOperation::Binary {
-                mode: comparison_mode,
-                lhs: col_index,
-                rhs: row,
-                output: compare,
-                compute_type: DataType::Boolean,
-                nan_propagation: NanPropagation::NotPropagate,
-                alpha1: 1.0,
-                alpha2: 1.0,
-            });
-            compare
-        } else {
-            let mut row_index = row;
-            if let Some(sequence_length_key_value) = sequence_length_key_value {
-                let next = self
-                    .tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-                self.pointwise(PointwiseOperation::Binary {
-                    mode: PointwiseMode::Add,
-                    lhs: row_index,
-                    rhs: sequence_length_key_value,
-                    output: next,
-                    compute_type: DataType::I32,
-                    nan_propagation: NanPropagation::NotPropagate,
-                    alpha1: 1.0,
-                    alpha2: 1.0,
-                });
-                row_index = next;
-            }
-            if let Some(sequence_length_query) = sequence_length_query {
-                let next = self
-                    .tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-                self.pointwise(PointwiseOperation::Binary {
-                    mode: PointwiseMode::Sub,
-                    lhs: row_index,
-                    rhs: sequence_length_query,
-                    output: next,
-                    compute_type: DataType::I32,
-                    nan_propagation: NanPropagation::NotPropagate,
-                    alpha1: 1.0,
-                    alpha2: 1.0,
-                });
-                row_index = next;
-            }
-            if let Some(shift_right_bound) = shift_right_bound {
-                let next = self
-                    .tensor(TensorSpec::new(DataType::I32, index_shape.clone()).virtual_tensor());
-                self.pointwise(PointwiseOperation::Binary {
-                    mode: PointwiseMode::Add,
-                    lhs: row_index,
-                    rhs: shift_right_bound,
-                    output: next,
-                    compute_type: DataType::I32,
-                    nan_propagation: NanPropagation::NotPropagate,
-                    alpha1: 1.0,
-                    alpha2: 1.0,
-                });
-                row_index = next;
-            }
-
-            let compare = self
-                .tensor(TensorSpec::new(DataType::Boolean, index_shape.clone()).virtual_tensor());
-            self.pointwise(PointwiseOperation::Binary {
-                mode: comparison_mode,
-                lhs: row_index,
-                rhs: col,
-                output: compare,
-                compute_type: DataType::Boolean,
-                nan_propagation: NanPropagation::NotPropagate,
-                alpha1: 1.0,
-                alpha2: 1.0,
-            });
-            compare
-        };
-
-        self.pointwise(PointwiseOperation::Ternary {
-            mode: PointwiseMode::BinarySelect,
-            x,
-            b,
-            t: compare,
-            output: y,
-            compute_type: x_tensor.data_type,
-            nan_propagation: NanPropagation::NotPropagate,
-            alpha1: 1.0,
-            alpha2: 1.0,
-        });
-        Ok(())
-    }
-
-    pub(crate) fn validate_concat_support_surface_for_version(
-        &self,
-        cudnn_version: u64,
-    ) -> Result<()> {
-        support::CONCAT.require_frontend_feature(cudnn_version)
-    }
-
-    fn validate_concat(
+    pub(crate) fn validate_concat(
         &self,
         inputs: &[TensorId],
         output: TensorId,
-        axis: i64,
-        in_place: ConcatInPlaceMode,
+        config: &ConcatConfig,
     ) -> Result<()> {
-        let input_tensors = inputs
+        let tensors = inputs
             .iter()
-            .map(|tensor| self.tensor_config(*tensor))
+            .map(|tensor| self.tensor_spec(*tensor))
             .collect::<Result<Vec<_>>>()?;
-        self.validate_concat_input_dimensions(inputs, &input_tensors, axis)?;
-        let expected_output = infer_concat_output(
-            &input_tensors
-                .iter()
-                .map(|tensor| &tensor.shape)
-                .collect::<Vec<_>>(),
-            axis,
-        )?;
+        let shapes = concat_input_shapes(&tensors, Some(self.tensor_spec(output)?))?;
+        let expected_output = config.infer_output_dimensions(shapes.iter().map(AsRef::as_ref))?;
+        self.validate_tensor_dimensions(output, &expected_output, "concat output shape")?;
 
-        self.validate_tensor_dimensions(
-            output,
-            expected_output.dimensions(),
-            "concat output shape",
-        )?;
-
-        if let Some(inplace_index) = in_place.index() {
-            let inplace_index = to_usize(inplace_index, "inplace_index")?;
-            check_range!("inplace_index", input_tensors.get(inplace_index).is_some())?;
-        }
+        config.validate_in_place_index(inputs.len())?;
 
         Ok(())
     }
+}
 
-    fn validate_concat_input_dimensions(
-        &self,
-        inputs: &[TensorId],
-        input_tensors: &[&TensorSpec],
-        axis: i64,
-    ) -> Result<()> {
-        let Some(first) = input_tensors.first() else {
-            return Ok(());
-        };
-        let rank = first.shape.dimensions().len();
-        let axis = to_usize(axis, "axis")?;
-        let first_dimensions = first.shape.dimensions();
-        for (&input, input_tensor) in inputs.iter().zip(input_tensors) {
-            let actual = input_tensor.shape.dimensions();
-            if actual.len() != rank {
-                self.validate_tensor_dimensions(input, first_dimensions, "concat input rank")?;
-            }
-            let mut expected = actual.to_vec();
-            for (index, expected_dimension) in expected.iter_mut().enumerate() {
-                if index != axis {
-                    *expected_dimension = first_dimensions[index];
+impl Graph {
+    /// Refreshes native index layouts after tensor replacement, import or recipe restoration.
+    pub(crate) fn promote_recorded_index_tensors(&mut self) -> Result<()> {
+        let mut indices = BTreeSet::new();
+        for operation in &self.operations {
+            let sequence = match operation {
+                Operation::AttentionPrimitive(AttentionPrimitiveOperation::DiagonalBandMask {
+                    config,
+                    ..
+                }) => config.sequence_inputs(),
+                Operation::Sdpa(SdpaOperation::Forward { config, .. }) => config.sequence_inputs(),
+                Operation::Sdpa(SdpaOperation::Backward { config, .. }) => config.sequence_inputs(),
+                Operation::PagedCacheLoad(operation) => {
+                    indices.insert(operation.tensors.sequence);
+                    continue;
                 }
-            }
-            if actual
-                .iter()
-                .zip(&expected)
-                .enumerate()
-                .any(|(index, (actual, expected))| index != axis && actual != expected)
-            {
-                self.validate_tensor_dimensions(input, &expected, "concat input shape")?;
+                _ => continue,
+            };
+            indices.extend(sequence.tensors());
+        }
+        self.promote_index_tensors(indices)
+    }
+
+    /// Promotes index vectors while preserving their stride, placement and dynamic bounds.
+    /// A rejected batch leaves every original declaration unchanged.
+    pub(crate) fn promote_index_tensors(
+        &mut self,
+        tensor_ids: impl IntoIterator<Item = TensorId>,
+    ) -> Result<()> {
+        let mut promotions = Vec::new();
+        for id in tensor_ids {
+            let tensor = self.tensor_spec(id)?;
+            if tensor.shape.rank() == 1 {
+                // Validate the original declaration before rank promotion can replace malformed layouts.
+                tensor.validate()?;
+                let mut promoted = tensor.clone();
+                promoted.shape = Shape::with_strides(
+                    [tensor.shape.dimensions()[0], 1, 1, 1],
+                    [tensor.shape.strides()[0], 1, 1, 1],
+                )?;
+                let constraints = self
+                    .runtime_shape_constraints
+                    .get(&id)
+                    .map(|bounds| {
+                        bounds.validate_for(tensor)?;
+                        RuntimeShapeConstraints::create(
+                            [bounds.min_dimensions[0], 1, 1, 1],
+                            [bounds.max_dimensions[0], 1, 1, 1],
+                        )
+                    })
+                    .transpose()?;
+                promotions.push((id, promoted, constraints));
             }
         }
+        // Commit only after every reference, promoted layout and bound is valid.
+        // Promotion changes shape alone, preserving placement and ragged relationships.
+        for (id, tensor, constraints) in promotions {
+            self.tensors.insert(id, tensor);
+            if let Some(constraints) = constraints {
+                self.runtime_shape_constraints.insert(id, constraints);
+            }
+        }
+        Ok(())
+    }
+
+    /// Matches fused scalar ranks and unit strides to each native operation while preserving values and runtime bounds.
+    pub(crate) fn expand_fused_scalar_shapes(&mut self) -> Result<()> {
+        let mut scalar_target_ranks = BTreeMap::<TensorId, usize>::new();
+
+        for operation in &self.operations {
+            let uses = match operation {
+                Operation::Sdpa(operation) => operation.native_tensor_uses(),
+                operation => operation.tensor_uses(self.config.data_type_policy),
+            };
+
+            let mut target_rank = 1;
+            for &tensor in uses.reads.union(&uses.writes) {
+                let tensor = self.tensor_spec(tensor)?;
+                if !tensor.is_by_value() {
+                    target_rank = target_rank.max(tensor.shape.rank());
+                }
+            }
+
+            for tensor_id in uses.reads {
+                let tensor = self.tensor_spec(tensor_id)?;
+                if !tensor.is_by_value() {
+                    continue;
+                }
+                tensor.validate_scalar()?;
+
+                match scalar_target_ranks.insert(tensor_id, target_rank) {
+                    Some(existing_rank) if existing_rank != target_rank => {
+                        return Err(FrontendError::FusedScalarRankConflict {
+                            tensor_id,
+                            first_rank: existing_rank,
+                            second_rank: target_rank,
+                        }
+                        .into());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let mut promotions = Vec::with_capacity(scalar_target_ranks.len());
+        for (tensor_index, target_rank) in scalar_target_ranks {
+            let tensor = self.tensor_spec(tensor_index)?.clone();
+            if tensor.shape.rank() == target_rank
+                && tensor.shape.strides().iter().all(|&stride| stride == 1)
+            {
+                continue;
+            }
+
+            let constraints = self
+                .runtime_shape_constraints
+                .get(&tensor_index)
+                .map(|bounds| {
+                    bounds.validate_for(&tensor)?;
+                    RuntimeShapeConstraints::create(vec![1; target_rank], vec![1; target_rank])
+                })
+                .transpose()?;
+            let tensor = tensor.with_shape(Shape::contiguous(vec![1; target_rank])?);
+            tensor.validate_scalar()?;
+            promotions.push((tensor_index, tensor, constraints));
+        }
+
+        for (tensor_index, tensor, constraints) in promotions {
+            self.tensors.insert(tensor_index, tensor);
+            if let Some(constraints) = constraints {
+                self.runtime_shape_constraints
+                    .insert(tensor_index, constraints);
+            }
+        }
+
         Ok(())
     }
 }

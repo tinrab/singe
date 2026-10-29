@@ -71,16 +71,11 @@ fn cpu_gemm_complex(n: usize, a: &[Complex64], b: &[Complex64]) -> Vec<Complex64
     c
 }
 
-fn run_dgemm(
-    cublas: &singe_cublas::context::Context,
-    n: usize,
-    a: &[f64],
-    b: &[f64],
-) -> Result<Vec<f64>> {
+fn run_dgemm(cublas: &Context, n: usize, a: &[f64], b: &[f64]) -> Result<Vec<f64>> {
     use singe_cublas::blas::level3::dgemm;
-    let a = DeviceMemory::from_slice(a)?;
-    let b = DeviceMemory::from_slice(b)?;
-    let mut c = DeviceMemory::<f64>::zeroes(n * n)?;
+    let a = DeviceMemory::from_slice(cublas.cuda_context(), a)?;
+    let b = DeviceMemory::from_slice(cublas.cuda_context(), b)?;
+    let mut c = DeviceMemory::<f64>::zeroed(cublas.cuda_context(), n * n)?;
     dgemm(
         cublas,
         Operation::NonTranspose,
@@ -101,15 +96,15 @@ fn run_dgemm(
 }
 
 fn run_zgemm(
-    cublas: &singe_cublas::context::Context,
+    cublas: &Context,
     n: usize,
     a: &[Complex64],
     b: &[Complex64],
 ) -> Result<Vec<Complex64>> {
     use singe_cublas::blas::level3::zgemm;
-    let a = DeviceMemory::from_slice(a)?;
-    let b = DeviceMemory::from_slice(b)?;
-    let mut c = DeviceMemory::<Complex64>::zeroes(n * n)?;
+    let a = DeviceMemory::from_slice(cublas.cuda_context(), a)?;
+    let b = DeviceMemory::from_slice(cublas.cuda_context(), b)?;
+    let mut c = DeviceMemory::<Complex64>::zeroed(cublas.cuda_context(), n * n)?;
     zgemm(
         cublas,
         Operation::NonTranspose,

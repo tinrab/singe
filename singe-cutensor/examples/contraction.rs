@@ -1,4 +1,5 @@
 use singe_cuda::{context::Context as CudaContext, memory::DeviceMemory};
+
 use singe_cutensor::{
     context::Context,
     error::Result,
@@ -47,10 +48,10 @@ fn main() -> Result<()> {
         .map(|index| (index as f32 - 4.0) * 0.125)
         .collect::<Vec<_>>();
 
-    let device_a = DeviceMemory::from_slice(&host_a)?;
-    let device_b = DeviceMemory::from_slice(&host_b)?;
-    let device_c_input = DeviceMemory::from_slice(&host_c)?;
-    let mut device_c = DeviceMemory::from_slice(&host_c)?;
+    let device_a = DeviceMemory::from_slice(&cuda_context, &host_a)?;
+    let device_b = DeviceMemory::from_slice(&cuda_context, &host_b)?;
+    let device_c_input = DeviceMemory::from_slice(&cuda_context, &host_c)?;
+    let mut device_c = DeviceMemory::from_slice(&cuda_context, &host_c)?;
 
     const ALIGNMENT: u32 = 128;
 
@@ -75,7 +76,8 @@ fn main() -> Result<()> {
     )?;
     let plan = Plan::create(&context, &contraction, &preference, workspace_size)?;
     let mut workspace = if plan.required_workspace_size() > 0 {
-        Some(DeviceMemory::<u8>::create(
+        Some(DeviceMemory::<u8>::create_uninit(
+            &cuda_context,
             plan.required_workspace_size_bytes()?,
         )?)
     } else {
@@ -84,16 +86,19 @@ fn main() -> Result<()> {
 
     let alpha = 1.1_f32;
     let beta = -0.25_f32;
-    plan.contract(
-        &alpha,
-        &device_a,
-        &device_b,
-        &beta,
-        &device_c_input,
-        &mut device_c,
-        workspace.as_mut(),
-        &stream,
-    )?;
+    // SAFETY: descriptors match these buffers; all resources remain live until stream synchronization below.
+    unsafe {
+        plan.contract(
+            &alpha,
+            &device_a,
+            &device_b,
+            &beta,
+            &device_c_input,
+            &mut device_c,
+            workspace.as_mut(),
+            &stream,
+        )
+    }?;
     stream.synchronize()?;
 
     let result = device_c.copy_to_host_vec()?;

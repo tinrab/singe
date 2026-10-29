@@ -1,361 +1,540 @@
-use std::{marker::PhantomData, ptr::NonNull};
+//! Buffer addressability, initialized inputs, and arbitrary-byte outputs for cuFile.
+use std::{marker::PhantomData, process, ptr::NonNull, sync::Arc};
 
 use singe_cuda::{
+    context::Context,
     external_memory::MappedBuffer,
-    memory::{DeviceMemory, ManagedMemory},
+    graph::GraphBuffer,
+    memory::{
+        AsyncDeviceMemory, DeviceMemory, ManagedMemory, PinnedHostMemory, RegisteredHostMemory,
+        RegisteredHostSlice, RegisteredHostVec,
+    },
     view::{
-        ByteBuffer, ByteBufferMut, DeviceRepr, DeviceSlice, DeviceSliceMut, DeviceView,
-        DeviceViewMut,
+        AnyBitPatternDeviceRepr, DeviceOutputView, DeviceRegion, DeviceRegionProvider, DeviceRepr,
+        DeviceView, DeviceViewMut, NoUninitDeviceRepr,
     },
 };
 use singe_cufile_sys as sys;
 
 use crate::{
+    driver::Driver,
     error::{Error, Result},
+    file::{checked_io_size, prepare_buffer},
     try_ffi,
     types::BufferRegisterFlags,
     utility::{checked_byte_len, to_u64},
 };
 
-#[derive(Debug)]
-struct RegisteredBufferInner {
-    ptr: NonNull<()>,
-    size: usize,
+/// A live contiguous host or device storage range, without an initialization claim.
+///
+/// # Safety
+/// The pointer and byte length must describe the same live range for the shared borrow.
+/// Device storage must provide a device region with actual context, allocation identity, bounds, and readiness.
+/// CUDA-associated host storage must report its retained context even when it has no device region.
+pub unsafe trait IoBuffer {
+    /// Returns the address of the storage range.
+    fn ptr(&self) -> BufferPointer;
+
+    /// Returns the length of the storage range in bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer size in bytes cannot be represented as `usize`.
+    fn byte_len(&self) -> Result<usize>;
+
+    /// Returns device allocation metadata when the storage resides on a GPU.
+    fn device_region(&self) -> Option<DeviceRegion<'_>> {
+        None
+    }
+
+    /// Returns the CUDA context retained by this storage, if any.
+    fn context(&self) -> Option<&Arc<Context>> {
+        self.device_region().map(DeviceRegion::context)
+    }
+
+    /// Returns whether the storage already has a cuFile buffer registration.
+    fn is_registered(&self) -> bool {
+        false
+    }
 }
 
-#[derive(Debug)]
-pub struct RegisteredBuffer<'a, T: ?Sized> {
-    inner: RegisteredBufferInner,
-    _buffer: PhantomData<&'a T>,
+/// Exclusively writable storage, without a guarantee that arbitrary file bytes form valid values.
+///
+/// # Safety
+/// The mutable pointer must describe the same range as `IoBuffer::ptr` and permit writes for the exclusive borrow.
+pub unsafe trait IoBufferMut: IoBuffer {
+    /// Returns the address of the exclusively writable storage range.
+    fn ptr_mut(&mut self) -> BufferPointer;
 }
 
-#[derive(Debug)]
-pub struct RegisteredBufferMut<'a, T: ?Sized> {
-    inner: RegisteredBufferInner,
-    _t: PhantomData<&'a mut T>,
-}
+/// Storage whose entire representation is initialized and may be read as bytes.
+///
+/// # Safety
+/// Every exposed byte must be initialized before I/O reads it, after any declared readiness dependency completes.
+/// Host storage without a readiness dependency must remain initialized throughout the shared borrow.
+/// This guarantee includes representation padding.
+pub unsafe trait IoInput: IoBuffer {}
 
+/// Exclusive storage that may receive arbitrary file bytes, including partial writes.
+///
+/// # Safety
+/// Every initialized byte pattern must remain valid for its host or device element type.
+/// Uninitialized storage must remain represented as uninitialized until its produced range is established.
+pub unsafe trait IoOutput: IoBufferMut {}
+
+/// A raw address without ownership, initialization, or access permissions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BufferPointer {
     ptr: *mut (),
 }
 
 impl BufferPointer {
-    pub(crate) const fn from_const(ptr: *const ()) -> Self {
+    /// Stores a const address without taking ownership or establishing access permissions.
+    #[must_use]
+    pub const fn from_const(ptr: *const ()) -> Self {
         Self {
             ptr: ptr.cast_mut(),
         }
     }
 
-    pub(crate) const fn from_mut(ptr: *mut ()) -> Self {
+    /// Stores a mutable address without taking ownership or establishing access permissions.
+    pub const fn from_mut(ptr: *mut ()) -> Self {
         Self { ptr }
     }
 
-    pub(crate) const fn as_const(self) -> *const () {
+    /// Returns the stored address as a const pointer.
+    #[must_use]
+    pub const fn as_const(self) -> *const () {
+        self.ptr.cast_const()
+    }
+
+    /// Returns the stored address as a mutable pointer; this does not establish write permission.
+    #[must_use]
+    pub const fn as_mut(self) -> *mut () {
         self.ptr
     }
-
-    pub(crate) const fn as_mut(self) -> *mut () {
-        self.ptr
-    }
 }
 
-pub trait IoBuffer {
-    fn ptr(&self) -> BufferPointer;
-
-    fn byte_len(&self) -> Result<usize>;
+macro_rules! host_buffer {
+    ($ty:ty) => {
+        unsafe impl<T: DeviceRepr> IoBuffer for $ty {
+            fn ptr(&self) -> BufferPointer {
+                BufferPointer::from_const(self.as_ptr().cast())
+            }
+            fn byte_len(&self) -> Result<usize> {
+                let () = T::LAYOUT;
+                checked_byte_len::<T>(self.len(), "buffer")
+            }
+        }
+        unsafe impl<T: NoUninitDeviceRepr> IoInput for $ty {}
+        unsafe impl<T: DeviceRepr> IoBufferMut for $ty {
+            fn ptr_mut(&mut self) -> BufferPointer {
+                BufferPointer::from_mut(self.as_mut_ptr().cast())
+            }
+        }
+        unsafe impl<T: AnyBitPatternDeviceRepr> IoOutput for $ty {}
+    };
 }
 
-pub trait IoBufferMut: IoBuffer {
-    fn ptr_mut(&mut self) -> BufferPointer;
+host_buffer!([T]);
+
+host_buffer!(Vec<T>);
+
+macro_rules! device_buffer {
+    ($ty:ty) => {
+        unsafe impl<T: DeviceRepr> IoBuffer for $ty {
+            fn ptr(&self) -> BufferPointer {
+                BufferPointer::from_const(self.region().as_ptr().cast())
+            }
+            fn byte_len(&self) -> Result<usize> {
+                let () = T::LAYOUT;
+                checked_byte_len::<T>(self.len(), "buffer")
+            }
+            fn device_region(&self) -> Option<DeviceRegion<'_>> {
+                Some(self.region())
+            }
+        }
+        unsafe impl<T: NoUninitDeviceRepr> IoInput for $ty {}
+    };
 }
 
-impl<T> IoBuffer for [T] {
+macro_rules! device_output {
+    ($ty:ty) => {
+        unsafe impl<T: DeviceRepr> IoBufferMut for $ty {
+            fn ptr_mut(&mut self) -> BufferPointer {
+                BufferPointer::from_mut(self.region().as_ptr().cast())
+            }
+        }
+        unsafe impl<T: AnyBitPatternDeviceRepr> IoOutput for $ty {}
+    };
+}
+
+device_buffer!(DeviceMemory<T>);
+
+device_output!(DeviceMemory<T>);
+
+device_buffer!(AsyncDeviceMemory<T>);
+
+device_output!(AsyncDeviceMemory<T>);
+
+device_buffer!(ManagedMemory<T>);
+
+device_output!(ManagedMemory<T>);
+
+device_buffer!(MappedBuffer<T>);
+
+device_output!(MappedBuffer<T>);
+
+device_buffer!(GraphBuffer<T>);
+
+device_output!(GraphBuffer<T>);
+
+device_buffer!(DeviceView<'_, T>);
+
+device_buffer!(DeviceViewMut<'_, T>);
+
+device_output!(DeviceViewMut<'_, T>);
+
+// Output-only views never claim initialized input bytes.
+unsafe impl<T: DeviceRepr> IoBuffer for DeviceOutputView<'_, T> {
     fn ptr(&self) -> BufferPointer {
-        BufferPointer::from_const(self.as_ptr().cast())
+        BufferPointer::from_mut(self.region().as_ptr().cast())
     }
 
     fn byte_len(&self) -> Result<usize> {
-        checked_byte_len::<T>(self.len(), "buffer")
+        let () = T::LAYOUT;
+        Ok(self.region().byte_len())
+    }
+
+    fn device_region(&self) -> Option<DeviceRegion<'_>> {
+        Some(self.region())
     }
 }
 
-impl<T> IoBufferMut for [T] {
-    fn ptr_mut(&mut self) -> BufferPointer {
-        BufferPointer::from_mut(self.as_mut_ptr().cast())
+device_output!(DeviceOutputView<'_, T>);
+
+macro_rules! registered_host_buffer {
+    ($ty:ty) => {
+        unsafe impl<T: DeviceRepr> IoBuffer for $ty {
+            fn ptr(&self) -> BufferPointer {
+                BufferPointer::from_const(self.as_ptr().cast())
+            }
+            fn byte_len(&self) -> Result<usize> {
+                let () = T::LAYOUT;
+                checked_byte_len::<T>(self.len(), "buffer")
+            }
+            fn context(&self) -> Option<&Arc<Context>> {
+                Some(self.context())
+            }
+        }
+        unsafe impl<T: NoUninitDeviceRepr> IoInput for $ty {}
+    };
+}
+
+macro_rules! host_output {
+    ($ty:ty) => {
+        unsafe impl<T: DeviceRepr> IoBufferMut for $ty {
+            fn ptr_mut(&mut self) -> BufferPointer {
+                BufferPointer::from_mut(self.as_mut_ptr().cast())
+            }
+        }
+        unsafe impl<T: AnyBitPatternDeviceRepr> IoOutput for $ty {}
+    };
+}
+
+registered_host_buffer!(PinnedHostMemory<T>);
+
+host_output!(PinnedHostMemory<T>);
+
+registered_host_buffer!(RegisteredHostVec<T>);
+
+host_output!(RegisteredHostVec<T>);
+
+registered_host_buffer!(RegisteredHostMemory<'_, T>);
+
+host_output!(RegisteredHostMemory<'_, T>);
+
+registered_host_buffer!(RegisteredHostSlice<'_, T>);
+
+/// An initialized input byte range retaining its buffer borrow and actual device metadata.
+#[derive(Debug)]
+pub struct IoSlice<'a> {
+    pub(crate) raw: sys::CUfileIOVec_t,
+    pub(crate) region: Option<DeviceRegion<'a>>,
+    pub(crate) context: Option<&'a Arc<Context>>,
+    _borrow: PhantomData<&'a ()>,
+}
+
+impl<'a> IoSlice<'a> {
+    /// Borrows a byte range starting at `offset` with length `size`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer length cannot be computed, the selected range exceeds the buffer, or an offset or size exceeds its required integer range.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an offset accepted by range validation cannot be represented as `usize`.
+    pub fn create<B: IoInput + ?Sized>(buffer: &'a B, offset: u64, size: usize) -> Result<Self> {
+        checked_io_size(buffer.byte_len()?, size, offset)?;
+        Ok(Self {
+            raw: sys::CUfileIOVec_t {
+                base: buffer
+                    .ptr()
+                    .as_mut()
+                    .cast::<u8>()
+                    .wrapping_add(
+                        usize::try_from(offset)
+                            .expect("buffer offset is validated against its host byte length"),
+                    )
+                    .cast(),
+                len: to_u64(size, "size")?,
+            },
+            region: buffer.device_region(),
+            context: buffer.context(),
+            _borrow: PhantomData,
+        })
     }
 }
 
-impl<T> IoBuffer for Vec<T> {
-    fn ptr(&self) -> BufferPointer {
-        self.as_slice().ptr()
-    }
+/// An exclusively borrowed byte range accepting arbitrary file bytes.
+#[derive(Debug)]
+pub struct IoSliceMut<'a> {
+    pub(crate) raw: sys::CUfileIOVec_t,
+    pub(crate) region: Option<DeviceRegion<'a>>,
+    pub(crate) context: Option<&'a Arc<Context>>,
+    _borrow: PhantomData<&'a mut ()>,
+}
 
-    fn byte_len(&self) -> Result<usize> {
-        self.as_slice().byte_len()
+impl<'a> IoSliceMut<'a> {
+    /// Borrows a byte range starting at `offset` with length `size`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer length cannot be computed, the selected range exceeds the buffer, or an offset or size exceeds its required integer range.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an offset accepted by range validation cannot be represented as `usize`.
+    pub fn create<B: IoOutput + ?Sized>(
+        buffer: &'a mut B,
+        offset: u64,
+        size: usize,
+    ) -> Result<Self> {
+        checked_io_size(buffer.byte_len()?, size, offset)?;
+        let pointer = buffer.ptr_mut().as_mut();
+        Ok(Self {
+            raw: sys::CUfileIOVec_t {
+                base: pointer
+                    .cast::<u8>()
+                    .wrapping_add(
+                        usize::try_from(offset)
+                            .expect("buffer offset is validated against its host byte length"),
+                    )
+                    .cast(),
+                len: to_u64(size, "size")?,
+            },
+            region: buffer.device_region(),
+            context: buffer.context(),
+            _borrow: PhantomData,
+        })
     }
 }
 
-impl<T> IoBufferMut for Vec<T> {
-    fn ptr_mut(&mut self) -> BufferPointer {
-        self.as_mut_slice().ptr_mut()
-    }
+#[derive(Debug)]
+struct RegisteredBufferInner {
+    ptr: NonNull<()>,
+    size: usize,
+    context: Option<Arc<Context>>,
+    _driver: Arc<Driver>,
 }
 
-impl<T> IoBuffer for DeviceMemory<T> {
-    fn ptr(&self) -> BufferPointer {
-        BufferPointer::from_const(self.as_ptr().cast())
-    }
-
-    fn byte_len(&self) -> Result<usize> {
-        Ok(DeviceMemory::byte_len(self))
-    }
+/// A borrowed native registration. Forgetting it requires retaining backing storage until native deregistration.
+#[derive(Debug)]
+pub struct RegisteredBuffer<'a, B: IoBuffer + ?Sized> {
+    inner: RegisteredBufferInner,
+    buffer: &'a B,
 }
 
-impl<T> IoBufferMut for DeviceMemory<T> {
-    fn ptr_mut(&mut self) -> BufferPointer {
-        BufferPointer::from_mut(self.as_mut_ptr().cast())
-    }
-}
-
-impl<T: DeviceRepr> IoBuffer for ManagedMemory<T> {
-    fn ptr(&self) -> BufferPointer {
-        BufferPointer::from_const(self.as_device_ptr().cast())
-    }
-
-    fn byte_len(&self) -> Result<usize> {
-        checked_byte_len::<T>(self.len(), "buffer")
-    }
-}
-
-impl<T: DeviceRepr> IoBufferMut for ManagedMemory<T> {
-    fn ptr_mut(&mut self) -> BufferPointer {
-        BufferPointer::from_mut(self.as_device_mut_ptr().cast())
-    }
-}
-
-impl<T: DeviceRepr> IoBuffer for DeviceView<'_, T> {
-    fn ptr(&self) -> BufferPointer {
-        BufferPointer::from_const(self.as_device_ptr().cast())
-    }
-
-    fn byte_len(&self) -> Result<usize> {
-        checked_byte_len::<T>(self.len(), "buffer")
-    }
-}
-
-impl<T: DeviceRepr> IoBuffer for DeviceViewMut<'_, T> {
-    fn ptr(&self) -> BufferPointer {
-        BufferPointer::from_const(self.as_device_ptr().cast())
-    }
-
-    fn byte_len(&self) -> Result<usize> {
-        checked_byte_len::<T>(self.len(), "buffer")
-    }
-}
-
-impl<T: DeviceRepr> IoBufferMut for DeviceViewMut<'_, T> {
-    fn ptr_mut(&mut self) -> BufferPointer {
-        BufferPointer::from_mut(self.as_device_mut_ptr().cast())
-    }
-}
-
-impl<T: DeviceRepr> IoBuffer for MappedBuffer<'_, T> {
-    fn ptr(&self) -> BufferPointer {
-        BufferPointer::from_const(self.as_device_ptr().cast())
-    }
-
-    fn byte_len(&self) -> Result<usize> {
-        checked_byte_len::<T>(self.len(), "buffer")
-    }
-}
-
-impl<T: DeviceRepr> IoBufferMut for MappedBuffer<'_, T> {
-    fn ptr_mut(&mut self) -> BufferPointer {
-        BufferPointer::from_mut(self.as_device_mut_ptr().cast())
-    }
+/// An exclusively borrowed native buffer registration retaining its driver session.
+///
+/// Forgetting the guard requires retaining backing storage until native deregistration.
+#[derive(Debug)]
+pub struct RegisteredBufferMut<'a, B: IoBufferMut + ?Sized> {
+    inner: RegisteredBufferInner,
+    buffer: &'a mut B,
 }
 
 impl<'a, B: IoBuffer + ?Sized> RegisteredBuffer<'a, B> {
-    /// Registers any stable host or device buffer supported by cuFile.
+    /// Registers storage without asserting initialized input bytes.
     ///
-    /// The returned value borrows `buffer`, so the buffer cannot be dropped
-    /// while cuFile has the pointer registered.
-    pub fn register(buffer: &'a B, flags: BufferRegisterFlags) -> Result<Self> {
+    /// # Safety
+    /// Deregister before releasing backing storage, even if this guard is forgotten.
+    /// Complete all I/O and coordinate prior/future CUDA accesses before deregistration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer address is null, the byte length cannot be computed or represented, CUDA readiness or capture checks fail, or context binding fails.
+    /// Also returns an error if cuFile rejects the address range or registration flags.
+    pub unsafe fn register(
+        driver: &Arc<Driver>,
+        buffer: &'a B,
+        flags: BufferRegisterFlags,
+    ) -> Result<Self> {
+        prepare_buffer(buffer, None)?;
+        // SAFETY: the caller upholds this function's safety contract.
         let inner = unsafe {
-            RegisteredBufferInner::register(buffer.ptr().as_const(), buffer.byte_len()?, flags)
-        }?;
-        Ok(Self {
-            inner,
-            _buffer: PhantomData,
-        })
-    }
-}
-
-impl<'a, B: ByteBuffer + ?Sized> RegisteredBuffer<'a, B> {
-    pub fn register_byte_buffer(buffer: &'a B, flags: BufferRegisterFlags) -> Result<Self> {
-        let inner = unsafe {
-            RegisteredBufferInner::register(buffer.as_byte_ptr().cast(), buffer.byte_len(), flags)
-        }?;
-        Ok(Self {
-            inner,
-            _buffer: PhantomData,
-        })
+            RegisteredBufferInner::register(
+                driver,
+                buffer.ptr().as_const(),
+                buffer.byte_len()?,
+                buffer.context(),
+                flags,
+            )?
+        };
+        Ok(Self { inner, buffer })
     }
 }
 
 impl<'a, B: IoBufferMut + ?Sized> RegisteredBufferMut<'a, B> {
-    /// Registers a mutable buffer and keeps exclusive access for the
-    /// registration lifetime.
-    pub fn register(buffer: &'a mut B, flags: BufferRegisterFlags) -> Result<Self> {
+    /// Registers exclusively borrowed storage without asserting element validity.
+    ///
+    /// # Safety
+    /// Deregister before releasing backing storage, even if this guard is forgotten.
+    /// Complete all I/O and coordinate CUDA accesses before deregistration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer address is null, the byte length cannot be computed or represented, CUDA readiness or capture checks fail, or context binding fails.
+    /// Also returns an error if cuFile rejects the address range or registration flags.
+    pub unsafe fn register(
+        driver: &Arc<Driver>,
+        buffer: &'a mut B,
+        flags: BufferRegisterFlags,
+    ) -> Result<Self> {
+        prepare_buffer(buffer, None)?;
         let size = buffer.byte_len()?;
-        let inner =
-            unsafe { RegisteredBufferInner::register(buffer.ptr_mut().as_mut(), size, flags) }?;
-        Ok(Self {
-            inner,
-            _t: PhantomData,
-        })
-    }
-}
-
-impl<'a, B: ByteBufferMut + ?Sized> RegisteredBufferMut<'a, B> {
-    pub fn register_byte_buffer(buffer: &'a mut B, flags: BufferRegisterFlags) -> Result<Self> {
+        let pointer = buffer.ptr_mut().as_mut();
+        // SAFETY: the caller upholds this function's safety contract.
         let inner = unsafe {
-            RegisteredBufferInner::register(
-                buffer.as_byte_mut_ptr().cast(),
-                buffer.byte_len(),
-                flags,
-            )
-        }?;
-        Ok(Self {
-            inner,
-            _t: PhantomData,
-        })
+            RegisteredBufferInner::register(driver, pointer, size, buffer.context(), flags)?
+        };
+        Ok(Self { inner, buffer })
     }
 }
 
-impl<'a, T> RegisteredBuffer<'a, [T]> {
-    pub fn register_slice(slice: &'a [T], flags: BufferRegisterFlags) -> Result<Self> {
-        let size = checked_byte_len::<T>(slice.len(), "slice")?;
-        let inner = unsafe { RegisteredBufferInner::register(slice.as_ptr().cast(), size, flags) }?;
-        Ok(Self {
-            inner,
-            _buffer: PhantomData,
-        })
-    }
-}
-
-impl<'a, T> RegisteredBuffer<'a, DeviceMemory<T>> {
-    pub fn register_memory(
-        memory: &'a DeviceMemory<T>,
-        flags: BufferRegisterFlags,
-    ) -> Result<Self> {
-        let inner = unsafe {
-            RegisteredBufferInner::register(memory.as_ptr().cast(), memory.byte_len(), flags)
-        }?;
-        Ok(Self {
-            inner,
-            _buffer: PhantomData,
-        })
-    }
-}
-
-impl<'a, T> RegisteredBufferMut<'a, [T]> {
-    pub fn register_slice(slice: &'a mut [T], flags: BufferRegisterFlags) -> Result<Self> {
-        let size = checked_byte_len::<T>(slice.len(), "slice")?;
-        let inner =
-            unsafe { RegisteredBufferInner::register(slice.as_mut_ptr().cast(), size, flags) }?;
-        Ok(Self {
-            inner,
-            _t: PhantomData,
-        })
-    }
-}
-
-impl<'a, T> RegisteredBufferMut<'a, DeviceMemory<T>> {
-    pub fn register_memory(
-        memory: &'a mut DeviceMemory<T>,
-        flags: BufferRegisterFlags,
-    ) -> Result<Self> {
-        let inner = unsafe {
-            RegisteredBufferInner::register(memory.as_mut_ptr().cast(), memory.byte_len(), flags)
-        }?;
-        Ok(Self {
-            inner,
-            _t: PhantomData,
-        })
-    }
-}
-
-impl<T: ?Sized> RegisteredBuffer<'_, T> {
+impl<B: IoBuffer + ?Sized> RegisteredBuffer<'_, B> {
+    /// Returns the registered storage length, in bytes.
+    #[must_use]
     pub fn byte_len(&self) -> usize {
-        self.inner.byte_len()
+        self.inner.size
     }
 }
 
-impl<T: ?Sized> RegisteredBufferMut<'_, T> {
+impl<B: IoBufferMut + ?Sized> RegisteredBufferMut<'_, B> {
+    /// Returns the registered storage length, in bytes.
+    #[must_use]
     pub fn byte_len(&self) -> usize {
-        self.inner.byte_len()
+        self.inner.size
     }
 }
+
+unsafe impl<B: IoBuffer + ?Sized> IoBuffer for RegisteredBuffer<'_, B> {
+    fn ptr(&self) -> BufferPointer {
+        BufferPointer::from_mut(self.inner.ptr.as_ptr())
+    }
+
+    fn byte_len(&self) -> Result<usize> {
+        Ok(self.inner.size)
+    }
+
+    fn context(&self) -> Option<&Arc<Context>> {
+        self.inner.context.as_ref()
+    }
+
+    fn device_region(&self) -> Option<DeviceRegion<'_>> {
+        self.buffer.device_region()
+    }
+
+    fn is_registered(&self) -> bool {
+        true
+    }
+}
+
+unsafe impl<B: IoInput + ?Sized> IoInput for RegisteredBuffer<'_, B> {}
+
+unsafe impl<B: IoBufferMut + ?Sized> IoBuffer for RegisteredBufferMut<'_, B> {
+    fn ptr(&self) -> BufferPointer {
+        BufferPointer::from_mut(self.inner.ptr.as_ptr())
+    }
+
+    fn byte_len(&self) -> Result<usize> {
+        Ok(self.inner.size)
+    }
+
+    fn context(&self) -> Option<&Arc<Context>> {
+        self.inner.context.as_ref()
+    }
+
+    fn device_region(&self) -> Option<DeviceRegion<'_>> {
+        self.buffer.device_region()
+    }
+
+    fn is_registered(&self) -> bool {
+        true
+    }
+}
+
+unsafe impl<B: IoBufferMut + IoInput + ?Sized> IoInput for RegisteredBufferMut<'_, B> {}
+
+unsafe impl<B: IoBufferMut + ?Sized> IoBufferMut for RegisteredBufferMut<'_, B> {
+    fn ptr_mut(&mut self) -> BufferPointer {
+        BufferPointer::from_mut(self.inner.ptr.as_ptr())
+    }
+}
+
+unsafe impl<B: IoOutput + ?Sized> IoOutput for RegisteredBufferMut<'_, B> {}
 
 impl RegisteredBufferInner {
-    unsafe fn register(ptr: *const (), size: usize, flags: BufferRegisterFlags) -> Result<Self> {
-        let ptr = NonNull::new(ptr.cast_mut()).ok_or(Error::NullHandle)?;
+    unsafe fn register(
+        driver: &Arc<Driver>,
+        pointer: *const (),
+        size: usize,
+        context: Option<&Arc<Context>>,
+        flags: BufferRegisterFlags,
+    ) -> Result<Self> {
+        let ptr = NonNull::new(pointer.cast_mut()).ok_or(Error::NullHandle)?;
+        if let Some(context) = context {
+            context.bind()?;
+        }
+        // SAFETY: `cuFileBufRegister` receives pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cuFileBufRegister(
-                ptr.as_ptr() as _,
+                ptr.as_ptr().cast(),
                 to_u64(size, "size")?,
-                flags.bits(),
+                flags.bits()
             ))?;
         }
-
-        Ok(Self { ptr, size })
-    }
-
-    fn as_ptr(&self) -> *const () {
-        self.ptr.as_ptr()
-    }
-
-    fn as_mut_ptr(&self) -> *mut () {
-        self.ptr.as_ptr()
-    }
-
-    fn byte_len(&self) -> usize {
-        self.size
-    }
-}
-
-impl<T: ?Sized> IoBuffer for RegisteredBuffer<'_, T> {
-    fn ptr(&self) -> BufferPointer {
-        BufferPointer::from_const(self.inner.as_ptr())
-    }
-
-    fn byte_len(&self) -> Result<usize> {
-        Ok(RegisteredBuffer::byte_len(self))
-    }
-}
-
-impl<T: ?Sized> IoBuffer for RegisteredBufferMut<'_, T> {
-    fn ptr(&self) -> BufferPointer {
-        BufferPointer::from_const(self.inner.as_ptr())
-    }
-
-    fn byte_len(&self) -> Result<usize> {
-        Ok(RegisteredBufferMut::byte_len(self))
-    }
-}
-
-impl<T: ?Sized> IoBufferMut for RegisteredBufferMut<'_, T> {
-    fn ptr_mut(&mut self) -> BufferPointer {
-        BufferPointer::from_mut(self.inner.as_mut_ptr())
+        Ok(Self {
+            ptr,
+            size,
+            context: context.cloned(),
+            _driver: Arc::clone(driver),
+        })
     }
 }
 
 impl Drop for RegisteredBufferInner {
     fn drop(&mut self) {
-        unsafe {
-            let _ = sys::cuFileBufDeregister(self.ptr.as_ptr() as _);
+        if let Some(context) = &self.context
+            && context.bind().is_err()
+        {
+            process::abort();
+        }
+        // Borrowed backing storage cannot be retained if native deregistration fails.
+        // SAFETY: `cuFileBufDeregister` receives pointers into buffers borrowed for the call.
+        if unsafe { try_ffi!(sys::cuFileBufDeregister(self.ptr.as_ptr().cast())) }.is_err() {
+            process::abort();
         }
     }
 }

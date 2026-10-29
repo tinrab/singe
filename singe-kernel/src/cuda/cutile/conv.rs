@@ -1,16 +1,14 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use cutile::half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
-use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
-};
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
 use crate::{
     cuda::cutile::{
-        DeviceOpExt,
+        DeviceOpExt, TileKernel,
         kernel::conv as kernel_conv,
         utility::{VectorLaunch, checked_device_pointer},
     },
@@ -55,6 +53,8 @@ impl Conv1dWindowParams {
             || stride == 0
             || dilation == 0
             || groups == 0
+            || !channels_in.is_multiple_of(groups)
+            || !channels_out.is_multiple_of(groups)
         {
             return Err(Error::InvalidLength);
         }
@@ -66,6 +66,12 @@ impl Conv1dWindowParams {
             .ok_or(Error::SizeOverflow)?;
         checked_i32_value(input_end)?;
         checked_i32_value(output_end)?;
+        checked_i32_value(checked_element_count(channels_in, input_length)?)?;
+        let weight_values = checked_element_count(
+            checked_element_count(channels_out, channels_in / groups)?,
+            kernel_size,
+        )?;
+        checked_i32_value(weight_values)?;
         let output_len = checked_element_count(channels_out, output_length)?;
         Ok(Self {
             channels_in: checked_i32_value(channels_in)?,
@@ -151,6 +157,8 @@ impl Conv1dBatchedParams {
             || groups == 0
             || input_batch_stride == 0
             || output_batch_stride == 0
+            || !channels_in.is_multiple_of(groups)
+            || !channels_out.is_multiple_of(groups)
         {
             return Err(Error::InvalidLength);
         }
@@ -170,6 +178,11 @@ impl Conv1dBatchedParams {
             .ok_or(Error::SizeOverflow)?;
         checked_i32_value(input_reach)?;
         checked_i32_value(output_reach)?;
+        let weight_values = checked_element_count(
+            checked_element_count(channels_out, channels_in / groups)?,
+            kernel_size,
+        )?;
+        checked_i32_value(weight_values)?;
         let output_len = checked_element_count(batch, output_values_per_batch)?;
         Ok(Self {
             channels_in: checked_i32_value(channels_in)?,
@@ -224,9 +237,16 @@ impl Conv1dIm2colParams {
             || dilation == 0
             || groups == 0
             || input_batch_stride == 0
+            || !channels_in.is_multiple_of(groups)
         {
             return Err(Error::InvalidLength);
         }
+        let input_values_per_batch = checked_element_count(channels_in, input_length)?;
+        let input_reach = (batch - 1)
+            .checked_mul(input_batch_stride)
+            .and_then(|span| span.checked_add(input_values_per_batch))
+            .ok_or(Error::SizeOverflow)?;
+        checked_i32_value(input_reach)?;
         let output_values_per_batch = checked_element_count(
             checked_element_count(channels_in, output_length)?,
             kernel_size,
@@ -314,6 +334,11 @@ impl Conv2dParams {
             return Err(Error::InvalidLength);
         }
 
+        let weight_values = checked_element_count(
+            checked_element_count(channels_out, channels_in / groups)?,
+            checked_element_count(kernel_h, kernel_w)?,
+        )?;
+        checked_i32_value(weight_values)?;
         let input_values_per_batch =
             checked_element_count(checked_element_count(channels_in, input_h)?, input_w)?;
         let output_values_per_batch =
@@ -360,7 +385,10 @@ impl Conv2dParams {
 
 macro_rules! causal_conv1d_update_silu_fn {
     ($name:ident, $ty:ty, $kernel_fn:ident, $append_kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             conv_state: DevicePointer<$ty>,
@@ -371,11 +399,11 @@ macro_rules! causal_conv1d_update_silu_fn {
             channels: usize,
             kernel_size: usize,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(conv_state)?;
-            checked_device_pointer(input)?;
-            checked_device_pointer(weight)?;
-            checked_device_pointer(bias)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&conv_state)?;
+            checked_device_pointer(&input)?;
+            checked_device_pointer(&weight)?;
+            checked_device_pointer(&bias)?;
             if batch == 0 || channels == 0 || kernel_size == 0 {
                 return Err(Error::InvalidLength);
             }
@@ -385,6 +413,7 @@ macro_rules! causal_conv1d_update_silu_fn {
             let channels = checked_i32_value(channels)?;
             let kernel_size = checked_i32_value(kernel_size)?;
             let grid = launch.grid;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_conv::$kernel_fn(
                     out,
@@ -399,6 +428,7 @@ macro_rules! causal_conv1d_update_silu_fn {
             }
             .grid(grid)
             .enqueue_on(stream)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_conv::$append_kernel_fn(conv_state, input, kernel_size, launch.len_i32)
             }
@@ -411,7 +441,10 @@ macro_rules! causal_conv1d_update_silu_fn {
 
 macro_rules! causal_conv1d_prefill_silu_fn {
     ($name:ident, $ty:ty, $kernel_fn:ident, $state_kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             conv_state: DevicePointer<$ty>,
@@ -424,11 +457,11 @@ macro_rules! causal_conv1d_prefill_silu_fn {
             input_length: usize,
             output_length: usize,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(conv_state)?;
-            checked_device_pointer(input)?;
-            checked_device_pointer(weight)?;
-            checked_device_pointer(bias)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&conv_state)?;
+            checked_device_pointer(&input)?;
+            checked_device_pointer(&weight)?;
+            checked_device_pointer(&bias)?;
             if batch == 0
                 || channels == 0
                 || kernel_size == 0
@@ -454,6 +487,7 @@ macro_rules! causal_conv1d_prefill_silu_fn {
             let kernel_size = checked_i32_value(kernel_size)?;
             let input_length = checked_i32_value(input_length)?;
             let output_length = time_launch.len_i32;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_conv::$kernel_fn(
                     out,
@@ -468,6 +502,7 @@ macro_rules! causal_conv1d_prefill_silu_fn {
             }
             .grid((channel_blocks, time_launch.grid.0, batch_blocks))
             .enqueue_on(stream)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_conv::$state_kernel_fn(
                     conv_state,
@@ -484,21 +519,23 @@ macro_rules! causal_conv1d_prefill_silu_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 causal_conv1d_update_silu_fn!(
     causal_conv1d_update_silu_f32,
     f32,
     causal_conv1d_update_silu_f32,
     causal_conv1d_append_state_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 causal_conv1d_update_silu_fn!(
     causal_conv1d_update_silu_f16,
     f16,
     causal_conv1d_update_silu_f16,
     causal_conv1d_append_state_f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 causal_conv1d_update_silu_fn!(
     causal_conv1d_update_silu_bf16,
     bf16,
@@ -506,21 +543,23 @@ causal_conv1d_update_silu_fn!(
     causal_conv1d_append_state_bf16
 );
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 causal_conv1d_prefill_silu_fn!(
     causal_conv1d_prefill_silu_f32,
     f32,
     causal_conv1d_prefill_silu_f32,
     causal_conv1d_prefill_state_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 causal_conv1d_prefill_silu_fn!(
     causal_conv1d_prefill_silu_f16,
     f16,
     causal_conv1d_prefill_silu_f16,
     causal_conv1d_prefill_state_f16
 );
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 causal_conv1d_prefill_silu_fn!(
     causal_conv1d_prefill_silu_bf16,
     bf16,
@@ -528,8 +567,11 @@ causal_conv1d_prefill_silu_fn!(
     causal_conv1d_prefill_state_bf16
 );
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv2d_bias_gelu_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv2d_bias_gelu_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -554,10 +596,10 @@ pub fn conv2d_bias_gelu_f32(
     input_batch_stride: usize,
     output_batch_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(bias)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    checked_device_pointer(&bias)?;
     let params = Conv2dParams::create(
         batch,
         channels_in,
@@ -578,6 +620,7 @@ pub fn conv2d_bias_gelu_f32(
         input_batch_stride,
         output_batch_stride,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_conv::conv2d_bias_gelu_f32(
             out,
@@ -610,9 +653,13 @@ pub fn conv2d_bias_gelu_f32(
     Ok(())
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 macro_rules! conv2d_bias_gelu_half_fn {
     ($name:ident, $ty:ty, $kernel:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -637,10 +684,10 @@ macro_rules! conv2d_bias_gelu_half_fn {
             input_batch_stride: usize,
             output_batch_stride: usize,
         ) -> Result<()> {
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
-            checked_device_pointer(weight)?;
-            checked_device_pointer(bias)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            checked_device_pointer(&weight)?;
+            checked_device_pointer(&bias)?;
             let params = Conv2dParams::create(
                 batch,
                 channels_in,
@@ -661,6 +708,7 @@ macro_rules! conv2d_bias_gelu_half_fn {
                 input_batch_stride,
                 output_batch_stride,
             )?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 kernel_conv::$kernel(
                     out,
@@ -695,9 +743,10 @@ macro_rules! conv2d_bias_gelu_half_fn {
     };
 }
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 conv2d_bias_gelu_half_fn!(conv2d_bias_gelu_f16, f16, conv2d_bias_gelu_f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 conv2d_bias_gelu_half_fn!(conv2d_bias_gelu_bf16, bf16, conv2d_bias_gelu_bf16);
 
 macro_rules! dispatch_conv1d_kernel_size {
@@ -710,15 +759,19 @@ macro_rules! dispatch_conv1d_kernel_size {
         ($($arg:expr),* $(,)?)
     ) => {{
         match $kernel_size {
+            // SAFETY: the caller upholds this function's safety contract.
             1 => unsafe { kernel_conv::$kernel_1($($arg),*) }
                 .grid($grid)
                 .enqueue_on($stream)?,
+            // SAFETY: the caller upholds this function's safety contract.
             2 => unsafe { kernel_conv::$kernel_2($($arg),*) }
                 .grid($grid)
                 .enqueue_on($stream)?,
+            // SAFETY: the caller upholds this function's safety contract.
             3 => unsafe { kernel_conv::$kernel_3($($arg),*) }
                 .grid($grid)
                 .enqueue_on($stream)?,
+            // SAFETY: the caller upholds this function's safety contract.
             5 => unsafe { kernel_conv::$kernel_5($($arg),*) }
                 .grid($grid)
                 .enqueue_on($stream)?,
@@ -729,12 +782,15 @@ macro_rules! dispatch_conv1d_kernel_size {
                 });
             }
         };
-        Ok::<(), crate::error::Error>(())
+        Ok::<(), $crate::error::Error>(())
     }};
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_causal_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -749,9 +805,9 @@ pub fn conv1d_causal_f32(
     groups: usize,
     left_padding: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
     let params = Conv1dWindowParams::create_full(
         channels_in,
         channels_out,
@@ -805,8 +861,11 @@ pub fn conv1d_causal_f32(
     )
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_batched_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_batched_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -824,9 +883,9 @@ pub fn conv1d_batched_f32(
     input_batch_stride: usize,
     output_batch_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
     let params = Conv1dBatchedParams::create(
         batch,
         channels_in,
@@ -885,8 +944,11 @@ pub fn conv1d_batched_f32(
     )
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_batched_im2col_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_batched_im2col_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -901,8 +963,8 @@ pub fn conv1d_batched_im2col_f32(
     left_padding: usize,
     input_batch_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
     let params = Conv1dIm2colParams::create(
         batch,
         channels_in,
@@ -954,9 +1016,12 @@ pub fn conv1d_batched_im2col_f32(
     )
 }
 
-#[cfg(feature = "dtype-f16")]
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_f16_f32(
+#[cfg(feature = "dtype_f16")]
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_causal_f16_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f16>,
@@ -971,9 +1036,9 @@ pub fn conv1d_causal_f16_f32(
     groups: usize,
     left_padding: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
     let params = Conv1dWindowParams::create_full(
         channels_in,
         channels_out,
@@ -1025,9 +1090,12 @@ pub fn conv1d_causal_f16_f32(
     )
 }
 
-#[cfg(feature = "dtype-f16")]
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_batched_f16_f32(
+#[cfg(feature = "dtype_f16")]
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_batched_f16_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f16>,
@@ -1045,9 +1113,9 @@ pub fn conv1d_batched_f16_f32(
     input_batch_stride: usize,
     output_batch_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
     let params = Conv1dBatchedParams::create(
         batch,
         channels_in,
@@ -1106,9 +1174,12 @@ pub fn conv1d_batched_f16_f32(
     )
 }
 
-#[cfg(feature = "dtype-bf16")]
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_causal_bf16_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<bf16>,
@@ -1123,9 +1194,9 @@ pub fn conv1d_causal_bf16_f32(
     groups: usize,
     left_padding: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
     let params = Conv1dWindowParams::create_full(
         channels_in,
         channels_out,
@@ -1177,9 +1248,12 @@ pub fn conv1d_causal_bf16_f32(
     )
 }
 
-#[cfg(feature = "dtype-bf16")]
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_batched_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_batched_bf16_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<bf16>,
@@ -1197,9 +1271,9 @@ pub fn conv1d_batched_bf16_f32(
     input_batch_stride: usize,
     output_batch_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
     let params = Conv1dBatchedParams::create(
         batch,
         channels_in,
@@ -1258,8 +1332,11 @@ pub fn conv1d_batched_bf16_f32(
     )
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_bias_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_causal_bias_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -1275,10 +1352,10 @@ pub fn conv1d_causal_bias_f32(
     groups: usize,
     left_padding: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(bias)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    checked_device_pointer(&bias)?;
     let params = Conv1dWindowParams::create_full(
         channels_in,
         channels_out,
@@ -1331,8 +1408,11 @@ pub fn conv1d_causal_bias_f32(
     )
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_bias_gelu_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_causal_bias_gelu_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -1348,10 +1428,10 @@ pub fn conv1d_causal_bias_gelu_f32(
     groups: usize,
     left_padding: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(bias)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    checked_device_pointer(&bias)?;
     let params = Conv1dWindowParams::create_full(
         channels_in,
         channels_out,
@@ -1404,8 +1484,11 @@ pub fn conv1d_causal_bias_gelu_f32(
     )
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn conv1d_causal_bias_gelu_f32_window(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn conv1d_causal_bias_gelu_f32_window(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -1423,10 +1506,10 @@ pub fn conv1d_causal_bias_gelu_f32_window(
     groups: usize,
     left_padding: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(weight)?;
-    checked_device_pointer(bias)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&weight)?;
+    checked_device_pointer(&bias)?;
     let params = Conv1dWindowParams::create(
         channels_in,
         channels_out,
@@ -1485,7 +1568,7 @@ pub fn conv1d_causal_bias_gelu_f32_window(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{f32::consts::FRAC_1_SQRT_2, sync::Arc};
 
     use cutile::prelude::*;
 
@@ -1503,7 +1586,7 @@ mod tests {
     }
 
     fn gelu_approx(value: f32) -> f32 {
-        0.5 * value * (1.0 + erf_approx(value * std::f32::consts::FRAC_1_SQRT_2))
+        0.5 * value * (1.0 + erf_approx(value * FRAC_1_SQRT_2))
     }
 
     fn conv2d_bias_gelu_reference_f32(
@@ -1580,9 +1663,9 @@ mod tests {
         out
     }
 
-    #[cfg(feature = "dtype-f32")]
+    #[cfg(feature = "dtype_f32")]
     #[test]
-    fn conv2d_bias_gelu_f32_matches_cpu() -> Result<()> {
+    fn test_conv2d_bias_gelu_f32_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1640,39 +1723,42 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[output_len]).sync_on(&stream)?;
 
-        conv2d_bias_gelu_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels_in,
-            channels_out,
-            input_h,
-            input_w,
-            output_h,
-            output_w,
-            kernel_h,
-            kernel_w,
-            stride_h,
-            stride_w,
-            padding_h,
-            padding_w,
-            dilation_h,
-            dilation_w,
-            groups,
-            input_batch_stride,
-            output_batch_stride,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            conv2d_bias_gelu_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels_in,
+                channels_out,
+                input_h,
+                input_w,
+                output_h,
+                output_w,
+                kernel_h,
+                kernel_w,
+                stride_h,
+                stride_w,
+                padding_h,
+                padding_w,
+                dilation_h,
+                dilation_w,
+                groups,
+                input_batch_stride,
+                output_batch_stride,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 2e-6);
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn conv2d_bias_gelu_f16_matches_cpu() -> Result<()> {
+    fn test_conv2d_bias_gelu_f16_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1737,31 +1823,34 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[output_len]).sync_on(&stream)?;
 
-        conv2d_bias_gelu_f16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels_in,
-            channels_out,
-            input_h,
-            input_w,
-            output_h,
-            output_w,
-            kernel_h,
-            kernel_w,
-            stride_h,
-            stride_w,
-            padding_h,
-            padding_w,
-            dilation_h,
-            dilation_w,
-            groups,
-            input_batch_stride,
-            output_batch_stride,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            conv2d_bias_gelu_f16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels_in,
+                channels_out,
+                input_h,
+                input_w,
+                output_h,
+                output_w,
+                kernel_h,
+                kernel_w,
+                stride_h,
+                stride_w,
+                padding_h,
+                padding_w,
+                dilation_h,
+                dilation_w,
+                groups,
+                input_batch_stride,
+                output_batch_stride,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -1771,9 +1860,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn conv2d_bias_gelu_bf16_matches_cpu() -> Result<()> {
+    fn test_conv2d_bias_gelu_bf16_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1838,31 +1927,34 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<bf16>(&[output_len]).sync_on(&stream)?;
 
-        conv2d_bias_gelu_bf16(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels_in,
-            channels_out,
-            input_h,
-            input_w,
-            output_h,
-            output_w,
-            kernel_h,
-            kernel_w,
-            stride_h,
-            stride_w,
-            padding_h,
-            padding_w,
-            dilation_h,
-            dilation_w,
-            groups,
-            input_batch_stride,
-            output_batch_stride,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            conv2d_bias_gelu_bf16(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels_in,
+                channels_out,
+                input_h,
+                input_w,
+                output_h,
+                output_w,
+                kernel_h,
+                kernel_w,
+                stride_h,
+                stride_w,
+                padding_h,
+                padding_w,
+                dilation_h,
+                dilation_w,
+                groups,
+                input_batch_stride,
+                output_batch_stride,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -1872,9 +1964,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f32")]
+    #[cfg(feature = "dtype_f32")]
     #[test]
-    fn causal_conv1d_update_silu_f32_matches_cpu() -> Result<()> {
+    fn test_causal_conv1d_update_silu_f32_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1909,17 +2001,20 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[batch * channels]).sync_on(&stream)?;
 
-        causal_conv1d_update_silu_f32(
-            &stream,
-            out.device_pointer(),
-            conv_state.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            kernel_size,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            causal_conv1d_update_silu_f32(
+                &stream,
+                out.device_pointer(),
+                conv_state.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                kernel_size,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected_out, 1e-6);
         singe_core::assert_close!(
@@ -1930,9 +2025,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn causal_conv1d_update_silu_f16_matches_cpu() -> Result<()> {
+    fn test_causal_conv1d_update_silu_f16_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1977,17 +2072,20 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[batch * channels]).sync_on(&stream)?;
 
-        causal_conv1d_update_silu_f16(
-            &stream,
-            out.device_pointer(),
-            conv_state.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            kernel_size,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            causal_conv1d_update_silu_f16(
+                &stream,
+                out.device_pointer(),
+                conv_state.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                kernel_size,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -2002,9 +2100,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn causal_conv1d_update_silu_bf16_matches_cpu() -> Result<()> {
+    fn test_causal_conv1d_update_silu_bf16_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2049,17 +2147,20 @@ mod tests {
         let bias = api::copy_host_vec_to_device(&Arc::new(bias_host)).sync_on(&stream)?;
         let out = api::zeros::<bf16>(&[batch * channels]).sync_on(&stream)?;
 
-        causal_conv1d_update_silu_bf16(
-            &stream,
-            out.device_pointer(),
-            conv_state.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            kernel_size,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            causal_conv1d_update_silu_bf16(
+                &stream,
+                out.device_pointer(),
+                conv_state.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                kernel_size,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -2074,9 +2175,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f32")]
+    #[cfg(feature = "dtype_f32")]
     #[test]
-    fn causal_conv1d_prefill_silu_f32_matches_cpu() -> Result<()> {
+    fn test_causal_conv1d_prefill_silu_f32_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2110,19 +2211,22 @@ mod tests {
         let out = api::zeros::<f32>(&[batch * channels * output_length]).sync_on(&stream)?;
         let conv_state = api::zeros::<f32>(&[batch * channels * kernel_size]).sync_on(&stream)?;
 
-        causal_conv1d_prefill_silu_f32(
-            &stream,
-            out.device_pointer(),
-            conv_state.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            kernel_size,
-            input_length,
-            output_length,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            causal_conv1d_prefill_silu_f32(
+                &stream,
+                out.device_pointer(),
+                conv_state.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                kernel_size,
+                input_length,
+                output_length,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected_out, 1e-6);
         singe_core::assert_close!(
@@ -2133,9 +2237,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     #[test]
-    fn causal_conv1d_prefill_silu_f16_matches_cpu() -> Result<()> {
+    fn test_causal_conv1d_prefill_silu_f16_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2177,19 +2281,22 @@ mod tests {
         let out = api::zeros::<f16>(&[batch * channels * output_length]).sync_on(&stream)?;
         let conv_state = api::zeros::<f16>(&[batch * channels * kernel_size]).sync_on(&stream)?;
 
-        causal_conv1d_prefill_silu_f16(
-            &stream,
-            out.device_pointer(),
-            conv_state.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            kernel_size,
-            input_length,
-            output_length,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            causal_conv1d_prefill_silu_f16(
+                &stream,
+                out.device_pointer(),
+                conv_state.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                kernel_size,
+                input_length,
+                output_length,
+            )
+        }?;
 
         singe_core::assert_close!(
             &half_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -2204,9 +2311,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     #[test]
-    fn causal_conv1d_prefill_silu_bf16_matches_cpu() -> Result<()> {
+    fn test_causal_conv1d_prefill_silu_bf16_matches_cpu() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2248,19 +2355,22 @@ mod tests {
         let out = api::zeros::<bf16>(&[batch * channels * output_length]).sync_on(&stream)?;
         let conv_state = api::zeros::<bf16>(&[batch * channels * kernel_size]).sync_on(&stream)?;
 
-        causal_conv1d_prefill_silu_bf16(
-            &stream,
-            out.device_pointer(),
-            conv_state.device_pointer(),
-            input.device_pointer(),
-            weight.device_pointer(),
-            bias.device_pointer(),
-            batch,
-            channels,
-            kernel_size,
-            input_length,
-            output_length,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            causal_conv1d_prefill_silu_bf16(
+                &stream,
+                out.device_pointer(),
+                conv_state.device_pointer(),
+                input.device_pointer(),
+                weight.device_pointer(),
+                bias.device_pointer(),
+                batch,
+                channels,
+                kernel_size,
+                input_length,
+                output_length,
+            )
+        }?;
 
         singe_core::assert_close!(
             &bfloat_to_f32(&out.to_host_vec().sync_on(&stream)?),
@@ -2275,17 +2385,17 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     fn half_vec(values: &[f32]) -> Vec<f16> {
         values.iter().copied().map(f16::from_f32).collect()
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     fn half_to_f32(values: &[f16]) -> Vec<f32> {
         values.iter().map(|value| value.to_f32()).collect()
     }
 
-    #[cfg(feature = "dtype-f16")]
+    #[cfg(feature = "dtype_f16")]
     fn round_half_vec(values: &[f32]) -> Vec<f32> {
         values
             .iter()
@@ -2295,17 +2405,17 @@ mod tests {
             .collect()
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     fn bfloat_vec(values: &[f32]) -> Vec<bf16> {
         values.iter().copied().map(bf16::from_f32).collect()
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     fn bfloat_to_f32(values: &[bf16]) -> Vec<f32> {
         values.iter().map(|value| value.to_f32()).collect()
     }
 
-    #[cfg(feature = "dtype-bf16")]
+    #[cfg(feature = "dtype_bf16")]
     fn round_bfloat_vec(values: &[f32]) -> Vec<f32> {
         values
             .iter()

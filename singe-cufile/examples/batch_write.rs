@@ -1,11 +1,14 @@
 use std::{
     env,
+    error::Error,
     fs::{self, File, OpenOptions},
+    io::Result as IoResult,
     os::unix::fs::OpenOptionsExt,
     path::Path,
+    process,
 };
 
-use singe_cuda::{device::Device, memory::DeviceMemory};
+use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
 use singe_cufile::{
     batch::{Batch, BatchCookie, BatchRequest},
     buffer::RegisteredBuffer,
@@ -18,11 +21,11 @@ const CHUNK_SIZE: usize = 4096;
 const MAX_BATCH: usize = 128;
 const O_DIRECT: i32 = 0o40000;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<_> = env::args().collect();
     if args.len() != 4 {
         eprintln!("usage: {} <output-file> <gpu-id> <batch-size>", args[0]);
-        std::process::exit(2);
+        process::exit(2);
     }
 
     let output_path = Path::new(&args[1]);
@@ -32,22 +35,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("batch size must be in 1..={MAX_BATCH}").into());
     }
 
-    Device::new(gpu_id).set_current()?;
-    let _driver = Driver::create()?;
+    let context = Context::retain_primary_for_device(Device::new(gpu_id))?;
+    context.bind()?;
+    let driver = Driver::create()?;
 
     let output = open_direct_write(output_path)?;
-    let output = FileHandle::create(&output)?;
+    let output = FileHandle::create(&driver, &output)?;
 
     let mut device_buffers = Vec::with_capacity(batch_size);
     for index in 0..batch_size {
-        let mut buffer = DeviceMemory::<u8>::create(CHUNK_SIZE)?;
-        buffer.set_value(0xef_u8.wrapping_add(index as u8))?;
+        let buffer =
+            DeviceMemory::<u8>::filled(&context, CHUNK_SIZE, 0xef_u8.wrapping_add(index as u8))?;
         device_buffers.push(buffer);
     }
 
     let registered_buffers = device_buffers
         .iter()
-        .map(|buffer| RegisteredBuffer::register_memory(buffer, BufferRegisterFlags::empty()))
+        .map(|buffer| {
+            // SAFETY: device_buffers outlives these registrations, and execute completes all I/O before they drop.
+            unsafe { RegisteredBuffer::register(&driver, buffer, BufferRegisterFlags::empty()) }
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let requests = registered_buffers
@@ -65,10 +72,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    // `BatchSubmission` owns the request list until all completions have been
-    // drained, so the borrowed file handle and GPU buffers remain live.
-    let batch = Batch::create(batch_size)?;
-    let events = batch.submit(requests)?.wait()?;
+    // The completed batch keeps the file, registered storage, and native request array alive through every completion.
+    let mut batch = Batch::create(&driver, batch_size)?;
+    let events = batch.execute(requests)?;
     for event in events {
         let index = event.cookie.get();
         let bytes = event.bytes_transferred()?;
@@ -81,7 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn open_direct_write(path: &Path) -> std::io::Result<File> {
+fn open_direct_write(path: &Path) -> IoResult<File> {
     OpenOptions::new()
         .read(true)
         .write(true)
@@ -91,7 +97,7 @@ fn open_direct_write(path: &Path) -> std::io::Result<File> {
         .open(path)
 }
 
-fn verify_pattern_file(path: &Path, batch_size: usize) -> Result<(), Box<dyn std::error::Error>> {
+fn verify_pattern_file(path: &Path, batch_size: usize) -> Result<(), Box<dyn Error>> {
     let contents = fs::read(path)?;
     let expected_len = batch_size * CHUNK_SIZE;
     if contents.len() != expected_len {

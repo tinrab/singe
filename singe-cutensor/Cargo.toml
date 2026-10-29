@@ -4,7 +4,7 @@ description = "Safe Rust wrappers for NVIDIA cuTENSOR library."
 version = "0.1.0-alpha.7"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "cutensor", "tensor"]
 include.workspace = true
@@ -13,9 +13,9 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["cutensor_2_6", "mg", "mp"]
+default = ["cutensor_2_8", "mg", "mp"]
 
-cutensor_2_6 = ["singe-cuda/runtime_13_3", "singe-cutensor-sys/cutensor_2_6"]
+cutensor_2_8 = ["singe-cuda/runtime_13_4", "singe-cutensor-sys/cutensor_2_8"]
 
 testing = ["singe-cuda/testing"]
 

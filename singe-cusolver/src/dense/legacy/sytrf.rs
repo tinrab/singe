@@ -1,6 +1,8 @@
+use std::ptr;
+
 use singe_cuda::{
-    memory::DeviceMemory,
     types::{Complex32, Complex64},
+    view::{DeviceOutputView, DeviceViewMut},
 };
 
 use crate::{
@@ -9,25 +11,29 @@ use crate::{
         require_info_buffer, require_pivot_buffer, require_workspace, validate_square_matrix,
     },
     error::Result,
+    layout::MatrixLayout,
     sys, try_ffi,
     types::FillMode,
     utility::{to_i32, to_usize},
 };
 
-pub fn ssytrf_buffer_size(
-    ctx: &Context,
-    n: usize,
-    a: &mut DeviceMemory<f32>,
-    lda: usize,
-) -> Result<usize> {
-    ctx.bind()?;
-    validate_square_matrix(n, a.len(), lda)?;
+/// Queries device workspace capacity in elements for `f32` symmetric indefinite factorization.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn ssytrf_buffer_size(context: &Context, n: usize, lda: usize) -> Result<usize> {
+    context.bind()?;
+    MatrixLayout::new(lda).validate(n, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnSsytrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSsytrf_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(n, "n")?,
-            a.as_mut_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
             &raw mut lwork,
         ))?;
@@ -35,20 +41,23 @@ pub fn ssytrf_buffer_size(
     to_usize(lwork, "lwork")
 }
 
-pub fn dsytrf_buffer_size(
-    ctx: &Context,
-    n: usize,
-    a: &mut DeviceMemory<f64>,
-    lda: usize,
-) -> Result<usize> {
-    ctx.bind()?;
-    validate_square_matrix(n, a.len(), lda)?;
+/// Queries device workspace capacity in elements for `f64` symmetric indefinite factorization.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn dsytrf_buffer_size(context: &Context, n: usize, lda: usize) -> Result<usize> {
+    context.bind()?;
+    MatrixLayout::new(lda).validate(n, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnDsytrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDsytrf_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(n, "n")?,
-            a.as_mut_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
             &raw mut lwork,
         ))?;
@@ -56,20 +65,23 @@ pub fn dsytrf_buffer_size(
     to_usize(lwork, "lwork")
 }
 
-pub fn csytrf_buffer_size(
-    ctx: &Context,
-    n: usize,
-    a: &mut DeviceMemory<Complex32>,
-    lda: usize,
-) -> Result<usize> {
-    ctx.bind()?;
-    validate_square_matrix(n, a.len(), lda)?;
+/// Queries device workspace capacity in elements for complex single-precision symmetric indefinite factorization.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn csytrf_buffer_size(context: &Context, n: usize, lda: usize) -> Result<usize> {
+    context.bind()?;
+    MatrixLayout::new(lda).validate(n, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnCsytrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCsytrf_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(n, "n")?,
-            a.as_mut_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
             &raw mut lwork,
         ))?;
@@ -77,20 +89,23 @@ pub fn csytrf_buffer_size(
     to_usize(lwork, "lwork")
 }
 
-pub fn zsytrf_buffer_size(
-    ctx: &Context,
-    n: usize,
-    a: &mut DeviceMemory<Complex64>,
-    lda: usize,
-) -> Result<usize> {
-    ctx.bind()?;
-    validate_square_matrix(n, a.len(), lda)?;
+/// Queries device workspace capacity in elements for complex double-precision symmetric indefinite factorization.
+///
+/// Uses shape and layout metadata without borrowing matrix storage.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, matrix dimensions or leading dimensions are invalid, a dimension or returned workspace size cannot be represented by the required integer type, checked layout-size arithmetic overflows, or cuSOLVER rejects the configuration or fails to report workspace requirements.
+pub fn zsytrf_buffer_size(context: &Context, n: usize, lda: usize) -> Result<usize> {
+    context.bind()?;
+    MatrixLayout::new(lda).validate(n, n)?;
     let mut lwork = 0;
+    // SAFETY: `cusolverDnZsytrf_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZsytrf_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             to_i32(n, "n")?,
-            a.as_mut_ptr().cast(),
+            ptr::null_mut::<u8>().cast(),
             to_i32(lda, "lda")?,
             &raw mut lwork,
         ))?;
@@ -140,32 +155,42 @@ pub fn zsytrf_buffer_size(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn ssytrf(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn ssytrf(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<f32>,
+    mut a: DeviceViewMut<'_, f32>,
     lda: usize,
-    pivots: Option<&mut DeviceMemory<i32>>,
-    workspace: &mut DeviceMemory<f32>,
-    dev_info: &mut DeviceMemory<i32>,
+    pivots: Option<DeviceOutputView<'_, i32>>,
+    mut workspace: DeviceOutputView<'_, f32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
+    }
     validate_square_matrix(n, a.len(), lda)?;
     if let Some(pivots) = pivots.as_ref() {
-        require_pivot_buffer(pivots, n)?;
+        require_pivot_buffer(pivots.len(), n)?;
     }
-    require_info_buffer(dev_info)?;
-    let lwork = ssytrf_buffer_size(ctx, n, a, lda)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = ssytrf_buffer_size(context, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnSsytrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSsytrf(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
             to_i32(lda, "lda")?,
-            pivots.map_or(std::ptr::null_mut(), |p| p.as_mut_ptr()),
+            pivots.map_or(ptr::null_mut(), |mut p| p.as_mut_ptr()),
             workspace.as_mut_ptr().cast(),
             to_i32(lwork, "lwork")?,
             dev_info.as_mut_ptr().cast(),
@@ -216,32 +241,42 @@ pub fn ssytrf(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn dsytrf(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn dsytrf(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<f64>,
+    mut a: DeviceViewMut<'_, f64>,
     lda: usize,
-    pivots: Option<&mut DeviceMemory<i32>>,
-    workspace: &mut DeviceMemory<f64>,
-    dev_info: &mut DeviceMemory<i32>,
+    pivots: Option<DeviceOutputView<'_, i32>>,
+    mut workspace: DeviceOutputView<'_, f64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
+    }
     validate_square_matrix(n, a.len(), lda)?;
     if let Some(pivots) = pivots.as_ref() {
-        require_pivot_buffer(pivots, n)?;
+        require_pivot_buffer(pivots.len(), n)?;
     }
-    require_info_buffer(dev_info)?;
-    let lwork = dsytrf_buffer_size(ctx, n, a, lda)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = dsytrf_buffer_size(context, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnDsytrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDsytrf(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
             to_i32(lda, "lda")?,
-            pivots.map_or(std::ptr::null_mut(), |p| p.as_mut_ptr()),
+            pivots.map_or(ptr::null_mut(), |mut p| p.as_mut_ptr()),
             workspace.as_mut_ptr().cast(),
             to_i32(lwork, "lwork")?,
             dev_info.as_mut_ptr().cast(),
@@ -292,32 +327,42 @@ pub fn dsytrf(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn csytrf(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn csytrf(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<Complex32>,
+    mut a: DeviceViewMut<'_, Complex32>,
     lda: usize,
-    pivots: Option<&mut DeviceMemory<i32>>,
-    workspace: &mut DeviceMemory<Complex32>,
-    dev_info: &mut DeviceMemory<i32>,
+    pivots: Option<DeviceOutputView<'_, i32>>,
+    mut workspace: DeviceOutputView<'_, Complex32>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
+    }
     validate_square_matrix(n, a.len(), lda)?;
     if let Some(pivots) = pivots.as_ref() {
-        require_pivot_buffer(pivots, n)?;
+        require_pivot_buffer(pivots.len(), n)?;
     }
-    require_info_buffer(dev_info)?;
-    let lwork = csytrf_buffer_size(ctx, n, a, lda)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = csytrf_buffer_size(context, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnCsytrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCsytrf(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
             to_i32(lda, "lda")?,
-            pivots.map_or(std::ptr::null_mut(), |p| p.as_mut_ptr()),
+            pivots.map_or(ptr::null_mut(), |mut p| p.as_mut_ptr()),
             workspace.as_mut_ptr().cast(),
             to_i32(lwork, "lwork")?,
             dev_info.as_mut_ptr().cast(),
@@ -368,32 +413,42 @@ pub fn csytrf(
 /// Returns an error if cuSOLVER has not been initialized, if the
 /// matrix dimensions or leading dimension are invalid, if the current GPU
 /// architecture is unsupported, or if cuSOLVER reports an internal failure.
-pub fn zsytrf(
-    ctx: &Context,
+/// # Safety
+///
+/// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
+pub unsafe fn zsytrf(
+    context: &Context,
     fill_mode: FillMode,
     n: usize,
-    a: &mut DeviceMemory<Complex64>,
+    mut a: DeviceViewMut<'_, Complex64>,
     lda: usize,
-    pivots: Option<&mut DeviceMemory<i32>>,
-    workspace: &mut DeviceMemory<Complex64>,
-    dev_info: &mut DeviceMemory<i32>,
+    pivots: Option<DeviceOutputView<'_, i32>>,
+    mut workspace: DeviceOutputView<'_, Complex64>,
+    mut dev_info: DeviceOutputView<'_, i32>,
 ) -> Result<()> {
-    ctx.bind()?;
+    context.bind()?;
+    context.validate_region(&a)?;
+    context.validate_region(&workspace)?;
+    context.validate_region(&dev_info)?;
+    if let Some(value) = pivots.as_ref() {
+        context.validate_region(value)?;
+    }
     validate_square_matrix(n, a.len(), lda)?;
     if let Some(pivots) = pivots.as_ref() {
-        require_pivot_buffer(pivots, n)?;
+        require_pivot_buffer(pivots.len(), n)?;
     }
-    require_info_buffer(dev_info)?;
-    let lwork = zsytrf_buffer_size(ctx, n, a, lda)?;
+    require_info_buffer(dev_info.len())?;
+    let lwork = zsytrf_buffer_size(context, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
+    // SAFETY: `cusolverDnZsytrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZsytrf(
-            ctx.as_raw(),
+            context.as_raw(),
             fill_mode.into(),
             to_i32(n, "n")?,
             a.as_mut_ptr().cast(),
             to_i32(lda, "lda")?,
-            pivots.map_or(std::ptr::null_mut(), |p| p.as_mut_ptr()),
+            pivots.map_or(ptr::null_mut(), |mut p| p.as_mut_ptr()),
             workspace.as_mut_ptr().cast(),
             to_i32(lwork, "lwork")?,
             dev_info.as_mut_ptr().cast(),

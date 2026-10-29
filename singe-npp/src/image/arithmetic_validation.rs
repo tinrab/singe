@@ -5,7 +5,7 @@ use crate::{
     types::Size,
 };
 
-pub(super) fn validate_same_size(expected: Size, actual: Size) -> Result<()> {
+pub fn validate_same_size(expected: Size, actual: Size) -> Result<()> {
     if expected == actual {
         return Ok(());
     }
@@ -16,7 +16,7 @@ pub(super) fn validate_same_size(expected: Size, actual: Size) -> Result<()> {
     })
 }
 
-pub(super) fn validate_device_constant_len(actual: usize, expected: usize) -> Result<()> {
+pub fn validate_device_constant_len(actual: usize, expected: usize) -> Result<()> {
     if actual >= expected {
         return Ok(());
     }
@@ -27,18 +27,12 @@ pub(super) fn validate_device_constant_len(actual: usize, expected: usize) -> Re
     })
 }
 
-pub(super) fn device_constant_ptr<T>(
-    constants: &DeviceMemory<T>,
-    expected: usize,
-) -> Result<*const T> {
+pub fn device_constant_ptr<T>(constants: &DeviceMemory<T>, expected: usize) -> Result<*const T> {
     validate_device_constant_len(constants.len(), expected)?;
     Ok(constants.as_ptr())
 }
 
-pub(super) fn device_constant_mut_ptr<T>(
-    constants: &DeviceMemory<T>,
-    expected: usize,
-) -> Result<*mut T> {
+pub fn device_constant_mut_ptr<T>(constants: &DeviceMemory<T>, expected: usize) -> Result<*mut T> {
     validate_device_constant_len(constants.len(), expected)?;
     Ok(constants.as_ptr().cast_mut())
 }

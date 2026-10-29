@@ -1,67 +1,35 @@
 mod common;
 
-use singe_cuda::memory::DeviceMemory;
+use std::env::args;
+
+use singe_cuda::{memory::DeviceMemory, view::OwnedDeviceRegion};
 use singe_cudnn::{
-    backend::pointwise::PointwiseMode,
-    backend::tensor::{Shape, TensorSpec},
-    data_type::DataType,
-    data_type::f16 as half_f16,
+    backend::{
+        pointwise::PointwiseMode,
+        tensor::{Shape, TensorSpec},
+    },
+    data_type::{DataType, f16},
     error::Result,
     frontend::{
-        graph::{DataTypePolicy, Graph, GraphConfig},
+        bindings::BindingAccess,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
         operation::{
-            BatchNormalizationConfig, BatchNormalizationRunningStats, CompileConfig, HeuristicMode,
-            PointwiseOperation,
+            BatchNormalizationConfig, BatchNormalizationInputs, BatchNormalizationOutputs,
+            BatchNormalizationRunningStatistics, BatchNormalizationRunningStats,
+            NormalizationSavedStatistics, PointwiseOperation,
         },
-        plan::BuildPlanPolicy,
+        plan::{BuildPlanPolicy, CompileConfig, ExecuteArgs, HeuristicMode},
     },
     math::NanPropagation,
-    scalar::ScalarValue,
 };
 
-fn init_f32_image(size: usize, seed: &mut u32) -> Vec<f32> {
-    let mut values = Vec::with_capacity(size);
-    for _ in 0..size {
-        *seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
-        values.push((*seed as f32) * 2.328_306_4e-10_f32);
-    }
-    values
-}
-
-fn init_f16_image(size: usize, seed: &mut u32) -> Vec<half_f16> {
-    init_f32_image(size, seed)
-        .into_iter()
-        .map(half_f16::from_f32)
-        .collect()
-}
-
-fn init_peer_stats_0(size: usize, seed: &mut u32) -> Vec<f32> {
-    let mut values = init_f32_image(size, seed);
-    for index in (1..size).step_by(2) {
-        values[index] = f32::from_bits(1);
-    }
-    values
-}
-
-fn count_nonfinite_f16(values: &[half_f16]) -> usize {
-    values
-        .iter()
-        .filter(|value| !value.to_f32().is_finite())
-        .count()
-}
-
-fn count_nonfinite_f32(values: &[f32]) -> usize {
-    values.iter().filter(|value| !value.is_finite()).count()
-}
-
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-
+    let example = common::ExampleContext::create()?;
+    let with_running = !args().any(|argument| argument == "--without-running");
     let n = 4;
     let c = 32;
     let h = 16;
     let w = 16;
-
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
             DataTypePolicy::new()
@@ -70,268 +38,158 @@ fn run() -> Result<()> {
                 .with_compute(DataType::F32),
         ),
     );
-
-    let x = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])?,
-        )
-        .with_name("X"),
+    let activation = TensorSpec::new(
+        DataType::F16,
+        Shape::with_strides([n, c, h, w], [c * h * w, 1, c * w, c])?,
     );
-    let prev_running_mean = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, c, 1, 1])?.with_strides([c, 1, c, c])?,
-        )
-        .with_name("prev_running_mean"),
-    );
-    let prev_running_var = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, c, 1, 1])?.with_strides([c, 1, c, c])?,
-        )
-        .with_name("prev_running_var"),
-    );
-    let scale = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, c, 1, 1])?.with_strides([c, 1, c, c])?,
-        )
-        .with_name("scale"),
-    );
-    let bias = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, c, 1, 1])?.with_strides([c, 1, c, c])?,
-        )
-        .with_name("bias"),
-    );
-    let peer_stats_0 = graph.tensor(TensorSpec::new(
+    let channel = TensorSpec::new(
         DataType::F32,
-        Shape::contiguous([2, n * c, 1, 1])?.with_strides([n * c, 1, n * c, n * c])?,
-    ));
-    let peer_stats_1 = graph.tensor(TensorSpec::new(
+        Shape::with_strides([1, c, 1, 1], [c, 1, c, c])?,
+    );
+    let x = graph.tensor(activation.clone().with_name("X"));
+    let a = graph.tensor(activation.clone().with_name("A"));
+    let y = graph.tensor(activation.with_name("Y"));
+    let scale = graph.tensor(channel.clone().with_name("scale"));
+    let bias = graph.tensor(channel.clone().with_name("bias"));
+    let peer = TensorSpec::new(
         DataType::F32,
-        Shape::contiguous([2, n * c, 1, 1])?.with_strides([n * c, 1, n * c, n * c])?,
-    ));
-    let epsilon = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, 1, 1, 1])?.with_strides([1, 1, 1, 1])?,
-        )
-        .with_scalar_value(ScalarValue::F32(1e-5))?
-        .with_name("epsilon"),
+        Shape::with_strides([2, n * c, 1, 1], [n * c, 1, n * c, n * c])?,
     );
-    let momentum = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, 1, 1, 1])?.with_strides([1, 1, 1, 1])?,
-        )
-        .with_scalar_value(ScalarValue::F32(1e-1))?
-        .with_name("momentum"),
-    );
-    let y_bn = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])?,
-        )
-        .virtual_tensor(),
-    );
-    let mean = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, c, 1, 1])?.with_strides([c, 1, c, c])?,
-        )
-        .virtual_tensor()
-        .output_tensor(),
-    );
-    let inv_variance = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, c, 1, 1])?.with_strides([c, 1, c, c])?,
-        )
-        .virtual_tensor()
-        .output_tensor(),
-    );
-    let next_running_mean = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, c, 1, 1])?.with_strides([c, 1, c, c])?,
-        )
-        .virtual_tensor()
-        .output_tensor(),
-    );
-    let next_running_var = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([1, c, 1, 1])?.with_strides([c, 1, c, c])?,
-        )
-        .virtual_tensor()
-        .output_tensor(),
-    );
-    graph.batch_normalization(
-        x,
-        scale,
-        bias,
-        y_bn,
-        mean,
-        inv_variance,
+    let peer_stats_0 = graph.tensor(peer.clone().with_name("peer_stats_0"));
+    let peer_stats_1 = graph.tensor(peer.with_name("peer_stats_1"));
+    let epsilon = graph.tensor(TensorSpec::scalar_f32(1e-5));
+    let mut running = None;
+    let mut channel_inputs = vec![(scale, 1.0_f32), (bias, 0.0)];
+    if with_running {
+        let mean = graph.tensor(channel.clone().with_name("prev_running_mean"));
+        let variance = graph.tensor(channel.with_name("prev_running_var"));
+        let momentum = graph.tensor(TensorSpec::scalar_f32(0.1));
+        running = Some(BatchNormalizationRunningStats {
+            momentum,
+            previous: BatchNormalizationRunningStatistics { mean, variance },
+        });
+        channel_inputs.extend([(mean, 0.0), (variance, 1.0)]);
+    }
+    let channel_output = TensorOutputConfig::new()
+        .with_data_type(DataType::F32)
+        .output_tensor();
+    let outputs = graph.batch_normalization(
+        BatchNormalizationInputs {
+            input: x,
+            scale,
+            bias,
+        },
+        BatchNormalizationOutputs {
+            output: TensorOutputConfig::new(),
+            statistics: NormalizationSavedStatistics {
+                mean: channel_output,
+                inv_variance: channel_output,
+            },
+            running: with_running.then_some(BatchNormalizationRunningStatistics {
+                mean: channel_output,
+                variance: channel_output,
+            }),
+        },
         BatchNormalizationConfig::new(epsilon)
+            .with_name("batch_norm")
             .with_peer_stats(vec![peer_stats_0, peer_stats_1])
-            .with_running_stats(BatchNormalizationRunningStats::new(
-                momentum,
-                prev_running_mean,
-                prev_running_var,
-                next_running_mean,
-                next_running_var,
-            )),
+            .with_running_stats(running),
     )?;
-
-    let a = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])?,
-        )
-        .with_name("A"),
-    );
-    let add_output = graph.tensor(
-        TensorSpec::new(
-            DataType::F32,
-            Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])?,
-        )
-        .virtual_tensor(),
-    );
-    graph.pointwise(PointwiseOperation::Binary {
-        mode: PointwiseMode::Add,
-        lhs: y_bn,
-        rhs: a,
-        output: add_output,
-        compute_type: DataType::F32,
-        nan_propagation: NanPropagation::Propagate,
-        alpha1: 1.0,
-        alpha2: 1.0,
-    });
-    let y = graph.tensor(
-        TensorSpec::new(
-            DataType::F16,
-            Shape::contiguous([n, c, h, w])?.with_strides([c * h * w, 1, c * w, c])?,
-        )
-        .virtual_tensor()
-        .output_tensor(),
-    );
-    graph.pointwise(PointwiseOperation::Unary {
+    let add_output = graph.pointwise(PointwiseOperation::binary(
+        PointwiseMode::Add,
+        outputs.output,
+        a,
+        TensorOutputConfig::new(),
+    ))?;
+    graph.pointwise_into(PointwiseOperation::Unary {
+        name: None,
         mode: PointwiseMode::ReluFwd,
         input: add_output,
         output: y,
-        compute_type: DataType::F32,
+        compute_type: Some(DataType::F32),
         nan_propagation: NanPropagation::Propagate,
         alpha1: 1.0,
         axis: None,
-    });
-
-    let compiled = match graph.compile_with_config(
-        &ctx.cudnn,
+    })?;
+    let compiled = graph.compile(
+        Some(&example.cudnn),
         &CompileConfig::new()
             .with_heuristic_modes(vec![HeuristicMode::A, HeuristicMode::Fallback])
             .with_build_policy(BuildPlanPolicy::AllSupported),
-    ) {
-        Ok(compiled) => compiled,
-        Err(error) => return Err(error),
-    };
-
-    let mut half_seed = 123_456_789_u32;
-    let mut float_seed = 123_456_789_u32;
-    let mut peer_stats_seed = 123_456_789_u32;
-    let mut x_dev =
-        DeviceMemory::from_slice(&init_f16_image((n * c * h * w) as usize, &mut half_seed))?;
-    let mut mean_dev = DeviceMemory::from_slice(&init_f32_image(c as usize, &mut float_seed))?;
-    let mut inv_variance_dev =
-        DeviceMemory::from_slice(&init_f32_image(c as usize, &mut float_seed))?;
-    let mut prev_running_mean_dev =
-        DeviceMemory::from_slice(&init_f32_image(c as usize, &mut float_seed))?;
-    let mut prev_running_var_dev =
-        DeviceMemory::from_slice(&init_f32_image(c as usize, &mut float_seed))?;
-    let mut next_running_mean_dev =
-        DeviceMemory::from_slice(&init_f32_image(c as usize, &mut float_seed))?;
-    let mut next_running_var_dev =
-        DeviceMemory::from_slice(&init_f32_image(c as usize, &mut float_seed))?;
-    let mut scale_dev = DeviceMemory::from_slice(&init_f32_image(c as usize, &mut float_seed))?;
-    let mut bias_dev = DeviceMemory::from_slice(&init_f32_image(c as usize, &mut float_seed))?;
-    let mut a_dev =
-        DeviceMemory::from_slice(&init_f16_image((n * c * h * w) as usize, &mut half_seed))?;
-    let mut y_dev =
-        DeviceMemory::from_slice(&init_f16_image((n * c * h * w) as usize, &mut half_seed))?;
-    let mut peer_stats_0_dev = DeviceMemory::from_slice(&init_peer_stats_0(
-        (2 * n * c) as usize,
-        &mut peer_stats_seed,
-    ))?;
-    let mut peer_stats_1_dev =
-        DeviceMemory::from_slice(&init_f32_image((2 * n * c) as usize, &mut peer_stats_seed))?;
-    let mut workspace = common::workspace(compiled.max_workspace_size()?)?;
-    let mut bindings = compiled.bindings();
-    bindings.set(x, &mut x_dev)?;
-    bindings.set(mean, &mut mean_dev)?;
-    bindings.set(inv_variance, &mut inv_variance_dev)?;
-    bindings.set(scale, &mut scale_dev)?;
-    bindings.set(bias, &mut bias_dev)?;
-    bindings.set(a, &mut a_dev)?;
-    bindings.set(y, &mut y_dev)?;
-    bindings.set(peer_stats_0, &mut peer_stats_0_dev)?;
-    bindings.set(peer_stats_1, &mut peer_stats_1_dev)?;
-    bindings.set(prev_running_mean, &mut prev_running_mean_dev)?;
-    bindings.set(prev_running_var, &mut prev_running_var_dev)?;
-    bindings.set(next_running_mean, &mut next_running_mean_dev)?;
-    bindings.set(next_running_var, &mut next_running_var_dev)?;
-    compiled.execute(&ctx.cudnn, &bindings, Some(&mut workspace))?;
-
-    let y_host = y_dev.copy_to_host_vec()?;
-    let mean_host = mean_dev.copy_to_host_vec()?;
-    let inv_variance_host = inv_variance_dev.copy_to_host_vec()?;
-    let next_running_mean_host = next_running_mean_dev.copy_to_host_vec()?;
-    let next_running_var_host = next_running_var_dev.copy_to_host_vec()?;
-
-    let y_first = y_host[0].to_f32();
-    let y_last = y_host[y_host.len() - 1].to_f32();
-    let y_checksum = y_host.iter().map(|value| value.to_f32()).sum::<f32>();
-    let y_nonfinite = count_nonfinite_f16(&y_host);
-    let mean_first = mean_host[0];
-    let mean_last = mean_host[mean_host.len() - 1];
-    let mean_checksum = mean_host.iter().copied().sum::<f32>();
-    let mean_nonfinite = count_nonfinite_f32(&mean_host);
-    let inv_variance_first = inv_variance_host[0];
-    let inv_variance_last = inv_variance_host[inv_variance_host.len() - 1];
-    let inv_variance_checksum = inv_variance_host.iter().copied().sum::<f32>();
-    let inv_variance_nonfinite = count_nonfinite_f32(&inv_variance_host);
-    let next_running_mean_first = next_running_mean_host[0];
-    let next_running_mean_last = next_running_mean_host[next_running_mean_host.len() - 1];
-    let next_running_mean_checksum = next_running_mean_host.iter().copied().sum::<f32>();
-    let next_running_mean_nonfinite = count_nonfinite_f32(&next_running_mean_host);
-    let next_running_var_first = next_running_var_host[0];
-    let next_running_var_last = next_running_var_host[next_running_var_host.len() - 1];
-    let next_running_var_checksum = next_running_var_host.iter().copied().sum::<f32>();
-    let next_running_var_nonfinite = count_nonfinite_f32(&next_running_var_host);
-
-    println!(
-        "y: first={y_first}, last={y_last}, checksum={y_checksum}, nonfinite={y_nonfinite}, len={}",
-        y_host.len()
-    );
-    println!(
-        "mean: first={mean_first}, last={mean_last}, checksum={mean_checksum}, nonfinite={mean_nonfinite}, len={}",
-        mean_host.len()
-    );
-    println!(
-        "inv_variance: first={inv_variance_first}, last={inv_variance_last}, checksum={inv_variance_checksum}, nonfinite={inv_variance_nonfinite}, len={}",
-        inv_variance_host.len()
-    );
-    println!(
-        "next_running_mean: first={next_running_mean_first}, last={next_running_mean_last}, checksum={next_running_mean_checksum}, nonfinite={next_running_mean_nonfinite}, len={}",
-        next_running_mean_host.len()
-    );
-    println!(
-        "next_running_var: first={next_running_var_first}, last={next_running_var_last}, checksum={next_running_var_checksum}, nonfinite={next_running_var_nonfinite}, len={}",
-        next_running_var_host.len()
-    );
-
+    )?;
+    let cuda = example.cudnn.cuda_context();
+    let mut bindings = compiled.bindings()?;
+    let mut seed = 123_456_789_u32;
+    for id in [x, a] {
+        let values = common::init_f32_image(graph.shape(id)?.storage_span()?, &mut seed)
+            .into_iter()
+            .map(f16::from_f32)
+            .collect::<Vec<_>>();
+        let memory = DeviceMemory::from_slice(cuda, &values)?;
+        bindings.set_owned_region(
+            id,
+            OwnedDeviceRegion::from_memory(&memory),
+            BindingAccess::ReadOnly,
+        )?;
+    }
+    for (id, value) in channel_inputs {
+        let memory =
+            DeviceMemory::from_slice(cuda, &vec![value; graph.shape(id)?.storage_span()?])?;
+        bindings.set_owned_region(
+            id,
+            OwnedDeviceRegion::from_memory(&memory),
+            BindingAccess::ReadOnly,
+        )?;
+    }
+    for id in [peer_stats_0, peer_stats_1] {
+        let mut values = common::init_f32_image(graph.shape(id)?.storage_span()?, &mut seed);
+        if id == peer_stats_0 {
+            for index in (1..values.len()).step_by(2) {
+                values[index] = f32::from_bits(1);
+            }
+        }
+        let memory = DeviceMemory::from_slice(cuda, &values)?;
+        bindings.set_owned_region(
+            id,
+            OwnedDeviceRegion::from_memory(&memory),
+            BindingAccess::ReadWrite,
+        )?;
+    }
+    let mut channel_outputs = vec![outputs.statistics.mean, outputs.statistics.inv_variance];
+    if let Some(running) = outputs.running {
+        channel_outputs.extend([running.mean, running.variance]);
+    }
+    for id in &channel_outputs {
+        let memory = DeviceMemory::<f32>::zeroed(cuda, graph.shape(*id)?.storage_span()?)?;
+        bindings.set_owned_region(
+            *id,
+            OwnedDeviceRegion::from_memory(&memory),
+            BindingAccess::ReadWrite,
+        )?;
+    }
+    let y_dev = DeviceMemory::<f16>::zeroed(cuda, graph.shape(y)?.storage_span()?)?;
+    bindings.set_owned_region(
+        y,
+        OwnedDeviceRegion::from_memory(&y_dev),
+        BindingAccess::ReadWrite,
+    )?;
+    let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+    // SAFETY: bindings retain all initialized operands, peer buffers and writable results.
+    // The plan and workspace remain live through stream completion, including enqueue failure.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
+    for id in channel_outputs {
+        let tensor = compiled.tensor_info(id)?;
+        println!(
+            "{:?}: {:?}",
+            tensor.spec.name,
+            tensor.spec.shape.dimensions()
+        );
+    }
     Ok(())
 }
 

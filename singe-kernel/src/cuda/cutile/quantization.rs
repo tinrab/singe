@@ -1,25 +1,26 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 use cutile::core::f8e4m3fn;
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use cutile::half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
 use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
+    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::CompileOptions,
 };
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use crate::cuda::cutile::kernel::f16::quantization as kernel_f16;
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 use crate::cuda::cutile::kernel::f32::quantization as kernel_f32;
-#[cfg(feature = "dtype-f64")]
+#[cfg(feature = "dtype_f64")]
 use crate::cuda::cutile::kernel::f64::quantization as kernel_f64;
 use crate::{
     cuda::{
+        autotune::KernelCompileConfig,
         cutile::{
-            DeviceOpExt,
+            DeviceOpExt, TileKernel,
             adapter::TensorAdapter,
             kernel::common as kernel_common,
             utility::{VectorLaunch, checked_device_pointer, vector_tile_size},
@@ -29,6 +30,31 @@ use crate::{
     error::{Error, Result},
     utility::{checked_element_count, checked_i32_value},
 };
+
+fn vector_compile_options(compile: KernelCompileConfig) -> CompileOptions {
+    let mut options = CompileOptions::default();
+    if let Some(occupancy) = compile.occupancy {
+        options = options.occupancy(occupancy);
+    }
+    if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
+        options = options.num_cta_in_cga(num_cta_in_cga);
+    }
+    if let Some(max_divisibility) = compile.max_divisibility {
+        options = options.max_divisibility(max_divisibility);
+    }
+    options
+}
+
+macro_rules! enqueue_vector_op {
+    ($op:expr, $stream:expr, $compile:expr) => {{
+        if $compile.is_default() {
+            $op.enqueue_on($stream)?;
+        } else {
+            $op.compile_options(vector_compile_options($compile))
+                .enqueue_on($stream)?;
+        }
+    }};
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct QuantizedMatmul {
@@ -42,7 +68,7 @@ struct QuantizedMatmul {
     grid: (u32, u32, u32),
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct BlockDequant {
     columns: i32,
@@ -52,7 +78,7 @@ struct BlockDequant {
     grid: (u32, u32, u32),
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 impl BlockDequant {
     fn create(rows: usize, columns: usize, block_size: usize) -> Result<Self> {
         if rows == 0 || columns == 0 || block_size == 0 {
@@ -70,7 +96,7 @@ impl BlockDequant {
     }
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct BlockScaledFp8Matmul {
     rows: i32,
@@ -83,7 +109,7 @@ struct BlockScaledFp8Matmul {
     grid: (u32, u32, u32),
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 impl BlockScaledFp8Matmul {
     fn create(
         rows: usize,
@@ -110,7 +136,7 @@ impl BlockScaledFp8Matmul {
     }
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct RopeQuantizeFp8 {
     heads: i32,
@@ -121,7 +147,7 @@ struct RopeQuantizeFp8 {
     grid: (u32, u32, u32),
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct QkRopeQuantizeFp8 {
     q_heads: i32,
@@ -133,12 +159,12 @@ struct QkRopeQuantizeFp8 {
     quant_scale_kv: f32,
     q_rope_len: i32,
     k_rope_len: i32,
-    q_nope_len: i32,
+    query_nonrotary_len: i32,
     total_len: i32,
     grid: (u32, u32, u32),
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 impl RopeQuantizeFp8 {
     fn create(
         tokens: usize,
@@ -169,7 +195,7 @@ impl RopeQuantizeFp8 {
     }
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 impl QkRopeQuantizeFp8 {
     fn create(
         tokens: usize,
@@ -194,14 +220,14 @@ impl QkRopeQuantizeFp8 {
         }
         let q_rope_len = checked_element_count(checked_element_count(tokens, q_heads)?, rope_dim)?;
         let k_rope_len = checked_element_count(checked_element_count(tokens, kv_heads)?, rope_dim)?;
-        let q_nope_len =
+        let query_nonrotary_len =
             checked_element_count(checked_element_count(tokens, q_heads)?, no_rope_dim)?;
-        let k_nope_len =
+        let key_nonrotary_len =
             checked_element_count(checked_element_count(tokens, kv_heads)?, no_rope_dim)?;
         let total_len = q_rope_len
             .checked_add(k_rope_len)
-            .and_then(|value| value.checked_add(q_nope_len))
-            .and_then(|value| value.checked_add(k_nope_len))
+            .and_then(|value| value.checked_add(query_nonrotary_len))
+            .and_then(|value| value.checked_add(key_nonrotary_len))
             .ok_or(Error::SizeOverflow)?;
         let launch = VectorLaunch::create(total_len)?;
         Ok(Self {
@@ -214,7 +240,7 @@ impl QkRopeQuantizeFp8 {
             quant_scale_kv,
             q_rope_len: checked_i32_value(q_rope_len)?,
             k_rope_len: checked_i32_value(k_rope_len)?,
-            q_nope_len: checked_i32_value(q_nope_len)?,
+            query_nonrotary_len: checked_i32_value(query_nonrotary_len)?,
             total_len: launch.len_i32,
             grid: launch.grid,
         })
@@ -257,7 +283,10 @@ impl QuantizedMatmul {
 
 macro_rules! dequantize_fn {
     ($name:ident, $out:ty, $input:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$out>,
             input: DevicePointer<$input>,
@@ -268,9 +297,10 @@ macro_rules! dequantize_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { $kernel::$kernel_fn(out, input, scale, zero_point, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
@@ -281,56 +311,78 @@ macro_rules! dequantize_fn {
 
 macro_rules! quantize_fn {
     ($name:ident, $out:ty, $input:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$out>,
             input: DevicePointer<$input>,
             scale: $input,
             zero_point: $input,
             len: usize,
+            tile_width: Option<usize>,
+            compile: KernelCompileConfig,
         ) -> Result<()> {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
-            let tile = vector_tile_size(len);
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            let tile = tile_width.unwrap_or_else(|| vector_tile_size(len));
             let out = TensorAdapter::contiguous_1d(out, len)?.partition([tile])?;
             let input = TensorAdapter::contiguous_1d(input, len)?;
-            $kernel::$kernel_fn(out, input, scale, zero_point).enqueue_on(stream)?;
+            enqueue_vector_op!(
+                $kernel::$kernel_fn(out, input, scale, zero_point),
+                stream,
+                compile
+            );
             Ok(())
         }
     };
 }
 
-#[cfg(all(feature = "dtype-f16", feature = "dtype-u8"))]
+#[cfg(all(feature = "dtype_f16", feature = "dtype_u8"))]
 dequantize_fn!(dequantize_u8_to_f16, f16, u8, kernel_f16, dequantize_u8_f16);
-#[cfg(all(feature = "dtype-f16", feature = "dtype-i8"))]
+
+#[cfg(all(feature = "dtype_f16", feature = "dtype_i8"))]
 dequantize_fn!(dequantize_i8_to_f16, f16, i8, kernel_f16, dequantize_i8_f16);
-#[cfg(all(feature = "dtype-f32", feature = "dtype-u8"))]
+
+#[cfg(all(feature = "dtype_f32", feature = "dtype_u8"))]
 dequantize_fn!(dequantize_u8_to_f32, f32, u8, kernel_f32, dequantize_u8_f32);
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
 dequantize_fn!(dequantize_i8_to_f32, f32, i8, kernel_f32, dequantize_i8_f32);
-#[cfg(all(feature = "dtype-f64", feature = "dtype-u8"))]
+
+#[cfg(all(feature = "dtype_f64", feature = "dtype_u8"))]
 dequantize_fn!(dequantize_u8_to_f64, f64, u8, kernel_f64, dequantize_u8_f64);
-#[cfg(all(feature = "dtype-f64", feature = "dtype-i8"))]
+
+#[cfg(all(feature = "dtype_f64", feature = "dtype_i8"))]
 dequantize_fn!(dequantize_i8_to_f64, f64, i8, kernel_f64, dequantize_i8_f64);
 
-#[cfg(all(feature = "dtype-f16", feature = "dtype-u8"))]
+#[cfg(all(feature = "dtype_f16", feature = "dtype_u8"))]
 quantize_fn!(quantize_f16_to_u8, u8, f16, kernel_f16, quantize_f16_u8);
-#[cfg(all(feature = "dtype-f16", feature = "dtype-i8"))]
+
+#[cfg(all(feature = "dtype_f16", feature = "dtype_i8"))]
 quantize_fn!(quantize_f16_to_i8, i8, f16, kernel_f16, quantize_f16_i8);
-#[cfg(all(feature = "dtype-f32", feature = "dtype-u8"))]
+
+#[cfg(all(feature = "dtype_f32", feature = "dtype_u8"))]
 quantize_fn!(quantize_f32_to_u8, u8, f32, kernel_f32, quantize_f32_u8);
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
 quantize_fn!(quantize_f32_to_i8, i8, f32, kernel_f32, quantize_f32_i8);
-#[cfg(all(feature = "dtype-f64", feature = "dtype-u8"))]
+
+#[cfg(all(feature = "dtype_f64", feature = "dtype_u8"))]
 quantize_fn!(quantize_f64_to_u8, u8, f64, kernel_f64, quantize_f64_u8);
-#[cfg(all(feature = "dtype-f64", feature = "dtype-i8"))]
+
+#[cfg(all(feature = "dtype_f64", feature = "dtype_i8"))]
 quantize_fn!(quantize_f64_to_i8, i8, f64, kernel_f64, quantize_f64_i8);
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-pub fn quantize_f32_to_f8e4m3_block(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn quantize_f32_to_f8e4m3_block(
     stream: &Arc<Stream>,
     out: DevicePointer<u8>,
     scales: DevicePointer<f32>,
@@ -343,7 +395,9 @@ pub fn quantize_f32_to_f8e4m3_block(
         return Ok(());
     }
     validate_block_quant(out, scales, input, len, block_size, blocks)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let out = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(out.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::quantize_f32_f8e4m3_block(
             out,
@@ -353,13 +407,20 @@ pub fn quantize_f32_to_f8e4m3_block(
             checked_i32_value(block_size)?,
         )
     }
-    .grid((blocks as u32, 1, 1))
+    .grid((
+        u32::try_from(blocks).map_err(|_| Error::LengthExceedsI32)?,
+        1,
+        1,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-pub fn dequantize_f8e4m3_block_to_f32(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn dequantize_f8e4m3_block_to_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<u8>,
@@ -369,10 +430,12 @@ pub fn dequantize_f8e4m3_block_to_f32(
     block_size: usize,
 ) -> Result<()> {
     let params = BlockDequant::create(rows, columns, block_size)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(scales)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&scales)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let input = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(input.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::dequantize_f8e4m3_f32_block(
             out,
@@ -389,9 +452,11 @@ pub fn dequantize_f8e4m3_block_to_f32(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-
-pub fn matmul_f8e4m3_f8e4m3_block_scaled_f32(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn matmul_f8e4m3_f8e4m3_block_scaled_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     activations: DevicePointer<u8>,
@@ -405,14 +470,17 @@ pub fn matmul_f8e4m3_f8e4m3_block_scaled_f32(
     group_k: usize,
 ) -> Result<()> {
     let params = BlockScaledFp8Matmul::create(rows, columns, reduction, group_n, group_k)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(activations)?;
-    checked_device_pointer(weights)?;
-    checked_device_pointer(activation_scales)?;
-    checked_device_pointer(weight_scales)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&activations)?;
+    checked_device_pointer(&weights)?;
+    checked_device_pointer(&activation_scales)?;
+    checked_device_pointer(&weight_scales)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let activations =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(activations.cu_deviceptr()) };
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let weights = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(weights.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::matmul_f8e4m3_f8e4m3_block_scaled_f32(
             out,
@@ -434,9 +502,11 @@ pub fn matmul_f8e4m3_f8e4m3_block_scaled_f32(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8", feature = "dtype-f16"))]
-
-pub fn matmul_f8e4m3_f8e4m3_block_scaled_f16(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8", feature = "dtype_f16"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn matmul_f8e4m3_f8e4m3_block_scaled_f16(
     stream: &Arc<Stream>,
     out: DevicePointer<f16>,
     activations: DevicePointer<u8>,
@@ -450,14 +520,17 @@ pub fn matmul_f8e4m3_f8e4m3_block_scaled_f16(
     group_k: usize,
 ) -> Result<()> {
     let params = BlockScaledFp8Matmul::create(rows, columns, reduction, group_n, group_k)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(activations)?;
-    checked_device_pointer(weights)?;
-    checked_device_pointer(activation_scales)?;
-    checked_device_pointer(weight_scales)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&activations)?;
+    checked_device_pointer(&weights)?;
+    checked_device_pointer(&activation_scales)?;
+    checked_device_pointer(&weight_scales)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let activations =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(activations.cu_deviceptr()) };
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let weights = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(weights.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::matmul_f8e4m3_f8e4m3_block_scaled_f16(
             out,
@@ -479,9 +552,11 @@ pub fn matmul_f8e4m3_f8e4m3_block_scaled_f16(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8", feature = "dtype-bf16"))]
-
-pub fn matmul_f8e4m3_f8e4m3_block_scaled_bf16(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8", feature = "dtype_bf16"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn matmul_f8e4m3_f8e4m3_block_scaled_bf16(
     stream: &Arc<Stream>,
     out: DevicePointer<bf16>,
     activations: DevicePointer<u8>,
@@ -495,14 +570,17 @@ pub fn matmul_f8e4m3_f8e4m3_block_scaled_bf16(
     group_k: usize,
 ) -> Result<()> {
     let params = BlockScaledFp8Matmul::create(rows, columns, reduction, group_n, group_k)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(activations)?;
-    checked_device_pointer(weights)?;
-    checked_device_pointer(activation_scales)?;
-    checked_device_pointer(weight_scales)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&activations)?;
+    checked_device_pointer(&weights)?;
+    checked_device_pointer(&activation_scales)?;
+    checked_device_pointer(&weight_scales)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let activations =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(activations.cu_deviceptr()) };
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let weights = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(weights.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::matmul_f8e4m3_f8e4m3_block_scaled_bf16(
             out,
@@ -524,9 +602,11 @@ pub fn matmul_f8e4m3_f8e4m3_block_scaled_bf16(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-
-pub fn rope_quantize_f8e4m3_f32_interleaved(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn rope_quantize_f8e4m3_f32_interleaved(
     stream: &Arc<Stream>,
     out: DevicePointer<u8>,
     input: DevicePointer<f32>,
@@ -540,11 +620,13 @@ pub fn rope_quantize_f8e4m3_f32_interleaved(
 ) -> Result<()> {
     let params =
         RopeQuantizeFp8::create(tokens, heads, rope_dim, cos_sin_cache_stride, quant_scale)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(cos_sin_cache)?;
-    checked_device_pointer(pos_ids)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&cos_sin_cache)?;
+    checked_device_pointer(&pos_ids)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let out = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(out.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::rope_quantize_f8e4m3_f32_interleaved(
             out,
@@ -563,9 +645,15 @@ pub fn rope_quantize_f8e4m3_f32_interleaved(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-
-pub fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+#[expect(
+    clippy::similar_names,
+    reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
+)]
+pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
     stream: &Arc<Stream>,
     q_rope_out: DevicePointer<u8>,
     k_rope_out: DevicePointer<u8>,
@@ -596,26 +684,31 @@ pub fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
         quant_scale_q,
         quant_scale_kv,
     )?;
-    checked_device_pointer(q_rope_out)?;
-    checked_device_pointer(k_rope_out)?;
-    checked_device_pointer(q_rope)?;
-    checked_device_pointer(k_rope)?;
-    checked_device_pointer(cos_sin_cache)?;
-    checked_device_pointer(pos_ids)?;
+    checked_device_pointer(&q_rope_out)?;
+    checked_device_pointer(&k_rope_out)?;
+    checked_device_pointer(&q_rope)?;
+    checked_device_pointer(&k_rope)?;
+    checked_device_pointer(&cos_sin_cache)?;
+    checked_device_pointer(&pos_ids)?;
     if no_rope_dim != 0 {
-        checked_device_pointer(q_nope_out)?;
-        checked_device_pointer(k_nope_out)?;
-        checked_device_pointer(q_nope)?;
-        checked_device_pointer(k_nope)?;
+        checked_device_pointer(&q_nope_out)?;
+        checked_device_pointer(&k_nope_out)?;
+        checked_device_pointer(&q_nope)?;
+        checked_device_pointer(&k_nope)?;
     }
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let q_rope_out =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(q_rope_out.cu_deviceptr()) };
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let k_rope_out =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(k_rope_out.cu_deviceptr()) };
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let q_nope_out =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(q_nope_out.cu_deviceptr()) };
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let k_nope_out =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(k_nope_out.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
             q_rope_out,
@@ -637,7 +730,7 @@ pub fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
             params.quant_scale_kv,
             params.q_rope_len,
             params.k_rope_len,
-            params.q_nope_len,
+            params.query_nonrotary_len,
             params.total_len,
         )
     }
@@ -646,9 +739,11 @@ pub fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-
-pub fn qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
     stream: &Arc<Stream>,
     q_rope_out: DevicePointer<u8>,
     k_rope_out: DevicePointer<u8>,
@@ -674,16 +769,19 @@ pub fn qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
         quant_scale_q,
         quant_scale_kv,
     )?;
-    checked_device_pointer(q_rope_out)?;
-    checked_device_pointer(k_rope_out)?;
-    checked_device_pointer(q_rope)?;
-    checked_device_pointer(k_rope)?;
-    checked_device_pointer(cos_sin_cache)?;
-    checked_device_pointer(pos_ids)?;
+    checked_device_pointer(&q_rope_out)?;
+    checked_device_pointer(&k_rope_out)?;
+    checked_device_pointer(&q_rope)?;
+    checked_device_pointer(&k_rope)?;
+    checked_device_pointer(&cos_sin_cache)?;
+    checked_device_pointer(&pos_ids)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let q_rope_out =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(q_rope_out.cu_deviceptr()) };
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let k_rope_out =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(k_rope_out.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
             q_rope_out,
@@ -707,8 +805,11 @@ pub fn qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-pub fn quantize_f32_to_f8e4m3_scaled(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn quantize_f32_to_f8e4m3_scaled(
     stream: &Arc<Stream>,
     out: DevicePointer<u8>,
     input: DevicePointer<f32>,
@@ -721,52 +822,65 @@ pub fn quantize_f32_to_f8e4m3_scaled(
     if !quant_scale.is_finite() {
         return Err(Error::InvalidLength);
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
     let launch = VectorLaunch::create(len)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let out = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(out.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe { kernel_f32::quantize_f32_f8e4m3_scaled(out, input, quant_scale, launch.len_i32) }
         .grid(launch.grid)
         .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(feature = "dtype-u8")]
-pub fn unpack_u4_u8(
+#[cfg(feature = "dtype_u8")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn unpack_u4_u8(
     stream: &Arc<Stream>,
     out: DevicePointer<u8>,
     packed: DevicePointer<u8>,
     len: usize,
     packing: Int4Packing,
 ) -> Result<()> {
-    validate_unpack_int4(out, packed, len)?;
+    validate_unpack_int4(&out, packed, len)?;
     let launch = VectorLaunch::create(len)?;
     let high_first = packing.kernel_high_first();
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe { kernel_common::unpack_u4_u8(out, packed, launch.len_i32, high_first) }
         .grid(launch.grid)
         .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-i8", feature = "dtype-u8"))]
-pub fn unpack_i4_i8(
+#[cfg(all(feature = "dtype_i8", feature = "dtype_u8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn unpack_i4_i8(
     stream: &Arc<Stream>,
     out: DevicePointer<i8>,
     packed: DevicePointer<u8>,
     len: usize,
     packing: Int4Packing,
 ) -> Result<()> {
-    validate_unpack_int4(out, packed, len)?;
+    validate_unpack_int4(&out, packed, len)?;
     let launch = VectorLaunch::create(len)?;
     let high_first = packing.kernel_high_first();
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe { kernel_common::unpack_i4_i8(out, packed, launch.len_i32, high_first) }
         .grid(launch.grid)
         .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-u8"))]
-pub fn dequantize_u8_f32_grouped(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_u8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn dequantize_u8_f32_grouped(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<u8>,
@@ -776,9 +890,10 @@ pub fn dequantize_u8_f32_grouped(
     group_size: usize,
     groups: usize,
 ) -> Result<()> {
-    validate_grouped_dequant(out, input, scales, zero_points, len, group_size, groups)?;
+    validate_grouped_dequant(out, &input, scales, zero_points, len, group_size, groups)?;
     let launch = VectorLaunch::create(len)?;
     let group_size = checked_i32_value(group_size)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::dequantize_u8_f32_grouped(
             out,
@@ -794,8 +909,11 @@ pub fn dequantize_u8_f32_grouped(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
-pub fn dequantize_i8_f32_grouped(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn dequantize_i8_f32_grouped(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<i8>,
@@ -805,9 +923,10 @@ pub fn dequantize_i8_f32_grouped(
     group_size: usize,
     groups: usize,
 ) -> Result<()> {
-    validate_grouped_dequant(out, input, scales, zero_points, len, group_size, groups)?;
+    validate_grouped_dequant(out, &input, scales, zero_points, len, group_size, groups)?;
     let launch = VectorLaunch::create(len)?;
     let group_size = checked_i32_value(group_size)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::dequantize_i8_f32_grouped(
             out,
@@ -823,8 +942,11 @@ pub fn dequantize_i8_f32_grouped(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
-pub fn per_token_group_quant_i8_f32(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn per_token_group_quant_i8_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<i8>,
     scales: DevicePointer<f32>,
@@ -834,6 +956,7 @@ pub fn per_token_group_quant_i8_f32(
     eps: f32,
 ) -> Result<()> {
     validate_per_token_group_quant(out, scales, input, groups, group_size, eps)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::per_token_group_quant_i8_f32(
             out,
@@ -844,13 +967,20 @@ pub fn per_token_group_quant_i8_f32(
             eps,
         )
     }
-    .grid((groups as u32, 1, 1))
+    .grid((
+        u32::try_from(groups).map_err(|_| Error::LengthExceedsI32)?,
+        1,
+        1,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
-pub fn per_token_group_quant_i8_f32_column_major_scales(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn per_token_group_quant_i8_f32_column_major_scales(
     stream: &Arc<Stream>,
     out: DevicePointer<i8>,
     scales: DevicePointer<f32>,
@@ -871,6 +1001,7 @@ pub fn per_token_group_quant_i8_f32_column_major_scales(
         scale_column_stride,
         eps,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::per_token_group_quant_i8_f32_column_major_scales(
             out,
@@ -883,13 +1014,20 @@ pub fn per_token_group_quant_i8_f32_column_major_scales(
             eps,
         )
     }
-    .grid((groups as u32, 1, 1))
+    .grid((
+        u32::try_from(groups).map_err(|_| Error::LengthExceedsI32)?,
+        1,
+        1,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
-pub fn per_token_group_quant_i8_f32_column_major_ue8m0_scales(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn per_token_group_quant_i8_f32_column_major_ue8m0_scales(
     stream: &Arc<Stream>,
     out: DevicePointer<i8>,
     scales: DevicePointer<f32>,
@@ -910,6 +1048,7 @@ pub fn per_token_group_quant_i8_f32_column_major_ue8m0_scales(
         scale_column_stride,
         eps,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::per_token_group_quant_i8_f32_column_major_ue8m0_scales(
             out,
@@ -922,13 +1061,20 @@ pub fn per_token_group_quant_i8_f32_column_major_ue8m0_scales(
             eps,
         )
     }
-    .grid((groups as u32, 1, 1))
+    .grid((
+        u32::try_from(groups).map_err(|_| Error::LengthExceedsI32)?,
+        1,
+        1,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-pub fn per_token_group_quant_f8e4m3_f32(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn per_token_group_quant_f8e4m3_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<u8>,
     scales: DevicePointer<f32>,
@@ -938,7 +1084,9 @@ pub fn per_token_group_quant_f8e4m3_f32(
     eps: f32,
 ) -> Result<()> {
     validate_per_token_group_quant_f8(out, scales, input, groups, group_size, eps)?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let out = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(out.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::per_token_group_quant_f8e4m3_f32(
             out,
@@ -949,13 +1097,20 @@ pub fn per_token_group_quant_f8e4m3_f32(
             eps,
         )
     }
-    .grid((groups as u32, 1, 1))
+    .grid((
+        u32::try_from(groups).map_err(|_| Error::LengthExceedsI32)?,
+        1,
+        1,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-pub fn per_token_group_quant_f8e4m3_f32_column_major_scales(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn per_token_group_quant_f8e4m3_f32_column_major_scales(
     stream: &Arc<Stream>,
     out: DevicePointer<u8>,
     scales: DevicePointer<f32>,
@@ -976,7 +1131,9 @@ pub fn per_token_group_quant_f8e4m3_f32_column_major_scales(
         scale_column_stride,
         eps,
     )?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let out = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(out.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::per_token_group_quant_f8e4m3_f32_column_major_scales(
             out,
@@ -989,13 +1146,20 @@ pub fn per_token_group_quant_f8e4m3_f32_column_major_scales(
             eps,
         )
     }
-    .grid((groups as u32, 1, 1))
+    .grid((
+        u32::try_from(groups).map_err(|_| Error::LengthExceedsI32)?,
+        1,
+        1,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
-pub fn per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
     stream: &Arc<Stream>,
     out: DevicePointer<u8>,
     scales: DevicePointer<f32>,
@@ -1016,7 +1180,9 @@ pub fn per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
         scale_column_stride,
         eps,
     )?;
+    // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let out = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(out.cu_deviceptr()) };
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
             out,
@@ -1029,13 +1195,24 @@ pub fn per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
             eps,
         )
     }
-    .grid((groups as u32, 1, 1))
+    .grid((
+        u32::try_from(groups).map_err(|_| Error::LengthExceedsI32)?,
+        1,
+        1,
+    ))
     .enqueue_on(stream)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
-pub fn matmul_i8_i8_f32(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
+)]
+pub unsafe fn matmul_i8_i8_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     activations: DevicePointer<i8>,
@@ -1053,9 +1230,9 @@ pub fn matmul_i8_i8_f32(
     if !output_scale.is_finite() {
         return Err(Error::InvalidLength);
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(activations)?;
-    checked_device_pointer(weights)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&activations)?;
+    checked_device_pointer(&weights)?;
     let params = QuantizedMatmul::create(
         rows,
         columns,
@@ -1064,6 +1241,7 @@ pub fn matmul_i8_i8_f32(
         weight_row_stride,
         output_row_stride,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::matmul_i8_i8_f32(
             out,
@@ -1086,8 +1264,11 @@ pub fn matmul_i8_i8_f32(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
-pub fn matmul_f32_i8_dequantize_f32(
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn matmul_f32_i8_dequantize_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     activations: DevicePointer<f32>,
@@ -1101,11 +1282,11 @@ pub fn matmul_f32_i8_dequantize_f32(
     weight_row_stride: usize,
     output_row_stride: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(activations)?;
-    checked_device_pointer(weights)?;
-    checked_device_pointer(scales)?;
-    checked_device_pointer(zero_points)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&activations)?;
+    checked_device_pointer(&weights)?;
+    checked_device_pointer(&scales)?;
+    checked_device_pointer(&zero_points)?;
     let params = QuantizedMatmul::create(
         rows,
         columns,
@@ -1114,6 +1295,7 @@ pub fn matmul_f32_i8_dequantize_f32(
         weight_row_stride,
         output_row_stride,
     )?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         kernel_f32::matmul_f32_i8_dequantize_f32(
             out,
@@ -1135,7 +1317,7 @@ pub fn matmul_f32_i8_dequantize_f32(
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
 fn validate_per_token_group_quant(
     out: DevicePointer<i8>,
     scales: DevicePointer<f32>,
@@ -1149,13 +1331,13 @@ fn validate_per_token_group_quant(
     }
     checked_i32_value(groups)?;
     checked_i32_value(group_size)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(scales)?;
-    checked_device_pointer(input)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&scales)?;
+    checked_device_pointer(&input)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
 fn validate_per_token_group_quant_column_major(
     out: DevicePointer<i8>,
     scales: DevicePointer<f32>,
@@ -1173,13 +1355,13 @@ fn validate_per_token_group_quant_column_major(
         scale_column_stride,
         eps,
     )?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(scales)?;
-    checked_device_pointer(input)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&scales)?;
+    checked_device_pointer(&input)?;
     checked_element_count(rows, columns / group_size)
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 fn validate_per_token_group_quant_f8(
     out: DevicePointer<u8>,
     scales: DevicePointer<f32>,
@@ -1193,13 +1375,13 @@ fn validate_per_token_group_quant_f8(
     }
     checked_i32_value(groups)?;
     checked_i32_value(group_size)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(scales)?;
-    checked_device_pointer(input)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&scales)?;
+    checked_device_pointer(&input)?;
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 fn validate_per_token_group_quant_column_major_f8(
     out: DevicePointer<u8>,
     scales: DevicePointer<f32>,
@@ -1217,9 +1399,9 @@ fn validate_per_token_group_quant_column_major_f8(
         scale_column_stride,
         eps,
     )?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(scales)?;
-    checked_device_pointer(input)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&scales)?;
+    checked_device_pointer(&input)?;
     checked_element_count(rows, columns / group_size)
 }
 
@@ -1250,7 +1432,7 @@ fn validate_per_token_group_quant_column_major_shape(
 
 fn validate_grouped_dequant<T>(
     out: DevicePointer<f32>,
-    input: DevicePointer<T>,
+    input: &DevicePointer<T>,
     scales: DevicePointer<f32>,
     zero_points: DevicePointer<f32>,
     len: usize,
@@ -1261,10 +1443,10 @@ fn validate_grouped_dequant<T>(
         return Err(Error::InvalidLength);
     }
     ensure_grouped_dequant_shape(len, group_size, groups)?;
-    checked_device_pointer(out)?;
+    checked_device_pointer(&out)?;
     checked_device_pointer(input)?;
-    checked_device_pointer(scales)?;
-    checked_device_pointer(zero_points)?;
+    checked_device_pointer(&scales)?;
+    checked_device_pointer(&zero_points)?;
     Ok(())
 }
 
@@ -1276,7 +1458,7 @@ fn ensure_grouped_dequant_shape(len: usize, group_size: usize, groups: usize) ->
     Ok(())
 }
 
-#[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+#[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
 fn validate_block_quant(
     out: DevicePointer<u8>,
     scales: DevicePointer<f32>,
@@ -1295,14 +1477,14 @@ fn validate_block_quant(
     checked_i32_value(block_size)?;
     checked_i32_value(len)?;
     checked_i32_value(blocks)?;
-    checked_device_pointer(out)?;
-    checked_device_pointer(scales)?;
-    checked_device_pointer(input)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&scales)?;
+    checked_device_pointer(&input)?;
     Ok(())
 }
 
 fn validate_unpack_int4<T>(
-    out: DevicePointer<T>,
+    out: &DevicePointer<T>,
     packed: DevicePointer<u8>,
     len: usize,
 ) -> Result<()> {
@@ -1310,7 +1492,7 @@ fn validate_unpack_int4<T>(
         return Err(Error::InvalidLength);
     }
     checked_device_pointer(out)?;
-    checked_device_pointer(packed)?;
+    checked_device_pointer(&packed)?;
     Ok(())
 }
 
@@ -1323,9 +1505,9 @@ mod tests {
     use super::*;
     use crate::{cpu::quantization as cpu_quantization, error::Result};
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn quantize_f32_to_f8e4m3_block_matches_expected_bytes() -> Result<()> {
+    fn test_quantize_f32_to_f8e4m3_block_matches_expected_bytes() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1338,15 +1520,18 @@ mod tests {
         let out = api::zeros::<u8>(&[8]).sync_on(&stream)?;
         let scales = api::zeros::<f32>(&[2]).sync_on(&stream)?;
 
-        quantize_f32_to_f8e4m3_block(
-            &stream,
-            out.device_pointer(),
-            scales.device_pointer(),
-            input.device_pointer(),
-            8,
-            4,
-            2,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            quantize_f32_to_f8e4m3_block(
+                &stream,
+                out.device_pointer(),
+                scales.device_pointer(),
+                input.device_pointer(),
+                8,
+                4,
+                2,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         singe_core::assert_close!(
@@ -1357,9 +1542,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn dequantize_f8e4m3_block_to_f32() -> Result<()> {
+    fn test_dequantize_f8e4m3_block_to_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1382,23 +1567,26 @@ mod tests {
         let scales = api::copy_host_vec_to_device(&Arc::new(scales_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[rows * columns]).sync_on(&stream)?;
 
-        dequantize_f8e4m3_block_to_f32(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            scales.device_pointer(),
-            rows,
-            columns,
-            block_size,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::dequantize_f8e4m3_block_to_f32(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                scales.device_pointer(),
+                rows,
+                columns,
+                block_size,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-6);
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn matmul_f8e4m3_f8e4m3_block_scaled_f32() -> Result<()> {
+    fn test_matmul_f8e4m3_f8e4m3_block_scaled_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1431,27 +1619,30 @@ mod tests {
             api::copy_host_vec_to_device(&Arc::new(weight_scales_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[rows * columns]).sync_on(&stream)?;
 
-        matmul_f8e4m3_f8e4m3_block_scaled_f32(
-            &stream,
-            out.device_pointer(),
-            activations.device_pointer(),
-            weights.device_pointer(),
-            activation_scales.device_pointer(),
-            weight_scales.device_pointer(),
-            rows,
-            columns,
-            reduction,
-            group_n,
-            group_k,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::matmul_f8e4m3_f8e4m3_block_scaled_f32(
+                &stream,
+                out.device_pointer(),
+                activations.device_pointer(),
+                weights.device_pointer(),
+                activation_scales.device_pointer(),
+                weight_scales.device_pointer(),
+                rows,
+                columns,
+                reduction,
+                group_n,
+                group_k,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-6);
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn matmul_f8e4m3_f8e4m3_block_scaled_f32_handles_tail_groups() -> Result<()> {
+    fn test_matmul_f8e4m3_f8e4m3_block_scaled_f32_handles_tail_groups() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1485,27 +1676,30 @@ mod tests {
             api::copy_host_vec_to_device(&Arc::new(weight_scales_host)).sync_on(&stream)?;
         let out = api::zeros::<f32>(&[rows * columns]).sync_on(&stream)?;
 
-        matmul_f8e4m3_f8e4m3_block_scaled_f32(
-            &stream,
-            out.device_pointer(),
-            activations.device_pointer(),
-            weights.device_pointer(),
-            activation_scales.device_pointer(),
-            weight_scales.device_pointer(),
-            rows,
-            columns,
-            reduction,
-            group_n,
-            group_k,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::matmul_f8e4m3_f8e4m3_block_scaled_f32(
+                &stream,
+                out.device_pointer(),
+                activations.device_pointer(),
+                weights.device_pointer(),
+                activation_scales.device_pointer(),
+                weight_scales.device_pointer(),
+                rows,
+                columns,
+                reduction,
+                group_n,
+                group_k,
+            )
+        }?;
 
         singe_core::assert_close!(&out.to_host_vec().sync_on(&stream)?, &expected, 1e-6);
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8", feature = "dtype-f16"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8", feature = "dtype_f16"))]
     #[test]
-    fn matmul_f8e4m3_f8e4m3_block_scaled_f16() -> Result<()> {
+    fn test_matmul_f8e4m3_f8e4m3_block_scaled_f16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1538,19 +1732,22 @@ mod tests {
             api::copy_host_vec_to_device(&Arc::new(weight_scales_host)).sync_on(&stream)?;
         let out = api::zeros::<f16>(&[rows * columns]).sync_on(&stream)?;
 
-        matmul_f8e4m3_f8e4m3_block_scaled_f16(
-            &stream,
-            out.device_pointer(),
-            activations.device_pointer(),
-            weights.device_pointer(),
-            activation_scales.device_pointer(),
-            weight_scales.device_pointer(),
-            rows,
-            columns,
-            reduction,
-            group_n,
-            group_k,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::matmul_f8e4m3_f8e4m3_block_scaled_f16(
+                &stream,
+                out.device_pointer(),
+                activations.device_pointer(),
+                weights.device_pointer(),
+                activation_scales.device_pointer(),
+                weight_scales.device_pointer(),
+                rows,
+                columns,
+                reduction,
+                group_n,
+                group_k,
+            )
+        }?;
 
         let actual = out
             .to_host_vec()
@@ -1563,9 +1760,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8", feature = "dtype-bf16"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8", feature = "dtype_bf16"))]
     #[test]
-    fn matmul_f8e4m3_f8e4m3_block_scaled_bf16() -> Result<()> {
+    fn test_matmul_f8e4m3_f8e4m3_block_scaled_bf16() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1598,19 +1795,22 @@ mod tests {
             api::copy_host_vec_to_device(&Arc::new(weight_scales_host)).sync_on(&stream)?;
         let out = api::zeros::<bf16>(&[rows * columns]).sync_on(&stream)?;
 
-        matmul_f8e4m3_f8e4m3_block_scaled_bf16(
-            &stream,
-            out.device_pointer(),
-            activations.device_pointer(),
-            weights.device_pointer(),
-            activation_scales.device_pointer(),
-            weight_scales.device_pointer(),
-            rows,
-            columns,
-            reduction,
-            group_n,
-            group_k,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::matmul_f8e4m3_f8e4m3_block_scaled_bf16(
+                &stream,
+                out.device_pointer(),
+                activations.device_pointer(),
+                weights.device_pointer(),
+                activation_scales.device_pointer(),
+                weight_scales.device_pointer(),
+                rows,
+                columns,
+                reduction,
+                group_n,
+                group_k,
+            )
+        }?;
 
         let actual = out
             .to_host_vec()
@@ -1623,9 +1823,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn rope_quantize_f8e4m3_f32_interleaved_matches_expected_bytes() -> Result<()> {
+    fn test_rope_quantize_f8e4m3_f32_interleaved_matches_expected_bytes() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1648,26 +1848,29 @@ mod tests {
         let pos_ids = api::copy_host_vec_to_device(&Arc::new(pos_ids_host)).sync_on(&stream)?;
         let out = api::zeros::<u8>(&[expected_out.len()]).sync_on(&stream)?;
 
-        rope_quantize_f8e4m3_f32_interleaved(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            heads,
-            rope_dim,
-            stride,
-            1.0,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_quantize_f8e4m3_f32_interleaved(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                heads,
+                rope_dim,
+                stride,
+                1.0,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn qk_rope_quantize_f8e4m3_single_kernel_matches_composed() -> Result<()> {
+    fn test_qk_rope_quantize_f8e4m3_single_kernel_matches_composed() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1705,65 +1908,80 @@ mod tests {
         let expected_k_nope =
             api::zeros::<u8>(&[tokens * kv_heads * no_rope_dim]).sync_on(&stream)?;
 
-        qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
-            &stream,
-            fused_q_rope.device_pointer(),
-            fused_k_rope.device_pointer(),
-            fused_q_nope.device_pointer(),
-            fused_k_nope.device_pointer(),
-            q_rope.device_pointer(),
-            k_rope.device_pointer(),
-            q_nope.device_pointer(),
-            k_nope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            q_heads,
-            kv_heads,
-            rope_dim,
-            no_rope_dim,
-            stride,
-            1.0,
-            1.0,
-        )?;
-        rope_quantize_f8e4m3_f32_interleaved(
-            &stream,
-            expected_q_rope.device_pointer(),
-            q_rope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            q_heads,
-            rope_dim,
-            stride,
-            1.0,
-        )?;
-        rope_quantize_f8e4m3_f32_interleaved(
-            &stream,
-            expected_k_rope.device_pointer(),
-            k_rope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            kv_heads,
-            rope_dim,
-            stride,
-            1.0,
-        )?;
-        quantize_f32_to_f8e4m3_scaled(
-            &stream,
-            expected_q_nope.device_pointer(),
-            q_nope.device_pointer(),
-            tokens * q_heads * no_rope_dim,
-            1.0,
-        )?;
-        quantize_f32_to_f8e4m3_scaled(
-            &stream,
-            expected_k_nope.device_pointer(),
-            k_nope.device_pointer(),
-            tokens * kv_heads * no_rope_dim,
-            1.0,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
+                &stream,
+                fused_q_rope.device_pointer(),
+                fused_k_rope.device_pointer(),
+                fused_q_nope.device_pointer(),
+                fused_k_nope.device_pointer(),
+                q_rope.device_pointer(),
+                k_rope.device_pointer(),
+                q_nope.device_pointer(),
+                k_nope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                q_heads,
+                kv_heads,
+                rope_dim,
+                no_rope_dim,
+                stride,
+                1.0,
+                1.0,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_quantize_f8e4m3_f32_interleaved(
+                &stream,
+                expected_q_rope.device_pointer(),
+                q_rope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                q_heads,
+                rope_dim,
+                stride,
+                1.0,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_quantize_f8e4m3_f32_interleaved(
+                &stream,
+                expected_k_rope.device_pointer(),
+                k_rope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                kv_heads,
+                rope_dim,
+                stride,
+                1.0,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            quantize_f32_to_f8e4m3_scaled(
+                &stream,
+                expected_q_nope.device_pointer(),
+                q_nope.device_pointer(),
+                tokens * q_heads * no_rope_dim,
+                1.0,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            quantize_f32_to_f8e4m3_scaled(
+                &stream,
+                expected_k_nope.device_pointer(),
+                k_nope.device_pointer(),
+                tokens * kv_heads * no_rope_dim,
+                1.0,
+            )
+        }?;
 
         assert_eq!(
             fused_q_rope.to_host_vec().sync_on(&stream)?,
@@ -1784,9 +2002,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn qk_rope_quantize_f8e4m3_rope_only_matches_composed() -> Result<()> {
+    fn test_qk_rope_quantize_f8e4m3_rope_only_matches_composed() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1814,46 +2032,55 @@ mod tests {
         let expected_q_rope = api::zeros::<u8>(&[tokens * q_heads * rope_dim]).sync_on(&stream)?;
         let expected_k_rope = api::zeros::<u8>(&[tokens * kv_heads * rope_dim]).sync_on(&stream)?;
 
-        qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
-            &stream,
-            fused_q_rope.device_pointer(),
-            fused_k_rope.device_pointer(),
-            q_rope.device_pointer(),
-            k_rope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            q_heads,
-            kv_heads,
-            rope_dim,
-            stride,
-            q_scale,
-            kv_scale,
-        )?;
-        rope_quantize_f8e4m3_f32_interleaved(
-            &stream,
-            expected_q_rope.device_pointer(),
-            q_rope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            q_heads,
-            rope_dim,
-            stride,
-            q_scale,
-        )?;
-        rope_quantize_f8e4m3_f32_interleaved(
-            &stream,
-            expected_k_rope.device_pointer(),
-            k_rope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            kv_heads,
-            rope_dim,
-            stride,
-            kv_scale,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            qk_rope_quantize_f8e4m3_f32_interleaved_rope_only(
+                &stream,
+                fused_q_rope.device_pointer(),
+                fused_k_rope.device_pointer(),
+                q_rope.device_pointer(),
+                k_rope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                q_heads,
+                kv_heads,
+                rope_dim,
+                stride,
+                q_scale,
+                kv_scale,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_quantize_f8e4m3_f32_interleaved(
+                &stream,
+                expected_q_rope.device_pointer(),
+                q_rope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                q_heads,
+                rope_dim,
+                stride,
+                q_scale,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_quantize_f8e4m3_f32_interleaved(
+                &stream,
+                expected_k_rope.device_pointer(),
+                k_rope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                kv_heads,
+                rope_dim,
+                stride,
+                kv_scale,
+            )
+        }?;
 
         assert_eq!(
             fused_q_rope.to_host_vec().sync_on(&stream)?,
@@ -1866,9 +2093,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn qk_rope_quantize_f8e4m3_single_kernel_matches_mla_composed() -> Result<()> {
+    fn test_qk_rope_quantize_f8e4m3_single_kernel_matches_mla_composed() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -1912,65 +2139,80 @@ mod tests {
             api::zeros::<u8>(&[tokens * q_heads * no_rope_dim]).sync_on(&stream)?;
         let expected_k_nope = api::zeros::<u8>(&[tokens * no_rope_dim]).sync_on(&stream)?;
 
-        qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
-            &stream,
-            fused_q_rope.device_pointer(),
-            fused_k_rope.device_pointer(),
-            fused_q_nope.device_pointer(),
-            fused_k_nope.device_pointer(),
-            q_rope.device_pointer(),
-            k_rope.device_pointer(),
-            q_nope.device_pointer(),
-            k_nope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            q_heads,
-            1,
-            rope_dim,
-            no_rope_dim,
-            stride,
-            q_scale,
-            kv_scale,
-        )?;
-        rope_quantize_f8e4m3_f32_interleaved(
-            &stream,
-            expected_q_rope.device_pointer(),
-            q_rope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            q_heads,
-            rope_dim,
-            stride,
-            q_scale,
-        )?;
-        rope_quantize_f8e4m3_f32_interleaved(
-            &stream,
-            expected_k_rope.device_pointer(),
-            k_rope.device_pointer(),
-            cos_sin_cache.device_pointer(),
-            pos_ids.device_pointer(),
-            tokens,
-            1,
-            rope_dim,
-            stride,
-            kv_scale,
-        )?;
-        quantize_f32_to_f8e4m3_scaled(
-            &stream,
-            expected_q_nope.device_pointer(),
-            q_nope.device_pointer(),
-            tokens * q_heads * no_rope_dim,
-            q_scale,
-        )?;
-        quantize_f32_to_f8e4m3_scaled(
-            &stream,
-            expected_k_nope.device_pointer(),
-            k_nope.device_pointer(),
-            tokens * no_rope_dim,
-            kv_scale,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
+                &stream,
+                fused_q_rope.device_pointer(),
+                fused_k_rope.device_pointer(),
+                fused_q_nope.device_pointer(),
+                fused_k_nope.device_pointer(),
+                q_rope.device_pointer(),
+                k_rope.device_pointer(),
+                q_nope.device_pointer(),
+                k_nope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                q_heads,
+                1,
+                rope_dim,
+                no_rope_dim,
+                stride,
+                q_scale,
+                kv_scale,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_quantize_f8e4m3_f32_interleaved(
+                &stream,
+                expected_q_rope.device_pointer(),
+                q_rope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                q_heads,
+                rope_dim,
+                stride,
+                q_scale,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            rope_quantize_f8e4m3_f32_interleaved(
+                &stream,
+                expected_k_rope.device_pointer(),
+                k_rope.device_pointer(),
+                cos_sin_cache.device_pointer(),
+                pos_ids.device_pointer(),
+                tokens,
+                1,
+                rope_dim,
+                stride,
+                kv_scale,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            quantize_f32_to_f8e4m3_scaled(
+                &stream,
+                expected_q_nope.device_pointer(),
+                q_nope.device_pointer(),
+                tokens * q_heads * no_rope_dim,
+                q_scale,
+            )
+        }?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            quantize_f32_to_f8e4m3_scaled(
+                &stream,
+                expected_k_nope.device_pointer(),
+                k_nope.device_pointer(),
+                tokens * no_rope_dim,
+                kv_scale,
+            )
+        }?;
 
         assert_eq!(
             fused_q_rope.to_host_vec().sync_on(&stream)?,
@@ -1991,9 +2233,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn quantize_f32_to_f8e4m3_scaled_matches_expected_bytes() -> Result<()> {
+    fn test_quantize_f32_to_f8e4m3_scaled_matches_expected_bytes() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2004,21 +2246,24 @@ mod tests {
         let input = api::copy_host_vec_to_device(&Arc::new(input_host)).sync_on(&stream)?;
         let out = api::zeros::<u8>(&[expected_out.len()]).sync_on(&stream)?;
 
-        quantize_f32_to_f8e4m3_scaled(
-            &stream,
-            out.device_pointer(),
-            input.device_pointer(),
-            expected_out.len(),
-            1.0,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            quantize_f32_to_f8e4m3_scaled(
+                &stream,
+                out.device_pointer(),
+                input.device_pointer(),
+                expected_out.len(),
+                1.0,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
     #[test]
-    fn per_token_group_quant_i8_f32() -> Result<()> {
+    fn test_per_token_group_quant_i8_f32() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2036,15 +2281,18 @@ mod tests {
         let out = api::zeros::<i8>(&[expected_out.len()]).sync_on(&stream)?;
         let scales = api::zeros::<f32>(&[expected_scales.len()]).sync_on(&stream)?;
 
-        per_token_group_quant_i8_f32(
-            &stream,
-            out.device_pointer(),
-            scales.device_pointer(),
-            input.device_pointer(),
-            expected_scales.len(),
-            group_size,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::per_token_group_quant_i8_f32(
+                &stream,
+                out.device_pointer(),
+                scales.device_pointer(),
+                input.device_pointer(),
+                expected_scales.len(),
+                group_size,
+                eps,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         singe_core::assert_close!(
@@ -2055,9 +2303,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
     #[test]
-    fn per_token_group_quant_i8_f32_column_major_scales() -> Result<()> {
+    fn test_per_token_group_quant_i8_f32_column_major_scales() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2072,17 +2320,20 @@ mod tests {
         let out = api::zeros::<i8>(&[expected_out.len()]).sync_on(&stream)?;
         let scales = api::zeros::<f32>(&[expected_scales.len()]).sync_on(&stream)?;
 
-        per_token_group_quant_i8_f32_column_major_scales(
-            &stream,
-            out.device_pointer(),
-            scales.device_pointer(),
-            input.device_pointer(),
-            rows,
-            columns,
-            group_size,
-            scale_column_stride,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::per_token_group_quant_i8_f32_column_major_scales(
+                &stream,
+                out.device_pointer(),
+                scales.device_pointer(),
+                input.device_pointer(),
+                rows,
+                columns,
+                group_size,
+                scale_column_stride,
+                eps,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         singe_core::assert_close!(
@@ -2093,9 +2344,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-i8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_i8"))]
     #[test]
-    fn per_token_group_quant_i8_f32_column_major_ue8m0_scales() -> Result<()> {
+    fn test_per_token_group_quant_i8_f32_column_major_ue8m0_scales() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2110,17 +2361,20 @@ mod tests {
         let out = api::zeros::<i8>(&[expected_out.len()]).sync_on(&stream)?;
         let scales = api::zeros::<f32>(&[expected_scales.len()]).sync_on(&stream)?;
 
-        per_token_group_quant_i8_f32_column_major_ue8m0_scales(
-            &stream,
-            out.device_pointer(),
-            scales.device_pointer(),
-            input.device_pointer(),
-            rows,
-            columns,
-            group_size,
-            scale_column_stride,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            super::per_token_group_quant_i8_f32_column_major_ue8m0_scales(
+                &stream,
+                out.device_pointer(),
+                scales.device_pointer(),
+                input.device_pointer(),
+                rows,
+                columns,
+                group_size,
+                scale_column_stride,
+                eps,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         singe_core::assert_close!(
@@ -2131,9 +2385,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn per_token_group_quant_f8e4m3_f32_matches_expected_bytes() -> Result<()> {
+    fn test_per_token_group_quant_f8e4m3_f32_matches_expected_bytes() -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2154,15 +2408,18 @@ mod tests {
         let out = api::zeros::<u8>(&[expected_out.len()]).sync_on(&stream)?;
         let scales = api::zeros::<f32>(&[expected_scales.len()]).sync_on(&stream)?;
 
-        per_token_group_quant_f8e4m3_f32(
-            &stream,
-            out.device_pointer(),
-            scales.device_pointer(),
-            input.device_pointer(),
-            expected_scales.len(),
-            group_size,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            per_token_group_quant_f8e4m3_f32(
+                &stream,
+                out.device_pointer(),
+                scales.device_pointer(),
+                input.device_pointer(),
+                expected_scales.len(),
+                group_size,
+                eps,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         singe_core::assert_close!(
@@ -2173,9 +2430,10 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn per_token_group_quant_f8e4m3_f32_column_major_scales_matches_expected_bytes() -> Result<()> {
+    fn test_per_token_group_quant_f8e4m3_f32_column_major_scales_matches_expected_bytes()
+    -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
         };
@@ -2194,17 +2452,20 @@ mod tests {
         let out = api::zeros::<u8>(&[expected_out.len()]).sync_on(&stream)?;
         let scales = api::zeros::<f32>(&[expected_scales.len()]).sync_on(&stream)?;
 
-        per_token_group_quant_f8e4m3_f32_column_major_scales(
-            &stream,
-            out.device_pointer(),
-            scales.device_pointer(),
-            input.device_pointer(),
-            rows,
-            columns,
-            group_size,
-            scale_column_stride,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            per_token_group_quant_f8e4m3_f32_column_major_scales(
+                &stream,
+                out.device_pointer(),
+                scales.device_pointer(),
+                input.device_pointer(),
+                rows,
+                columns,
+                group_size,
+                scale_column_stride,
+                eps,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         singe_core::assert_close!(
@@ -2215,9 +2476,9 @@ mod tests {
         Ok(())
     }
 
-    #[cfg(all(feature = "dtype-f32", feature = "dtype-f8"))]
+    #[cfg(all(feature = "dtype_f32", feature = "dtype_f8"))]
     #[test]
-    fn per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales_matches_expected_bytes()
+    fn test_per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales_matches_expected_bytes()
     -> Result<()> {
         let Ok(device) = Device::new(0) else {
             return Ok(());
@@ -2226,28 +2487,42 @@ mod tests {
         let (rows, columns, group_size, scale_column_stride) = (2usize, 6usize, 3usize, 3usize);
         let eps = 1e-10f32;
         let input_host = vec![
-            672.0f32, 448.0, -448.0, 448.0, -448.0, 0.0, 224.0, -224.0, 0.0, 112.0, -112.0, 0.0,
+            672.0f32,
+            448.0,
+            -448.0,
+            448.0,
+            -448.0,
+            0.0,
+            224.0,
+            -224.0,
+            0.0,
+            f32::from_bits(1.75f32.to_bits() + 1),
+            1.75,
+            -1.75,
         ];
         let expected_out = vec![
-            0x7au8, 0x76, 0xf6, 0x7e, 0xfe, 0x00, 0x7e, 0xfe, 0x00, 0x7e, 0xfe, 0x00,
+            0x7au8, 0x76, 0xf6, 0x7e, 0xfe, 0x00, 0x7e, 0xfe, 0x00, 0x76, 0x76, 0xf6,
         ];
-        let expected_scales = vec![2.0f32, 0.5, 0.0, 1.0, 0.25, 0.0];
+        let expected_scales = vec![2.0f32, 0.5, 0.0, 1.0, 0.0078125, 0.0];
 
         let input = api::copy_host_vec_to_device(&Arc::new(input_host)).sync_on(&stream)?;
         let out = api::zeros::<u8>(&[expected_out.len()]).sync_on(&stream)?;
         let scales = api::zeros::<f32>(&[expected_scales.len()]).sync_on(&stream)?;
 
-        per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
-            &stream,
-            out.device_pointer(),
-            scales.device_pointer(),
-            input.device_pointer(),
-            rows,
-            columns,
-            group_size,
-            scale_column_stride,
-            eps,
-        )?;
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+        unsafe {
+            per_token_group_quant_f8e4m3_f32_column_major_ue8m0_scales(
+                &stream,
+                out.device_pointer(),
+                scales.device_pointer(),
+                input.device_pointer(),
+                rows,
+                columns,
+                group_size,
+                scale_column_stride,
+                eps,
+            )
+        }?;
 
         assert_eq!(out.to_host_vec().sync_on(&stream)?, expected_out);
         singe_core::assert_close!(

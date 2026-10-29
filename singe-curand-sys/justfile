@@ -1,3 +1,4 @@
+cuda_path := "$CUDA_PATH"
 curand_include_path := env_var_or_default("CURAND_INCLUDE_PATH", "")
 
 generate:
@@ -36,6 +37,7 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -I {{cuda_path}}/include \
             -I "${include_path}" \
         > bindings.rs
 

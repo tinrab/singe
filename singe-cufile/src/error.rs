@@ -1,65 +1,123 @@
-use std::{ffi::NulError, fmt, io};
+use std::{borrow::Cow, ffi::NulError, io, result::Result as StdResult};
 
+use singe_core::status_enum;
 use singe_cuda::error::Error as CudaError;
 use singe_cufile_sys as sys;
 use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum Status {
-    Success,
-    DriverNotInitialized,
-    DriverInvalidProperties,
-    DriverUnsupportedLimit,
-    DriverVersionMismatch,
-    DriverVersionReadError,
-    DriverClosing,
-    PlatformNotSupported,
-    IoNotSupported,
-    DeviceNotSupported,
-    NvfsDriverError,
-    CudaDriverError,
-    CudaPointerInvalid,
-    CudaMemoryTypeInvalid,
-    CudaPointerRangeError,
-    CudaContextMismatch,
-    InvalidMappingSize,
-    InvalidMappingRange,
-    InvalidFileType,
-    InvalidFileOpenFlag,
-    DirectIoNotSet,
-    InvalidValue,
-    MemoryAlreadyRegistered,
-    MemoryNotRegistered,
-    PermissionDenied,
-    DriverAlreadyOpen,
-    HandleNotRegistered,
-    HandleAlreadyRegistered,
-    DeviceNotFound,
-    InternalError,
-    GetNewFileDescriptorFailed,
-    NvfsSetupError,
-    IoDisabled,
-    BatchSubmitFailed,
-    GpuMemoryPinningFailed,
-    BatchFull,
-    AsyncNotSupported,
-    InternalBatchSetupError,
-    InternalBatchSubmitError,
-    InternalBatchGetStatusError,
-    InternalBatchCancelError,
-    NoMemory,
-    IoError,
-    InternalBufferRegisterError,
-    HashOperationError,
-    InvalidContextError,
-    NvfsInternalDriverError,
-    BatchNoCompatError,
-    IoMaxError,
-    Unknown(u32),
+use crate::types::BatchStatus;
+
+status_enum! {
+    /// A cuFile library operation status.
+    ///
+    /// [`Error::Cufile`] carries this status and, for [`Self::CudaDriverError`],
+    /// an accompanying CUDA driver status. Data-path errors may instead be
+    /// reported as operating-system I/O errors.
+    pub enum Status: u32 => sys::CUfileOpError, unknown = "UNKNOWN_CUFILE_STATUS" {
+        /// The cufile is successful.
+        Success = CU_FILE_SUCCESS,
+        /// The nvidia-fs driver is not loaded.
+        DriverNotInitialized = CU_FILE_DRIVER_NOT_INITIALIZED,
+        /// An invalid property.
+        DriverInvalidProperties = CU_FILE_DRIVER_INVALID_PROPS,
+        /// A property range error.
+        DriverUnsupportedLimit = CU_FILE_DRIVER_UNSUPPORTED_LIMIT,
+        /// An nvidia-fs driver version mismatch.
+        DriverVersionMismatch = CU_FILE_DRIVER_VERSION_MISMATCH,
+        /// An nvidia-fs driver version read error.
+        DriverVersionReadError = CU_FILE_DRIVER_VERSION_READ_ERROR,
+        /// Driver shutdown in progress.
+        DriverClosing = CU_FILE_DRIVER_CLOSING,
+        /// GDS is not supported on the current platform.
+        PlatformNotSupported = CU_FILE_PLATFORM_NOT_SUPPORTED,
+        /// GDS is not supported on the current file.
+        IoNotSupported = CU_FILE_IO_NOT_SUPPORTED,
+        /// GDS is not supported on the current GPU.
+        DeviceNotSupported = CU_FILE_DEVICE_NOT_SUPPORTED,
+        /// An nvidia-fs driver ioctl error.
+        NvfsDriverError = CU_FILE_NVFS_DRIVER_ERROR,
+        /// A CUDA Driver API error. This error indicates a CUDA driver-api error. If this is set, a CUDA-specific error code is set in the cu_err field for cuFileError.
+        CudaDriverError = CU_FILE_CUDA_DRIVER_ERROR,
+        /// An invalid device pointer.
+        CudaPointerInvalid = CU_FILE_CUDA_POINTER_INVALID,
+        /// An invalid pointer memory type.
+        CudaMemoryTypeInvalid = CU_FILE_CUDA_MEMORY_TYPE_INVALID,
+        /// The pointer range exceeds the allocated address range.
+        CudaPointerRangeError = CU_FILE_CUDA_POINTER_RANGE_ERROR,
+        /// A CUDA context mismatch.
+        CudaContextMismatch = CU_FILE_CUDA_CONTEXT_MISMATCH,
+        /// Access beyond the maximum pinned memory size.
+        InvalidMappingSize = CU_FILE_INVALID_MAPPING_SIZE,
+        /// Access beyond the mapped size.
+        InvalidMappingRange = CU_FILE_INVALID_MAPPING_RANGE,
+        /// An unsupported file type.
+        InvalidFileType = CU_FILE_INVALID_FILE_TYPE,
+        /// Unsupported file open flags.
+        InvalidFileOpenFlag = CU_FILE_INVALID_FILE_OPEN_FLAG,
+        /// The fd direct IO is not set.
+        DirectIoNotSet = CU_FILE_DIO_NOT_SET,
+        /// Invalid API arguments.
+        InvalidValue = CU_FILE_INVALID_VALUE,
+        /// Device pointer is already registered.
+        MemoryAlreadyRegistered = CU_FILE_MEMORY_ALREADY_REGISTERED,
+        /// A device pointer lookup failure has occurred.
+        MemoryNotRegistered = CU_FILE_MEMORY_NOT_REGISTERED,
+        /// A driver or file access error.
+        PermissionDenied = CU_FILE_PERMISSION_DENIED,
+        /// The driver is already open.
+        DriverAlreadyOpen = CU_FILE_DRIVER_ALREADY_OPEN,
+        /// The file descriptor is not registered.
+        HandleNotRegistered = CU_FILE_HANDLE_NOT_REGISTERED,
+        /// The file descriptor is already registered.
+        HandleAlreadyRegistered = CU_FILE_HANDLE_ALREADY_REGISTERED,
+        /// The GPU device cannot be not found.
+        DeviceNotFound = CU_FILE_DEVICE_NOT_FOUND,
+        /// An internal error has occurred. Refer to `cufile.log` for more details.
+        InternalError = CU_FILE_INTERNAL_ERROR,
+        /// Failed to obtain a new file descriptor.
+        GetNewFileDescriptorFailed = CU_FILE_GETNEWFD_FAILED,
+        /// An NVFS driver initialization error has occurred.
+        NvfsSetupError = CU_FILE_NVFS_SETUP_ERROR,
+        /// GDS is disabled by config on the current file.
+        IoDisabled = CU_FILE_IO_DISABLED,
+        /// Failed to submit a batch operation.
+        BatchSubmitFailed = CU_FILE_BATCH_SUBMIT_FAILED,
+        /// Failed to allocate pinned GPU memory.
+        GpuMemoryPinningFailed = CU_FILE_GPU_MEMORY_PINNING_FAILED,
+        /// Queue full for batch operation.
+        BatchFull = CU_FILE_BATCH_FULL,
+        /// cuFile stream operation is not supported.
+        AsyncNotSupported = CU_FILE_ASYNC_NOT_SUPPORTED,
+        /// batch setup internal error - retry later
+        InternalBatchSetupError = CU_FILE_INTERNAL_BATCH_SETUP_ERROR,
+        /// batch submit internal error - retry later
+        InternalBatchSubmitError = CU_FILE_INTERNAL_BATCH_SUBMIT_ERROR,
+        /// batch get status internal error - retry later
+        InternalBatchGetStatusError = CU_FILE_INTERNAL_BATCH_GETSTATUS_ERROR,
+        /// batch cancel internal error - retry later
+        InternalBatchCancelError = CU_FILE_INTERNAL_BATCH_CANCEL_ERROR,
+        /// cufile no memory error - retry later
+        NoMemory = CU_FILE_NOMEM_ERROR,
+        /// cufile io error
+        IoError = CU_FILE_IO_ERROR,
+        /// cufile buf registration error
+        InternalBufferRegisterError = CU_FILE_INTERNAL_BUF_REGISTER_ERROR,
+        /// cufile hash operation error
+        HashOperationError = CU_FILE_HASH_OPR_ERROR,
+        /// cufile invalid context error
+        InvalidContextError = CU_FILE_INVALID_CONTEXT_ERROR,
+        /// nvfs internal driver error
+        NvfsInternalDriverError = CU_FILE_NVFS_INTERNAL_DRIVER_ERROR,
+        /// compat mode off error
+        BatchNoCompatError = CU_FILE_BATCH_NOCOMPAT_ERROR,
+        /// Upper marker of the cuFile operation error-code range.
+        IoMaxError = CU_FILE_IO_MAX_ERROR,
+    }
 }
 
 impl Status {
+    /// Returns a description of the cuFile status.
+    #[must_use]
     pub fn message(self) -> &'static str {
         match self {
             Self::Success => "cufile success",
@@ -115,289 +173,83 @@ impl Status {
         }
     }
 
+    /// Returns the same status description as [`Self::message`].
+    #[must_use]
     pub fn description(self) -> &'static str {
         self.message()
     }
-
-    pub const fn raw(self) -> u32 {
-        match self {
-            Self::Success => sys::CUfileOpError::CU_FILE_SUCCESS as _,
-            Self::DriverNotInitialized => sys::CUfileOpError::CU_FILE_DRIVER_NOT_INITIALIZED as _,
-            Self::DriverInvalidProperties => sys::CUfileOpError::CU_FILE_DRIVER_INVALID_PROPS as _,
-            Self::DriverUnsupportedLimit => {
-                sys::CUfileOpError::CU_FILE_DRIVER_UNSUPPORTED_LIMIT as _
-            }
-            Self::DriverVersionMismatch => sys::CUfileOpError::CU_FILE_DRIVER_VERSION_MISMATCH as _,
-            Self::DriverVersionReadError => {
-                sys::CUfileOpError::CU_FILE_DRIVER_VERSION_READ_ERROR as _
-            }
-            Self::DriverClosing => sys::CUfileOpError::CU_FILE_DRIVER_CLOSING as _,
-            Self::PlatformNotSupported => sys::CUfileOpError::CU_FILE_PLATFORM_NOT_SUPPORTED as _,
-            Self::IoNotSupported => sys::CUfileOpError::CU_FILE_IO_NOT_SUPPORTED as _,
-            Self::DeviceNotSupported => sys::CUfileOpError::CU_FILE_DEVICE_NOT_SUPPORTED as _,
-            Self::NvfsDriverError => sys::CUfileOpError::CU_FILE_NVFS_DRIVER_ERROR as _,
-            Self::CudaDriverError => sys::CUfileOpError::CU_FILE_CUDA_DRIVER_ERROR as _,
-            Self::CudaPointerInvalid => sys::CUfileOpError::CU_FILE_CUDA_POINTER_INVALID as _,
-            Self::CudaMemoryTypeInvalid => {
-                sys::CUfileOpError::CU_FILE_CUDA_MEMORY_TYPE_INVALID as _
-            }
-            Self::CudaPointerRangeError => {
-                sys::CUfileOpError::CU_FILE_CUDA_POINTER_RANGE_ERROR as _
-            }
-            Self::CudaContextMismatch => sys::CUfileOpError::CU_FILE_CUDA_CONTEXT_MISMATCH as _,
-            Self::InvalidMappingSize => sys::CUfileOpError::CU_FILE_INVALID_MAPPING_SIZE as _,
-            Self::InvalidMappingRange => sys::CUfileOpError::CU_FILE_INVALID_MAPPING_RANGE as _,
-            Self::InvalidFileType => sys::CUfileOpError::CU_FILE_INVALID_FILE_TYPE as _,
-            Self::InvalidFileOpenFlag => sys::CUfileOpError::CU_FILE_INVALID_FILE_OPEN_FLAG as _,
-            Self::DirectIoNotSet => sys::CUfileOpError::CU_FILE_DIO_NOT_SET as _,
-            Self::InvalidValue => sys::CUfileOpError::CU_FILE_INVALID_VALUE as _,
-            Self::MemoryAlreadyRegistered => {
-                sys::CUfileOpError::CU_FILE_MEMORY_ALREADY_REGISTERED as _
-            }
-            Self::MemoryNotRegistered => sys::CUfileOpError::CU_FILE_MEMORY_NOT_REGISTERED as _,
-            Self::PermissionDenied => sys::CUfileOpError::CU_FILE_PERMISSION_DENIED as _,
-            Self::DriverAlreadyOpen => sys::CUfileOpError::CU_FILE_DRIVER_ALREADY_OPEN as _,
-            Self::HandleNotRegistered => sys::CUfileOpError::CU_FILE_HANDLE_NOT_REGISTERED as _,
-            Self::HandleAlreadyRegistered => {
-                sys::CUfileOpError::CU_FILE_HANDLE_ALREADY_REGISTERED as _
-            }
-            Self::DeviceNotFound => sys::CUfileOpError::CU_FILE_DEVICE_NOT_FOUND as _,
-            Self::InternalError => sys::CUfileOpError::CU_FILE_INTERNAL_ERROR as _,
-            Self::GetNewFileDescriptorFailed => sys::CUfileOpError::CU_FILE_GETNEWFD_FAILED as _,
-            Self::NvfsSetupError => sys::CUfileOpError::CU_FILE_NVFS_SETUP_ERROR as _,
-            Self::IoDisabled => sys::CUfileOpError::CU_FILE_IO_DISABLED as _,
-            Self::BatchSubmitFailed => sys::CUfileOpError::CU_FILE_BATCH_SUBMIT_FAILED as _,
-            Self::GpuMemoryPinningFailed => {
-                sys::CUfileOpError::CU_FILE_GPU_MEMORY_PINNING_FAILED as _
-            }
-            Self::BatchFull => sys::CUfileOpError::CU_FILE_BATCH_FULL as _,
-            Self::AsyncNotSupported => sys::CUfileOpError::CU_FILE_ASYNC_NOT_SUPPORTED as _,
-            Self::InternalBatchSetupError => {
-                sys::CUfileOpError::CU_FILE_INTERNAL_BATCH_SETUP_ERROR as _
-            }
-            Self::InternalBatchSubmitError => {
-                sys::CUfileOpError::CU_FILE_INTERNAL_BATCH_SUBMIT_ERROR as _
-            }
-            Self::InternalBatchGetStatusError => {
-                sys::CUfileOpError::CU_FILE_INTERNAL_BATCH_GETSTATUS_ERROR as _
-            }
-            Self::InternalBatchCancelError => {
-                sys::CUfileOpError::CU_FILE_INTERNAL_BATCH_CANCEL_ERROR as _
-            }
-            Self::NoMemory => sys::CUfileOpError::CU_FILE_NOMEM_ERROR as _,
-            Self::IoError => sys::CUfileOpError::CU_FILE_IO_ERROR as _,
-            Self::InternalBufferRegisterError => {
-                sys::CUfileOpError::CU_FILE_INTERNAL_BUF_REGISTER_ERROR as _
-            }
-            Self::HashOperationError => sys::CUfileOpError::CU_FILE_HASH_OPR_ERROR as _,
-            Self::InvalidContextError => sys::CUfileOpError::CU_FILE_INVALID_CONTEXT_ERROR as _,
-            Self::NvfsInternalDriverError => {
-                sys::CUfileOpError::CU_FILE_NVFS_INTERNAL_DRIVER_ERROR as _
-            }
-            Self::BatchNoCompatError => sys::CUfileOpError::CU_FILE_BATCH_NOCOMPAT_ERROR as _,
-            Self::IoMaxError => sys::CUfileOpError::CU_FILE_IO_MAX_ERROR as _,
-            Self::Unknown(code) => code,
-        }
-    }
 }
 
-impl TryFrom<u32> for Status {
-    type Error = u32;
-
-    fn try_from(code: u32) -> std::result::Result<Self, Self::Error> {
-        match code {
-            x if x == sys::CUfileOpError::CU_FILE_SUCCESS as u32 => Ok(Self::Success),
-            x if x == sys::CUfileOpError::CU_FILE_DRIVER_NOT_INITIALIZED as u32 => {
-                Ok(Self::DriverNotInitialized)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DRIVER_INVALID_PROPS as u32 => {
-                Ok(Self::DriverInvalidProperties)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DRIVER_UNSUPPORTED_LIMIT as u32 => {
-                Ok(Self::DriverUnsupportedLimit)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DRIVER_VERSION_MISMATCH as u32 => {
-                Ok(Self::DriverVersionMismatch)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DRIVER_VERSION_READ_ERROR as u32 => {
-                Ok(Self::DriverVersionReadError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DRIVER_CLOSING as u32 => Ok(Self::DriverClosing),
-            x if x == sys::CUfileOpError::CU_FILE_PLATFORM_NOT_SUPPORTED as u32 => {
-                Ok(Self::PlatformNotSupported)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_IO_NOT_SUPPORTED as u32 => {
-                Ok(Self::IoNotSupported)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DEVICE_NOT_SUPPORTED as u32 => {
-                Ok(Self::DeviceNotSupported)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_NVFS_DRIVER_ERROR as u32 => {
-                Ok(Self::NvfsDriverError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_CUDA_DRIVER_ERROR as u32 => {
-                Ok(Self::CudaDriverError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_CUDA_POINTER_INVALID as u32 => {
-                Ok(Self::CudaPointerInvalid)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_CUDA_MEMORY_TYPE_INVALID as u32 => {
-                Ok(Self::CudaMemoryTypeInvalid)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_CUDA_POINTER_RANGE_ERROR as u32 => {
-                Ok(Self::CudaPointerRangeError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_CUDA_CONTEXT_MISMATCH as u32 => {
-                Ok(Self::CudaContextMismatch)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INVALID_MAPPING_SIZE as u32 => {
-                Ok(Self::InvalidMappingSize)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INVALID_MAPPING_RANGE as u32 => {
-                Ok(Self::InvalidMappingRange)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INVALID_FILE_TYPE as u32 => {
-                Ok(Self::InvalidFileType)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INVALID_FILE_OPEN_FLAG as u32 => {
-                Ok(Self::InvalidFileOpenFlag)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DIO_NOT_SET as u32 => Ok(Self::DirectIoNotSet),
-            x if x == sys::CUfileOpError::CU_FILE_INVALID_VALUE as u32 => Ok(Self::InvalidValue),
-            x if x == sys::CUfileOpError::CU_FILE_MEMORY_ALREADY_REGISTERED as u32 => {
-                Ok(Self::MemoryAlreadyRegistered)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_MEMORY_NOT_REGISTERED as u32 => {
-                Ok(Self::MemoryNotRegistered)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_PERMISSION_DENIED as u32 => {
-                Ok(Self::PermissionDenied)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DRIVER_ALREADY_OPEN as u32 => {
-                Ok(Self::DriverAlreadyOpen)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_HANDLE_NOT_REGISTERED as u32 => {
-                Ok(Self::HandleNotRegistered)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_HANDLE_ALREADY_REGISTERED as u32 => {
-                Ok(Self::HandleAlreadyRegistered)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_DEVICE_NOT_FOUND as u32 => {
-                Ok(Self::DeviceNotFound)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INTERNAL_ERROR as u32 => Ok(Self::InternalError),
-            x if x == sys::CUfileOpError::CU_FILE_GETNEWFD_FAILED as u32 => {
-                Ok(Self::GetNewFileDescriptorFailed)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_NVFS_SETUP_ERROR as u32 => {
-                Ok(Self::NvfsSetupError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_IO_DISABLED as u32 => Ok(Self::IoDisabled),
-            x if x == sys::CUfileOpError::CU_FILE_BATCH_SUBMIT_FAILED as u32 => {
-                Ok(Self::BatchSubmitFailed)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_GPU_MEMORY_PINNING_FAILED as u32 => {
-                Ok(Self::GpuMemoryPinningFailed)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_BATCH_FULL as u32 => Ok(Self::BatchFull),
-            x if x == sys::CUfileOpError::CU_FILE_ASYNC_NOT_SUPPORTED as u32 => {
-                Ok(Self::AsyncNotSupported)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INTERNAL_BATCH_SETUP_ERROR as u32 => {
-                Ok(Self::InternalBatchSetupError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INTERNAL_BATCH_SUBMIT_ERROR as u32 => {
-                Ok(Self::InternalBatchSubmitError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INTERNAL_BATCH_GETSTATUS_ERROR as u32 => {
-                Ok(Self::InternalBatchGetStatusError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INTERNAL_BATCH_CANCEL_ERROR as u32 => {
-                Ok(Self::InternalBatchCancelError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_NOMEM_ERROR as u32 => Ok(Self::NoMemory),
-            x if x == sys::CUfileOpError::CU_FILE_IO_ERROR as u32 => Ok(Self::IoError),
-            x if x == sys::CUfileOpError::CU_FILE_INTERNAL_BUF_REGISTER_ERROR as u32 => {
-                Ok(Self::InternalBufferRegisterError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_HASH_OPR_ERROR as u32 => {
-                Ok(Self::HashOperationError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_INVALID_CONTEXT_ERROR as u32 => {
-                Ok(Self::InvalidContextError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_NVFS_INTERNAL_DRIVER_ERROR as u32 => {
-                Ok(Self::NvfsInternalDriverError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_BATCH_NOCOMPAT_ERROR as u32 => {
-                Ok(Self::BatchNoCompatError)
-            }
-            x if x == sys::CUfileOpError::CU_FILE_IO_MAX_ERROR as u32 => Ok(Self::IoMaxError),
-            code => Err(code),
-        }
-    }
-}
-
-impl TryFrom<Status> for sys::CUfileOpError {
-    type Error = Status;
-
-    fn try_from(status: Status) -> std::result::Result<Self, Self::Error> {
-        match status {
-            Status::Unknown(_) => Err(status),
-            _ => Self::try_from(status.raw()).map_err(|_| status),
-        }
-    }
-}
-
-impl fmt::Display for Status {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unknown(code) => write!(f, "UNKNOWN_CUFILE_STATUS({code})"),
-            _ => write!(f, "{:?}", sys::CUfileOpError::try_from(self.raw()).unwrap()),
-        }
-    }
-}
-
+/// An error from CUDA, cuFile, the operating system, or wrapper argument validation.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// A CUDA operation failed.
     #[error("cuda error: {0}")]
     Cuda(#[from] CudaError),
 
+    /// A cuFile operation returned a failure status.
     #[error("cufile error ({code}): {message}")]
     Cufile {
+        /// The cuFile status code.
         code: Status,
+        /// The accompanying CUDA status when `code` is [`Status::CudaDriverError`].
         cuda_code: Option<u32>,
+        /// A description of the cuFile status.
         message: String,
     },
 
+    /// A string contains an interior NUL byte.
     #[error("string contains interior nul byte")]
     InteriorNul,
 
+    /// An operating-system I/O operation failed.
     #[error("io error: {0}")]
     Io(#[from] io::Error),
 
+    /// A native handle or buffer address is null.
     #[error("unexpected null handle")]
     NullHandle,
 
+    /// An argument, computed size, or native result is outside its supported range.
     #[error("`{name}` is out of range")]
-    OutOfRange { name: String },
+    OutOfRange {
+        /// The argument or quantity outside its supported range.
+        name: Cow<'static, str>,
+    },
 
+    /// An argument has a different number of elements than required.
     #[error("`{name}` length mismatch (expected {expected}, got {actual})")]
     LengthMismatch {
-        name: String,
+        /// The argument with the incorrect length.
+        name: Cow<'static, str>,
+        /// The required number of elements.
         expected: usize,
+        /// The supplied number of elements.
         actual: usize,
     },
 
+    /// A negative I/O result cannot be decoded as a cuFile or operating-system error.
     #[error("cufile io operation failed with code {0}")]
-    OperationFailed(isize),
+    OperationFailed(i64),
 
+    /// The requested batch is empty at creation or exceeds the supported capacity.
     #[error("request batch is too big")]
     RequestBatchTooBig,
+
+    /// The batch event has no successful byte count for its status.
+    #[error("cufile batch operation ended with status {0}")]
+    BatchOperationFailed(BatchStatus),
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+/// A cuFile wrapper result with [`enum@Error`] as its error type.
+pub type Result<T> = StdResult<T, Error>;
+
+impl Error {
+    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::OutOfRange { name: name.into() }
+    }
+}
 
 impl From<NulError> for Error {
     fn from(_: NulError) -> Self {
@@ -407,8 +259,7 @@ impl From<NulError> for Error {
 
 impl From<sys::CUfileError_t> for Error {
     fn from(status: sys::CUfileError_t) -> Self {
-        let code =
-            Status::try_from(status.err as u32).unwrap_or(Status::Unknown(status.err as u32));
+        let code = Status::from(status.err as u32);
         let cuda_code = if code == Status::CudaDriverError {
             Some(status.cu_err as u32)
         } else {
@@ -440,6 +291,7 @@ impl From<Status> for Error {
     }
 }
 
+/// Converts a raw cuFile status-returning expression into a crate [`Result`](crate::error::Result).
 #[macro_export]
 macro_rules! try_ffi {
     ($expr:expr) => {{

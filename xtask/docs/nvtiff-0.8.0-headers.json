@@ -1,0 +1,2033 @@
+{
+  "MAX_NUM_SAMPLES": {
+    "doc": "Maximum number of samples per pixel supported.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_BIG_TIFF": {
+    "doc": "BigTIFF format (supports files larger than 4GB).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_ADOBE_DEFLATE": {
+    "doc": "Adobe Deflate compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_APERIO_JP2000_RGB": {
+    "doc": "Aperio JPEG2000 RGB compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_APERIO_JP2000_YCC": {
+    "doc": "Aperio JPEG2000 YCC compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_DEFLATE": {
+    "doc": "Deflate compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_JP2000": {
+    "doc": "JPEG2000 compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_JPEG": {
+    "doc": "JPEG compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_LZW": {
+    "doc": "LZW compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_NONE": {
+    "doc": "No compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_PACKBITS": {
+    "doc": "PackBits compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_COMPRESSION_UNKNOWN": {
+    "doc": "Unknown compression.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_BASE": {
+    "doc": "Reserved for private use.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_ELLIPSOID": {
+    "doc": "Ellipsoid.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_ELLIPSOID_INV_FLATTENING": {
+    "doc": "Ellipsoid inverse flattening.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_ELLIPSOID_SEMI_MAJOR_AXIS": {
+    "doc": "Ellipsoid semi-major axis.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_ELLIPSOID_SEMI_MINOR_AXIS": {
+    "doc": "Ellipsoid semi-minor axis.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_END": {
+    "doc": "Maximum value.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GEODETIC_CITATION": {
+    "doc": "Geodetic citation.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GEODETIC_CRS": {
+    "doc": "Geodetic CRS.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GEODETIC_DATUM": {
+    "doc": "Geodetic datum.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GEOG_ANGULAR_UNITS": {
+    "doc": "Geographic angular units.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GEOG_ANGULAR_UNIT_SIZE": {
+    "doc": "Geographic angular unit size.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GEOG_AZIMUTH_UNITS": {
+    "doc": "Geographic azimuth units.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GEOG_LINEAR_UNITS": {
+    "doc": "Geographic linear units.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GEOG_LINEAR_UNIT_SIZE": {
+    "doc": "Geographic linear unit size.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GT_CITATION": {
+    "doc": "Citation.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GT_MODEL_TYPE": {
+    "doc": "Model type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_GT_RASTER_TYPE": {
+    "doc": "Raster type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PRIME_MERIDIAN": {
+    "doc": "Prime meridian.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PRIME_MERIDIAN_LONG": {
+    "doc": "Prime meridian longitude.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJECTED_CITATION": {
+    "doc": "Projected citation.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJECTED_CRS": {
+    "doc": "Projected CRS.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJECTION": {
+    "doc": "Projection.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_AZIMUTH_ANGLE": {
+    "doc": "Azimuth angle.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_CENTER_EASTING": {
+    "doc": "Center easting.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_CENTER_LAT": {
+    "doc": "Center latitude.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_CENTER_LONG": {
+    "doc": "Center longitude.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_CENTER_NORTHING": {
+    "doc": "Center northing.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_EASTING": {
+    "doc": "False easting.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_NORTHING": {
+    "doc": "False northing.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_EASTING": {
+    "doc": "False origin easting.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LAT": {
+    "doc": "False origin latitude.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_LONG": {
+    "doc": "False origin longitude.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_FALSE_ORIGIN_NORTHING": {
+    "doc": "False origin northing.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_LINEAR_UNITS": {
+    "doc": "Projection linear units.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_LINEAR_UNIT_SIZE": {
+    "doc": "Projection linear unit size.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_METHOD": {
+    "doc": "Projection method.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LAT": {
+    "doc": "Natural origin latitude.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_NAT_ORIGIN_LONG": {
+    "doc": "Natural origin longitude.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_ORIGIN_LAT": {
+    "doc": "Origin latitude (alias for PROJ_NAT_ORIGIN_LAT).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_ORIGIN_LONG": {
+    "doc": "Origin longitude (alias for PROJ_NAT_ORIGIN_LONG).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_SCALE_AT_CENTER": {
+    "doc": "Scale at center.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_SCALE_AT_NAT_ORIGIN": {
+    "doc": "Scale at natural origin.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_SCALE_AT_ORIGIN": {
+    "doc": "Scale at origin (alias for PROJ_SCALE_AT_NAT_ORIGIN).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_STD_PARALLEL": {
+    "doc": "Standard parallel (alias for PROJ_STD_PARALLEL1).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_STD_PARALLEL1": {
+    "doc": "Standard parallel 1.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_STD_PARALLEL2": {
+    "doc": "Standard parallel 2.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_PROJ_STRAIGHT_VERT_POLE_LONG": {
+    "doc": "Straight vertical pole longitude.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_TYPE_ASCII": {
+    "doc": "ASCII string.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_TYPE_DOUBLE": {
+    "doc": "64-bit floating point.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_TYPE_SHORT": {
+    "doc": "16-bit unsigned integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_TYPE_UNKNOWN": {
+    "doc": "Unknown type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_VERTICAL": {
+    "doc": "Vertical CRS.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_VERTICAL_CITATION": {
+    "doc": "Vertical citation.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_VERTICAL_DATUM": {
+    "doc": "Vertical datum.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_GEOKEY_VERTICAL_UNITS": {
+    "doc": "Vertical units.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_IMAGETYPE_ENUM_FORCE_UINT32": {
+    "doc": "Force enum to 32-bit.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_IMAGETYPE_MASK": {
+    "doc": "Transparency mask for another image.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_IMAGETYPE_PAGE": {
+    "doc": "Single page of a multi-page image.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_IMAGETYPE_REDUCED_IMAGE": {
+    "doc": "Reduced resolution version of another image.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_IMAGE_STRIPED": {
+    "doc": "Image is organized in strips.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_IMAGE_TILED": {
+    "doc": "Image is organized in tiles.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_JPEG_CHROMA_SUBSAMPLING_420": {
+    "doc": "Horizontal and vertical chroma subsampling. TIFF YCbCrSubSampling = {2, 2}.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_JPEG_CHROMA_SUBSAMPLING_422": {
+    "doc": "Horizontal chroma subsampling. TIFF YCbCrSubSampling = {2, 1}.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_JPEG_CHROMA_SUBSAMPLING_444": {
+    "doc": "No chroma subsampling. TIFF YCbCrSubSampling = {1, 1}.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_JPEG_CHROMA_SUBSAMPLING_DEFAULT": {
+    "doc": "Library default. Currently 4:2:0 for RGB input.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_NO_IMAGE": {
+    "doc": "Sentinel IFD offset meaning \"no image\".\n\nNo real IFD can begin at this offset, so it marks \"no such image\": it is reported by `nvtiffStreamGetHeader` (in `first_ifd_offset`, for an empty file) and by `nvtiffStreamGetNextIFDOffset` (at the end of the chain). It is distinct from a `ifd_offset` of 0, which selects the first IFD.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_OUTPUT_RGB_I_UINT16": {
+    "doc": "Interleaved RGB with 16 bits per channel.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_OUTPUT_RGB_I_UINT8": {
+    "doc": "Interleaved RGB with 8 bits per channel.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_OUTPUT_UNCHANGED_I": {
+    "doc": "Keep original format, interleaved channels.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PHOTOMETRIC_MASK": {
+    "doc": "Holdout mask.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PHOTOMETRIC_MINISBLACK": {
+    "doc": "0 is black, max value is white.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PHOTOMETRIC_MINISWHITE": {
+    "doc": "0 is white, max value is black.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PHOTOMETRIC_PALETTE": {
+    "doc": "Color map indexed (palette color).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PHOTOMETRIC_RGB": {
+    "doc": "RGB color model.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PHOTOMETRIC_SEPARATED": {
+    "doc": "Color separations (e.g., CMYK).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PHOTOMETRIC_UNKNOWN": {
+    "doc": "Unknown photometric interpretation.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PHOTOMETRIC_YCBCR": {
+    "doc": "YCbCr color space.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PLANARCONFIG_CONTIG": {
+    "doc": "Chunky format (interleaved).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PLANARCONFIG_SEPARATE": {
+    "doc": "Planar format (separate planes).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_PLANARCONFIG_UNKNOWN": {
+    "doc": "Unknown planar configuration.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_REGULAR_TIFF": {
+    "doc": "Standard TIFF format (up to 4GB file size).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_SAMPLEFORMAT_COMPLEXIEEEFP": {
+    "doc": "Complex IEEE floating point data.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_SAMPLEFORMAT_COMPLEXINT": {
+    "doc": "Complex integer data.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_SAMPLEFORMAT_IEEEFP": {
+    "doc": "IEEE floating point data.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_SAMPLEFORMAT_INT": {
+    "doc": "Signed integer data.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_SAMPLEFORMAT_UINT": {
+    "doc": "Unsigned integer data.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_SAMPLEFORMAT_UNKNOWN": {
+    "doc": "Unknown sample format.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_SAMPLEFORMAT_VOID": {
+    "doc": "Undefined data format.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_ALLOCATOR_FAILURE": {
+    "doc": "The user-provided allocator functions returned a non-zero code.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_ARCH_MISMATCH": {
+    "doc": "The device capabilities are not enough for the set of input parameters provided.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_BAD_TIFF": {
+    "doc": "Cannot parse the TIFF stream. Likely due to a corruption that cannot be handled.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_BATCH_INCOMPATIBLE": {
+    "doc": "Each region in a multi-region decode request is individually decodable, but the requested regions cannot execute as one compatible batch under the current batching rules. Distinct from invalid-parameter and single-image unsupported-image errors.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_EXECUTION_FAILED": {
+    "doc": "Error during the execution of the device tasks.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_INTERNAL_ERROR": {
+    "doc": "Unknown error occurred in the library.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_INVALID_PARAMETER": {
+    "doc": "Wrong parameter was passed. For example, a null pointer as input data, or an invalid enum value.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_NOT_INITIALIZED": {
+    "doc": "The library handle was not initialized.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_NVCOMP_NOT_FOUND": {
+    "doc": "nvTIFF is unable to load the nvcomp library.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_NVJPEG2K_NOT_FOUND": {
+    "doc": "nvTIFF is unable to load the nvJPEG2000 library.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_NVJPEG_NOT_FOUND": {
+    "doc": "nvTIFF is unable to load the nvjpeg library.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_PARAMETER_OUT_OF_BOUNDS": {
+    "doc": "Provided parameter is outside the range of possible values.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_SUCCESS": {
+    "doc": "The API call finished successfully. Note that many calls are asynchronous and some errors may only be seen after synchronization.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_TAG_NOT_FOUND": {
+    "doc": "nvTIFF is unable to find information about the provided tag.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_STATUS_TIFF_NOT_SUPPORTED": {
+    "doc": "Attempting to decode a TIFF stream that is not supported by the nvTIFF library.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_MODEL_PIXEL_SCALE": {
+    "doc": "Well-known GeoTIFF TIFF tag identifiers for APIs that accept raw tag IDs.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_ASCII": {
+    "doc": "8-bit byte containing ASCII code (null-terminated).",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_BYTE": {
+    "doc": "8-bit unsigned integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_DOUBLE": {
+    "doc": "64-bit IEEE floating point.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_FLOAT": {
+    "doc": "32-bit IEEE floating point.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_IFD8": {
+    "doc": "BigTIFF 64-bit unsigned IFD offset.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_LONG": {
+    "doc": "32-bit unsigned integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_LONG8": {
+    "doc": "BigTIFF 64-bit unsigned integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_RATIONAL": {
+    "doc": "Two LONGs: numerator and denominator.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_SBYTE": {
+    "doc": "8-bit signed integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_SHORT": {
+    "doc": "16-bit unsigned integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_SLONG": {
+    "doc": "32-bit signed integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_SLONG8": {
+    "doc": "BigTIFF 64-bit signed integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_SRATIONAL": {
+    "doc": "Two SLONGs: numerator and denominator.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_SSHORT": {
+    "doc": "16-bit signed integer.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_TAG_TYPE_UNDEFINED": {
+    "doc": "8-bit byte that may contain anything.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "NVTIFF_VER_BUILD": {
+    "doc": "Build component of the nvTIFF version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvtiff_version.h"
+  },
+  "NVTIFF_VER_MAJOR": {
+    "doc": "Major component of the nvTIFF version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvtiff_version.h"
+  },
+  "NVTIFF_VER_MINOR": {
+    "doc": "Minor component of the nvTIFF version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvtiff_version.h"
+  },
+  "NVTIFF_VER_PATCH": {
+    "doc": "Patch component of the nvTIFF version used to generate these bindings.",
+    "kind": "constant",
+    "source": "nvtiff_version.h"
+  },
+  "nvtiffCompression": {
+    "doc": "Compression types.\n\nCorresponds to the Compression (259) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffCompression_t": {
+    "doc": "Compression types.\n\nCorresponds to the Compression (259) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecode": {
+    "doc": "Decodes the regions configured in `params` from one source stream.\n\nSubmits the decode request described by `params` against `tiff_stream`. The request has one or more effective regions (see `nvtiffDecodeParamsSetRegions)`. A freshly created params object, or one reset with `nvtiffDecodeParamsSetRegions(params`, NULL, 0), has exactly one effective region: the first full image at IFD offset 0. The function is asynchronous with respect to the host.\n\n`image_out` points to an array of output descriptors, one per effective region. For a freshly created params object this is a single descriptor; after a non-empty `nvtiffDecodeParamsSetRegions(params`, regions, count) call, `image_out` must contain `count` descriptors. Each descriptor must provide one plane with sufficient, sample-aligned pitch for the resolved output width.\n\nA multi-region request executes as one compatible batch or is rejected with `::NVTIFF_STATUS_BATCH_INCOMPATIBLE`. The library never silently splits an incompatible request into serial decodes. Regions may resolve to different output sizes within a single batch; each is written to its own descriptor in `image_out`. Compatibility depends on the images sharing strile layout and codec, not on the regions being the same size.\n\n\n\nNote: A decoder may have only one decode in flight at a time. Every call to `nvtiffDecode` must be followed by stream completion (for example `cudaStreamSynchronize)`, regardless of the returned status, before the same decoder is reused or destroyed. The decoder reuses internal scratch buffers and may have submitted work before reporting an error. To decode concurrently, use separate decoders. The source `tiff_stream` and any memory backing it must remain valid until the submitted work completes.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decoder": {
+        "doc": "[in] Decoder handle."
+      },
+      "image_out": {
+        "doc": "[out] Array of output descriptors, one per effective region."
+      },
+      "params": {
+        "doc": "[in] Decode parameters describing output format and regions."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream for GPU work submission."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle containing the parsed file. All region IFD offsets are interpreted in this stream's address space."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeCheckSupported": {
+    "doc": "Dry-run of `nvtiffDecode`: validates the request without enqueuing GPU work.\n\nValidates the configured request against the provided stream without enqueuing GPU work. It omits the `cudaStream_t` for that reason, and takes a `const` `image_out` because it inspects the descriptors but does not mutate them.\n\n`image_out` has two modes:\n- Non-`NULL`: full dry-run. The same source-image, batch-compatibility, and output-descriptor checks `nvtiffDecode` performs are applied, and the call returns the pre-launch status `nvtiffDecode` would return for the same `tiff_stream`, `decoder`, `params`, and descriptor values. (`nvtiffDecode` itself rejects a `NULL` `image_out` as an invalid argument.)\n- `NULL`: request-only probe. Output-descriptor validation is skipped; only the request and source images are checked. Use this to ask \"are these images individually decodable, and can they batch together?\" without allocating output descriptors.\n\nIn both modes a caller can distinguish \"unsupported image\" (e.g. `::NVTIFF_STATUS_TIFF_NOT_SUPPORTED)` from \"valid images that cannot batch together\" (`::NVTIFF_STATUS_BATCH_INCOMPATIBLE)` before submitting work.\n\n\n\n# Return value\n\nThe pre-launch status `nvtiffDecode` would return, as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decoder": {
+        "doc": "[in] Decoder handle."
+      },
+      "image_out": {
+        "doc": "[in] Array of output descriptors, one per effective region, or `NULL` to skip descriptor validation."
+      },
+      "params": {
+        "doc": "[in] Decode parameters describing output format and regions."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle containing the parsed file."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeParams": {
+    "doc": "Opaque decode parameters type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeParamsCreate": {
+    "doc": "Creates an instance of the decode parameters handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_params": {
+        "doc": "[out] Pointer to decode parameters handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeParamsDestroy": {
+    "doc": "Releases the decode parameters handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_params": {
+        "doc": "[in] Decode parameters handle to destroy."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeParamsSetOutputFormat": {
+    "doc": "Sets the decode output format.\n\nThe default value is `::NVTIFF_OUTPUT_UNCHANGED_I`.\n\n**Buffer size and pitch requirements:**\n\nWhen `::NVTIFF_OUTPUT_UNCHANGED_I` is used:\n- Buffer size: <tt>image_height * DivUp(image_width * bits_per_pixel, 8)</tt>\n- Pitch must be aligned to <tt>DivUp(bits_per_sample[0], 8)</tt> bytes.\n- Default pitch (if not specified): <tt>DivUp(image_width * bits_per_pixel, 8)</tt>\n\nWhen `::NVTIFF_OUTPUT_RGB_I_UINT8` is used:\n- Buffer size: <tt>image_width * image_height * 3</tt>\n- Pitch must be aligned to 1 byte.\n\nWhen `::NVTIFF_OUTPUT_RGB_I_UINT16` is used:\n- Buffer size: <tt>image_width * image_height * 6</tt>\n- Pitch must be aligned to 2 bytes.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decode_params": {
+        "doc": "[in/out] Decode parameters handle."
+      },
+      "format": {
+        "doc": "[in] Output format value."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeParamsSetRegions": {
+    "doc": "Configures the explicit set of regions to decode.\n\nReplaces the entire explicit region set in `decode_params` with exactly the provided array. This is the only region-configuration API; a full image at any IFD offset is a one-element array with `width` = `height` = 0.\n\nFresh params already represent the default request (one full image at IFD offset 0), so the common \"decode the first full image\" path needs no call to this function. Passing `regions` = `NULL` and `count` = 0 resets params to that default; this is supported for state reset, but prefer fresh params for the default path and an explicit one-element array for a non-default full-image decode.\n\nThe region descriptors are source-free: they carry no stream handle, and their IFD offsets are interpreted against whichever `tiff_stream` is later passed to `nvtiffDecode` or `nvtiffDecodeCheckSupported`. A configured params object can therefore be reused across streams.\n\nThis call performs only mechanical argument checks; it does not validate region contents against any stream. IFD offset validity, ROI bounds, codec support, output descriptors, and batch compatibility are validated by `nvtiffDecodeCheckSupported` and `nvtiffDecode`.\n\nFor a non-empty input, the caller's array is deep-copied before this call returns, so the caller may free or mutate it afterwards. If the call fails a mechanical check or an allocation while copying, the existing params state is left unchanged.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of regions, or 0 to reset to the default first full-image request."
+      },
+      "decode_params": {
+        "doc": "[in/out] Decode parameters handle."
+      },
+      "regions": {
+        "doc": "[in] Array of `count` region descriptors, or `NULL` when `count` is 0."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeParams_t": {
+    "doc": "Handle to opaque decode parameters.\n\nUsed to specify decode output parameters such as region of interest and output format.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeRegion": {
+    "doc": "Source-free decode region descriptor.\n\nIdentifies one decode output: an image, selected by its IFD offset in the source stream, and an optional region of interest within that image. The descriptor carries no stream handle; the source stream is supplied to `nvtiffDecode` or `nvtiffDecodeCheckSupported`, and every region's `ifd_offset` is interpreted in that stream's address space.\n\nA full-image decode is expressed with `offset_x` = `offset_y` = 0 and `width` = `height` = 0. A `width` or `height` of 0 extends that dimension to the image edge from the given offset.",
+    "members": {
+      "height": {
+        "doc": "Region height in pixels, or 0 to extend to the image edge."
+      },
+      "ifd_offset": {
+        "doc": "IFD offset of the source image; 0 selects the first IFD."
+      },
+      "offset_x": {
+        "doc": "Horizontal region offset from the top-left corner. Must be >= 0; negative values are reserved for future out-of-bounds ROI support and currently rejected with `::NVTIFF_STATUS_INVALID_PARAMETER`."
+      },
+      "offset_y": {
+        "doc": "Vertical region offset from the top-left corner. Must be >= 0 (see `offset_x)`."
+      },
+      "width": {
+        "doc": "Region width in pixels, or 0 to extend to the image edge."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecodeRegion_t": {
+    "doc": "Source-free decode region descriptor.\n\nIdentifies one decode output: an image, selected by its IFD offset in the source stream, and an optional region of interest within that image. The descriptor carries no stream handle; the source stream is supplied to `nvtiffDecode` or `nvtiffDecodeCheckSupported`, and every region's `ifd_offset` is interpreted in that stream's address space.\n\nA full-image decode is expressed with `offset_x` = `offset_y` = 0 and `width` = `height` = 0. A `width` or `height` of 0 extends that dimension to the image edge from the given offset.",
+    "members": {
+      "height": {
+        "doc": "Region height in pixels, or 0 to extend to the image edge."
+      },
+      "ifd_offset": {
+        "doc": "IFD offset of the source image; 0 selects the first IFD."
+      },
+      "offset_x": {
+        "doc": "Horizontal region offset from the top-left corner. Must be >= 0; negative values are reserved for future out-of-bounds ROI support and currently rejected with `::NVTIFF_STATUS_INVALID_PARAMETER`."
+      },
+      "offset_y": {
+        "doc": "Vertical region offset from the top-left corner. Must be >= 0 (see `offset_x)`."
+      },
+      "width": {
+        "doc": "Region width in pixels, or 0 to extend to the image edge."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecoder": {
+    "doc": "Opaque nvTIFF decoder instance type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecoderCreate": {
+    "doc": "Creates an instance of the decoder handle with custom memory allocators.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decoder": {
+        "doc": "[out] Pointer to nvTIFF decoder handle."
+      },
+      "device_allocator": {
+        "doc": "[in] User-provided device memory allocator. If `NULL`, the library uses `cudaMalloc` / `cudaFree`."
+      },
+      "pinned_allocator": {
+        "doc": "[in] User-provided pinned memory allocator. If `NULL`, the library uses `cudaHostAlloc` / `cudaFreeHost`."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream for asynchronous API calls."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecoderCreateSimple": {
+    "doc": "Creates an instance of the decoder handle with default memory allocators.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decoder": {
+        "doc": "[out] Pointer to nvTIFF decoder handle."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream for asynchronous API calls."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecoderDestroy": {
+    "doc": "Releases the decoder handle.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "decoder": {
+        "doc": "[in] nvTIFF decoder handle to destroy."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream for asynchronous API calls."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDecoder_t": {
+    "doc": "Handle to opaque nvTIFF decoder instance.\n\nStores intermediate decode buffers used in decoding.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffDeviceAllocator": {
+    "doc": "Custom device memory allocator interface.\n\nSupports stream-ordered allocation and user-defined context information. When invoking the device allocators, nvTIFF will pass device_ctx as input.",
+    "members": {
+      "device_ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "device_free": {
+        "doc": "Device free callback."
+      },
+      "device_malloc": {
+        "doc": "Device allocator callback."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDeviceAllocator_t": {
+    "doc": "Custom device memory allocator interface.\n\nSupports stream-ordered allocation and user-defined context information. When invoking the device allocators, nvTIFF will pass device_ctx as input.",
+    "members": {
+      "device_ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "device_free": {
+        "doc": "Device free callback."
+      },
+      "device_malloc": {
+        "doc": "Device allocator callback."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffDeviceFreeAsync": {
+    "doc": "Prototype for stream-ordered device memory deallocation.\n\n\n\n[in] User-defined context pointer.\n\n[in] Pointer to memory to free.\n\n[in] Size in bytes that was allocated.\n\n[in] CUDA stream for ordered deallocation.\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffDeviceMallocAsync": {
+    "doc": "Prototype for stream-ordered device memory allocation.\n\n\n\n[in] User-defined context pointer.\n\n[out] Pointer to allocated memory.\n\n[in] Size in bytes to allocate.\n\n[in] CUDA stream for ordered allocation.\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncode": {
+    "doc": "Performs asynchronous TIFF encoding of one or more images.\n\nParameters must be set using `nvtiffEncodeParamsSetImageInfo()` and `nvtiffEncodeParamsSetInputs()` before calling this function. LZW output is written as LZW even when the compressed bitstream is larger than the raw input image data. If an encoded strile exceeds the reserved output allocation, `nvtiffEncodeFinalize()` reports an error.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encoder": {
+        "doc": "[in] Encoder handle."
+      },
+      "num_params": {
+        "doc": "[in] Number of encode parameters (must be 1 for now)."
+      },
+      "params": {
+        "doc": "[in] Array of encode parameters."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeFinalize": {
+    "doc": "Finalizes asynchronous TIFF encoding operation started by `nvtiffEncode()`.\n\nThis function must be called before the encoded bitstream can be written with `nvtiffWriteTiffBuffer()` or `nvtiffWriteTiffFile()`.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encoder": {
+        "doc": "[in] Encoder handle."
+      },
+      "num_params": {
+        "doc": "[in] Number of encode parameters (must be 1 for now)."
+      },
+      "params": {
+        "doc": "[in] Array of encode parameters."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParams": {
+    "doc": "Opaque nvTIFF encode parameters type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsCreate": {
+    "doc": "Creates and initializes encode parameters object.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "params": {
+        "doc": "[out] Pointer to encode parameters handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsDestroy": {
+    "doc": "Destroys encode parameters object and frees associated resources.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetGeoKey": {
+    "doc": "Sets a GeoTIFF key with arbitrary type and value.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of values."
+      },
+      "key": {
+        "doc": "[in] GeoTIFF key to set."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      },
+      "type": {
+        "doc": "[in] Data type of the key value."
+      },
+      "value": {
+        "doc": "[in] Pointer to key value."
+      },
+      "value_size": {
+        "doc": "[in] Size of individual value in bytes."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetGeoKeyASCII": {
+    "doc": "Sets a GeoTIFF key with ASCII value type.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "key": {
+        "doc": "[in] GeoTIFF key to set."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      },
+      "value": {
+        "doc": "[in] ASCII string value."
+      },
+      "value_size": {
+        "doc": "[in] Size of ASCII string including null terminator."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetGeoKeyDOUBLE": {
+    "doc": "Sets a GeoTIFF key with DOUBLE value type.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of values."
+      },
+      "key": {
+        "doc": "[in] GeoTIFF key to set."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      },
+      "value": {
+        "doc": "[in] DOUBLE value to set."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetGeoKeySHORT": {
+    "doc": "Sets a GeoTIFF key with SHORT value type.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of values."
+      },
+      "key": {
+        "doc": "[in] GeoTIFF key to set."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      },
+      "value": {
+        "doc": "[in] SHORT value to set."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetImageGeometry": {
+    "doc": "Sets strip/tile geometry for encoding.\n\nThis is optional. By default, JPEG-encoded images are written as a single full-height strip; None and LZW compression use the existing approximately 8 KiB strip default. For striped output, set `type` to ::NVTIFF_IMAGE_STRIPED and `strile_height` to the number of rows per strip. If `strile_width` is set for striped output, it must match the image width. For tiled output, set `type` to ::NVTIFF_IMAGE_TILED and set `strile_width` and `strile_height` to the tile dimensions. Tile dimensions must be positive multiples of 16.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "geometry": {
+        "doc": "[in] Pointer to image geometry structure."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetImageInfo": {
+    "doc": "Sets image information for encoding.\n\nRequired fields: `image_width`, `image_height`, `samples_per_pixel`, `bits_per_sample`, and `sample_format` (for each sample in a pixel).\n\nConstraints:\n- `samples_per_pixel` must be 1, or 3 to 5 for non-JPEG encodes.\n- `photometric_int` must be `::NVTIFF_PHOTOMETRIC_RGB` (if `samples_per_pixel` is 3 or more) or `::NVTIFF_PHOTOMETRIC_MINISBLACK` (if `samples_per_pixel` is 1). `::NVTIFF_PHOTOMETRIC_UNKNOWN` is auto-set.\n- `sample_format` must be `::NVTIFF_SAMPLEFORMAT_UNKNOWN`, `::NVTIFF_SAMPLEFORMAT_UINT`, or `::NVTIFF_SAMPLEFORMAT_IEEEFP`.\n- `planar_config` must be `::NVTIFF_PLANARCONFIG_CONTIG`.\n- `compression` must be `::NVTIFF_COMPRESSION_LZW`, `::NVTIFF_COMPRESSION_NONE`, or `::NVTIFF_COMPRESSION_JPEG`. JPEG encoding requires nvJPEG and supports only unsigned 8-bit grayscale or RGB input.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "image_info": {
+        "doc": "[in] Pointer to image information structure."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetInputs": {
+    "doc": "Sets input image pointers for encoding.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "images_d": {
+        "doc": "[in] Host array of size `num_images` of pointers to device buffers."
+      },
+      "num_images": {
+        "doc": "[in] Number of input images."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetJpegOptions": {
+    "doc": "Sets JPEG-specific encode options.\n\nThis API is optional and affects only `::NVTIFF_COMPRESSION_JPEG` encodes. It may be called before or after `nvtiffEncodeParamsSetImageInfo()`. The defaults preserve the built-in JPEG preset: quality 90, optimized Huffman disabled, and 4:2:0 chroma sampling for RGB input.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "options": {
+        "doc": "[in] Pointer to JPEG encode options."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetTag": {
+    "doc": "Sets a TIFF tag with specified type and value.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of values."
+      },
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      },
+      "tag": {
+        "doc": "[in] TIFF tag to set."
+      },
+      "type": {
+        "doc": "[in] Data type of tag value."
+      },
+      "value": {
+        "doc": "[in] Pointer to tag value."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParamsSetTiffVariant": {
+    "doc": "Sets the TIFF variant (regular or BigTIFF) for encoding.\n\nThis API is optional; by default, regular TIFF is used.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "params": {
+        "doc": "[in] Encode parameters handle."
+      },
+      "variant": {
+        "doc": "[in] TIFF variant (`::NVTIFF_REGULAR_TIFF` or `::NVTIFF_BIG_TIFF)`."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncodeParams_t": {
+    "doc": "Handle to opaque nvTIFF encode parameters.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncoder": {
+    "doc": "Opaque nvTIFF encoder instance type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncoderCreate": {
+    "doc": "Creates and initializes a TIFF encoder instance.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "device_allocator": {
+        "doc": "[in] Custom device memory allocator (can be `NULL` to use `cudaMalloc()` / `cudaFree())`."
+      },
+      "encoder": {
+        "doc": "[out] Pointer to encoder handle."
+      },
+      "pinned_allocator": {
+        "doc": "[in] Custom pinned memory allocator (can be `NULL` to use `cudaHostAlloc()` / `cudaFreeHost())`."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncoderDestroy": {
+    "doc": "Destroys a TIFF encoder instance and frees associated resources.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encoder": {
+        "doc": "[in] Encoder handle to destroy."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffEncoder_t": {
+    "doc": "Handle to opaque nvTIFF encoder instance.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffGeoKeyDataType": {
+    "doc": "Data type for GeoTIFF key values.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffGeoKeyDataType_t": {
+    "doc": "Data type for GeoTIFF key values.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffGeoKey_t": {
+    "doc": "GeoTIFF key identifiers.\n\nCorresponds to various geo keys listed in the GeoTIFF specification. User can refer to the GeoTIFF specification for additional details.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffGeoKeys": {
+    "doc": "GeoTIFF key identifiers.\n\nCorresponds to various geo keys listed in the GeoTIFF specification. User can refer to the GeoTIFF specification for additional details.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffGetBitstreamSize": {
+    "doc": "Calculates the size of TIFF metadata and/or compressed bitstream.\n\nEither `metadata_size` or `bitstream_size` can be `NULL` to skip that calculation. `metadata_size` can be calculated before calling `nvtiffEncode()`, but `bitstream_size` can only be calculated after `nvtiffEncodeFinalize()` is called.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "bitstream_size": {
+        "doc": "[out] Size of compressed data in bytes (can be NULL)."
+      },
+      "encoder": {
+        "doc": "[in] Encoder handle."
+      },
+      "metadata_size": {
+        "doc": "[out] Size of TIFF metadata in bytes (can be NULL)."
+      },
+      "num_params": {
+        "doc": "[in] Number of encode parameters (must be 1 for now)."
+      },
+      "params": {
+        "doc": "[in] Array of encode parameters."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffGetProperty": {
+    "doc": "Gets the library's property values.\n\nThis function retrieves version information about the nvTIFF library. The `libraryPropertyType` enum is defined in CUDA's `library_types.h` header.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "type": {
+        "doc": "[in] The property to retrieve. Valid values are:\n- `MAJOR_VERSION` - Returns the major version number.\n- `MINOR_VERSION` - Returns the minor version number.\n- `PATCH_LEVEL` - Returns the patch level."
+      },
+      "value": {
+        "doc": "[out] Pointer to receive the numeric value of the requested property."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffImage": {
+    "doc": "Output image data structure.\n\nDescribes the device output buffers for one decoded region. `nvtiffDecode` and `nvtiffDecodeCheckSupported` take an array of these descriptors, one per effective region.",
+    "members": {
+      "num_planes": {
+        "doc": "Number of planes in the output image."
+      },
+      "plane_data": {
+        "doc": "Array of pointers to plane data buffers on device."
+      },
+      "plane_pitch_bytes": {
+        "doc": "Array of pitch values (bytes per row) for each plane."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffImageGeometry": {
+    "doc": "Image geometry information.\n\nStores image geometry along with strip/tile dimensions. When the geometry type is `::NVTIFF_IMAGE_STRIPED`, `strile_width` equals `image_width`.",
+    "members": {
+      "image_depth": {
+        "doc": "Image depth (for 3D images)."
+      },
+      "num_striles": {
+        "doc": "Total number of strips/tiles."
+      },
+      "num_striles_per_plane": {
+        "doc": "Number of strips/tiles per plane."
+      },
+      "strile_depth": {
+        "doc": "Strip/tile depth (equals `image_depth` for strips)."
+      },
+      "strile_height": {
+        "doc": "Strip/tile height."
+      },
+      "strile_width": {
+        "doc": "Strip/tile width (equals `image_width` for strips)."
+      },
+      "type": {
+        "doc": "Geometry type (striped or tiled)."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffImageGeometryType": {
+    "doc": "Image geometry type.\n\nSpecifies whether a TIFF file uses strips or tiles.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffImageGeometryType_t": {
+    "doc": "Image geometry type.\n\nSpecifies whether a TIFF file uses strips or tiles.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffImageGeometry_t": {
+    "doc": "Image geometry information.\n\nStores image geometry along with strip/tile dimensions. When the geometry type is `::NVTIFF_IMAGE_STRIPED`, `strile_width` equals `image_width`.",
+    "members": {
+      "image_depth": {
+        "doc": "Image depth (for 3D images)."
+      },
+      "num_striles": {
+        "doc": "Total number of strips/tiles."
+      },
+      "num_striles_per_plane": {
+        "doc": "Number of strips/tiles per plane."
+      },
+      "strile_depth": {
+        "doc": "Strip/tile depth (equals `image_depth` for strips)."
+      },
+      "strile_height": {
+        "doc": "Strip/tile height."
+      },
+      "strile_width": {
+        "doc": "Strip/tile width (equals `image_width` for strips)."
+      },
+      "type": {
+        "doc": "Geometry type (striped or tiled)."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffImageInfo": {
+    "doc": "TIFF image metadata structure.\n\nContains metadata of an image stored in a TIFF file.",
+    "members": {
+      "bits_per_pixel": {
+        "doc": "Total bits per pixel (sum of `bits_per_sample)`."
+      },
+      "bits_per_sample": {
+        "doc": "Bits per sample for each channel."
+      },
+      "compression": {
+        "doc": "Compression method used."
+      },
+      "image_height": {
+        "doc": "Image height in pixels."
+      },
+      "image_type": {
+        "doc": "Image type flags from NewSubfileType tag."
+      },
+      "image_width": {
+        "doc": "Image width in pixels."
+      },
+      "photometric_int": {
+        "doc": "Photometric interpretation."
+      },
+      "planar_config": {
+        "doc": "Planar configuration."
+      },
+      "sample_format": {
+        "doc": "Sample format for each channel."
+      },
+      "samples_per_pixel": {
+        "doc": "Number of samples (channels) per pixel."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffImageInfo_t": {
+    "doc": "TIFF image metadata structure.\n\nContains metadata of an image stored in a TIFF file.",
+    "members": {
+      "bits_per_pixel": {
+        "doc": "Total bits per pixel (sum of `bits_per_sample)`."
+      },
+      "bits_per_sample": {
+        "doc": "Bits per sample for each channel."
+      },
+      "compression": {
+        "doc": "Compression method used."
+      },
+      "image_height": {
+        "doc": "Image height in pixels."
+      },
+      "image_type": {
+        "doc": "Image type flags from NewSubfileType tag."
+      },
+      "image_width": {
+        "doc": "Image width in pixels."
+      },
+      "photometric_int": {
+        "doc": "Photometric interpretation."
+      },
+      "planar_config": {
+        "doc": "Planar configuration."
+      },
+      "sample_format": {
+        "doc": "Sample format for each channel."
+      },
+      "samples_per_pixel": {
+        "doc": "Number of samples (channels) per pixel."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffImageType": {
+    "doc": "Image type flags.\n\nCorresponds to the NewSubfileType (254) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffImageType_t": {
+    "doc": "Image type storage type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffImage_t": {
+    "doc": "Output image data structure.\n\nDescribes the device output buffers for one decoded region. `nvtiffDecode` and `nvtiffDecodeCheckSupported` take an array of these descriptors, one per effective region.",
+    "members": {
+      "num_planes": {
+        "doc": "Number of planes in the output image."
+      },
+      "plane_data": {
+        "doc": "Array of pointers to plane data buffers on device."
+      },
+      "plane_pitch_bytes": {
+        "doc": "Array of pitch values (bytes per row) for each plane."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffJpegChromaSubsampling": {
+    "doc": "RGB chroma subsampling for JPEG encoding.\n\nThis option applies to 3-channel RGB JPEG encoding. Grayscale JPEG encoding always uses a single luminance channel.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffJpegChromaSubsampling_t": {
+    "doc": "RGB chroma subsampling for JPEG encoding.\n\nThis option applies to 3-channel RGB JPEG encoding. Grayscale JPEG encoding always uses a single luminance channel.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffJpegEncodeOptions": {
+    "doc": "JPEG-specific encode options.\n\nZero-initialized options preserve nvTIFF's default JPEG behavior: quality 90, optimized Huffman disabled, and 4:2:0 RGB chroma sampling. `quality` may be 0 to select the default, or 1 through 100. `optimized_huffman` is a boolean where 0 disables optimized Huffman coding and 1 enables it.",
+    "members": {
+      "chroma_subsampling": {
+        "doc": "RGB chroma subsampling."
+      },
+      "optimized_huffman": {
+        "doc": "0 to disable optimized Huffman coding, 1 to enable it."
+      },
+      "quality": {
+        "doc": "JPEG quality, 0 for default or 1 through 100."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffJpegEncodeOptions_t": {
+    "doc": "JPEG-specific encode options.\n\nZero-initialized options preserve nvTIFF's default JPEG behavior: quality 90, optimized Huffman disabled, and 4:2:0 RGB chroma sampling. `quality` may be 0 to select the default, or 1 through 100. `optimized_huffman` is a boolean where 0 disables optimized Huffman coding and 1 enables it.",
+    "members": {
+      "chroma_subsampling": {
+        "doc": "RGB chroma subsampling."
+      },
+      "optimized_huffman": {
+        "doc": "0 to disable optimized Huffman coding, 1 to enable it."
+      },
+      "quality": {
+        "doc": "JPEG quality, 0 for default or 1 through 100."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffOutputFormat": {
+    "doc": "Decode output format types.\n\nUsed to specify the decode output format.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffOutputFormat_t": {
+    "doc": "Decode output format types.\n\nUsed to specify the decode output format.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffPhotometricInt": {
+    "doc": "Photometric interpretation types.\n\nCorresponds to the PhotometricInterpretation (262) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffPhotometricInt_t": {
+    "doc": "Photometric interpretation types.\n\nCorresponds to the PhotometricInterpretation (262) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffPinnedAllocator": {
+    "doc": "Custom pinned memory allocator interface.\n\nSupports stream-ordered allocation and user-defined context information. When invoking the pinned allocators, nvTIFF will pass pinned_ctx as input.",
+    "members": {
+      "pinned_ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "pinned_free": {
+        "doc": "Pinned free callback."
+      },
+      "pinned_malloc": {
+        "doc": "Pinned allocator callback."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffPinnedAllocator_t": {
+    "doc": "Custom pinned memory allocator interface.\n\nSupports stream-ordered allocation and user-defined context information. When invoking the pinned allocators, nvTIFF will pass pinned_ctx as input.",
+    "members": {
+      "pinned_ctx": {
+        "doc": "User-defined context pointer."
+      },
+      "pinned_free": {
+        "doc": "Pinned free callback."
+      },
+      "pinned_malloc": {
+        "doc": "Pinned allocator callback."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffPinnedFreeAsync": {
+    "doc": "Prototype for stream-ordered pinned memory deallocation.\n\n\n\n[in] User-defined context pointer.\n\n[in] Pointer to memory to free.\n\n[in] Size in bytes that was allocated.\n\n[in] CUDA stream for ordered deallocation.\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffPinnedMallocAsync": {
+    "doc": "Prototype for stream-ordered pinned memory allocation.\n\n\n\n[in] User-defined context pointer.\n\n[out] Pointer to allocated memory.\n\n[in] Size in bytes to allocate.\n\n[in] CUDA stream for ordered allocation.\n\n# Return value\n\n0 on success, non-zero on failure.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffPlanarConfig": {
+    "doc": "Planar configuration types.\n\nCorresponds to the PlanarConfiguration (284) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffPlanarConfig_t": {
+    "doc": "Planar configuration types.\n\nCorresponds to the PlanarConfiguration (284) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffSampleFormat": {
+    "doc": "Sample format types.\n\nCorresponds to the SampleFormat (339) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffSampleFormat_t": {
+    "doc": "Sample format types.\n\nCorresponds to the SampleFormat (339) tag defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffStatus": {
+    "doc": "Return status codes for nvTIFF APIs.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffStatus_t": {
+    "doc": "Return status codes for nvTIFF APIs.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffStream": {
+    "doc": "Opaque nvTIFF stream instance type.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamClose": {
+    "doc": "Closes a bitstream handle and releases its resources.\n\nCloses a handle previously opened by `nvtiffStreamOpen` or `nvtiffStreamOpenFromFile`.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "tiff_stream": {
+        "doc": "[in] nvTIFF bitstream handle to close."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetGeoKey": {
+    "doc": "Retrieves the values associated with a given GeoTIFF key.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of values to copy. For `::NVTIFF_GEOKEY_TYPE_ASCII` this is ignored. For `::NVTIFF_GEOKEY_TYPE_SHORT`, `count=1` is implied."
+      },
+      "key": {
+        "doc": "[in] GeoTIFF key to retrieve."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      },
+      "val": {
+        "doc": "[out] Pointer to buffer to receive the key values."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetGeoKeyASCII": {
+    "doc": "Retrieves ASCII values associated with a GeoTIFF key.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "key": {
+        "doc": "[in] GeoTIFF key to retrieve."
+      },
+      "max_len": {
+        "doc": "[in] Size of the user-allocated buffer `str`."
+      },
+      "str": {
+        "doc": "[out] Pointer to buffer to receive the ASCII string."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetGeoKeyDOUBLE": {
+    "doc": "Retrieves DOUBLE values associated with a GeoTIFF key.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of values to copy."
+      },
+      "index": {
+        "doc": "[in] Index of the starting value to copy."
+      },
+      "key": {
+        "doc": "[in] GeoTIFF key to retrieve."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      },
+      "val": {
+        "doc": "[out] Pointer to buffer to receive the DOUBLE values."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetGeoKeyInfo": {
+    "doc": "Retrieves information about a GeoTIFF key.\n\nThis information is useful for retrieving the values associated with the geo key.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[out] Pointer to receive the number of values stored in key."
+      },
+      "key": {
+        "doc": "[in] GeoTIFF key to query."
+      },
+      "size": {
+        "doc": "[out] Pointer to receive the size of each value (in bytes)."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      },
+      "type": {
+        "doc": "[out] Pointer to receive the datatype of values stored in key."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetGeoKeySHORT": {
+    "doc": "Retrieves SHORT values associated with a GeoTIFF key.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of values to copy."
+      },
+      "index": {
+        "doc": "[in] Index of the starting value to copy."
+      },
+      "key": {
+        "doc": "[in] GeoTIFF key to retrieve."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      },
+      "val": {
+        "doc": "[out] Pointer to buffer to receive the SHORT values."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetHeader": {
+    "doc": "Reads the file header: the TIFF format variant and the first image's IFD offset.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "header": {
+        "doc": "[out] Receives the file header."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetImageGeometry": {
+    "doc": "Retrieves image geometry information.\n\nGeometry includes information whether the images use strips or tiles and their corresponding dimensions.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "geometry": {
+        "doc": "[out] Pointer to nvtiffImageGeometry_t structure."
+      },
+      "ifd_offset": {
+        "doc": "[in] IFD offset of the IFD; 0 selects the first IFD."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetImageInfo": {
+    "doc": "Retrieves the image information for a given image in a TIFF file.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "ifd_offset": {
+        "doc": "[in] IFD offset of the IFD; 0 selects the first IFD."
+      },
+      "image_info": {
+        "doc": "[out] Pointer to nvtiffImageInfo_t structure to receive the image information."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetNextIFDOffset": {
+    "doc": "Returns the IFD offset of the image (IFD) following `ifd_offset` in the chain.\n\nReads each IFD's header (entry count and next-IFD pointer) and extends the internal chain map as needed; it does not parse tag data.\n\n**Count images** - walk and tally:\n\n\n\n```text\n nvtiffStreamHeader_t h; uint32_t n = 0;\n nvtiffStreamGetHeader(s, &h);\n for (size_t off = h.first_ifd_offset; off != NVTIFF_NO_IMAGE; n++)\n     nvtiffStreamGetNextIFDOffset(s, off, &off);\n```\n\n**Collect offsets** - push each into a container:\n\n\n\n```text\n nvtiffStreamHeader_t h;\n nvtiffStreamGetHeader(s, &h);\n std::vector<size_t> offsets;\n for (size_t off = h.first_ifd_offset; off != NVTIFF_NO_IMAGE; )\n     { offsets.push_back(off); nvtiffStreamGetNextIFDOffset(s, off, &off); }\n```\n\nTo walk a SubIFD chain, seed with the SubIFD's offset instead of `h.first_ifd_offset`.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "ifd_offset": {
+        "doc": "[in] Current image's offset; 0 selects the first IFD."
+      },
+      "next_ifd_offset": {
+        "doc": "[out] Offset of the following image, or `NVTIFF_NO_IMAGE` at the end of the chain."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetNumberOfGeoKeys": {
+    "doc": "Retrieves the list of GeoTIFF keys present in a TIFF file and their count.\n\nUse the two-call pattern: first call with key=`NULL` to get the count, then allocate a buffer and call again to retrieve the key IDs.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "key": {
+        "doc": "[out] Pointer to buffer for storing geokey IDs (can be `NULL` to get count only)."
+      },
+      "num_keys": {
+        "doc": "[out] Pointer to receive the number of geokeys."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetNumberOfTags": {
+    "doc": "Enumerates all TIFF tags present in a specific image.\n\nUse the two-call pattern: first call with tags=`NULL` to get the count, then allocate a buffer and call again to retrieve the tag IDs.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "ifd_offset": {
+        "doc": "[in] IFD offset of the IFD; 0 selects the first IFD."
+      },
+      "num_tags": {
+        "doc": "[out] Pointer to receive the number of tags."
+      },
+      "tags": {
+        "doc": "[out] Pointer to buffer for storing tag IDs (can be `NULL` to get count only)."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetTagInfo": {
+    "doc": "Retrieves TIFF tag information.\n\nRetrieves tag type, size per element, and count for any TIFF tag in an image. If the tag is not found, returns `::NVTIFF_STATUS_TAG_NOT_FOUND`.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[out] Pointer to receive the number of values in the tag."
+      },
+      "ifd_offset": {
+        "doc": "[in] IFD offset of the IFD; 0 selects the first IFD."
+      },
+      "size": {
+        "doc": "[out] Pointer to receive the size per element. When tag type is `::NVTIFF_TAG_TYPE_ASCII`, the string is NULL terminated."
+      },
+      "tag_type": {
+        "doc": "[out] Pointer to receive the datatype of the tag."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      },
+      "tiff_tag": {
+        "doc": "[in] TIFF tag ID"
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamGetTagValue": {
+    "doc": "Retrieves the values stored in a TIFF tag.\n\nIf the tag is not found, returns `::NVTIFF_STATUS_TAG_NOT_FOUND`.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "count": {
+        "doc": "[in] Number of values to retrieve."
+      },
+      "ifd_offset": {
+        "doc": "[in] IFD offset of the IFD; 0 selects the first IFD."
+      },
+      "tag_value": {
+        "doc": "[out] Pointer to buffer to receive the tag values."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      },
+      "tiff_tag": {
+        "doc": "[in] TIFF tag ID"
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamHasTag": {
+    "doc": "Checks whether a specific tag exists in an image.\n\nThis is useful for quickly determining tag presence without enumerating all tags.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "has_tag": {
+        "doc": "[out] Set to 1 if tag exists, 0 if not."
+      },
+      "ifd_offset": {
+        "doc": "[in] IFD offset of the IFD; 0 selects the first IFD."
+      },
+      "tag": {
+        "doc": "[in] Tag ID to check for."
+      },
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamHeader": {
+    "doc": "TIFF file header information.\n\nDescribes the file as a whole, independent of any single image: the format variant and the offset of the first image (IFD).",
+    "members": {
+      "first_ifd_offset": {
+        "doc": "Offset of the first IFD, or `NVTIFF_NO_IMAGE` if the file contains no images."
+      },
+      "variant": {
+        "doc": "TIFF format variant (`NVTIFF_REGULAR_TIFF` or `NVTIFF_BIG_TIFF)`."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamHeader_t": {
+    "doc": "TIFF file header information.\n\nDescribes the file as a whole, independent of any single image: the format variant and the offset of the first image (IFD).",
+    "members": {
+      "first_ifd_offset": {
+        "doc": "Offset of the first IFD, or `NVTIFF_NO_IMAGE` if the file contains no images."
+      },
+      "variant": {
+        "doc": "TIFF format variant (`NVTIFF_REGULAR_TIFF` or `NVTIFF_BIG_TIFF)`."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamOpen": {
+    "doc": "Opens a TIFF from host memory: allocates the handle and validates the TIFF header only.\n\nSee `nvtiffStreamOpenFromFile` for the open/lazy-parse contract (it allocates the handle and sets `*tiff_stream` to `NULL` on failure). The host buffer must remain valid and unmodified for the entire lifetime of the stream (until `nvtiffStreamClose)`, since IFDs and tag data are read on demand. For best decode performance, the host buffer should be page-locked (pinned) memory, e.g. allocated with `cudaHostAlloc`.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "buffer": {
+        "doc": "[in] Buffer containing TIFF file data."
+      },
+      "buffer_size": {
+        "doc": "[in] Size of the buffer in bytes."
+      },
+      "tiff_stream": {
+        "doc": "[out] Receives the newly opened TIFF stream handle (`NULL` on failure)."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamOpenFromFile": {
+    "doc": "Opens a TIFF from a file: allocates the handle and validates the TIFF header only.\n\nAllocates a new stream handle (no separate create step) and reads and validates the TIFF header. Each IFD is parsed on first access (e.g. `nvtiffStreamGetImageInfo`, a tag getter, or decode). Opening returns an error for an I/O failure (missing or unreadable file) or a malformed TIFF header (bad magic or version); an IFD whose structure or contents are invalid reports `::NVTIFF_STATUS_BAD_TIFF` when it is first accessed. On any failure `*tiff_stream` is set to `NULL` and there is nothing to close. On success, close the handle with `nvtiffStreamClose`.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "fname": {
+        "doc": "[in] TIFF file name on disk."
+      },
+      "tiff_stream": {
+        "doc": "[out] Receives the newly opened TIFF stream handle (`NULL` on failure)."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStreamPrint": {
+    "doc": "Prints the TIFF file metadata to standard output.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "tiff_stream": {
+        "doc": "[in] TIFF stream handle."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffStream_t": {
+    "doc": "Handle to opaque nvTIFF stream instance.\n\nUsed for parsing a TIFF file. TIFF metadata can be extracted using parser APIs.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffTagDataType": {
+    "doc": "TIFF tag data types as defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffTagDataType_t": {
+    "doc": "TIFF tag data types as defined in the TIFF specification.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffVariant": {
+    "doc": "TIFF file format variant.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffVariant_t": {
+    "doc": "TIFF file format variant.",
+    "members": {},
+    "source": "nvtiff.h"
+  },
+  "nvtiffWriteTiffBuffer": {
+    "doc": "Writes complete TIFF data including metadata to a host memory buffer.\n\nThis function performs stream synchronization internally to ensure the bitstream is ready.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "buffer": {
+        "doc": "[out] Buffer to write TIFF data to."
+      },
+      "encoder": {
+        "doc": "[in] Encoder handle."
+      },
+      "num_params": {
+        "doc": "[in] Number of encode parameters (must be 1 for now)."
+      },
+      "params": {
+        "doc": "[in] Array of encode parameters."
+      },
+      "size": {
+        "doc": "[in] Size of output buffer in bytes."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream."
+      }
+    },
+    "source": "nvtiff.h"
+  },
+  "nvtiffWriteTiffFile": {
+    "doc": "Writes complete TIFF data including metadata to a file.\n\nThis function performs stream synchronization internally to ensure the bitstream is ready.\n\n\n\n# Return value\n\nAn error code as specified in `nvtiffStatus_t` \"API Return Status Codes\".",
+    "kind": "function",
+    "members": {},
+    "parameters": {
+      "encoder": {
+        "doc": "[in] Encoder handle."
+      },
+      "fname": {
+        "doc": "[in] Output file path."
+      },
+      "num_params": {
+        "doc": "[in] Number of encode parameters (must be 1 for now)."
+      },
+      "params": {
+        "doc": "[in] Array of encode parameters."
+      },
+      "stream": {
+        "doc": "[in] CUDA stream."
+      }
+    },
+    "source": "nvtiff.h"
+  }
+}

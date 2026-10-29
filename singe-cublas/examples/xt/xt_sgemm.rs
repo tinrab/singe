@@ -5,8 +5,8 @@ use singe_cublas::{
 };
 
 fn main() -> Result<()> {
-    let ctx = Context::create()?;
-    ctx.set_block_dim(64)?;
+    let context = Context::create()?;
+    context.set_block_dim(64)?;
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
@@ -18,7 +18,7 @@ fn main() -> Result<()> {
     let mut c = [0.0_f32; 4];
 
     sgemm(
-        &ctx,
+        &context,
         Operation::NonTranspose,
         Operation::NonTranspose,
         2,

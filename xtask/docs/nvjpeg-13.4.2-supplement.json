@@ -1,0 +1,337 @@
+{
+  "NVJPEG_BACKEND_DEFAULT": {
+    "doc": "Back-end is selected internally.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend"
+  },
+  "NVJPEG_BACKEND_GPU_HYBRID": {
+    "doc": "Uses GPU for Huffman decoding. `nvjpegDecodeBatched` will use GPU decoding for baseline JPEG images with interleaved scan when batch size is greater than 50. The [Decode API—Decoupled Decoding](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-decoupled-decode-api) will use GPU assisted Huffman decoding.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend"
+  },
+  "NVJPEG_BACKEND_GPU_HYBRID_DEVICE": {
+    "doc": "Supports input bitstream on device memory. Can be used only with batched decode APIs for baseline JPEG images without restart intervals.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend"
+  },
+  "NVJPEG_BACKEND_HARDWARE": {
+    "doc": "Uses [Hardware Acceleration](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-hardware-accelaration) for decode. Supports baseline JPEG images with single scan with 1 or 3 channels. 410 and 411 chroma subsamplings are not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend"
+  },
+  "NVJPEG_BACKEND_HARDWARE_DEVICE": {
+    "doc": "Supports input bitstream on device memory. Can be used only with batched decode APIs. Uses [Hardware Acceleration](https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-hardware-accelaration) for decode. Supports baseline JPEG images with single scan with 1 or 3 channels. 410 and 411 chroma subsamplings are not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend"
+  },
+  "NVJPEG_BACKEND_HYBRID": {
+    "doc": "Uses CPU for Huffman decoding.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend"
+  },
+  "NVJPEG_BACKEND_LOSSLESS_JPEG": {
+    "doc": "Supports lossless jpeg bitstreams as defined in the jpeg 92 standard. Bitstreams with up to 2 channels and prediction mode 1 are supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-backend"
+  },
+  "NVJPEG_ENCODING_BASELINE_DCT": {
+    "doc": "Corresponds to the JPEG marker 0xc0, refer to the JPEG spec for more details.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-encoding"
+  },
+  "NVJPEG_ENCODING_EXTENDED_SEQUENTIAL_DCT_HUFFMAN": {
+    "doc": "Corresponds to the JPEG marker 0xc1, refer to the JPEG spec for more details.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-encoding"
+  },
+  "NVJPEG_ENCODING_LOSSLESS_HUFFMAN": {
+    "doc": "Corresponds to the JPEG marker 0xc3, refer to the JPEG spec for more details.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-encoding"
+  },
+  "NVJPEG_ENCODING_PROGRESSIVE_DCT_HUFFMAN": {
+    "doc": "Corresponds to the JPEG marker 0xc2, refer to the JPEG spec for more details.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-encoding"
+  },
+  "NVJPEG_ENCODING_UNKNOWN": {
+    "doc": "This value is returned for all the JPEG markers not supported by the nvJPEG library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-jpeg-encoding"
+  },
+  "NVJPEG_ENC_BACKEND_DEFAULT": {
+    "doc": "Use hardware engine if possible. If not, fallback to CUDA encoder.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencbackend-t"
+  },
+  "NVJPEG_ENC_BACKEND_GPU": {
+    "doc": "Always use CUDA encoder.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencbackend-t"
+  },
+  "NVJPEG_ENC_BACKEND_HARDWARE": {
+    "doc": "Always use hardware engine. Do not fallback to CUDA.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpegencbackend-t"
+  },
+  "NVJPEG_INPUT_BGR": {
+    "doc": "Input image is in RGB color model. Pixel format is planar BGR.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeginputformat-t"
+  },
+  "NVJPEG_INPUT_BGRI": {
+    "doc": "Input image is in RGB color model. Pixel format is interleaved BGR.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeginputformat-t"
+  },
+  "NVJPEG_INPUT_NV12": {
+    "doc": "Input image is in YUV color model. Pixel format is NV12 with separated Y and interleaved UV.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeginputformat-t"
+  },
+  "NVJPEG_INPUT_RGB": {
+    "doc": "Input image is in RGB color model. Pixel format is planar RGB.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeginputformat-t"
+  },
+  "NVJPEG_INPUT_RGBI": {
+    "doc": "Input image is in RGB color model. Pixel format is interleaved RGB.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeginputformat-t"
+  },
+  "NVJPEG_INPUT_YUV": {
+    "doc": "Input image is in YUV color model. Pixel format is planar YUV.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeginputformat-t"
+  },
+  "NVJPEG_ORIENTATION_FLIP_HORIZONTAL": {
+    "doc": "Decoded output should be mirrored/flipped horizontally.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_ORIENTATION_FLIP_VERTICAL": {
+    "doc": "Decoded output should be mirrored/flipped vertically.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_ORIENTATION_NORMAL": {
+    "doc": "Decode output remains unchanged.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_ORIENTATION_ROTATE_180": {
+    "doc": "Decoded output should be rotated 180 degrees.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_ORIENTATION_ROTATE_270": {
+    "doc": "Decoded output should be rotated 270 degrees counter-clockwise.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_ORIENTATION_ROTATE_90": {
+    "doc": "Decoded output should be rotated 90 degrees counter-clockwise.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_ORIENTATION_TRANSPOSE": {
+    "doc": "Decoded output should be flipped/mirrored horizontally followed by a 90 degrees counter-clockwise rotation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_ORIENTATION_TRANSVERSE": {
+    "doc": "Decoded output should be flipped/mirrored horizontally followed by a 270 degrees counter-clockwise rotation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_ORIENTATION_UNKNOWN": {
+    "doc": "Exif orientation information is not available in the bitstream.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-exif-orientation"
+  },
+  "NVJPEG_OUTPUT_BGR": {
+    "doc": "Convert to planar BGR.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_BGRI": {
+    "doc": "Convert to interleaved BGR.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_NV12": {
+    "doc": "Return in the NV12 format (separate Y and interleaved UV). **Requires chroma subsampling 4:2:0.**",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_RGB": {
+    "doc": "Convert to planar RGB.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_RGBI": {
+    "doc": "Convert to interleaved RGB.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_UNCHANGED": {
+    "doc": "Return the decoded image planar format.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_UNCHANGEDI": {
+    "doc": "Return the decoded image in uint8 interleaved format.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_UNCHANGEDI_U16": {
+    "doc": "Return the decoded image in uint16 interleaved format.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_Y": {
+    "doc": "Return the Y component only.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_YUV": {
+    "doc": "Return in the YUV planar format.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_OUTPUT_YUY2": {
+    "doc": "Return in the YUY2 format (interleaved YUYV). **Requires chroma subsampling is 4:2:2.**",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "NVJPEG_SCALE_1_BY_2": {
+    "doc": "Decoded output width and height are scaled by a factor of 1/2.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-scale-factor"
+  },
+  "NVJPEG_SCALE_1_BY_4": {
+    "doc": "Decoded output width and height are scaled by a factor of 1/4.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-scale-factor"
+  },
+  "NVJPEG_SCALE_1_BY_8": {
+    "doc": "Decoded output width and height are scaled by a factor of 1/8.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-scale-factor"
+  },
+  "NVJPEG_SCALE_NONE": {
+    "doc": "Decoded output is not scaled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-scale-factor"
+  },
+  "NVJPEG_STATUS_ALLOCATOR_FAILURE": {
+    "doc": "The user-provided allocator functions, for either memory allocation or for releasing the memory, returned a non-zero code.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_ARCH_MISMATCH": {
+    "doc": "The device capabilities are not enough for the set of input parameters provided (input parameters such as backend, encoded stream parameters, output format).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_BAD_JPEG": {
+    "doc": "Cannot parse the JPEG stream. Check that the encoded JPEG stream and its size parameters are correct.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_EXECUTION_FAILED": {
+    "doc": "Error during the execution of the device tasks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_IMPLEMENTATION_NOT_SUPPORTED": {
+    "doc": "Not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_INCOMPLETE_BITSTREAM": {
+    "doc": "Bitstream input data incomplete.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_INTERNAL_ERROR": {
+    "doc": "Error during the execution of the device tasks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_INVALID_PARAMETER": {
+    "doc": "Wrong parameter was passed. For example, a null pointer as input data, or an image index not in the allowed range.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_JPEG_NOT_SUPPORTED": {
+    "doc": "Attempting to decode a JPEG stream that is not supported by the nvJPEG library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_NOT_INITIALIZED": {
+    "doc": "The library handle was not initialized. A call to `nvjpegCreate()` is required to initialize the handle.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "NVJPEG_STATUS_SUCCESS": {
+    "doc": "The API call has finished successfully. Note that many of the calls are asynchronous and some of the errors may be seen only after synchronization.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/archive/13.4.2/nvjpeg/index.html#nvjpeg-api-return-codes"
+  },
+  "chroma_subsampling": {
+    "doc": "Chroma subsampling that will be used for JPEG compression. If the input is in YUV color model and `chroma_subsampling` is different from the subsampling factors of source image, then the NVJPEG library will convert subsampling to the value of `chroma_subsampling`. Default value is 4:4:4.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "encode_params": {
+    "doc": "Encoder parameters that will be used for compression.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "encoder_params": {
+    "doc": "Pointer to the location where the new parameters structure will be placed.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "encoder_state": {
+    "doc": "Pointer to the encoder state structure, where the new state will be placed.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "image_height": {
+    "doc": "Input image height.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "image_width": {
+    "doc": "Input image width.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "input_format": {
+    "doc": "Value of `nvjpegInputFormat_t` type that describes the input data.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "input_subsampling": {
+    "doc": "Value of `nvjpegChromaSubsampling_t` type that describes the input data. Ignored for non-YUV input formats.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "jpeg_encoding": {
+    "doc": "Encoding type obtained—baseline or progressive.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "jpeg_stream": {
+    "doc": "Input bitstream handle.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  },
+  "restart_interval": {
+    "doc": "Restart interval that will be used for JPEG compression. Default value is 0 (no restart markers).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/nvjpeg/v13.4.2"
+  }
+}

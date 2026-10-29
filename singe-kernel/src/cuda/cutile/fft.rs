@@ -1,16 +1,14 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 use cutile::half::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
-use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
-};
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
 use crate::{
     cuda::cutile::{
-        DeviceOpExt,
+        DeviceOpExt, TileKernel,
         adapter::TensorAdapter,
         kernel::fft as kernel_fft,
         utility::{checked_device_pointer, raw_vector_grid},
@@ -18,6 +16,44 @@ use crate::{
     error::{Error, Result},
     utility::{checked_element_count, checked_i32_value},
 };
+
+/// Scales the logical real elements of a strided, batched FFT output.
+///
+/// # Safety
+///
+/// `data` must contain initialized elements at every addressed output position
+/// in the stream's context. Retain the allocation and exclusive access until
+/// queued work completes, including every replay when captured.
+/// The caller must establish nonoverlapping batches and sufficient capacity.
+pub unsafe fn scale_real_strided_f32(
+    stream: &Arc<Stream>,
+    data: DevicePointer<f32>,
+    n: usize,
+    batch: usize,
+    stride: usize,
+    distance: usize,
+    scale: f32,
+) -> Result<()> {
+    if n == 0 || batch == 0 || stride == 0 || distance == 0 {
+        return Err(Error::InvalidLength);
+    }
+    let len = checked_element_count(n, batch)?;
+    checked_device_pointer(&data)?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        kernel_fft::scale_real_strided_f32(
+            data,
+            checked_i32_value(len)?,
+            checked_i32_value(n)?,
+            checked_i32_value(stride)?,
+            checked_i32_value(distance)?,
+            scale,
+        )
+    }
+    .grid(raw_vector_grid(len)?)
+    .enqueue_on(stream)?;
+    Ok(())
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct FftStrided {
@@ -153,8 +189,11 @@ impl FftR2c {
     }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn copy_c2c_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn copy_c2c_f32_interleaved(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -164,14 +203,14 @@ pub fn copy_c2c_f32_interleaved(
     if n == 0 || batch == 0 {
         return Err(Error::InvalidLength);
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
 
     match n {
         8 | 12 | 16 | 20 | 24 | 32 | 40 | 48 | 60 | 80 | 96 | 120 | 144 => {
             let out = TensorAdapter::contiguous_3d(out, batch, n, 2)?.partition([1, n, 2])?;
             let input = TensorAdapter::contiguous_3d(input, batch, n, 2)?;
-            #[cfg(feature = "dtype-f32")]
+            #[cfg(feature = "dtype_f32")]
             kernel_fft::copy_c2c_f32_interleaved(out, input).enqueue_on(stream)?;
             Ok(())
         }
@@ -182,8 +221,11 @@ pub fn copy_c2c_f32_interleaved(
     }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn fft_c2c_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fft_c2c_f32_interleaved(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -197,10 +239,10 @@ pub fn fft_c2c_f32_interleaved(
     output_distance: usize,
     twiddle_imag_scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(twiddle_real)?;
-    checked_device_pointer(twiddle_imag)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&twiddle_real)?;
+    checked_device_pointer(&twiddle_imag)?;
 
     let params = FftStrided::create(
         n,
@@ -219,6 +261,7 @@ pub fn fft_c2c_f32_interleaved(
         grid,
     } = params;
     match n {
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_8(
                 out,
@@ -235,6 +278,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_16(
                 out,
@@ -251,6 +295,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         12 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_12(
                 out,
@@ -267,6 +312,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         20 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_20(
                 out,
@@ -283,6 +329,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         24 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_24(
                 out,
@@ -299,6 +346,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         40 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_40(
                 out,
@@ -315,6 +363,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         48 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_48(
                 out,
@@ -331,6 +380,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         60 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_60(
                 out,
@@ -347,6 +397,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         80 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_80(
                 out,
@@ -363,6 +414,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         96 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_96(
                 out,
@@ -379,6 +431,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         120 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_120(
                 out,
@@ -395,6 +448,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         144 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_mixed_radix_144(
                 out,
@@ -411,6 +465,7 @@ pub fn fft_c2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_fft::fft_c2c_f32_interleaved_32(
                 out,
@@ -437,8 +492,11 @@ pub fn fft_c2c_f32_interleaved(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn fft_c2c_f16_interleaved(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fft_c2c_f16_interleaved(
     stream: &Arc<Stream>,
     out: DevicePointer<f16>,
     input: DevicePointer<f16>,
@@ -451,15 +509,16 @@ pub fn fft_c2c_f16_interleaved(
     if !twiddle_imag_scale.is_finite() {
         return Err(Error::InvalidLength);
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(twiddle_real)?;
-    checked_device_pointer(twiddle_imag)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&twiddle_real)?;
+    checked_device_pointer(&twiddle_imag)?;
 
     let params = FftPackedC2c::create(n, batch)?;
     let total_complex_i32 = params.len;
     let grid = params.grid;
     match n {
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_fft::fft_c2c_f16_interleaved_8(
                 out,
@@ -472,6 +531,7 @@ pub fn fft_c2c_f16_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_fft::fft_c2c_f16_interleaved_16(
                 out,
@@ -494,8 +554,11 @@ pub fn fft_c2c_f16_interleaved(
     Ok(())
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn fft_c2c_bf16_interleaved(
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fft_c2c_bf16_interleaved(
     stream: &Arc<Stream>,
     out: DevicePointer<bf16>,
     input: DevicePointer<bf16>,
@@ -508,15 +571,16 @@ pub fn fft_c2c_bf16_interleaved(
     if !twiddle_imag_scale.is_finite() {
         return Err(Error::InvalidLength);
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(twiddle_real)?;
-    checked_device_pointer(twiddle_imag)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&twiddle_real)?;
+    checked_device_pointer(&twiddle_imag)?;
 
     let params = FftPackedC2c::create(n, batch)?;
     let total_complex_i32 = params.len;
     let grid = params.grid;
     match n {
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_fft::fft_c2c_bf16_interleaved_8(
                 out,
@@ -529,6 +593,7 @@ pub fn fft_c2c_bf16_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_fft::fft_c2c_bf16_interleaved_16(
                 out,
@@ -551,8 +616,11 @@ pub fn fft_c2c_bf16_interleaved(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn ifft_c2r_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn ifft_c2r_f32_interleaved(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -565,10 +633,10 @@ pub fn ifft_c2r_f32_interleaved(
     input_distance: usize,
     output_distance: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(twiddle_real)?;
-    checked_device_pointer(twiddle_imag)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&twiddle_real)?;
+    checked_device_pointer(&twiddle_imag)?;
 
     let params = FftC2r::create(
         n,
@@ -587,6 +655,7 @@ pub fn ifft_c2r_f32_interleaved(
         grid,
     } = params;
     match n {
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_8(
                 out,
@@ -602,6 +671,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_16(
                 out,
@@ -617,6 +687,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         12 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_12(
                 out,
@@ -632,6 +703,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         20 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_20(
                 out,
@@ -647,6 +719,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         24 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_24(
                 out,
@@ -662,6 +735,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         40 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_40(
                 out,
@@ -677,6 +751,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         48 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_48(
                 out,
@@ -692,6 +767,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         60 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_60(
                 out,
@@ -707,6 +783,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         80 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_80(
                 out,
@@ -722,6 +799,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         96 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_96(
                 out,
@@ -737,6 +815,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         120 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_120(
                 out,
@@ -752,6 +831,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         144 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_144(
                 out,
@@ -767,6 +847,7 @@ pub fn ifft_c2r_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_fft::ifft_c2r_f32_interleaved_32(
                 out,
@@ -792,8 +873,11 @@ pub fn ifft_c2r_f32_interleaved(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn fft_r2c_f32_interleaved(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn fft_r2c_f32_interleaved(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -806,10 +890,10 @@ pub fn fft_r2c_f32_interleaved(
     input_distance: usize,
     output_distance: usize,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    checked_device_pointer(twiddle_real)?;
-    checked_device_pointer(twiddle_imag)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    checked_device_pointer(&twiddle_real)?;
+    checked_device_pointer(&twiddle_imag)?;
 
     let params = FftR2c::create(
         n,
@@ -828,6 +912,7 @@ pub fn fft_r2c_f32_interleaved(
         grid,
     } = params;
     match n {
+        // SAFETY: the caller upholds this function's safety contract.
         8 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_8(
                 out,
@@ -843,6 +928,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         16 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_16(
                 out,
@@ -858,6 +944,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         12 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_12(
                 out,
@@ -873,6 +960,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         20 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_20(
                 out,
@@ -888,6 +976,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         24 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_24(
                 out,
@@ -903,6 +992,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         40 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_40(
                 out,
@@ -918,6 +1008,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         48 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_48(
                 out,
@@ -933,6 +1024,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         60 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_60(
                 out,
@@ -948,6 +1040,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         80 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_80(
                 out,
@@ -963,6 +1056,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         96 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_96(
                 out,
@@ -978,6 +1072,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         120 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_120(
                 out,
@@ -993,6 +1088,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         144 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_144(
                 out,
@@ -1008,6 +1104,7 @@ pub fn fft_r2c_f32_interleaved(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         32 => unsafe {
             kernel_fft::fft_r2c_f32_interleaved_32(
                 out,

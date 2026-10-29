@@ -1,31 +1,33 @@
-//! RoPE and positional embedding variants.
+//! `RoPE` and positional embedding variants.
 
-#[cfg(feature = "dtype-bf16")]
+use ::cutile::cuda_async::device_buffer::DevicePointer;
+#[cfg(feature = "dtype_bf16")]
 use singe_cuda::types::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceSlice, DeviceSliceMut},
-};
-
-#[cfg(feature = "cutile")]
-use crate::cuda::cutile;
-use crate::{
-    cuda::interop::{borrowed_stream, input_pointer, output_pointer},
-    error::{Error, Result},
-    utility::{
-        checked_element_count, checked_rank4_len, ensure_len, ensure_len_at_least,
-        ensure_rank2_reach, ensure_rank3_reach, ensure_rank4_reach,
-    },
+    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
 };
 
 pub use crate::cpu::positional::{
     BnsdQkRopeConfig, InterleavedComplexRopeConfig, MultiaxisRopeConfig,
 };
+#[cfg(feature = "cutile")]
+use crate::cuda::cutile;
+#[cfg(feature = "dtype_f16")]
+use crate::utility::ensure_len_at_least;
+use crate::{
+    cuda::interop::{input_pointer, output_pointer},
+    error::{Error, Result},
+    utility::{
+        checked_element_count, checked_rank4_len, ensure_len, ensure_rank2_reach,
+        ensure_rank3_reach, ensure_rank4_reach,
+    },
+};
 
 #[derive(Debug, Clone, Copy)]
-/// Generic interleaved-pair RoPE config.
+/// Generic interleaved-pair `RoPE` config.
 ///
 /// This convention rotates adjacent dimensions `(0, 1)`, `(2, 3)`, and so on.
 /// It is not the half-split `rotate_half` convention.
@@ -71,7 +73,7 @@ pub struct QkBatchedRotaryEmbeddingConfig {
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-/// BSHD half-split RoPE config.
+/// BSHD half-split `RoPE` config.
 ///
 /// This convention rotates dimensions from the first half of the head with the
 /// corresponding dimensions in the second half: `(0, head_dim / 2)`, `(1, head_dim / 2 + 1)`, and so on.
@@ -83,37 +85,60 @@ pub struct BshdRopeConfig {
 }
 
 macro_rules! rotary_embedding_fn {
-    ($name:ident, $ty:ty) => {
-        pub fn $name(
+    ($operation:literal, $name:ident, $ty:ty) => {
+        #[doc = $operation]
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
-            cos: &impl DeviceSlice<$ty>,
-            sin: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
+            cos: &impl DeviceInput<$ty>,
+            sin: &impl DeviceInput<$ty>,
             config: RotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary(out.len(), input.len(), cos.len(), sin.len(), config)?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$name(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                input_pointer(cos),
-                input_pointer(sin),
-                config,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    config,
+                )
+            }
         }
     };
 }
 
 macro_rules! rotary_embedding_positioned_fn {
-    ($name:ident, $ty:ty) => {
-        pub fn $name(
+    ($operation:literal, $name:ident, $ty:ty) => {
+        #[doc = $operation]
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
-            cos: &impl DeviceSlice<$ty>,
-            sin: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
+            cos: &impl DeviceInput<$ty>,
+            sin: &impl DeviceInput<$ty>,
             config: RotaryEmbeddingConfig,
             position_start: usize,
         ) -> Result<()> {
@@ -125,29 +150,44 @@ macro_rules! rotary_embedding_positioned_fn {
                 config,
                 position_start,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$name(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                input_pointer(cos),
-                input_pointer(sin),
-                config,
-                position_start,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    config,
+                    position_start,
+                )
+            }
         }
     };
 }
 
 macro_rules! rotary_embedding_dynpos_fn {
-    ($name:ident, $ty:ty) => {
-        pub fn $name(
+    ($operation:literal, $name:ident, $ty:ty) => {
+        #[doc = $operation]
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        /// The device position plus each sequence index must address a valid row in both
+        /// trigonometric tables and fit the kernel indexing width.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
-            cos: &impl DeviceSlice<$ty>,
-            sin: &impl DeviceSlice<$ty>,
-            position_start: &impl DeviceSlice<u32>,
+            out: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
+            cos: &impl DeviceInput<$ty>,
+            sin: &impl DeviceInput<$ty>,
+            position_start: &impl DeviceInput<u32>,
             config: RotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_dynpos(
@@ -158,54 +198,80 @@ macro_rules! rotary_embedding_dynpos_fn {
                 position_start.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$name(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                input_pointer(cos),
-                input_pointer(sin),
-                input_pointer(position_start),
-                config,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    input_pointer(position_start),
+                    config,
+                )
+            }
         }
     };
 }
 
 macro_rules! rotary_embedding_batched_fn {
-    ($name:ident, $ty:ty) => {
-        pub fn $name(
+    ($operation:literal, $name:ident, $ty:ty) => {
+        #[doc = $operation]
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
-            cos: &impl DeviceSlice<$ty>,
-            sin: &impl DeviceSlice<$ty>,
+            out: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
+            cos: &impl DeviceInput<$ty>,
+            sin: &impl DeviceInput<$ty>,
             config: BatchedRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_batched(out.len(), input.len(), cos.len(), sin.len(), config)?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$name(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                input_pointer(cos),
-                input_pointer(sin),
-                config,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    config,
+                )
+            }
         }
     };
 }
 
 macro_rules! rotary_embedding_qk_fn {
     ($name:ident, $ty:ty) => {
-        pub fn $name(
+        /// Writes query and key embeddings by rotating adjacent feature pairs.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        pub unsafe fn $name(
             stream: &Stream,
-            q_out: &mut impl DeviceSliceMut<$ty>,
-            k_out: &mut impl DeviceSliceMut<$ty>,
-            q_input: &impl DeviceSlice<$ty>,
-            k_input: &impl DeviceSlice<$ty>,
-            cos: &impl DeviceSlice<$ty>,
-            sin: &impl DeviceSlice<$ty>,
+            q_out: &mut impl DeviceOutput<$ty>,
+            k_out: &mut impl DeviceOutput<$ty>,
+            q_input: &impl DeviceInput<$ty>,
+            k_input: &impl DeviceInput<$ty>,
+            cos: &impl DeviceInput<$ty>,
+            sin: &impl DeviceInput<$ty>,
             config: QkRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_qk(
@@ -217,31 +283,44 @@ macro_rules! rotary_embedding_qk_fn {
                 sin.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$name(
-                &stream,
-                output_pointer(q_out),
-                output_pointer(k_out),
-                input_pointer(q_input),
-                input_pointer(k_input),
-                input_pointer(cos),
-                input_pointer(sin),
-                config,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(q_out.as_mut_ptr() as _),
+                    DevicePointer::from_cu_deviceptr(k_out.as_mut_ptr() as _),
+                    input_pointer(q_input),
+                    input_pointer(k_input),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    config,
+                )
+            }
         }
     };
 }
 
 macro_rules! rotary_embedding_qk_batched_fn {
     ($name:ident, $target:ident, $ty:ty) => {
-        pub fn $name(
+        /// Writes query and key embeddings by rotating adjacent feature pairs.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        pub unsafe fn $name(
             stream: &Stream,
-            q_out: &mut impl DeviceSliceMut<$ty>,
-            k_out: &mut impl DeviceSliceMut<$ty>,
-            q_input: &impl DeviceSlice<$ty>,
-            k_input: &impl DeviceSlice<$ty>,
-            cos: &impl DeviceSlice<$ty>,
-            sin: &impl DeviceSlice<$ty>,
+            q_out: &mut impl DeviceOutput<$ty>,
+            k_out: &mut impl DeviceOutput<$ty>,
+            q_input: &impl DeviceInput<$ty>,
+            k_input: &impl DeviceInput<$ty>,
+            cos: &impl DeviceInput<$ty>,
+            sin: &impl DeviceInput<$ty>,
             config: QkBatchedRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_qk_batched(
@@ -253,29 +332,43 @@ macro_rules! rotary_embedding_qk_batched_fn {
                 sin.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$target(
-                &stream,
-                output_pointer(q_out),
-                output_pointer(k_out),
-                input_pointer(q_input),
-                input_pointer(k_input),
-                input_pointer(cos),
-                input_pointer(sin),
-                config,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$target(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(q_out.as_mut_ptr() as _),
+                    DevicePointer::from_cu_deviceptr(k_out.as_mut_ptr() as _),
+                    input_pointer(q_input),
+                    input_pointer(k_input),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    config,
+                )
+            }
         }
     };
 }
 
 macro_rules! rotary_embedding_qk_batched_in_place_fn {
     ($name:ident, $target:ident, $ty:ty) => {
-        pub fn $name(
+        /// Applies rotary position encoding to initialized query and key storage in place.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        /// Input strides must match the contiguous output layout for in-place rotation.
+        pub unsafe fn $name(
             stream: &Stream,
             q: &mut impl DeviceSliceMut<$ty>,
             k: &mut impl DeviceSliceMut<$ty>,
-            cos: &impl DeviceSlice<$ty>,
-            sin: &impl DeviceSlice<$ty>,
+            cos: &impl DeviceInput<$ty>,
+            sin: &impl DeviceInput<$ty>,
             config: QkBatchedRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_qk_batched(
@@ -287,27 +380,41 @@ macro_rules! rotary_embedding_qk_batched_in_place_fn {
                 sin.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$target(
-                &stream,
-                output_pointer(q),
-                output_pointer(k),
-                input_pointer(cos),
-                input_pointer(sin),
-                config,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$target(
+                    &stream,
+                    output_pointer(q),
+                    output_pointer(k),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    config,
+                )
+            }
         }
     };
 }
 
 macro_rules! rotary_embedding_qk_in_place_fn {
     ($name:ident, $ty:ty) => {
-        pub fn $name(
+        /// Applies rotary position encoding to initialized query and key storage in place.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        /// Input strides must match the contiguous output layout for in-place rotation.
+        pub unsafe fn $name(
             stream: &Stream,
             q: &mut impl DeviceSliceMut<$ty>,
             k: &mut impl DeviceSliceMut<$ty>,
-            cos: &impl DeviceSlice<$ty>,
-            sin: &impl DeviceSlice<$ty>,
+            cos: &impl DeviceInput<$ty>,
+            sin: &impl DeviceInput<$ty>,
             config: QkRotaryEmbeddingConfig,
         ) -> Result<()> {
             validate_rotary_qk(
@@ -319,53 +426,78 @@ macro_rules! rotary_embedding_qk_in_place_fn {
                 sin.len(),
                 config,
             )?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$name(
-                &stream,
-                output_pointer(q),
-                output_pointer(k),
-                input_pointer(cos),
-                input_pointer(sin),
-                config,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$name(
+                    &stream,
+                    output_pointer(q),
+                    output_pointer(k),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    config,
+                )
+            }
         }
     };
 }
 
 macro_rules! rope_bshd_fn {
     ($name:ident, $ty:ty) => {
-        pub fn $name(
+        /// Writes half-split rotary embeddings in BSHD layout.
+        ///
+        /// # Safety
+        ///
+        /// Input values must be valid when read; order their producers before use.
+        /// Retain input allocations and exclusive writable ranges in the stream's context
+        /// through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch. Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+        /// must already be initialized and disjoint from the frequency tables.
+        pub unsafe fn $name(
             stream: &Stream,
-            out: &mut impl DeviceSliceMut<$ty>,
-            input: &impl DeviceSlice<$ty>,
-            cos: &impl DeviceSlice<f32>,
-            sin: &impl DeviceSlice<f32>,
+            out: &mut impl DeviceOutput<$ty>,
+            input: &impl DeviceInput<$ty>,
+            cos: &impl DeviceInput<f32>,
+            sin: &impl DeviceInput<f32>,
             config: BshdRopeConfig,
         ) -> Result<()> {
             validate_rope_bshd(out.len(), input.len(), cos.len(), sin.len(), config)?;
-            let stream = borrowed_stream(stream)?;
-            cutile::positional::$name(
-                &stream,
-                output_pointer(out),
-                input_pointer(input),
-                input_pointer(cos),
-                input_pointer(sin),
-                config,
-            )
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::positional::$name(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(input),
+                    input_pointer(cos),
+                    input_pointer(sin),
+                    config,
+                )
+            }
         }
     };
 }
 
-#[cfg(feature = "dtype-bf16")]
-
-pub fn rotary_embedding_qk_bnsd_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Writes half-split rotary query and key embeddings in BNSD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rotary_embedding_qk_bnsd_bf16(
     stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<bf16>,
-    k_out: &mut impl DeviceSliceMut<bf16>,
-    q_input: &impl DeviceSlice<bf16>,
-    k_input: &impl DeviceSlice<bf16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    q_out: &mut impl DeviceOutput<bf16>,
+    k_out: &mut impl DeviceOutput<bf16>,
+    q_input: &impl DeviceInput<bf16>,
+    k_input: &impl DeviceInput<bf16>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -377,29 +509,41 @@ pub fn rotary_embedding_qk_bnsd_bf16(
         sin.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::rotary_embedding_qk_bnsd_bf16(
-        &stream,
-        output_pointer(q_out),
-        output_pointer(k_out),
-        input_pointer(q_input),
-        input_pointer(k_input),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::rotary_embedding_qk_bnsd_bf16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(q_out.as_mut_ptr() as _),
+            DevicePointer::from_cu_deviceptr(k_out.as_mut_ptr() as _),
+            input_pointer(q_input),
+            input_pointer(k_input),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-
-pub fn rotary_embedding_qk_bnsd_f32(
+#[cfg(feature = "dtype_f32")]
+/// Writes half-split rotary query and key embeddings in BNSD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rotary_embedding_qk_bnsd_f32(
     stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<f32>,
-    k_out: &mut impl DeviceSliceMut<f32>,
-    q_input: &impl DeviceSlice<f32>,
-    k_input: &impl DeviceSlice<f32>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    q_out: &mut impl DeviceOutput<f32>,
+    k_out: &mut impl DeviceOutput<f32>,
+    q_input: &impl DeviceInput<f32>,
+    k_input: &impl DeviceInput<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -411,29 +555,41 @@ pub fn rotary_embedding_qk_bnsd_f32(
         sin.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::rotary_embedding_qk_bnsd_f32(
-        &stream,
-        output_pointer(q_out),
-        output_pointer(k_out),
-        input_pointer(q_input),
-        input_pointer(k_input),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::rotary_embedding_qk_bnsd_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(q_out.as_mut_ptr() as _),
+            DevicePointer::from_cu_deviceptr(k_out.as_mut_ptr() as _),
+            input_pointer(q_input),
+            input_pointer(k_input),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-
-pub fn rotary_embedding_qk_bnsd_f16(
+#[cfg(feature = "dtype_f16")]
+/// Writes half-split rotary query and key embeddings in BNSD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rotary_embedding_qk_bnsd_f16(
     stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<f16>,
-    k_out: &mut impl DeviceSliceMut<f16>,
-    q_input: &impl DeviceSlice<f16>,
-    k_input: &impl DeviceSlice<f16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    q_out: &mut impl DeviceOutput<f16>,
+    k_out: &mut impl DeviceOutput<f16>,
+    q_input: &impl DeviceInput<f16>,
+    k_input: &impl DeviceInput<f16>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -445,26 +601,39 @@ pub fn rotary_embedding_qk_bnsd_f16(
         sin.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::rotary_embedding_qk_bnsd_f16(
-        &stream,
-        output_pointer(q_out),
-        output_pointer(k_out),
-        input_pointer(q_input),
-        input_pointer(k_input),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::rotary_embedding_qk_bnsd_f16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(q_out.as_mut_ptr() as _),
+            DevicePointer::from_cu_deviceptr(k_out.as_mut_ptr() as _),
+            input_pointer(q_input),
+            input_pointer(k_input),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn rotary_embedding_qk_bnsd_in_place_f32(
+#[cfg(feature = "dtype_f32")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rotary_embedding_qk_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
     k: &mut impl DeviceSliceMut<f32>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -476,24 +645,37 @@ pub fn rotary_embedding_qk_bnsd_in_place_f32(
         sin.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::rotary_embedding_qk_bnsd_in_place_f32(
-        &stream,
-        output_pointer(q),
-        output_pointer(k),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::rotary_embedding_qk_bnsd_in_place_f32(
+            &stream,
+            output_pointer(q),
+            output_pointer(k),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn rotary_embedding_qk_bnsd_in_place_f16(
+#[cfg(feature = "dtype_f16")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rotary_embedding_qk_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
     k: &mut impl DeviceSliceMut<f16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -505,24 +687,37 @@ pub fn rotary_embedding_qk_bnsd_in_place_f16(
         sin.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::rotary_embedding_qk_bnsd_in_place_f16(
-        &stream,
-        output_pointer(q),
-        output_pointer(k),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::rotary_embedding_qk_bnsd_in_place_f16(
+            &stream,
+            output_pointer(q),
+            output_pointer(k),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn rotary_embedding_qk_bnsd_in_place_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rotary_embedding_qk_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
     k: &mut impl DeviceSliceMut<bf16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
     validate_rope_qk_bnsd(
@@ -534,300 +729,589 @@ pub fn rotary_embedding_qk_bnsd_in_place_bf16(
         sin.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::rotary_embedding_qk_bnsd_in_place_bf16(
-        &stream,
-        output_pointer(q),
-        output_pointer(k),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::rotary_embedding_qk_bnsd_in_place_bf16(
+            &stream,
+            output_pointer(q),
+            output_pointer(k),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
+#[cfg(feature = "dtype_bf16")]
 /// BNSD Q/K half-split RoPE.
 ///
 /// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split
 /// `rotate_half` layouts rather than adjacent interleaved pairs.
-pub fn rope_embedding_qk_bnsd_bf16(
+/// Writes half-split rotary query and key embeddings in BNSD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_embedding_qk_bnsd_bf16(
     stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<bf16>,
-    k_out: &mut impl DeviceSliceMut<bf16>,
-    q_input: &impl DeviceSlice<bf16>,
-    k_input: &impl DeviceSlice<bf16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    q_out: &mut impl DeviceOutput<bf16>,
+    k_out: &mut impl DeviceOutput<bf16>,
+    q_input: &impl DeviceInput<bf16>,
+    k_input: &impl DeviceInput<bf16>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_bf16(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        rotary_embedding_qk_bnsd_bf16(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
+/// BNSD Q/K half-split `RoPE`.
+///
+/// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split
+/// `rotate_half` layouts rather than adjacent interleaved pairs.
+/// Writes half-split rotary query and key embeddings in BNSD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_embedding_qk_bnsd_f32(
+    stream: &Stream,
+    q_out: &mut impl DeviceOutput<f32>,
+    k_out: &mut impl DeviceOutput<f32>,
+    q_input: &impl DeviceInput<f32>,
+    k_input: &impl DeviceInput<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
+    config: BnsdQkRopeConfig,
+) -> Result<()> {
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        rotary_embedding_qk_bnsd_f32(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    }
+}
+
+#[cfg(feature = "dtype_f16")]
 /// BNSD Q/K half-split RoPE.
 ///
 /// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split
 /// `rotate_half` layouts rather than adjacent interleaved pairs.
-pub fn rope_embedding_qk_bnsd_f32(
-    stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<f32>,
-    k_out: &mut impl DeviceSliceMut<f32>,
-    q_input: &impl DeviceSlice<f32>,
-    k_input: &impl DeviceSlice<f32>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
-    config: BnsdQkRopeConfig,
-) -> Result<()> {
-    rotary_embedding_qk_bnsd_f32(stream, q_out, k_out, q_input, k_input, cos, sin, config)
-}
-
-#[cfg(feature = "dtype-f16")]
-/// BNSD Q/K half-split RoPE.
+/// Writes half-split rotary query and key embeddings in BNSD layout.
 ///
-/// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split
-/// `rotate_half` layouts rather than adjacent interleaved pairs.
-pub fn rope_embedding_qk_bnsd_f16(
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_embedding_qk_bnsd_f16(
     stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<f16>,
-    k_out: &mut impl DeviceSliceMut<f16>,
-    q_input: &impl DeviceSlice<f16>,
-    k_input: &impl DeviceSlice<f16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    q_out: &mut impl DeviceOutput<f16>,
+    k_out: &mut impl DeviceOutput<f16>,
+    q_input: &impl DeviceInput<f16>,
+    k_input: &impl DeviceInput<f16>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_f16(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        rotary_embedding_qk_bnsd_f16(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn rope_qk_half_split_bnsd_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Writes half-split rotary query and key embeddings in BNSD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_qk_half_split_bnsd_bf16(
     stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<bf16>,
-    k_out: &mut impl DeviceSliceMut<bf16>,
-    q_input: &impl DeviceSlice<bf16>,
-    k_input: &impl DeviceSlice<bf16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    q_out: &mut impl DeviceOutput<bf16>,
+    k_out: &mut impl DeviceOutput<bf16>,
+    q_input: &impl DeviceInput<bf16>,
+    k_input: &impl DeviceInput<bf16>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_bf16(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        rotary_embedding_qk_bnsd_bf16(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-
-pub fn rope_qk_half_split_bnsd_f32(
+#[cfg(feature = "dtype_f32")]
+/// Writes half-split rotary query and key embeddings in BNSD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_qk_half_split_bnsd_f32(
     stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<f32>,
-    k_out: &mut impl DeviceSliceMut<f32>,
-    q_input: &impl DeviceSlice<f32>,
-    k_input: &impl DeviceSlice<f32>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    q_out: &mut impl DeviceOutput<f32>,
+    k_out: &mut impl DeviceOutput<f32>,
+    q_input: &impl DeviceInput<f32>,
+    k_input: &impl DeviceInput<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_f32(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        rotary_embedding_qk_bnsd_f32(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-
-pub fn rope_qk_half_split_bnsd_f16(
+#[cfg(feature = "dtype_f16")]
+/// Writes half-split rotary query and key embeddings in BNSD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_qk_half_split_bnsd_f16(
     stream: &Stream,
-    q_out: &mut impl DeviceSliceMut<f16>,
-    k_out: &mut impl DeviceSliceMut<f16>,
-    q_input: &impl DeviceSlice<f16>,
-    k_input: &impl DeviceSlice<f16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    q_out: &mut impl DeviceOutput<f16>,
+    k_out: &mut impl DeviceOutput<f16>,
+    q_input: &impl DeviceInput<f16>,
+    k_input: &impl DeviceInput<f16>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_f16(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        rotary_embedding_qk_bnsd_f16(stream, q_out, k_out, q_input, k_input, cos, sin, config)
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn rope_embedding_qk_bnsd_in_place_f32(
+#[cfg(feature = "dtype_f32")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_embedding_qk_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
     k: &mut impl DeviceSliceMut<f32>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_in_place_f32(stream, q, k, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { rotary_embedding_qk_bnsd_in_place_f32(stream, q, k, cos, sin, config) }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn rope_embedding_qk_bnsd_in_place_f16(
+#[cfg(feature = "dtype_f16")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_embedding_qk_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
     k: &mut impl DeviceSliceMut<f16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_in_place_f16(stream, q, k, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { rotary_embedding_qk_bnsd_in_place_f16(stream, q, k, cos, sin, config) }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn rope_embedding_qk_bnsd_in_place_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_embedding_qk_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
     k: &mut impl DeviceSliceMut<bf16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_in_place_bf16(stream, q, k, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { rotary_embedding_qk_bnsd_in_place_bf16(stream, q, k, cos, sin, config) }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn rope_qk_half_split_bnsd_in_place_f32(
+#[cfg(feature = "dtype_f32")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_qk_half_split_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
     k: &mut impl DeviceSliceMut<f32>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_in_place_f32(stream, q, k, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { rotary_embedding_qk_bnsd_in_place_f32(stream, q, k, cos, sin, config) }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn rope_qk_half_split_bnsd_in_place_f16(
+#[cfg(feature = "dtype_f16")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_qk_half_split_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
     k: &mut impl DeviceSliceMut<f16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_in_place_f16(stream, q, k, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { rotary_embedding_qk_bnsd_in_place_f16(stream, q, k, cos, sin, config) }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn rope_qk_half_split_bnsd_in_place_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Applies rotary position encoding to initialized query and key storage in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn rope_qk_half_split_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
     k: &mut impl DeviceSliceMut<bf16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: BnsdQkRopeConfig,
 ) -> Result<()> {
-    rotary_embedding_qk_bnsd_in_place_bf16(stream, q, k, cos, sin, config)
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe { rotary_embedding_qk_bnsd_in_place_bf16(stream, q, k, cos, sin, config) }
 }
 
-#[cfg(feature = "dtype-f32")]
-rotary_embedding_fn!(rotary_embedding_f32, f32);
-#[cfg(feature = "dtype-f16")]
-rotary_embedding_fn!(rotary_embedding_f16, f16);
-#[cfg(feature = "dtype-f64")]
-rotary_embedding_fn!(rotary_embedding_f64, f64);
-#[cfg(feature = "dtype-f32")]
-rotary_embedding_positioned_fn!(rotary_embedding_positioned_f32, f32);
-#[cfg(feature = "dtype-f16")]
-rotary_embedding_positioned_fn!(rotary_embedding_positioned_f16, f16);
-#[cfg(feature = "dtype-f64")]
-rotary_embedding_positioned_fn!(rotary_embedding_positioned_f64, f64);
-#[cfg(feature = "dtype-f32")]
-rotary_embedding_dynpos_fn!(rotary_embedding_dynpos_f32, f32);
-#[cfg(feature = "dtype-f16")]
-rotary_embedding_dynpos_fn!(rotary_embedding_dynpos_f16, f16);
-#[cfg(feature = "dtype-f64")]
-rotary_embedding_dynpos_fn!(rotary_embedding_dynpos_f64, f64);
-#[cfg(feature = "dtype-f32")]
-rotary_embedding_batched_fn!(rotary_embedding_batched_f32, f32);
-#[cfg(feature = "dtype-f16")]
-rotary_embedding_batched_fn!(rotary_embedding_batched_f16, f16);
-#[cfg(feature = "dtype-f64")]
-rotary_embedding_batched_fn!(rotary_embedding_batched_f64, f64);
-#[cfg(feature = "dtype-f32")]
-rotary_embedding_fn!(rotary_embedding_chunked_f32, f32);
-#[cfg(feature = "dtype-f16")]
-rotary_embedding_fn!(rotary_embedding_chunked_f16, f16);
-#[cfg(feature = "dtype-f64")]
-rotary_embedding_fn!(rotary_embedding_chunked_f64, f64);
+#[cfg(feature = "dtype_f32")]
+rotary_embedding_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_f32,
+    f32
+);
 
-#[cfg(feature = "dtype-f32")]
-rotary_embedding_positioned_fn!(rotary_embedding_chunked_positioned_f32, f32);
-#[cfg(feature = "dtype-f16")]
-rotary_embedding_positioned_fn!(rotary_embedding_chunked_positioned_f16, f16);
-#[cfg(feature = "dtype-f64")]
-rotary_embedding_positioned_fn!(rotary_embedding_chunked_positioned_f64, f64);
-#[cfg(feature = "dtype-f32")]
-rotary_embedding_dynpos_fn!(rotary_embedding_chunked_dynpos_f32, f32);
-#[cfg(feature = "dtype-f16")]
-rotary_embedding_dynpos_fn!(rotary_embedding_chunked_dynpos_f16, f16);
-#[cfg(feature = "dtype-f64")]
-rotary_embedding_dynpos_fn!(rotary_embedding_chunked_dynpos_f64, f64);
-#[cfg(feature = "dtype-f32")]
-rotary_embedding_batched_fn!(rotary_embedding_chunked_batched_f32, f32);
-#[cfg(feature = "dtype-f16")]
-rotary_embedding_batched_fn!(rotary_embedding_chunked_batched_f16, f16);
-#[cfg(feature = "dtype-f64")]
-rotary_embedding_batched_fn!(rotary_embedding_chunked_batched_f64, f64);
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f16")]
+rotary_embedding_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_f16,
+    f16
+);
+
+#[cfg(feature = "dtype_f64")]
+rotary_embedding_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_f64,
+    f64
+);
+
+#[cfg(feature = "dtype_f32")]
+rotary_embedding_positioned_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_positioned_f32,
+    f32
+);
+
+#[cfg(feature = "dtype_f16")]
+rotary_embedding_positioned_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_positioned_f16,
+    f16
+);
+
+#[cfg(feature = "dtype_f64")]
+rotary_embedding_positioned_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_positioned_f64,
+    f64
+);
+
+#[cfg(feature = "dtype_f32")]
+rotary_embedding_dynpos_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_dynpos_f32,
+    f32
+);
+
+#[cfg(feature = "dtype_f16")]
+rotary_embedding_dynpos_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_dynpos_f16,
+    f16
+);
+
+#[cfg(feature = "dtype_f64")]
+rotary_embedding_dynpos_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_dynpos_f64,
+    f64
+);
+
+#[cfg(feature = "dtype_f32")]
+rotary_embedding_batched_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_batched_f32,
+    f32
+);
+
+#[cfg(feature = "dtype_f16")]
+rotary_embedding_batched_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_batched_f16,
+    f16
+);
+
+#[cfg(feature = "dtype_f64")]
+rotary_embedding_batched_fn!(
+    "Writes rotary embeddings by rotating adjacent feature pairs and copying unrotated features.",
+    rotary_embedding_batched_f64,
+    f64
+);
+
+#[cfg(feature = "dtype_f32")]
+rotary_embedding_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_f32,
+    f32
+);
+
+#[cfg(feature = "dtype_f16")]
+rotary_embedding_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_f16,
+    f16
+);
+
+#[cfg(feature = "dtype_f64")]
+rotary_embedding_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_f64,
+    f64
+);
+
+#[cfg(feature = "dtype_f32")]
+rotary_embedding_positioned_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_positioned_f32,
+    f32
+);
+
+#[cfg(feature = "dtype_f16")]
+rotary_embedding_positioned_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_positioned_f16,
+    f16
+);
+
+#[cfg(feature = "dtype_f64")]
+rotary_embedding_positioned_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_positioned_f64,
+    f64
+);
+
+#[cfg(feature = "dtype_f32")]
+rotary_embedding_dynpos_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_dynpos_f32,
+    f32
+);
+
+#[cfg(feature = "dtype_f16")]
+rotary_embedding_dynpos_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_dynpos_f16,
+    f16
+);
+
+#[cfg(feature = "dtype_f64")]
+rotary_embedding_dynpos_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_dynpos_f64,
+    f64
+);
+
+#[cfg(feature = "dtype_f32")]
+rotary_embedding_batched_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_batched_f32,
+    f32
+);
+
+#[cfg(feature = "dtype_f16")]
+rotary_embedding_batched_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_batched_f16,
+    f16
+);
+
+#[cfg(feature = "dtype_f64")]
+rotary_embedding_batched_fn!(
+    "Writes half-split rotary embeddings within the rotary prefix and copies unrotated features.",
+    rotary_embedding_chunked_batched_f64,
+    f64
+);
+
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_qk_fn!(rotary_embedding_qk_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_qk_fn!(rotary_embedding_qk_f16, f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_qk_fn!(rotary_embedding_qk_f64, f64);
-#[cfg(feature = "dtype-f32")]
+
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_qk_batched_fn!(
     rotary_embedding_qk_batched_f32,
     rotary_embedding_qk_batched_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_qk_batched_fn!(
     rotary_embedding_qk_batched_f16,
     rotary_embedding_qk_batched_f16,
     f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_qk_batched_fn!(
     rotary_embedding_qk_batched_f64,
     rotary_embedding_qk_batched_f64,
     f64
 );
-#[cfg(feature = "dtype-f32")]
+
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_qk_batched_in_place_fn!(
     rotary_embedding_qk_batched_in_place_f32,
     rotary_embedding_qk_batched_in_place_f32,
     f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_qk_batched_in_place_fn!(
     rotary_embedding_qk_batched_in_place_f16,
     rotary_embedding_qk_batched_in_place_f16,
     f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_qk_batched_in_place_fn!(
     rotary_embedding_qk_batched_in_place_f64,
     rotary_embedding_qk_batched_in_place_f64,
     f64
 );
-#[cfg(feature = "dtype-f32")]
+
+#[cfg(feature = "dtype_f32")]
 rotary_embedding_qk_in_place_fn!(rotary_embedding_qk_in_place_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rotary_embedding_qk_in_place_fn!(rotary_embedding_qk_in_place_f16, f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 rotary_embedding_qk_in_place_fn!(rotary_embedding_qk_in_place_f64, f64);
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 rope_bshd_fn!(rope_bshd_f32, f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 rope_bshd_fn!(rope_bshd_f16, f16);
-#[cfg(feature = "dtype-bf16")]
+
+#[cfg(feature = "dtype_bf16")]
 rope_bshd_fn!(rope_bshd_bf16, bf16);
 
-#[cfg(feature = "dtype-f16")]
-pub fn rope_bshd_dynpos_f16(
+#[cfg(feature = "dtype_f16")]
+/// Writes half-split rotary embeddings in BSHD layout.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+/// The device position plus each sequence index must address a valid row in both
+/// trigonometric tables and fit the kernel indexing width.
+pub unsafe fn rope_bshd_dynpos_f16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    input: &impl DeviceSlice<f16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
-    position_start: &impl DeviceSlice<u32>,
+    out: &mut impl DeviceOutput<f16>,
+    input: &impl DeviceInput<f16>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
+    position_start: &impl DeviceInput<u32>,
     config: BshdRopeConfig,
 ) -> Result<()> {
     if config.batch == 0
@@ -850,136 +1334,217 @@ pub fn rope_bshd_dynpos_f16(
     ensure_len_at_least(cos.len(), config.head_dim / 2)?;
     ensure_len_at_least(sin.len(), config.head_dim / 2)?;
     ensure_len(position_start.len(), 1)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::rope_bshd_dynpos_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(cos),
-        input_pointer(sin),
-        input_pointer(position_start),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::rope_bshd_dynpos_f16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(cos),
+            input_pointer(sin),
+            input_pointer(position_start),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn multiaxis_rope_qk_f32(
+#[cfg(feature = "dtype_f32")]
+/// Rotates the configured query and key axes in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn multiaxis_rope_qk_f32(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f32>,
     key: &mut impl DeviceSliceMut<f32>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: MultiaxisRopeConfig,
 ) -> Result<()> {
     validate_multiaxis_rope_qk(query.len(), key.len(), cos.len(), sin.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::multiaxis_rope_qk_f32(
-        &stream,
-        output_pointer(query),
-        output_pointer(key),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::multiaxis_rope_qk_f32(
+            &stream,
+            output_pointer(query),
+            output_pointer(key),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn multiaxis_rope_qk_f16(
+#[cfg(feature = "dtype_f16")]
+/// Rotates the configured query and key axes in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn multiaxis_rope_qk_f16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f16>,
     key: &mut impl DeviceSliceMut<f16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: MultiaxisRopeConfig,
 ) -> Result<()> {
     validate_multiaxis_rope_qk(query.len(), key.len(), cos.len(), sin.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::multiaxis_rope_qk_f16(
-        &stream,
-        output_pointer(query),
-        output_pointer(key),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::multiaxis_rope_qk_f16(
+            &stream,
+            output_pointer(query),
+            output_pointer(key),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn multiaxis_rope_qk_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Rotates the configured query and key axes in place.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn multiaxis_rope_qk_bf16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<bf16>,
     key: &mut impl DeviceSliceMut<bf16>,
-    cos: &impl DeviceSlice<f32>,
-    sin: &impl DeviceSlice<f32>,
+    cos: &impl DeviceInput<f32>,
+    sin: &impl DeviceInput<f32>,
     config: MultiaxisRopeConfig,
 ) -> Result<()> {
     validate_multiaxis_rope_qk(query.len(), key.len(), cos.len(), sin.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::multiaxis_rope_qk_bf16(
-        &stream,
-        output_pointer(query),
-        output_pointer(key),
-        input_pointer(cos),
-        input_pointer(sin),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::multiaxis_rope_qk_bf16(
+            &stream,
+            output_pointer(query),
+            output_pointer(key),
+            input_pointer(cos),
+            input_pointer(sin),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f32")]
-pub fn interleaved_complex_rope_qk_f32(
+#[cfg(feature = "dtype_f32")]
+/// Rotates adjacent query and key pairs using complex frequency values.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn interleaved_complex_rope_qk_f32(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f32>,
     key: &mut impl DeviceSliceMut<f32>,
-    freqs: &impl DeviceSlice<f32>,
+    freqs: &impl DeviceInput<f32>,
     config: InterleavedComplexRopeConfig,
 ) -> Result<()> {
     validate_interleaved_complex_rope_qk(query.len(), key.len(), freqs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::interleaved_complex_rope_qk_f32(
-        &stream,
-        output_pointer(query),
-        output_pointer(key),
-        input_pointer(freqs),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::interleaved_complex_rope_qk_f32(
+            &stream,
+            output_pointer(query),
+            output_pointer(key),
+            input_pointer(freqs),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn interleaved_complex_rope_qk_f16(
+#[cfg(feature = "dtype_f16")]
+/// Rotates adjacent query and key pairs using complex frequency values.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn interleaved_complex_rope_qk_f16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f16>,
     key: &mut impl DeviceSliceMut<f16>,
-    freqs: &impl DeviceSlice<f32>,
+    freqs: &impl DeviceInput<f32>,
     config: InterleavedComplexRopeConfig,
 ) -> Result<()> {
     validate_interleaved_complex_rope_qk(query.len(), key.len(), freqs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::interleaved_complex_rope_qk_f16(
-        &stream,
-        output_pointer(query),
-        output_pointer(key),
-        input_pointer(freqs),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::interleaved_complex_rope_qk_f16(
+            &stream,
+            output_pointer(query),
+            output_pointer(key),
+            input_pointer(freqs),
+            config,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn interleaved_complex_rope_qk_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Rotates adjacent query and key pairs using complex frequency values.
+///
+/// # Safety
+///
+/// Input values must be valid when read; order their producers before use.
+/// Retain input allocations and exclusive writable ranges in the stream's context
+/// through completion on every path and throughout captured replay.
+/// Order prior accesses before launch. Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
+/// must already be initialized and disjoint from the frequency tables.
+pub unsafe fn interleaved_complex_rope_qk_bf16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<bf16>,
     key: &mut impl DeviceSliceMut<bf16>,
-    freqs: &impl DeviceSlice<f32>,
+    freqs: &impl DeviceInput<f32>,
     config: InterleavedComplexRopeConfig,
 ) -> Result<()> {
     validate_interleaved_complex_rope_qk(query.len(), key.len(), freqs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::positional::interleaved_complex_rope_qk_bf16(
-        &stream,
-        output_pointer(query),
-        output_pointer(key),
-        input_pointer(freqs),
-        config,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::positional::interleaved_complex_rope_qk_bf16(
+            &stream,
+            output_pointer(query),
+            output_pointer(key),
+            input_pointer(freqs),
+            config,
+        )
+    }
 }
 
 fn validate_rotary(
@@ -1322,8 +1887,17 @@ fn validate_interleaved_complex_rope_qk(
 mod tests {
     use super::*;
 
+    fn is_length_mismatch<T>(result: Result<T>) -> bool {
+        matches!(
+            result,
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::RankReachMismatch { .. })
+        )
+    }
+
     #[test]
-    fn qk_batched_rotary_validation_accepts_shared_and_batched_trig() -> Result<()> {
+    fn test_qk_batched_rotary_validation_accepts_shared_and_batched_trig() -> Result<()> {
         let mut config = qk_batched_rotary_validation_config();
         validate_rotary_qk_batched(192, 96, 192, 96, 12, 12, config)?;
 
@@ -1333,37 +1907,34 @@ mod tests {
     }
 
     #[test]
-    fn qk_batched_rotary_validation_rejects_bad_trig_batch() {
+    fn test_qk_batched_rotary_validation_rejects_bad_trig_batch() {
         let mut config = qk_batched_rotary_validation_config();
         config.trig_batch = 3;
-        assert!(matches!(
-            validate_rotary_qk_batched(192, 96, 192, 96, 36, 36, config),
-            Err(Error::LengthMismatch)
-        ));
+        assert!(is_length_mismatch(validate_rotary_qk_batched(
+            192, 96, 192, 96, 36, 36, config
+        )));
     }
 
     #[test]
-    fn qk_batched_rotary_validation_rejects_mismatched_qk_shape() {
+    fn test_qk_batched_rotary_validation_rejects_mismatched_qk_shape() {
         let mut config = qk_batched_rotary_validation_config();
         config.k_output_dimensions[2] = 4;
-        assert!(matches!(
-            validate_rotary_qk_batched(192, 128, 192, 128, 12, 12, config),
-            Err(Error::LengthMismatch)
-        ));
+        assert!(is_length_mismatch(validate_rotary_qk_batched(
+            192, 128, 192, 128, 12, 12, config
+        )));
     }
 
     #[test]
-    fn qk_batched_rotary_validation_rejects_short_batched_trig() {
+    fn test_qk_batched_rotary_validation_rejects_short_batched_trig() {
         let mut config = qk_batched_rotary_validation_config();
         config.trig_batch = 2;
-        assert!(matches!(
-            validate_rotary_qk_batched(192, 96, 192, 96, 23, 24, config),
-            Err(Error::LengthMismatch)
-        ));
+        assert!(is_length_mismatch(validate_rotary_qk_batched(
+            192, 96, 192, 96, 23, 24, config
+        )));
     }
 
     #[test]
-    fn rope_bshd_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_rope_bshd_validation_accepts_exact_lengths() -> Result<()> {
         let config = BshdRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1374,7 +1945,7 @@ mod tests {
     }
 
     #[test]
-    fn rope_bshd_validation_rejects_odd_head_dim() {
+    fn test_rope_bshd_validation_rejects_odd_head_dim() {
         let config = BshdRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1388,21 +1959,20 @@ mod tests {
     }
 
     #[test]
-    fn rope_bshd_validation_rejects_short_trig() {
+    fn test_rope_bshd_validation_rejects_short_trig() {
         let config = BshdRopeConfig {
             batch: 2,
             seq_len: 3,
             heads: 4,
             head_dim: 8,
         };
-        assert!(matches!(
-            validate_rope_bshd(192, 192, 11, 12, config),
-            Err(Error::LengthMismatch)
-        ));
+        assert!(is_length_mismatch(validate_rope_bshd(
+            192, 192, 11, 12, config
+        )));
     }
 
     #[test]
-    fn rope_qk_bnsd_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_rope_qk_bnsd_validation_accepts_exact_lengths() -> Result<()> {
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1416,7 +1986,7 @@ mod tests {
     }
 
     #[test]
-    fn rope_qk_bnsd_validation_rejects_bad_trig_batch() {
+    fn test_rope_qk_bnsd_validation_rejects_bad_trig_batch() {
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1433,7 +2003,7 @@ mod tests {
     }
 
     #[test]
-    fn rope_qk_bnsd_validation_rejects_rotary_overflow() {
+    fn test_rope_qk_bnsd_validation_rejects_rotary_overflow() {
         let config = BnsdQkRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1443,14 +2013,13 @@ mod tests {
             trig_batch: 1,
             rotary_pairs: 5,
         };
-        assert!(matches!(
-            validate_rope_qk_bnsd(192, 96, 192, 96, 15, 15, config),
-            Err(Error::LengthMismatch)
-        ));
+        assert!(is_length_mismatch(validate_rope_qk_bnsd(
+            192, 96, 192, 96, 15, 15, config
+        )));
     }
 
     #[test]
-    fn multiaxis_rope_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_multiaxis_rope_validation_accepts_exact_lengths() -> Result<()> {
         let config = MultiaxisRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1465,7 +2034,7 @@ mod tests {
     }
 
     #[test]
-    fn multiaxis_rope_validation_rejects_bad_sections() {
+    fn test_multiaxis_rope_validation_rejects_bad_sections() {
         let config = MultiaxisRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1476,14 +2045,13 @@ mod tests {
             section_h: 1,
             section_w: 1,
         };
-        assert!(matches!(
-            validate_multiaxis_rope_qk(192, 96, 72, 72, config),
-            Err(Error::LengthMismatch)
-        ));
+        assert!(is_length_mismatch(validate_multiaxis_rope_qk(
+            192, 96, 72, 72, config
+        )));
     }
 
     #[test]
-    fn multiaxis_rope_validation_rejects_short_trig() {
+    fn test_multiaxis_rope_validation_rejects_short_trig() {
         let config = MultiaxisRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1494,14 +2062,13 @@ mod tests {
             section_h: 2,
             section_w: 1,
         };
-        assert!(matches!(
-            validate_multiaxis_rope_qk(192, 96, 71, 72, config),
-            Err(Error::LengthMismatch)
-        ));
+        assert!(is_length_mismatch(validate_multiaxis_rope_qk(
+            192, 96, 71, 72, config
+        )));
     }
 
     #[test]
-    fn interleaved_complex_rope_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_interleaved_complex_rope_validation_accepts_exact_lengths() -> Result<()> {
         let config = InterleavedComplexRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1513,7 +2080,7 @@ mod tests {
     }
 
     #[test]
-    fn interleaved_complex_rope_validation_rejects_short_freqs() {
+    fn test_interleaved_complex_rope_validation_rejects_short_freqs() {
         let config = InterleavedComplexRopeConfig {
             batch: 2,
             seq_len: 3,
@@ -1521,10 +2088,9 @@ mod tests {
             key_heads: 2,
             head_dim: 8,
         };
-        assert!(matches!(
-            validate_interleaved_complex_rope_qk(192, 96, 23, config),
-            Err(Error::LengthMismatch)
-        ));
+        assert!(is_length_mismatch(validate_interleaved_complex_rope_qk(
+            192, 96, 23, config
+        )));
     }
 
     fn qk_batched_rotary_validation_config() -> QkBatchedRotaryEmbeddingConfig {

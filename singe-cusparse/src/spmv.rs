@@ -1,9 +1,11 @@
-use singe_cuda::{data_type::DataTypeLike, types::DevicePtr};
+use std::ptr;
 
+use singe_cuda::{data_type::DataTypeLike, view::DeviceOutputView};
 use singe_cusparse_sys as sys;
 
 use crate::{
     context::Context,
+    descriptor::workspace,
     error::Result,
     matrix::SparseMatrixDescriptor,
     scalar::Scalar,
@@ -13,8 +15,20 @@ use crate::{
     vector::DenseVectorDescriptor,
 };
 
-pub fn spmv_buffer_size<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Returned workspace sizes must fit in `usize`.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spmv_buffer_size<Compute: DataTypeLike>(
+    context: &Context,
     operation: Operation,
     alpha: Scalar<'_, Compute>,
     matrix: &SparseMatrixDescriptor,
@@ -23,16 +37,17 @@ pub fn spmv_buffer_size<Compute: DataTypeLike>(
     y: &mut DenseVectorDescriptor,
     algorithm: SpMvAlgorithm,
 ) -> Result<usize> {
-    matrix.ensure_context(ctx)?;
-    x.ensure_context(ctx)?;
-    y.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    matrix.ensure_context(context)?;
+    x.ensure_context(context)?;
+    y.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
 
     let mut size = 0;
+    // SAFETY: `cusparseSpMV_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusparseSpMV_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             operation.into(),
             alpha.ptr().cast(),
             matrix.as_raw_const(),
@@ -47,8 +62,20 @@ pub fn spmv_buffer_size<Compute: DataTypeLike>(
     to_usize(size, "spmv buffer size")
 }
 
-pub fn spmv_preprocess<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spmv_preprocess<Compute: DataTypeLike>(
+    context: &Context,
     operation: Operation,
     alpha: Scalar<'_, Compute>,
     matrix: &SparseMatrixDescriptor,
@@ -56,17 +83,20 @@ pub fn spmv_preprocess<Compute: DataTypeLike>(
     beta: Scalar<'_, Compute>,
     y: &mut DenseVectorDescriptor,
     algorithm: SpMvAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix.ensure_context(ctx)?;
-    x.ensure_context(ctx)?;
-    y.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
+    matrix.ensure_context(context)?;
+    x.ensure_context(context)?;
+    y.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    // SAFETY: `cusparseSpMV_preprocess` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpMV_preprocess(
-            ctx.as_raw(),
+            context.as_raw(),
             operation.into(),
             alpha.ptr().cast(),
             matrix.as_raw_const(),
@@ -75,7 +105,9 @@ pub fn spmv_preprocess<Compute: DataTypeLike>(
             y.as_raw(),
             Compute::data_type().into(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())
@@ -161,7 +193,7 @@ pub fn spmv_preprocess<Compute: DataTypeLike>(
 /// Useful when [`spmv`] is called multiple times with the same sparsity
 /// pattern (`matrix`).
 ///
-/// Calling [`spmv_preprocess`] with `buffer` makes that buffer active for `matrix` SpMV calls.
+/// Calling [`spmv_preprocess`] with `buffer` makes that buffer active for `matrix` `SpMV` calls.
 /// Subsequent calls to [`spmv`] with `matrix` and the active buffer must use the same values for all parameters as the call to [`spmv_preprocess`].
 /// The exceptions are: `alpha`, `beta`, `x`, `y`, and the values (but not indices) of `matrix` may be different.
 /// Importantly, the buffer contents must be unmodified since the call to [`spmv_preprocess`].
@@ -198,8 +230,20 @@ pub fn spmv_preprocess<Compute: DataTypeLike>(
 ///
 /// * CUDA graph capture.
 /// * Hardware Memory Compression.
-pub fn spmv<Compute: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// Uphold the [raw execution contract](crate#raw-execution), including the
+/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+///
+/// # Errors
+///
+/// Returns an error if an operand or analysis descriptor belongs to another CUDA context.
+/// An optional workspace must belong to the same CUDA context.
+/// Input scalar locations must match; device scalars must belong to the same CUDA context.
+/// Also propagates scalar pointer-mode query or selection errors.
+/// Also propagates CUDA context-binding errors and any failure status returned by cuSPARSE.
+pub unsafe fn spmv<Compute: DataTypeLike>(
+    context: &Context,
     operation: Operation,
     alpha: Scalar<'_, Compute>,
     matrix: &SparseMatrixDescriptor,
@@ -207,17 +251,20 @@ pub fn spmv<Compute: DataTypeLike>(
     beta: Scalar<'_, Compute>,
     y: &mut DenseVectorDescriptor,
     algorithm: SpMvAlgorithm,
-    external_buffer: Option<DevicePtr>,
+    external_buffer: Option<DeviceOutputView<'_, u8>>,
 ) -> Result<()> {
-    matrix.ensure_context(ctx)?;
-    x.ensure_context(ctx)?;
-    y.ensure_context(ctx)?;
-    ctx.bind()?;
-    ctx.require_scalar_pointer_mode(alpha, beta)?;
+    let external_buffer = workspace(context, external_buffer)?;
 
+    matrix.ensure_context(context)?;
+    x.ensure_context(context)?;
+    y.ensure_context(context)?;
+    context.bind()?;
+    context.require_scalar_pointer_mode(alpha, beta)?;
+
+    // SAFETY: `cusparseSpMV` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusparseSpMV(
-            ctx.as_raw(),
+            context.as_raw(),
             operation.into(),
             alpha.ptr().cast(),
             matrix.as_raw_const(),
@@ -226,7 +273,9 @@ pub fn spmv<Compute: DataTypeLike>(
             y.as_raw(),
             Compute::data_type().into(),
             algorithm.into(),
-            external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+            external_buffer
+                .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                .cast(),
         ))?;
     }
     Ok(())

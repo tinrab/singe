@@ -27,7 +27,6 @@ generate:
         --blocklist-item "^cuda.*" \
         --blocklist-item "^CUDA.*" \
         --blocklist-item "^libraryPropertyType.*" \
-        --no-doc-comments \
         --no-size_t-is-usize \
         --no-layout-tests \
         --with-derive-default \
@@ -37,6 +36,7 @@ generate:
         --use-core \
         --default-enum-style=rust \
         -- \
+            -fparse-all-comments -fretain-comments-from-system-headers \
             -x c++ \
             -I {{cuda_path}}/include \
             -I {{npp_include_path}} \

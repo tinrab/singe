@@ -1,21 +1,19 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
-use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
-};
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use crate::cuda::cutile::kernel::f16::pooling as kernel_f16;
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 use crate::cuda::cutile::kernel::f32::pooling as kernel_f32;
-#[cfg(feature = "dtype-f64")]
+#[cfg(feature = "dtype_f64")]
 use crate::cuda::cutile::kernel::f64::pooling as kernel_f64;
 use crate::{
     cuda::{
         cutile::{
-            DeviceOpExt,
+            DeviceOpExt, TileKernel,
             utility::{VectorLaunch, checked_device_pointer},
         },
         pooling::Pool2dConfig,
@@ -73,7 +71,10 @@ fn validate_pool2d_config(config: Pool2dConfig) -> Result<()> {
 
 macro_rules! max_pool2d_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -83,10 +84,11 @@ macro_rules! max_pool2d_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let c = checked_pool2d_config(config)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -117,7 +119,10 @@ macro_rules! max_pool2d_fn {
 
 macro_rules! avg_pool2d_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -128,10 +133,11 @@ macro_rules! avg_pool2d_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let c = checked_pool2d_config(config)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -163,15 +169,20 @@ macro_rules! avg_pool2d_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 max_pool2d_fn!(max_pool2d_f32, f32, kernel_f32, max_pool2d_f32);
-#[cfg(feature = "dtype-f32")]
+
+#[cfg(feature = "dtype_f32")]
 avg_pool2d_fn!(avg_pool2d_f32, f32, kernel_f32, avg_pool2d_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 max_pool2d_fn!(max_pool2d_f16, f16, kernel_f16, max_pool2d_f16);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 avg_pool2d_fn!(avg_pool2d_f16, f16, kernel_f16, avg_pool2d_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 max_pool2d_fn!(max_pool2d_f64, f64, kernel_f64, max_pool2d_f64);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 avg_pool2d_fn!(avg_pool2d_f64, f64, kernel_f64, avg_pool2d_f64);

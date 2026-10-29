@@ -1,190 +1,232 @@
-#![allow(deprecated)]
+#![expect(
+    deprecated,
+    reason = "wraps deprecated upstream API values that remain part of the supported surface"
+)]
 
-use std::ffi::{CStr, NulError};
+use std::{
+    borrow::Cow,
+    ffi::{CStr, NulError},
+    ptr,
+    result::Result as StdResult,
+};
 
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::{static_str_from_c_ptr, status_enum};
 use singe_cuda::error::Error as CudaError;
 use singe_cupti_sys as sys;
 use thiserror::Error;
 
+/// Errors from CUDA, CUPTI, and checked profiling argument or result validation.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    /// A CUDA operation failed.
     #[error("cuda error: {0}")]
     Cuda(#[from] CudaError),
 
+    /// CUPTI returned a non-success status.
     #[error("cupti error ({code}): {message}")]
-    Cupti { code: Status, message: String },
+    Cupti {
+        /// Native CUPTI status returned by the failed call.
+        code: Status,
+        /// Description of the native CUPTI status.
+        message: String,
+    },
 
+    /// A string passed to a native API contains an interior nul byte.
     #[error("string contains interior nul byte")]
     InteriorNul,
 
+    /// A native handle, returned string, or required table pointer is unexpectedly null.
     #[error("unexpected null handle")]
     NullHandle,
 
+    /// An argument or checked conversion is outside the supported range.
     #[error("`{name}` is out of range")]
-    OutOfRange { name: String },
+    OutOfRange {
+        /// Name of the invalid argument, conversion, attribute, or shared state.
+        name: Cow<'static, str>,
+    },
 
+    /// An argument or native result has an unexpected length.
     #[error("unexpected length for `{name}`: expected {expected}, got {actual}")]
     LengthMismatch {
-        name: String,
+        /// Name of the invalid argument, conversion, attribute, or shared state.
+        name: Cow<'static, str>,
+        /// Required length in the units named by the failing operation.
         expected: usize,
+        /// Observed length in the units named by the failing operation.
         actual: usize,
     },
 
+    /// A decoded native enum value is unrecognized.
+    #[error("unknown `{name}` value ({value})")]
+    UnknownEnumValue {
+        /// Name of the invalid argument, conversion, attribute, or shared state.
+        name: Cow<'static, str>,
+        /// Unrecognized native enum value.
+        value: u32,
+    },
+
+    /// An attribute is unsupported by the typed accessor or does not match its supplied value type.
     #[error("invalid attribute: `{name}`")]
-    InvalidAttribute { name: String },
+    InvalidAttribute {
+        /// Name of the invalid argument, conversion, attribute, or shared state.
+        name: Cow<'static, str>,
+    },
 
+    /// Shared profiling or callback state is protected by a poisoned mutex.
     #[error("`{name}` lock poisoned")]
-    LockPoisoned { name: String },
+    LockPoisoned {
+        /// Name of the invalid argument, conversion, attribute, or shared state.
+        name: Cow<'static, str>,
+    },
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+/// Result of a CUPTI wrapper operation.
+pub type Result<T> = StdResult<T, Error>;
 
-#[allow(deprecated)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
-#[repr(u32)]
-#[non_exhaustive]
-pub enum Status {
-    Success = sys::CUptiResult::CUPTI_SUCCESS as _,
-    InvalidParameter = sys::CUptiResult::CUPTI_ERROR_INVALID_PARAMETER as _,
-    InvalidDevice = sys::CUptiResult::CUPTI_ERROR_INVALID_DEVICE as _,
-    InvalidContext = sys::CUptiResult::CUPTI_ERROR_INVALID_CONTEXT as _,
-    InvalidEventDomainId = sys::CUptiResult::CUPTI_ERROR_INVALID_EVENT_DOMAIN_ID as _,
-    InvalidEventId = sys::CUptiResult::CUPTI_ERROR_INVALID_EVENT_ID as _,
-    InvalidEventName = sys::CUptiResult::CUPTI_ERROR_INVALID_EVENT_NAME as _,
-    InvalidOperation = sys::CUptiResult::CUPTI_ERROR_INVALID_OPERATION as _,
-    OutOfMemory = sys::CUptiResult::CUPTI_ERROR_OUT_OF_MEMORY as _,
-    Hardware = sys::CUptiResult::CUPTI_ERROR_HARDWARE as _,
-    ParameterSizeNotSufficient = sys::CUptiResult::CUPTI_ERROR_PARAMETER_SIZE_NOT_SUFFICIENT as _,
-    ApiNotImplemented = sys::CUptiResult::CUPTI_ERROR_API_NOT_IMPLEMENTED as _,
-    MaxLimitReached = sys::CUptiResult::CUPTI_ERROR_MAX_LIMIT_REACHED as _,
-    NotReady = sys::CUptiResult::CUPTI_ERROR_NOT_READY as _,
-    NotCompatible = sys::CUptiResult::CUPTI_ERROR_NOT_COMPATIBLE as _,
-    NotInitialized = sys::CUptiResult::CUPTI_ERROR_NOT_INITIALIZED as _,
-    InvalidMetricId = sys::CUptiResult::CUPTI_ERROR_INVALID_METRIC_ID as _,
-    InvalidMetricName = sys::CUptiResult::CUPTI_ERROR_INVALID_METRIC_NAME as _,
-    QueueEmpty = sys::CUptiResult::CUPTI_ERROR_QUEUE_EMPTY as _,
-    InvalidHandle = sys::CUptiResult::CUPTI_ERROR_INVALID_HANDLE as _,
-    InvalidStream = sys::CUptiResult::CUPTI_ERROR_INVALID_STREAM as _,
-    InvalidKind = sys::CUptiResult::CUPTI_ERROR_INVALID_KIND as _,
-    InvalidEventValue = sys::CUptiResult::CUPTI_ERROR_INVALID_EVENT_VALUE as _,
-    Disabled = sys::CUptiResult::CUPTI_ERROR_DISABLED as _,
-    InvalidModule = sys::CUptiResult::CUPTI_ERROR_INVALID_MODULE as _,
-    InvalidMetricValue = sys::CUptiResult::CUPTI_ERROR_INVALID_METRIC_VALUE as _,
-    HardwareBusy = sys::CUptiResult::CUPTI_ERROR_HARDWARE_BUSY as _,
-    NotSupported = sys::CUptiResult::CUPTI_ERROR_NOT_SUPPORTED as _,
-    UnifiedMemoryProfilingNotSupported =
-        sys::CUptiResult::CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED as _,
-    UnifiedMemoryProfilingNotSupportedOnDevice =
-        sys::CUptiResult::CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_ON_DEVICE as _,
-    UnifiedMemoryProfilingNotSupportedOnNonPeerToPeerDevices =
-        sys::CUptiResult::CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_ON_NON_P2P_DEVICES as _,
-    UnifiedMemoryProfilingNotSupportedWithMultiProcessService =
-        sys::CUptiResult::CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_WITH_MPS as _,
-    CudaDynamicParallelismTracingNotSupported =
-        sys::CUptiResult::CUPTI_ERROR_CDP_TRACING_NOT_SUPPORTED as _,
-    VirtualizedDeviceNotSupported =
-        sys::CUptiResult::CUPTI_ERROR_VIRTUALIZED_DEVICE_NOT_SUPPORTED as _,
-    CudaCompilerNotCompatible = sys::CUptiResult::CUPTI_ERROR_CUDA_COMPILER_NOT_COMPATIBLE as _,
-    InsufficientPrivileges = sys::CUptiResult::CUPTI_ERROR_INSUFFICIENT_PRIVILEGES as _,
-    OldProfilerApiInitialized = sys::CUptiResult::CUPTI_ERROR_OLD_PROFILER_API_INITIALIZED as _,
-    OpenAccUndefinedRoutine = sys::CUptiResult::CUPTI_ERROR_OPENACC_UNDEFINED_ROUTINE as _,
-    #[allow(deprecated)]
-    LegacyProfilerNotSupported = sys::CUptiResult::CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED as _,
-    MultipleSubscribersNotSupported =
-        sys::CUptiResult::CUPTI_ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED as _,
-    VirtualizedDeviceInsufficientPrivileges =
-        sys::CUptiResult::CUPTI_ERROR_VIRTUALIZED_DEVICE_INSUFFICIENT_PRIVILEGES as _,
-    ConfidentialComputingNotSupported =
-        sys::CUptiResult::CUPTI_ERROR_CONFIDENTIAL_COMPUTING_NOT_SUPPORTED as _,
-    CmpDeviceNotSupported = sys::CUptiResult::CUPTI_ERROR_CMP_DEVICE_NOT_SUPPORTED as _,
-    MigDeviceNotSupported = sys::CUptiResult::CUPTI_ERROR_MIG_DEVICE_NOT_SUPPORTED as _,
-    SliDeviceNotSupported = sys::CUptiResult::CUPTI_ERROR_SLI_DEVICE_NOT_SUPPORTED as _,
-    WslDeviceNotSupported = sys::CUptiResult::CUPTI_ERROR_WSL_DEVICE_NOT_SUPPORTED as _,
-    InvalidChipName = sys::CUptiResult::CUPTI_ERROR_INVALID_CHIP_NAME as _,
-    HesTraceNotSupportedOnMultiProcessService =
-        sys::CUptiResult::CUPTI_ERROR_HES_TRACE_NOT_SUPPORTED_ON_MPS as _,
-    Unknown = sys::CUptiResult::CUPTI_ERROR_UNKNOWN as _,
-    ForceInt = sys::CUptiResult::CUPTI_ERROR_FORCE_INT as _,
-}
-
-impl_enum_conversion!(sys::CUptiResult, Status);
-
-impl Status {
-    pub fn description(self) -> String {
-        self.to_string()
-            .trim_start_matches("CUPTI_ERROR_")
-            .trim_start_matches("CUPTI_")
-            .replace('_', " ")
-            .to_ascii_lowercase()
+impl Error {
+    pub(crate) fn out_of_range(name: impl Into<Cow<'static, str>>) -> Self {
+        Self::OutOfRange { name: name.into() }
     }
 }
 
-impl_enum_display!(Status, {
-    Self::Success => "CUPTI_SUCCESS",
-    Self::InvalidParameter => "CUPTI_ERROR_INVALID_PARAMETER",
-    Self::InvalidDevice => "CUPTI_ERROR_INVALID_DEVICE",
-    Self::InvalidContext => "CUPTI_ERROR_INVALID_CONTEXT",
-    Self::InvalidEventDomainId => "CUPTI_ERROR_INVALID_EVENT_DOMAIN_ID",
-    Self::InvalidEventId => "CUPTI_ERROR_INVALID_EVENT_ID",
-    Self::InvalidEventName => "CUPTI_ERROR_INVALID_EVENT_NAME",
-    Self::InvalidOperation => "CUPTI_ERROR_INVALID_OPERATION",
-    Self::OutOfMemory => "CUPTI_ERROR_OUT_OF_MEMORY",
-    Self::Hardware => "CUPTI_ERROR_HARDWARE",
-    Self::ParameterSizeNotSufficient => "CUPTI_ERROR_PARAMETER_SIZE_NOT_SUFFICIENT",
-    Self::ApiNotImplemented => "CUPTI_ERROR_API_NOT_IMPLEMENTED",
-    Self::MaxLimitReached => "CUPTI_ERROR_MAX_LIMIT_REACHED",
-    Self::NotReady => "CUPTI_ERROR_NOT_READY",
-    Self::NotCompatible => "CUPTI_ERROR_NOT_COMPATIBLE",
-    Self::NotInitialized => "CUPTI_ERROR_NOT_INITIALIZED",
-    Self::InvalidMetricId => "CUPTI_ERROR_INVALID_METRIC_ID",
-    Self::InvalidMetricName => "CUPTI_ERROR_INVALID_METRIC_NAME",
-    Self::QueueEmpty => "CUPTI_ERROR_QUEUE_EMPTY",
-    Self::InvalidHandle => "CUPTI_ERROR_INVALID_HANDLE",
-    Self::InvalidStream => "CUPTI_ERROR_INVALID_STREAM",
-    Self::InvalidKind => "CUPTI_ERROR_INVALID_KIND",
-    Self::InvalidEventValue => "CUPTI_ERROR_INVALID_EVENT_VALUE",
-    Self::Disabled => "CUPTI_ERROR_DISABLED",
-    Self::InvalidModule => "CUPTI_ERROR_INVALID_MODULE",
-    Self::InvalidMetricValue => "CUPTI_ERROR_INVALID_METRIC_VALUE",
-    Self::HardwareBusy => "CUPTI_ERROR_HARDWARE_BUSY",
-    Self::NotSupported => "CUPTI_ERROR_NOT_SUPPORTED",
-    Self::UnifiedMemoryProfilingNotSupported => "CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED",
-    Self::UnifiedMemoryProfilingNotSupportedOnDevice => "CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_ON_DEVICE",
-    Self::UnifiedMemoryProfilingNotSupportedOnNonPeerToPeerDevices => "CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_ON_NON_P2P_DEVICES",
-    Self::UnifiedMemoryProfilingNotSupportedWithMultiProcessService => "CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_WITH_MPS",
-    Self::CudaDynamicParallelismTracingNotSupported => "CUPTI_ERROR_CDP_TRACING_NOT_SUPPORTED",
-    Self::VirtualizedDeviceNotSupported => "CUPTI_ERROR_VIRTUALIZED_DEVICE_NOT_SUPPORTED",
-    Self::CudaCompilerNotCompatible => "CUPTI_ERROR_CUDA_COMPILER_NOT_COMPATIBLE",
-    Self::InsufficientPrivileges => "CUPTI_ERROR_INSUFFICIENT_PRIVILEGES",
-    Self::OldProfilerApiInitialized => "CUPTI_ERROR_OLD_PROFILER_API_INITIALIZED",
-    Self::OpenAccUndefinedRoutine => "CUPTI_ERROR_OPENACC_UNDEFINED_ROUTINE",
-    Self::LegacyProfilerNotSupported => "CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED",
-    Self::MultipleSubscribersNotSupported => "CUPTI_ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED",
-    Self::VirtualizedDeviceInsufficientPrivileges => "CUPTI_ERROR_VIRTUALIZED_DEVICE_INSUFFICIENT_PRIVILEGES",
-    Self::ConfidentialComputingNotSupported => "CUPTI_ERROR_CONFIDENTIAL_COMPUTING_NOT_SUPPORTED",
-    Self::CmpDeviceNotSupported => "CUPTI_ERROR_CMP_DEVICE_NOT_SUPPORTED",
-    Self::MigDeviceNotSupported => "CUPTI_ERROR_MIG_DEVICE_NOT_SUPPORTED",
-    Self::SliDeviceNotSupported => "CUPTI_ERROR_SLI_DEVICE_NOT_SUPPORTED",
-    Self::WslDeviceNotSupported => "CUPTI_ERROR_WSL_DEVICE_NOT_SUPPORTED",
-    Self::InvalidChipName => "CUPTI_ERROR_INVALID_CHIP_NAME",
-    Self::HesTraceNotSupportedOnMultiProcessService => "CUPTI_ERROR_HES_TRACE_NOT_SUPPORTED_ON_MPS",
-    Self::Unknown => "CUPTI_ERROR_UNKNOWN",
-    Self::ForceInt => "CUPTI_ERROR_FORCE_INT",
-});
+status_enum! {
+    /// Result codes returned by CUPTI.
+    /// Codes from newer CUPTI releases are preserved in [`Status::Unknown`].
+    pub enum Status: u32 => sys::CUptiResult, unknown = "UNKNOWN_CUPTI_STATUS" {
+        /// No error.
+        Success = CUPTI_SUCCESS,
+        /// One or more of the parameters is invalid.
+        InvalidParameter = CUPTI_ERROR_INVALID_PARAMETER,
+        /// The device does not correspond to a valid CUDA device.
+        InvalidDevice = CUPTI_ERROR_INVALID_DEVICE,
+        /// The context is NULL or not valid.
+        InvalidContext = CUPTI_ERROR_INVALID_CONTEXT,
+        /// The event domain id is invalid.
+        InvalidEventDomainId = CUPTI_ERROR_INVALID_EVENT_DOMAIN_ID,
+        /// The event id is invalid.
+        InvalidEventId = CUPTI_ERROR_INVALID_EVENT_ID,
+        /// The event name is invalid.
+        InvalidEventName = CUPTI_ERROR_INVALID_EVENT_NAME,
+        /// The current operation cannot be performed due to dependency on other factors.
+        InvalidOperation = CUPTI_ERROR_INVALID_OPERATION,
+        /// Unable to allocate enough memory to perform the requested operation.
+        OutOfMemory = CUPTI_ERROR_OUT_OF_MEMORY,
+        /// An error occurred on the performance monitoring hardware.
+        Hardware = CUPTI_ERROR_HARDWARE,
+        /// The output buffer size is not sufficient to return all requested data.
+        ParameterSizeNotSufficient = CUPTI_ERROR_PARAMETER_SIZE_NOT_SUFFICIENT,
+        /// API is not implemented.
+        ApiNotImplemented = CUPTI_ERROR_API_NOT_IMPLEMENTED,
+        /// The maximum limit is reached.
+        MaxLimitReached = CUPTI_ERROR_MAX_LIMIT_REACHED,
+        /// The object is not yet ready to perform the requested operation.
+        NotReady = CUPTI_ERROR_NOT_READY,
+        /// The current operation is not compatible with the current state of the object.
+        NotCompatible = CUPTI_ERROR_NOT_COMPATIBLE,
+        /// CUPTI is unable to initialize its connection to the CUDA driver.
+        NotInitialized = CUPTI_ERROR_NOT_INITIALIZED,
+        /// The metric id is invalid.
+        InvalidMetricId = CUPTI_ERROR_INVALID_METRIC_ID,
+        /// The metric name is invalid.
+        InvalidMetricName = CUPTI_ERROR_INVALID_METRIC_NAME,
+        /// The queue is empty.
+        QueueEmpty = CUPTI_ERROR_QUEUE_EMPTY,
+        /// Invalid handle (internal?).
+        InvalidHandle = CUPTI_ERROR_INVALID_HANDLE,
+        /// Invalid stream.
+        InvalidStream = CUPTI_ERROR_INVALID_STREAM,
+        /// Invalid kind.
+        InvalidKind = CUPTI_ERROR_INVALID_KIND,
+        /// Invalid event value.
+        InvalidEventValue = CUPTI_ERROR_INVALID_EVENT_VALUE,
+        /// CUPTI is disabled due to conflicts with other enabled profilers.
+        Disabled = CUPTI_ERROR_DISABLED,
+        /// Invalid module.
+        InvalidModule = CUPTI_ERROR_INVALID_MODULE,
+        /// Invalid metric value.
+        InvalidMetricValue = CUPTI_ERROR_INVALID_METRIC_VALUE,
+        /// The performance monitoring hardware is in use by other client.
+        HardwareBusy = CUPTI_ERROR_HARDWARE_BUSY,
+        /// The attempted operation is not supported on the current system or device.
+        NotSupported = CUPTI_ERROR_NOT_SUPPORTED,
+        /// Unified memory profiling is not supported on the system.
+        ///
+        /// Potential reason could be unsupported OS or architecture.
+        UnifiedMemoryProfilingNotSupported = CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED,
+        /// Unified memory profiling is not supported on the device.
+        UnifiedMemoryProfilingNotSupportedOnDevice = CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_ON_DEVICE,
+        /// Unified memory profiling is not supported on a multi-GPU configuration without P2P support between any pair of devices.
+        UnifiedMemoryProfilingNotSupportedOnNonPeerToPeerDevices = CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_ON_NON_P2P_DEVICES,
+        /// Unified memory profiling is not supported under the Multi-Process Service (MPS) environment.
+        ///
+        /// CUDA 7.5 removes this restriction.
+        UnifiedMemoryProfilingNotSupportedWithMultiProcessService = CUPTI_ERROR_UM_PROFILING_NOT_SUPPORTED_WITH_MPS,
+        /// In CUDA 9.0, devices with compute capability 7.0 don't support CDP tracing.
+        CudaDynamicParallelismTracingNotSupported = CUPTI_ERROR_CDP_TRACING_NOT_SUPPORTED,
+        /// Profiling on virtualized GPU is not supported.
+        VirtualizedDeviceNotSupported = CUPTI_ERROR_VIRTUALIZED_DEVICE_NOT_SUPPORTED,
+        /// Profiling results might be incorrect for CUDA applications compiled with nvcc version older than 9.0 for devices with compute capability 6.0 and 6.1.
+        ///
+        /// Profiling session will continue and CUPTI will notify it using this error code. User is advised to recompile the application code with nvcc version 9.0 or later. Ignore this warning if code is already compiled with the recommended nvcc version.
+        CudaCompilerNotCompatible = CUPTI_ERROR_CUDA_COMPILER_NOT_COMPATIBLE,
+        /// User doesn't have sufficient privileges which are required to start the profiling session.
+        ///
+        /// One possible reason for this may be that the NVIDIA driver or your system administrator may have restricted access to the NVIDIA GPU performance counters. To learn how to resolve this issue and find more information, please visit <https://developer.nvidia.com/`CUptiResult::CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`>.
+        InsufficientPrivileges = CUPTI_ERROR_INSUFFICIENT_PRIVILEGES,
+        /// Legacy CUPTI Profiling API i.e.
+        ///
+        /// event API from the header cupti_events.h and metric API from the header cupti_metrics.h are not compatible with the Profiling API in the header cupti_profiler_target.h and Perfworks metrics API in the headers nvperf_host.h and nvperf_target.h.
+        OldProfilerApiInitialized = CUPTI_ERROR_OLD_PROFILER_API_INITIALIZED,
+        /// Missing definition of the OpenACC API routine in the linked OpenACC library.
+        ///
+        /// One possible reason is that OpenACC library is linked statically in the user application, which might not have the definition of all the OpenACC API routines needed for the OpenACC profiling, as compiler might ignore definitions for the functions not used in the application. This issue can be mitigated by linking the OpenACC library dynamically.
+        OpenAccUndefinedRoutine = CUPTI_ERROR_OPENACC_UNDEFINED_ROUTINE,
+        /// Legacy CUPTI Profiling API i.e.
+        ///
+        /// event API from the header cupti_events.h and metric API from the header cupti_metrics.h are not supported on devices with compute capability 7.5 and higher (i.e. Turing and later GPU architectures). These APIs were deprecated in CUDA 12.8 and removed in CUDA 13.0. These are replaced by the host profiling API in the header cupti_profiler_host.h and target profiling API in the header cupti_range_profiler.h which are supported on devices with compute capability 7.5 and higher (i.e. Turing and later GPU architectures). Further, the PC Sampling Activity API and the source/SASS level metrics from the header cupti_activity.h are removed in CUDA 13.0.
+        LegacyProfilerNotSupported = CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED,
+        /// CUPTI doesn't allow multiple callback subscribers.
+        ///
+        /// Only a single subscriber can be registered at a time. Same error code is used when application is launched using NVIDIA tools like Nsight Systems, Nsight Compute, and cuda-gdb.
+        MultipleSubscribersNotSupported = CUPTI_ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED,
+        /// Profiling on virtualized GPU is not allowed by hypervisor.
+        VirtualizedDeviceInsufficientPrivileges = CUPTI_ERROR_VIRTUALIZED_DEVICE_INSUFFICIENT_PRIVILEGES,
+        /// Profiling and tracing are not allowed when confidential computing mode is enabled.
+        ConfidentialComputingNotSupported = CUPTI_ERROR_CONFIDENTIAL_COMPUTING_NOT_SUPPORTED,
+        /// CUPTI does not support NVIDIA Crypto Mining Processors (CMP).
+        ///
+        /// For more information, please visit <https://developer.nvidia.com/ERR_NVCMPGPU>.
+        CmpDeviceNotSupported = CUPTI_ERROR_CMP_DEVICE_NOT_SUPPORTED,
+        /// Profiling on Multi-instance GPU (MIG) is not supported.
+        MigDeviceNotSupported = CUPTI_ERROR_MIG_DEVICE_NOT_SUPPORTED,
+        /// Profiling on SLI device is not supported.
+        SliDeviceNotSupported = CUPTI_ERROR_SLI_DEVICE_NOT_SUPPORTED,
+        /// Profiling on WSL device is not supported.
+        WslDeviceNotSupported = CUPTI_ERROR_WSL_DEVICE_NOT_SUPPORTED,
+        /// For invalid or unsupported chip name passed to cuptiProfilerHostInitialize.
+        InvalidChipName = CUPTI_ERROR_INVALID_CHIP_NAME,
+        /// Hardware Event System (HES) trace is not supported on MPS.
+        HesTraceNotSupportedOnMultiProcessService = CUPTI_ERROR_HES_TRACE_NOT_SUPPORTED_ON_MPS,
+        /// An unknown internal error has occurred.
+        UnknownError = CUPTI_ERROR_UNKNOWN,
+        /// An unknown internal error has occurred.
+        ForceInt = CUPTI_ERROR_FORCE_INT,
+    }
+}
 
 impl From<sys::CUptiResult> for Error {
     fn from(code: sys::CUptiResult) -> Self {
-        let status = Status::try_from(code as u32).unwrap_or(Status::Unknown);
+        let status = Status::from(code);
+        // SAFETY: `cuptiGetErrorMessage` writes a static NUL-terminated string on success; the pointer is checked before use.
         let message = unsafe {
-            let mut message_ptr = std::ptr::null();
-            let error_result = sys::cuptiGetErrorMessage(code, &mut message_ptr);
+            let mut message_ptr = ptr::null();
+            let error_result = sys::cuptiGetErrorMessage(code, &raw mut message_ptr);
             if error_result == sys::CUptiResult::CUPTI_SUCCESS && !message_ptr.is_null() {
                 CStr::from_ptr(message_ptr).to_string_lossy().into_owned()
             } else {
-                format!("cupti error code {:?}", code)
+                format!("cupti error code {code:?}")
             }
         };
 
@@ -197,40 +239,30 @@ impl From<sys::CUptiResult> for Error {
 
 impl From<Status> for Error {
     fn from(status: Status) -> Self {
-        sys::CUptiResult::from(status).into()
+        match sys::CUptiResult::try_from(status) {
+            Ok(code) => code.into(),
+            Err(status) => Self::Cupti {
+                code: status,
+                message: format!("unknown cupti result code {}", status.raw()),
+            },
+        }
     }
 }
 
 impl Status {
-    /// Returns CUPTI's symbolic string for this status.
-    ///
-    /// # Errors
-    ///
-    /// - Returns [`crate::error::Status::InvalidParameter`] if the status is not a valid CUPTI result code.
-    pub fn get_result_string(self) -> Result<String> {
-        let mut message = std::ptr::null();
+    /// CUPTI's description of this status.
+    #[must_use]
+    pub fn description(self) -> &'static str {
+        let Ok(raw) = sys::CUptiResult::try_from(self) else {
+            return "unknown cupti error";
+        };
+        let mut message = ptr::null();
+        // SAFETY: `message` is a valid output location, and CUPTI returns a static string.
         unsafe {
-            crate::try_ffi!(sys::cuptiGetResultString(self.into(), &mut message))?;
-            if message.is_null() {
-                return Err(Error::NullHandle);
+            if sys::cuptiGetErrorMessage(raw, &raw mut message) != sys::CUptiResult::CUPTI_SUCCESS {
+                return "unknown cupti error";
             }
-            Ok(CStr::from_ptr(message).to_string_lossy().into_owned())
-        }
-    }
-
-    /// Returns CUPTI's descriptive error message for this status.
-    ///
-    /// # Errors
-    ///
-    /// - Returns [`crate::error::Status::InvalidParameter`] if the status is not a valid CUPTI result code.
-    pub fn get_error_message(self) -> Result<String> {
-        let mut message = std::ptr::null();
-        unsafe {
-            crate::try_ffi!(sys::cuptiGetErrorMessage(self.into(), &mut message))?;
-            if message.is_null() {
-                return Err(Error::NullHandle);
-            }
-            Ok(CStr::from_ptr(message).to_string_lossy().into_owned())
+            static_str_from_c_ptr(message, "unknown cupti error")
         }
     }
 }
@@ -241,6 +273,7 @@ impl From<NulError> for Error {
     }
 }
 
+/// Converts a raw CUPTI status-returning expression into a crate [`Result`](crate::error::Result).
 #[macro_export]
 macro_rules! try_ffi {
     ($expr:expr) => {{

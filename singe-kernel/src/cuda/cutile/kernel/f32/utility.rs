@@ -1,7 +1,21 @@
 #[cutile::module]
 mod kernels {
-    use cutile::core::*;
+    use cutile::core::{
+        Latency, PointerTile_0, PointerTile_1, Reshape, ReshapePtr, Shape_1, Shape_2,
+        StoreTileAtCurrentBlock, Tensor_1, Tensor_2, Tile_1, Tile_2, Token, absf, atan2, bf16,
+        bitcast, broadcast_scalar, ceil, cmp_ordering, cmpf, cmpi, constant, convert_tile, cos,
+        cosh, exp, exp2, f8e4m3fn, f16, floor, ftz, get_tensor_shape, get_tile_block_id, iota,
+        load_ptr_tko, load_tile_like, log, log2, max_tile, maxf, min_tile, nan, ordering,
+        pointer_to_tile, pow, predicate, reduce_max, reduce_min, reduce_prod, reduce_sum, rounding,
+        rsqrt, scope, select, sin, sinh, sqrt, store_ptr_tko, tan, tanh,
+    };
 
+    use crate::cuda::cutile::{kernel::tiled::kernels::ue8m0_round_scale_f32, runtime as cutile};
+
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
+    )]
     pub fn activation_unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
         input: &Tensor<f32, { [-1] }>,
@@ -10,13 +24,13 @@ mod kernels {
         let zero = constant(0.0f32, out.shape());
         let one = constant(1.0f32, out.shape());
         let half = constant(0.5f32, out.shape());
-        let third = constant(0.33333334f32, out.shape());
+        let third = constant(0.333_333_34f32, out.shape());
         let three = constant(3.0f32, out.shape());
         let six = constant(6.0f32, out.shape());
-        let pi = constant(std::f32::consts::PI, out.shape());
+        let pi = constant(3.141_592_7f32, out.shape());
         let one_eighty = constant(180.0f32, out.shape());
-        let selu_alpha = constant(1.6732632f32, out.shape());
-        let selu_scale = constant(1.050701f32, out.shape());
+        let selu_alpha = constant(1.673_263_2f32, out.shape());
+        let selu_scale = constant(1.050_701f32, out.shape());
         let value = if OP == 0 {
             zero - x
         } else if OP == 1 {
@@ -70,14 +84,15 @@ mod kernels {
         } else if OP == 22 {
             half * log((one + x) / (one - x))
         } else if OP == 23 {
-            max_tile(x, zero)
+            let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
+            select(negative, zero, x)
         } else if OP == 24 {
             one / (one + exp(zero - x))
         } else if OP == 25 {
             x / (one + exp(zero - x))
         } else if OP == 26 {
-            let sqrt_2_over_pi = constant(0.7978846f32, out.shape());
-            let cubic_coeff = constant(0.044715f32, out.shape());
+            let sqrt_2_over_pi = constant(0.797_884_6f32, out.shape());
+            let cubic_coeff = constant(0.044_715f32, out.shape());
             half * x * (one + tanh(sqrt_2_over_pi * (x + cubic_coeff * x * x * x)))
         } else if OP == 27 {
             let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
@@ -92,7 +107,7 @@ mod kernels {
         } else if OP == 31 {
             log2(x)
         } else if OP == 32 {
-            let ln_10 = constant(std::f32::consts::LN_10, out.shape());
+            let ln_10 = constant(2.302_585_1f32, out.shape());
             log(x) / ln_10
         } else if OP == 33 {
             let root = pow(absf(x), third);
@@ -157,9 +172,35 @@ mod kernels {
         } else if OP == 3 {
             lhs_tile / rhs_tile
         } else if OP == 4 {
-            maxf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::LessThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 5 {
-            minf(lhs_tile, rhs_tile, nan::Enabled, ftz::Disabled)
+            {
+                let choose_rhs = cmpf(
+                    lhs_tile,
+                    rhs_tile,
+                    predicate::GreaterThan,
+                    cmp_ordering::Ordered,
+                ) | cmpf(
+                    rhs_tile,
+                    rhs_tile,
+                    predicate::NotEqual,
+                    cmp_ordering::Unordered,
+                );
+                select(choose_rhs, rhs_tile, lhs_tile)
+            }
         } else if OP == 6 {
             atan2(lhs_tile, rhs_tile)
         } else if OP == 7 {
@@ -313,15 +354,17 @@ mod kernels {
         let input_base: PointerTile<*mut u8, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut u8, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut u8, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<u8, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0u8),
-            None,
-            Latency::<0>,
-        );
+        let input_result: (Tile<u8, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0u8),
+                None,
+                Latency::<0>,
+            )
+        };
         let input_f32: Tile<f32, { [128] }> = convert_tile(input_result.0);
         let values = (input_f32 - broadcast_scalar(zero_point, tile_shape))
             * broadcast_scalar(scale, tile_shape);
@@ -330,15 +373,17 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -362,15 +407,17 @@ mod kernels {
         let input_base: PointerTile<*mut i8, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut i8, { [128] }> = input_base.broadcast(tile_shape);
         let input_ptrs: PointerTile<*mut i8, { [128] }> = input_ptrs.offset_tile(safe_offsets);
-        let input_result: (Tile<i8, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0i8),
-            None,
-            Latency::<0>,
-        );
+        let input_result: (Tile<i8, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0i8),
+                None,
+                Latency::<0>,
+            )
+        };
         let input_f32: Tile<f32, { [128] }> = convert_tile(input_result.0);
         let values = (input_f32 - broadcast_scalar(zero_point, tile_shape))
             * broadcast_scalar(scale, tile_shape);
@@ -379,15 +426,17 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(tile_shape);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
     #[cutile::entry()]
@@ -409,12 +458,13 @@ mod kernels {
         let safe_offsets = select(mask, offsets, zero_offsets);
         let scale_offsets = safe_offsets / broadcast_scalar(group_size, tile_shape);
 
-        let input_values = load_u8_vector(input, safe_offsets, mask);
+        let input_values = unsafe { load_u8_vector(input, safe_offsets, mask) };
         let input_f32: Tile<f32, { [128] }> = convert_tile(input_values);
-        let scale_values = load_f32_vector(scales, scale_offsets, mask, 0.0f32);
-        let zero_point_values = load_f32_vector(zero_points, scale_offsets, mask, 0.0f32);
+        let scale_values = unsafe { load_f32_vector(scales, scale_offsets, mask, 0.0f32) };
+        let zero_point_values =
+            unsafe { load_f32_vector(zero_points, scale_offsets, mask, 0.0f32) };
         let values = (input_f32 - zero_point_values) * scale_values;
-        store_f32_vector(out, offsets, values, mask);
+        unsafe { store_f32_vector(out, offsets, values, mask) };
     }
 
     #[cutile::entry()]
@@ -436,12 +486,13 @@ mod kernels {
         let safe_offsets = select(mask, offsets, zero_offsets);
         let scale_offsets = safe_offsets / broadcast_scalar(group_size, tile_shape);
 
-        let input_values = load_i8_vector(input, safe_offsets, mask);
+        let input_values = unsafe { load_i8_vector(input, safe_offsets, mask) };
         let input_f32: Tile<f32, { [128] }> = convert_tile(input_values);
-        let scale_values = load_f32_vector(scales, scale_offsets, mask, 0.0f32);
-        let zero_point_values = load_f32_vector(zero_points, scale_offsets, mask, 0.0f32);
+        let scale_values = unsafe { load_f32_vector(scales, scale_offsets, mask, 0.0f32) };
+        let zero_point_values =
+            unsafe { load_f32_vector(zero_points, scale_offsets, mask, 0.0f32) };
         let values = (input_f32 - zero_point_values) * scale_values;
-        store_f32_vector(out, offsets, values, mask);
+        unsafe { store_f32_vector(out, offsets, values, mask) };
     }
 
     #[cutile::entry()]
@@ -469,7 +520,7 @@ mod kernels {
         let mask = group_mask & lane_mask;
         let offsets = broadcast_scalar(pid.0 * group_size, tile_shape) + lanes;
 
-        let values = load_f32_vector(input, offsets, mask, 0.0f32);
+        let values = unsafe { load_f32_vector(input, offsets, mask, 0.0f32) };
         let abs_values = absf(values);
         let max_abs: Tile<f32, { [1] }> = reduce_max(abs_values, 0i32);
         let max_abs_tile = max_abs.reshape(const_shape![1]).broadcast(tile_shape);
@@ -480,15 +531,17 @@ mod kernels {
         let quantized_f32 =
             round_nearest_even_i8_f32(min_tile(max_tile(values / scale, low), high));
         let quantized: Tile<i8, { [128] }> = convert_tile(quantized_f32);
-        store_i8_vector(out, offsets, quantized, mask);
+        unsafe { store_i8_vector(out, offsets, quantized, mask) };
 
         let lane_zero = constant(0i32, tile_shape);
-        store_f32_vector(
-            scales,
-            broadcast_scalar(pid.0, tile_shape),
-            scale,
-            group_mask & cmpi(lanes, lane_zero, predicate::Equal),
-        );
+        unsafe {
+            store_f32_vector(
+                scales,
+                broadcast_scalar(pid.0, tile_shape),
+                scale,
+                group_mask & cmpi(lanes, lane_zero, predicate::Equal),
+            );
+        };
     }
 
     #[cutile::entry()]
@@ -521,7 +574,7 @@ mod kernels {
         let mask = group_mask & lane_mask;
         let offsets = broadcast_scalar(row * columns + group * group_size, tile_shape) + lanes;
 
-        let values = load_f32_vector(input, offsets, mask, 0.0f32);
+        let values = unsafe { load_f32_vector(input, offsets, mask, 0.0f32) };
         let abs_values = absf(values);
         let max_abs: Tile<f32, { [1] }> = reduce_max(abs_values, 0i32);
         let max_abs_tile = max_abs.reshape(const_shape![1]).broadcast(tile_shape);
@@ -532,16 +585,18 @@ mod kernels {
         let quantized_f32 =
             round_nearest_even_i8_f32(min_tile(max_tile(values / scale, low), high));
         let quantized: Tile<i8, { [128] }> = convert_tile(quantized_f32);
-        store_i8_vector(out, offsets, quantized, mask);
+        unsafe { store_i8_vector(out, offsets, quantized, mask) };
 
         let lane_zero = constant(0i32, tile_shape);
         let scale_offset = group * scale_column_stride + row;
-        store_f32_vector(
-            scales,
-            broadcast_scalar(scale_offset, tile_shape),
-            scale,
-            group_mask & cmpi(lanes, lane_zero, predicate::Equal),
-        );
+        unsafe {
+            store_f32_vector(
+                scales,
+                broadcast_scalar(scale_offset, tile_shape),
+                scale,
+                group_mask & cmpi(lanes, lane_zero, predicate::Equal),
+            );
+        };
     }
 
     #[cutile::entry()]
@@ -574,7 +629,7 @@ mod kernels {
         let mask = group_mask & lane_mask;
         let offsets = broadcast_scalar(row * columns + group * group_size, tile_shape) + lanes;
 
-        let values = load_f32_vector(input, offsets, mask, 0.0f32);
+        let values = unsafe { load_f32_vector(input, offsets, mask, 0.0f32) };
         let abs_values = absf(values);
         let max_abs: Tile<f32, { [1] }> = reduce_max(abs_values, 0i32);
         let max_abs_tile = max_abs.reshape(const_shape![1]).broadcast(tile_shape);
@@ -586,16 +641,18 @@ mod kernels {
         let quantized_f32 =
             round_nearest_even_i8_f32(min_tile(max_tile(values / scale, low), high));
         let quantized: Tile<i8, { [128] }> = convert_tile(quantized_f32);
-        store_i8_vector(out, offsets, quantized, mask);
+        unsafe { store_i8_vector(out, offsets, quantized, mask) };
 
         let lane_zero = constant(0i32, tile_shape);
         let scale_offset = group * scale_column_stride + row;
-        store_f32_vector(
-            scales,
-            broadcast_scalar(scale_offset, tile_shape),
-            scale,
-            group_mask & cmpi(lanes, lane_zero, predicate::Equal),
-        );
+        unsafe {
+            store_f32_vector(
+                scales,
+                broadcast_scalar(scale_offset, tile_shape),
+                scale,
+                group_mask & cmpi(lanes, lane_zero, predicate::Equal),
+            );
+        };
     }
 
     #[cutile::entry()]
@@ -623,7 +680,7 @@ mod kernels {
         let mask = group_mask & lane_mask;
         let offsets = broadcast_scalar(pid.0 * group_size, tile_shape) + lanes;
 
-        let values = load_f32_vector(input, offsets, mask, 0.0f32);
+        let values = unsafe { load_f32_vector(input, offsets, mask, 0.0f32) };
         let abs_values = absf(values);
         let max_abs: Tile<f32, { [1] }> = reduce_max(abs_values, 0i32);
         let max_abs_tile = max_abs.reshape(const_shape![1]).broadcast(tile_shape);
@@ -633,15 +690,17 @@ mod kernels {
         let high = constant(448.0f32, tile_shape);
         let quantized_f32 = min_tile(max_tile(values / scale, low), high);
         let quantized: Tile<f8e4m3fn, { [128] }> = convert_tile(quantized_f32);
-        store_f8e4m3_vector(out, offsets, quantized, mask);
+        unsafe { store_f8e4m3_vector(out, offsets, quantized, mask) };
 
         let lane_zero = constant(0i32, tile_shape);
-        store_f32_vector(
-            scales,
-            broadcast_scalar(pid.0, tile_shape),
-            scale,
-            group_mask & cmpi(lanes, lane_zero, predicate::Equal),
-        );
+        unsafe {
+            store_f32_vector(
+                scales,
+                broadcast_scalar(pid.0, tile_shape),
+                scale,
+                group_mask & cmpi(lanes, lane_zero, predicate::Equal),
+            );
+        };
     }
 
     #[cutile::entry()]
@@ -674,7 +733,7 @@ mod kernels {
         let mask = group_mask & lane_mask;
         let offsets = broadcast_scalar(row * columns + group * group_size, tile_shape) + lanes;
 
-        let values = load_f32_vector(input, offsets, mask, 0.0f32);
+        let values = unsafe { load_f32_vector(input, offsets, mask, 0.0f32) };
         let abs_values = absf(values);
         let max_abs: Tile<f32, { [1] }> = reduce_max(abs_values, 0i32);
         let max_abs_tile = max_abs.reshape(const_shape![1]).broadcast(tile_shape);
@@ -684,16 +743,18 @@ mod kernels {
         let high = constant(448.0f32, tile_shape);
         let quantized_f32 = min_tile(max_tile(values / scale, low), high);
         let quantized: Tile<f8e4m3fn, { [128] }> = convert_tile(quantized_f32);
-        store_f8e4m3_vector(out, offsets, quantized, mask);
+        unsafe { store_f8e4m3_vector(out, offsets, quantized, mask) };
 
         let lane_zero = constant(0i32, tile_shape);
         let scale_offset = group * scale_column_stride + row;
-        store_f32_vector(
-            scales,
-            broadcast_scalar(scale_offset, tile_shape),
-            scale,
-            group_mask & cmpi(lanes, lane_zero, predicate::Equal),
-        );
+        unsafe {
+            store_f32_vector(
+                scales,
+                broadcast_scalar(scale_offset, tile_shape),
+                scale,
+                group_mask & cmpi(lanes, lane_zero, predicate::Equal),
+            );
+        };
     }
 
     #[cutile::entry()]
@@ -726,7 +787,7 @@ mod kernels {
         let mask = group_mask & lane_mask;
         let offsets = broadcast_scalar(row * columns + group * group_size, tile_shape) + lanes;
 
-        let values = load_f32_vector(input, offsets, mask, 0.0f32);
+        let values = unsafe { load_f32_vector(input, offsets, mask, 0.0f32) };
         let abs_values = absf(values);
         let max_abs: Tile<f32, { [1] }> = reduce_max(abs_values, 0i32);
         let max_abs_tile = max_abs.reshape(const_shape![1]).broadcast(tile_shape);
@@ -737,16 +798,18 @@ mod kernels {
         let high = constant(448.0f32, tile_shape);
         let quantized_f32 = min_tile(max_tile(values / scale, low), high);
         let quantized: Tile<f8e4m3fn, { [128] }> = convert_tile(quantized_f32);
-        store_f8e4m3_vector(out, offsets, quantized, mask);
+        unsafe { store_f8e4m3_vector(out, offsets, quantized, mask) };
 
         let lane_zero = constant(0i32, tile_shape);
         let scale_offset = group * scale_column_stride + row;
-        store_f32_vector(
-            scales,
-            broadcast_scalar(scale_offset, tile_shape),
-            scale,
-            group_mask & cmpi(lanes, lane_zero, predicate::Equal),
-        );
+        unsafe {
+            store_f32_vector(
+                scales,
+                broadcast_scalar(scale_offset, tile_shape),
+                scale,
+                group_mask & cmpi(lanes, lane_zero, predicate::Equal),
+            );
+        };
     }
 
     #[cutile::entry()]
@@ -786,15 +849,15 @@ mod kernels {
             + head * broadcast_scalar(rope_dim, tile_shape);
         let even_offsets = base + even_dim;
         let odd_offsets = base + odd_dim;
-        let even = load_f32_vector(input, even_offsets, mask, 0.0f32);
-        let odd = load_f32_vector(input, odd_offsets, mask, 0.0f32);
+        let even = unsafe { load_f32_vector(input, even_offsets, mask, 0.0f32) };
+        let odd = unsafe { load_f32_vector(input, odd_offsets, mask, 0.0f32) };
 
-        let pos_u32 = load_u32_vector(pos_ids, token, mask);
+        let pos_u32 = unsafe { load_u32_vector(pos_ids, token, mask) };
         let pos: Tile<i32, { [128] }> = bitcast(pos_u32);
         let cos_offsets = pos * broadcast_scalar(cos_sin_cache_stride, tile_shape) + pair;
         let sin_offsets = cos_offsets + broadcast_scalar(rope_dim / 2i32, tile_shape);
-        let cos = load_f32_vector(cos_sin_cache, cos_offsets, mask, 1.0f32);
-        let sin = load_f32_vector(cos_sin_cache, sin_offsets, mask, 0.0f32);
+        let cos = unsafe { load_f32_vector(cos_sin_cache, cos_offsets, mask, 1.0f32) };
+        let sin = unsafe { load_f32_vector(cos_sin_cache, sin_offsets, mask, 0.0f32) };
 
         let rotated_even = even * cos - odd * sin;
         let rotated_odd = odd * cos + even * sin;
@@ -804,10 +867,18 @@ mod kernels {
         let high = constant(448.0f32, tile_shape);
         let quantized_f32 = min_tile(max_tile(scaled, low), high);
         let quantized: Tile<f8e4m3fn, { [128] }> = convert_tile(quantized_f32);
-        store_f8e4m3_vector(out, offsets, quantized, mask);
+        unsafe { store_f8e4m3_vector(out, offsets, quantized, mask) };
     }
 
     #[cutile::entry()]
+    #[expect(
+        clippy::similar_names,
+        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
+    )]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
+    )]
     pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
         q_rope_out: *mut f8e4m3fn,
         k_rope_out: *mut f8e4m3fn,
@@ -894,44 +965,52 @@ mod kernels {
             zero_offsets,
         );
 
-        let q_rope_values = qk_rope_quantize_value_f32(
-            q_rope,
-            cos_sin_cache,
-            pos_ids,
-            q_rope_local,
-            q_heads,
-            rope_dim,
-            cos_sin_cache_stride,
-            quant_scale_q,
-            q_rope_region & mask,
-        );
-        store_f8e4m3_vector(
-            q_rope_out,
-            q_rope_local,
-            q_rope_values,
-            q_rope_region & mask,
-        );
+        let q_rope_values = unsafe {
+            qk_rope_quantize_value_f32(
+                q_rope,
+                cos_sin_cache,
+                pos_ids,
+                q_rope_local,
+                q_heads,
+                rope_dim,
+                cos_sin_cache_stride,
+                quant_scale_q,
+                q_rope_region & mask,
+            )
+        };
+        unsafe {
+            store_f8e4m3_vector(
+                q_rope_out,
+                q_rope_local,
+                q_rope_values,
+                q_rope_region & mask,
+            );
+        };
 
-        let k_rope_values = qk_rope_quantize_value_f32(
-            k_rope,
-            cos_sin_cache,
-            pos_ids,
-            k_rope_local,
-            kv_heads,
-            rope_dim,
-            cos_sin_cache_stride,
-            quant_scale_kv,
-            k_rope_region,
-        );
-        store_f8e4m3_vector(k_rope_out, k_rope_local, k_rope_values, k_rope_region);
+        let k_rope_values = unsafe {
+            qk_rope_quantize_value_f32(
+                k_rope,
+                cos_sin_cache,
+                pos_ids,
+                k_rope_local,
+                kv_heads,
+                rope_dim,
+                cos_sin_cache_stride,
+                quant_scale_kv,
+                k_rope_region,
+            )
+        };
+        unsafe { store_f8e4m3_vector(k_rope_out, k_rope_local, k_rope_values, k_rope_region) };
 
-        let q_nope_values =
-            scaled_quantize_value_f32(q_nope, q_nope_local, quant_scale_q, q_nope_region);
-        store_f8e4m3_vector(q_nope_out, q_nope_local, q_nope_values, q_nope_region);
+        let q_nope_values = unsafe {
+            scaled_quantize_value_f32(q_nope, q_nope_local, quant_scale_q, q_nope_region)
+        };
+        unsafe { store_f8e4m3_vector(q_nope_out, q_nope_local, q_nope_values, q_nope_region) };
 
-        let k_nope_values =
-            scaled_quantize_value_f32(k_nope, k_nope_local, quant_scale_kv, k_nope_region);
-        store_f8e4m3_vector(k_nope_out, k_nope_local, k_nope_values, k_nope_region);
+        let k_nope_values = unsafe {
+            scaled_quantize_value_f32(k_nope, k_nope_local, quant_scale_kv, k_nope_region)
+        };
+        unsafe { store_f8e4m3_vector(k_nope_out, k_nope_local, k_nope_values, k_nope_region) };
     }
 
     #[cutile::entry()]
@@ -980,39 +1059,45 @@ mod kernels {
             zero_offsets,
         );
 
-        let q_rope_values = qk_rope_quantize_value_f32(
-            q_rope,
-            cos_sin_cache,
-            pos_ids,
-            q_rope_local,
-            q_heads,
-            rope_dim,
-            cos_sin_cache_stride,
-            quant_scale_q,
-            q_rope_region & mask,
-        );
-        store_f8e4m3_vector(
-            q_rope_out,
-            q_rope_local,
-            q_rope_values,
-            q_rope_region & mask,
-        );
+        let q_rope_values = unsafe {
+            qk_rope_quantize_value_f32(
+                q_rope,
+                cos_sin_cache,
+                pos_ids,
+                q_rope_local,
+                q_heads,
+                rope_dim,
+                cos_sin_cache_stride,
+                quant_scale_q,
+                q_rope_region & mask,
+            )
+        };
+        unsafe {
+            store_f8e4m3_vector(
+                q_rope_out,
+                q_rope_local,
+                q_rope_values,
+                q_rope_region & mask,
+            );
+        };
 
-        let k_rope_values = qk_rope_quantize_value_f32(
-            k_rope,
-            cos_sin_cache,
-            pos_ids,
-            k_rope_local,
-            kv_heads,
-            rope_dim,
-            cos_sin_cache_stride,
-            quant_scale_kv,
-            k_rope_region,
-        );
-        store_f8e4m3_vector(k_rope_out, k_rope_local, k_rope_values, k_rope_region);
+        let k_rope_values = unsafe {
+            qk_rope_quantize_value_f32(
+                k_rope,
+                cos_sin_cache,
+                pos_ids,
+                k_rope_local,
+                kv_heads,
+                rope_dim,
+                cos_sin_cache_stride,
+                quant_scale_kv,
+                k_rope_region,
+            )
+        };
+        unsafe { store_f8e4m3_vector(k_rope_out, k_rope_local, k_rope_values, k_rope_region) };
     }
 
-    pub fn qk_rope_quantize_value_f32(
+    pub unsafe fn qk_rope_quantize_value_f32(
         input: *mut f32,
         cos_sin_cache: *mut f32,
         pos_ids: *mut u32,
@@ -1040,15 +1125,15 @@ mod kernels {
             + head * broadcast_scalar(rope_dim, tile_shape);
         let even_offsets = base + even_dim;
         let odd_offsets = base + odd_dim;
-        let even = load_f32_vector(input, even_offsets, mask, 0.0f32);
-        let odd = load_f32_vector(input, odd_offsets, mask, 0.0f32);
+        let even = unsafe { load_f32_vector(input, even_offsets, mask, 0.0f32) };
+        let odd = unsafe { load_f32_vector(input, odd_offsets, mask, 0.0f32) };
 
-        let pos_u32 = load_u32_vector(pos_ids, token, mask);
+        let pos_u32 = unsafe { load_u32_vector(pos_ids, token, mask) };
         let pos: Tile<i32, { [128] }> = bitcast(pos_u32);
         let cos_offsets = pos * broadcast_scalar(cos_sin_cache_stride, tile_shape) + pair;
         let sin_offsets = cos_offsets + broadcast_scalar(rope_dim / 2i32, tile_shape);
-        let cos = load_f32_vector(cos_sin_cache, cos_offsets, mask, 1.0f32);
-        let sin = load_f32_vector(cos_sin_cache, sin_offsets, mask, 0.0f32);
+        let cos = unsafe { load_f32_vector(cos_sin_cache, cos_offsets, mask, 1.0f32) };
+        let sin = unsafe { load_f32_vector(cos_sin_cache, sin_offsets, mask, 0.0f32) };
 
         let rotated_even = even * cos - odd * sin;
         let rotated_odd = odd * cos + even * sin;
@@ -1060,7 +1145,7 @@ mod kernels {
         convert_tile(quantized_f32)
     }
 
-    pub fn scaled_quantize_value_f32(
+    pub unsafe fn scaled_quantize_value_f32(
         input: *mut f32,
         local_offsets: Tile<i32, { [128] }>,
         quant_scale: f32,
@@ -1069,7 +1154,7 @@ mod kernels {
         let tile_shape = const_shape![128];
         let zero_offsets: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         let safe_offsets = select(mask, local_offsets, zero_offsets);
-        let values = load_f32_vector(input, safe_offsets, mask, 0.0f32)
+        let values = unsafe { load_f32_vector(input, safe_offsets, mask, 0.0f32) }
             * broadcast_scalar(quant_scale, tile_shape);
         let low = constant(-448.0f32, tile_shape);
         let high = constant(448.0f32, tile_shape);
@@ -1095,13 +1180,13 @@ mod kernels {
         );
         let zero_offsets: Tile<i32, { [128] }> = constant(0i32, tile_shape);
         let safe_offsets = select(mask, offsets, zero_offsets);
-        let values = load_f32_vector(input, safe_offsets, mask, 0.0f32)
+        let values = unsafe { load_f32_vector(input, safe_offsets, mask, 0.0f32) }
             * broadcast_scalar(quant_scale, tile_shape);
         let low = constant(-448.0f32, tile_shape);
         let high = constant(448.0f32, tile_shape);
         let quantized_f32 = min_tile(max_tile(values, low), high);
         let quantized: Tile<f8e4m3fn, { [128] }> = convert_tile(quantized_f32);
-        store_f8e4m3_vector(out, offsets, quantized, mask);
+        unsafe { store_f8e4m3_vector(out, offsets, quantized, mask) };
     }
 
     #[cutile::entry()]
@@ -1143,16 +1228,16 @@ mod kernels {
             let weight_offsets = column * broadcast_scalar(weight_row_stride, tile_shape)
                 + broadcast_scalar(reduction_index, tile_shape);
             let activation_values: Tile<f32, { [128] }> =
-                convert_tile(load_i8_vector(activations, activation_offsets, mask));
+                convert_tile(unsafe { load_i8_vector(activations, activation_offsets, mask) });
             let weight_values: Tile<f32, { [128] }> =
-                convert_tile(load_i8_vector(weights, weight_offsets, mask));
+                convert_tile(unsafe { load_i8_vector(weights, weight_offsets, mask) });
             sum = sum
                 + (activation_values - activation_zero_point) * (weight_values - weight_zero_point);
         }
 
         let output_values = sum * broadcast_scalar(output_scale, tile_shape);
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f32_vector(out, output_offsets, output_values, mask);
+        unsafe { store_f32_vector(out, output_offsets, output_values, mask) };
     }
 
     #[cutile::entry()]
@@ -1183,8 +1268,8 @@ mod kernels {
         let safe_offsets = select(mask, offsets, zero_offsets);
         let row = safe_offsets / broadcast_scalar(columns, tile_shape);
         let column = safe_offsets - row * broadcast_scalar(columns, tile_shape);
-        let weight_scales = load_f32_vector(scales, column, mask, 0.0f32);
-        let weight_zero_points = load_f32_vector(zero_points, column, mask, 0.0f32);
+        let weight_scales = unsafe { load_f32_vector(scales, column, mask, 0.0f32) };
+        let weight_zero_points = unsafe { load_f32_vector(zero_points, column, mask, 0.0f32) };
 
         let mut sum: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         for reduction_index in 0i32..reduction {
@@ -1192,15 +1277,16 @@ mod kernels {
                 + broadcast_scalar(reduction_index, tile_shape);
             let weight_offsets = column * broadcast_scalar(weight_row_stride, tile_shape)
                 + broadcast_scalar(reduction_index, tile_shape);
-            let activation_values = load_f32_vector(activations, activation_offsets, mask, 0.0f32);
+            let activation_values =
+                unsafe { load_f32_vector(activations, activation_offsets, mask, 0.0f32) };
             let weight_values: Tile<f32, { [128] }> =
-                convert_tile(load_i8_vector(weights, weight_offsets, mask));
+                convert_tile(unsafe { load_i8_vector(weights, weight_offsets, mask) });
             let dequantized_weights = (weight_values - weight_zero_points) * weight_scales;
             sum = sum + activation_values * dequantized_weights;
         }
 
         let output_offsets = row * broadcast_scalar(output_row_stride, tile_shape) + column;
-        store_f32_vector(out, output_offsets, sum, mask);
+        unsafe { store_f32_vector(out, output_offsets, sum, mask) };
     }
 
     #[cutile::entry()]
@@ -1244,17 +1330,18 @@ mod kernels {
             let weight_scale_offsets =
                 weight_scale_row * broadcast_scalar(k_groups, tile_shape) + k_group;
             let activation_values =
-                load_f8e4m3_vector_as_f32(activations, activation_offsets, mask);
-            let weight_values = load_f8e4m3_vector_as_f32(weights, weight_offsets, mask);
-            let activation_scale_values =
-                load_f32_vector(activation_scales, activation_scale_offsets, mask, 0.0f32);
+                unsafe { load_f8e4m3_vector_as_f32(activations, activation_offsets, mask) };
+            let weight_values = unsafe { load_f8e4m3_vector_as_f32(weights, weight_offsets, mask) };
+            let activation_scale_values = unsafe {
+                load_f32_vector(activation_scales, activation_scale_offsets, mask, 0.0f32)
+            };
             let weight_scale_values =
-                load_f32_vector(weight_scales, weight_scale_offsets, mask, 0.0f32);
+                unsafe { load_f32_vector(weight_scales, weight_scale_offsets, mask, 0.0f32) };
             sum = sum
                 + activation_values * weight_values * activation_scale_values * weight_scale_values;
         }
 
-        store_f32_vector(out, offsets, sum, mask);
+        unsafe { store_f32_vector(out, offsets, sum, mask) };
     }
 
     #[cutile::entry()]
@@ -1298,17 +1385,18 @@ mod kernels {
             let weight_scale_offsets =
                 weight_scale_row * broadcast_scalar(k_groups, tile_shape) + k_group;
             let activation_values =
-                load_f8e4m3_vector_as_f32(activations, activation_offsets, mask);
-            let weight_values = load_f8e4m3_vector_as_f32(weights, weight_offsets, mask);
-            let activation_scale_values =
-                load_f32_vector(activation_scales, activation_scale_offsets, mask, 0.0f32);
+                unsafe { load_f8e4m3_vector_as_f32(activations, activation_offsets, mask) };
+            let weight_values = unsafe { load_f8e4m3_vector_as_f32(weights, weight_offsets, mask) };
+            let activation_scale_values = unsafe {
+                load_f32_vector(activation_scales, activation_scale_offsets, mask, 0.0f32)
+            };
             let weight_scale_values =
-                load_f32_vector(weight_scales, weight_scale_offsets, mask, 0.0f32);
+                unsafe { load_f32_vector(weight_scales, weight_scale_offsets, mask, 0.0f32) };
             sum = sum
                 + activation_values * weight_values * activation_scale_values * weight_scale_values;
         }
 
-        store_f16_vector_from_f32(out, offsets, sum, mask);
+        unsafe { store_f16_vector_from_f32(out, offsets, sum, mask) };
     }
 
     #[cutile::entry()]
@@ -1352,17 +1440,18 @@ mod kernels {
             let weight_scale_offsets =
                 weight_scale_row * broadcast_scalar(k_groups, tile_shape) + k_group;
             let activation_values =
-                load_f8e4m3_vector_as_f32(activations, activation_offsets, mask);
-            let weight_values = load_f8e4m3_vector_as_f32(weights, weight_offsets, mask);
-            let activation_scale_values =
-                load_f32_vector(activation_scales, activation_scale_offsets, mask, 0.0f32);
+                unsafe { load_f8e4m3_vector_as_f32(activations, activation_offsets, mask) };
+            let weight_values = unsafe { load_f8e4m3_vector_as_f32(weights, weight_offsets, mask) };
+            let activation_scale_values = unsafe {
+                load_f32_vector(activation_scales, activation_scale_offsets, mask, 0.0f32)
+            };
             let weight_scale_values =
-                load_f32_vector(weight_scales, weight_scale_offsets, mask, 0.0f32);
+                unsafe { load_f32_vector(weight_scales, weight_scale_offsets, mask, 0.0f32) };
             sum = sum
                 + activation_values * weight_values * activation_scale_values * weight_scale_values;
         }
 
-        store_bf16_vector_from_f32(out, offsets, sum, mask);
+        unsafe { store_bf16_vector_from_f32(out, offsets, sum, mask) };
     }
 
     #[cutile::entry()]
@@ -1386,7 +1475,7 @@ mod kernels {
             broadcast_scalar(len, tile_shape),
             predicate::LessThan,
         );
-        let values = load_f32_vector(input, offsets, mask, 0.0f32);
+        let values = unsafe { load_f32_vector(input, offsets, mask, 0.0f32) };
         let abs_values = absf(values);
         let max_abs: Tile<f32, { [1] }> = reduce_max(abs_values, 0i32);
         let max_abs_tile = max_abs.reshape(const_shape![1i32]).broadcast(tile_shape);
@@ -1403,13 +1492,15 @@ mod kernels {
         let quantized_f32 = min_tile(max_tile(values / scale_tile, low), high);
         let quantized: Tile<f8e4m3fn, { [128] }> = convert_tile(quantized_f32);
         let lane_zero: Tile<i32, { [128] }> = constant(0i32, tile_shape);
-        store_f8e4m3_vector(out, offsets, quantized, mask);
-        store_f32_vector(
-            scales,
-            broadcast_scalar(pid.0, tile_shape),
-            scale_tile,
-            cmpi(lanes, lane_zero, predicate::Equal),
-        );
+        unsafe { store_f8e4m3_vector(out, offsets, quantized, mask) };
+        unsafe {
+            store_f32_vector(
+                scales,
+                broadcast_scalar(pid.0, tile_shape),
+                scale_tile,
+                cmpi(lanes, lane_zero, predicate::Equal),
+            );
+        };
     }
 
     #[cutile::entry()]
@@ -1439,12 +1530,12 @@ mod kernels {
         let scale_column = column / broadcast_scalar(block_size, tile_shape);
         let scale_offsets = scale_row * broadcast_scalar(scale_columns, tile_shape) + scale_column;
 
-        let input_values = load_f8e4m3_vector_as_f32(input, safe_offsets, mask);
-        let scale_values = load_f32_vector(scales, scale_offsets, mask, 0.0f32);
-        store_f32_vector(out, offsets, input_values * scale_values, mask);
+        let input_values = unsafe { load_f8e4m3_vector_as_f32(input, safe_offsets, mask) };
+        let scale_values = unsafe { load_f32_vector(scales, scale_offsets, mask, 0.0f32) };
+        unsafe { store_f32_vector(out, offsets, input_values * scale_values, mask) };
     }
 
-    pub fn load_f32_vector(
+    pub unsafe fn load_f32_vector(
         input: *mut f32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -1454,19 +1545,21 @@ mod kernels {
         let input_base: PointerTile<*mut f32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(fill),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(fill),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    pub fn load_u32_vector(
+    pub unsafe fn load_u32_vector(
         input: *mut u32,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -1475,25 +1568,21 @@ mod kernels {
         let input_base: PointerTile<*mut u32, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut u32, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut u32, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<u32, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0u32),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<u32, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0u32),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    pub fn ue8m0_round_scale_f32(scale: Tile<f32, { [128] }>) -> Tile<f32, { [128] }> {
-        let min_scale: Tile<f32, { [128] }> = constant(1e-10f32, const_shape![128]);
-        let safe_scale = max_tile(absf(scale), min_scale);
-        exp2(ceil(log2(safe_scale)), ftz::Disabled)
-    }
-
-    pub fn load_u8_vector(
+    pub unsafe fn load_u8_vector(
         input: *mut u8,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -1502,19 +1591,21 @@ mod kernels {
         let input_base: PointerTile<*mut u8, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut u8, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut u8, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<u8, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0u8),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<u8, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0u8),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    pub fn load_f8e4m3_vector_as_f32(
+    pub unsafe fn load_f8e4m3_vector_as_f32(
         input: *mut f8e4m3fn,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -1524,21 +1615,23 @@ mod kernels {
         let input_ptrs: PointerTile<*mut f8e4m3fn, { [128] }> =
             input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut f8e4m3fn, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<f8e4m3fn, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<f8e4m3fn, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                None,
+                Latency::<0>,
+            )
+        };
         let values: Tile<f32, { [128] }> = convert_tile(result.0);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, const_shape![128]);
         select(mask, values, zero)
     }
 
-    pub fn load_i8_vector(
+    pub unsafe fn load_i8_vector(
         input: *mut i8,
         offsets: Tile<i32, { [128] }>,
         mask: Tile<bool, { [128] }>,
@@ -1547,19 +1640,21 @@ mod kernels {
         let input_base: PointerTile<*mut i8, { [1] }> = input_base.reshape(const_shape![1]);
         let input_ptrs: PointerTile<*mut i8, { [128] }> = input_base.broadcast(const_shape![128]);
         let input_ptrs: PointerTile<*mut i8, { [128] }> = input_ptrs.offset_tile(offsets);
-        let result: (Tile<i8, { [128] }>, Token) = load_ptr_tko(
-            input_ptrs,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            Some(0i8),
-            None,
-            Latency::<0>,
-        );
+        let result: (Tile<i8, { [128] }>, Token) = unsafe {
+            load_ptr_tko(
+                input_ptrs,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                Some(0i8),
+                None,
+                Latency::<0>,
+            )
+        };
         result.0
     }
 
-    pub fn store_f32_vector(
+    pub unsafe fn store_f32_vector(
         out: *mut f32,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -1569,18 +1664,20 @@ mod kernels {
         let out_base: PointerTile<*mut f32, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f32, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    pub fn store_f16_vector_from_f32(
+    pub unsafe fn store_f16_vector_from_f32(
         out: *mut f16,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -1593,18 +1690,20 @@ mod kernels {
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f16, { [128] }> = out_ptrs.offset_tile(offsets);
         let output: Tile<f16, { [128] }> = convert_tile(values);
-        store_ptr_tko(
-            out_ptrs,
-            output,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                output,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    pub fn store_bf16_vector_from_f32(
+    pub unsafe fn store_bf16_vector_from_f32(
         out: *mut bf16,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f32, { [128] }>,
@@ -1617,18 +1716,20 @@ mod kernels {
         let out_ptrs: PointerTile<*mut bf16, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut bf16, { [128] }> = out_ptrs.offset_tile(offsets);
         let output: Tile<bf16, { [128] }> = convert_tile(values);
-        store_ptr_tko(
-            out_ptrs,
-            output,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                output,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    pub fn store_f8e4m3_vector(
+    pub unsafe fn store_f8e4m3_vector(
         out: *mut f8e4m3fn,
         offsets: Tile<i32, { [128] }>,
         values: Tile<f8e4m3fn, { [128] }>,
@@ -1638,18 +1739,20 @@ mod kernels {
         let out_base: PointerTile<*mut f8e4m3fn, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut f8e4m3fn, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut f8e4m3fn, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
-    pub fn store_i8_vector(
+    pub unsafe fn store_i8_vector(
         out: *mut i8,
         offsets: Tile<i32, { [128] }>,
         values: Tile<i8, { [128] }>,
@@ -1659,17 +1762,20 @@ mod kernels {
         let out_base: PointerTile<*mut i8, { [1] }> = out_base.reshape(const_shape![1]);
         let out_ptrs: PointerTile<*mut i8, { [128] }> = out_base.broadcast(const_shape![128]);
         let out_ptrs: PointerTile<*mut i8, { [128] }> = out_ptrs.offset_tile(offsets);
-        store_ptr_tko(
-            out_ptrs,
-            values,
-            ordering::Weak,
-            None::<scope::TileBlock>,
-            Some(mask),
-            None,
-            Latency::<0>,
-        );
+        unsafe {
+            store_ptr_tko(
+                out_ptrs,
+                values,
+                ordering::Weak,
+                None::<scope::TileBlock>,
+                Some(mask),
+                None,
+                Latency::<0>,
+            )
+        };
     }
 
+    #[must_use]
     pub fn round_nearest_even_i8_f32(values: Tile<f32, { [128] }>) -> Tile<f32, { [128] }> {
         let tile_shape = const_shape![128];
         let floored = floor(values);
@@ -1694,13 +1800,32 @@ mod kernels {
         select(above_half | (tie & floor_is_odd), floored + one, floored)
     }
 
+    #[must_use]
+    pub fn propagate_nan_reduction<const BN: i32>(
+        value: Tile<f32, { [1] }>,
+        input: Tile<f32, { [1, BN] }>,
+        valid: Tile<bool, { [1, BN] }>,
+    ) -> Tile<f32, { [1] }> {
+        let tile_shape = const_shape![1, BN];
+        let nan = cmpf(input, input, predicate::NotEqual, cmp_ordering::Unordered);
+        let one = constant(1i32, tile_shape);
+        let zero = constant(0i32, tile_shape);
+        let count: Tile<i32, { [1] }> = reduce_sum(select(valid & nan, one, zero), 1i32);
+        let row_shape = const_shape![1];
+        let zero_row: Tile<i32, { [1] }> = constant(0i32, row_shape);
+        let nan_bits: Tile<u32, { [1] }> = constant(0x7fc0_0000u32, row_shape);
+        let nan_row: Tile<f32, { [1] }> = bitcast(nan_bits);
+        let has_nan = cmpi(count, zero_row, predicate::GreaterThan);
+        select(has_nan, nan_row, value)
+    }
+
     pub fn reduce_impl<const OP: i32, const BN: i32>(
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
         divisor: f32,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f32, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -1743,6 +1868,108 @@ mod kernels {
             let one = constant(1.0f32, tile_shape);
             reduce_prod(select(valid_cols, input_tile_raw, one), 1i32)
         };
+        let value = if OP == 2 || OP == 3 {
+            propagate_nan_reduction(value, input_tile_raw, valid_cols)
+        } else {
+            value
+        };
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+
+    pub fn reduce_sum_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let zero = constant(0.0f32, tile_shape);
+        let input_tile = select(valid_cols, input_tile_raw, zero);
+        let value: Tile<f32, { [1] }> = reduce_sum(input_tile, 1i32);
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+
+    pub fn reduce_mean_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+        divisor: f32,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let zero = constant(0.0f32, tile_shape);
+        let input_tile = select(valid_cols, input_tile_raw, zero);
+        let sum: Tile<f32, { [1] }> = reduce_sum(input_tile, 1i32);
+        let divisor = broadcast_scalar(divisor, const_shape![1]);
+        let value: Tile<f32, { [1] }> = sum / divisor;
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+
+    pub fn reduce_max_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let fill: Tile<f32, { [1, BN] }> = constant(f32::NEG_INFINITY, tile_shape);
+        let value: Tile<f32, { [1] }> = reduce_max(select(valid_cols, input_tile_raw, fill), 1i32);
+        let value = propagate_nan_reduction(value, input_tile_raw, valid_cols);
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+
+    pub fn reduce_min_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let fill: Tile<f32, { [1, BN] }> = constant(f32::INFINITY, tile_shape);
+        let value: Tile<f32, { [1] }> = reduce_min(select(valid_cols, input_tile_raw, fill), 1i32);
+        let value = propagate_nan_reduction(value, input_tile_raw, valid_cols);
+        out.store(value.reshape(const_shape![1i32, 1i32]));
+    }
+
+    pub fn reduce_product_impl<const BN: i32>(
+        out: &mut Tensor<f32, { [1, 1] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let one = constant(1.0f32, tile_shape);
+        let value: Tile<f32, { [1] }> = reduce_prod(select(valid_cols, input_tile_raw, one), 1i32);
         out.store(value.reshape(const_shape![1i32, 1i32]));
     }
 
@@ -1751,7 +1978,7 @@ mod kernels {
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
         let pid: (i32, i32, i32) = get_tile_block_id();
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f32, { [1, BN] }> =
             input.partition(tile_shape).load([pid.0, 0i32]);
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
@@ -1765,21 +1992,27 @@ mod kernels {
             predicate::Equal,
             cmp_ordering::Ordered,
         );
+        let nan = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::NotEqual,
+            cmp_ordering::Unordered,
+        );
         let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
         let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
-        let numeric_i32 = select(valid_cols & numeric, one_i32, zero_i32);
-        let numeric_count: Tile<i32, { [1] }> = reduce_sum(numeric_i32, 1i32);
+        let nan_i32: Tile<i32, { [1, BN] }> = select(valid_cols & nan, one_i32, zero_i32);
+        let nan_count: Tile<i32, { [1] }> = reduce_sum(nan_i32, 1i32);
         let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
-        let has_numeric = cmpi(
-            numeric_count.reshape(const_shape![1i32, 1i32]),
-            zero_row,
-            predicate::GreaterThan,
-        )
-        .broadcast(tile_shape);
-        let no_numeric = cmpi(
-            numeric_count.reshape(const_shape![1i32, 1i32]),
+        let no_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
             zero_row,
             predicate::Equal,
+        )
+        .broadcast(tile_shape);
+        let has_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::GreaterThan,
         )
         .broadcast(tile_shape);
         let candidates = if OP == 0 {
@@ -1803,10 +2036,148 @@ mod kernels {
             predicate::Equal,
             cmp_ordering::Ordered,
         );
-        let best_nan = no_numeric & valid_cols;
-        let best = (has_numeric & valid_cols & numeric & best_numeric) | best_nan;
+        let best_nan = has_nan & valid_cols & nan;
+        let best = (no_nan & valid_cols & numeric & best_numeric) | best_nan;
         let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
-        let best_indices = select(best, col_iota, sentinel);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
+        let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
+        let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
+        let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);
+        let zero_pair: Tile<i32, { [1, 2] }> = constant(0i32, const_shape![1i32, 2i32]);
+        let first_lane = cmpi(lane_iota, zero_pair, predicate::Equal);
+        let best_index = best_index
+            .reshape(const_shape![1i32, 1i32])
+            .broadcast(const_shape![1i32, 2i32]);
+        out.store(select(first_lane, best_index, zero_pair));
+    }
+
+    pub fn argmax_f32_impl<const BN: i32>(
+        out: &mut Tensor<i32, { [1, 2] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let numeric = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::Equal,
+            cmp_ordering::Ordered,
+        );
+        let nan = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::NotEqual,
+            cmp_ordering::Unordered,
+        );
+        let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
+        let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
+        let nan_i32: Tile<i32, { [1, BN] }> = select(valid_cols & nan, one_i32, zero_i32);
+        let nan_count: Tile<i32, { [1] }> = reduce_sum(nan_i32, 1i32);
+        let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
+        let no_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::Equal,
+        )
+        .broadcast(tile_shape);
+        let has_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::GreaterThan,
+        )
+        .broadcast(tile_shape);
+        let fill: Tile<f32, { [1, BN] }> = constant(f32::NEG_INFINITY, tile_shape);
+        let candidates = select(valid_cols & numeric, input_tile_raw, fill);
+        let best_value: Tile<f32, { [1] }> = reduce_max(candidates, 1i32);
+        let best_value = best_value
+            .reshape(const_shape![1i32, 1i32])
+            .broadcast(tile_shape);
+        let best_numeric = cmpf(
+            input_tile_raw,
+            best_value,
+            predicate::Equal,
+            cmp_ordering::Ordered,
+        );
+        let best_nan = has_nan & valid_cols & nan;
+        let best = (no_nan & valid_cols & numeric & best_numeric) | best_nan;
+        let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
+        let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
+        let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
+        let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);
+        let zero_pair: Tile<i32, { [1, 2] }> = constant(0i32, const_shape![1i32, 2i32]);
+        let first_lane = cmpi(lane_iota, zero_pair, predicate::Equal);
+        let best_index = best_index
+            .reshape(const_shape![1i32, 1i32])
+            .broadcast(const_shape![1i32, 2i32]);
+        out.store(select(first_lane, best_index, zero_pair));
+    }
+
+    pub fn argmin_f32_impl<const BN: i32>(
+        out: &mut Tensor<i32, { [1, 2] }>,
+        input: &Tensor<f32, { [-1, -1] }>,
+    ) {
+        let pid: (i32, i32, i32) = get_tile_block_id();
+        let tile_shape = const_shape![1, BN];
+        let input_tile_raw: Tile<f32, { [1, BN] }> =
+            input.partition(tile_shape).load([pid.0, 0i32]);
+        let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
+        let col_iota = col_iota.reshape(tile_shape);
+        let input_shape: [i32; 2] = get_tensor_shape(input);
+        let cols_tile = broadcast_scalar(input_shape[1], tile_shape);
+        let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
+        let numeric = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::Equal,
+            cmp_ordering::Ordered,
+        );
+        let nan = cmpf(
+            input_tile_raw,
+            input_tile_raw,
+            predicate::NotEqual,
+            cmp_ordering::Unordered,
+        );
+        let one_i32: Tile<i32, { [1, BN] }> = constant(1i32, tile_shape);
+        let zero_i32: Tile<i32, { [1, BN] }> = constant(0i32, tile_shape);
+        let nan_i32: Tile<i32, { [1, BN] }> = select(valid_cols & nan, one_i32, zero_i32);
+        let nan_count: Tile<i32, { [1] }> = reduce_sum(nan_i32, 1i32);
+        let zero_row: Tile<i32, { [1, 1] }> = constant(0i32, const_shape![1i32, 1i32]);
+        let no_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::Equal,
+        )
+        .broadcast(tile_shape);
+        let has_nan = cmpi(
+            nan_count.reshape(const_shape![1i32, 1i32]),
+            zero_row,
+            predicate::GreaterThan,
+        )
+        .broadcast(tile_shape);
+        let fill: Tile<f32, { [1, BN] }> = constant(f32::INFINITY, tile_shape);
+        let candidates = select(valid_cols & numeric, input_tile_raw, fill);
+        let best_value: Tile<f32, { [1] }> = reduce_min(candidates, 1i32);
+        let best_value = best_value
+            .reshape(const_shape![1i32, 1i32])
+            .broadcast(tile_shape);
+        let best_numeric = cmpf(
+            input_tile_raw,
+            best_value,
+            predicate::Equal,
+            cmp_ordering::Ordered,
+        );
+        let best_nan = has_nan & valid_cols & nan;
+        let best = (no_nan & valid_cols & numeric & best_numeric) | best_nan;
+        let sentinel: Tile<i32, { [1, BN] }> = broadcast_scalar(input_shape[1], tile_shape);
+        let best_indices: Tile<i32, { [1, BN] }> = select(best, col_iota, sentinel);
         let best_index: Tile<i32, { [1] }> = reduce_min(best_indices, 1i32);
         let lane_iota: Tile<i32, { [2] }> = iota(const_shape![2]);
         let lane_iota = lane_iota.reshape(const_shape![1i32, 2i32]);
@@ -1930,9 +2301,7 @@ mod kernels {
             input_tile_raw
         };
         let col_iota: Tile<i32, { [BN] }> = iota(const_shape![BN]);
-        let col_iota = col_iota
-            .reshape(const_shape![1i32, BN])
-            .broadcast(out.shape());
+        let col_iota = col_iota.reshape(const_shape![1, BN]).broadcast(out.shape());
         let input_shape: [i32; 2] = get_tensor_shape(input);
         let cols_tile = broadcast_scalar(input_shape[1], out.shape());
         let valid_cols = cmpi(col_iota, cols_tile, predicate::LessThan);
@@ -1960,7 +2329,7 @@ mod kernels {
         out: &mut Tensor<f32, { [1, 1] }>,
         input: &Tensor<f32, { [-1, -1] }>,
     ) {
-        let tile_shape = const_shape![1i32, BN];
+        let tile_shape = const_shape![1, BN];
         let input_tile_raw: Tile<f32, { [1, BN] }> = input
             .partition(tile_shape)
             .load([get_tile_block_id().0, 0i32]);
@@ -1984,6 +2353,10 @@ mod kernels {
         out.store(value.reshape(const_shape![1i32, 1i32]));
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the kernel keeps its complete indexing and operation dispatch in one auditable unit"
+    )]
     pub fn unary_store<const OP: i32, const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
         input: &Tensor<f32, { [-1] }>,
@@ -1992,13 +2365,13 @@ mod kernels {
         let zero = constant(0.0f32, out.shape());
         let one = constant(1.0f32, out.shape());
         let half = constant(0.5f32, out.shape());
-        let third = constant(0.33333334f32, out.shape());
+        let third = constant(0.333_333_34f32, out.shape());
         let three = constant(3.0f32, out.shape());
         let six = constant(6.0f32, out.shape());
-        let pi = constant(std::f32::consts::PI, out.shape());
+        let pi = constant(3.141_592_7f32, out.shape());
         let one_eighty = constant(180.0f32, out.shape());
-        let selu_alpha = constant(1.6732632f32, out.shape());
-        let selu_scale = constant(1.050701f32, out.shape());
+        let selu_alpha = constant(1.673_263_2f32, out.shape());
+        let selu_scale = constant(1.050_701f32, out.shape());
         let value = if OP == 0 {
             zero - x
         } else if OP == 1 {
@@ -2052,14 +2425,15 @@ mod kernels {
         } else if OP == 22 {
             half * log((one + x) / (one - x))
         } else if OP == 23 {
-            max_tile(x, zero)
+            let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
+            select(negative, zero, x)
         } else if OP == 24 {
             one / (one + exp(zero - x))
         } else if OP == 25 {
             x / (one + exp(zero - x))
         } else if OP == 26 {
-            let sqrt_2_over_pi = constant(0.7978846f32, out.shape());
-            let cubic_coeff = constant(0.044715f32, out.shape());
+            let sqrt_2_over_pi = constant(0.797_884_6f32, out.shape());
+            let cubic_coeff = constant(0.044_715f32, out.shape());
             half * x * (one + tanh(sqrt_2_over_pi * (x + cubic_coeff * x * x * x)))
         } else if OP == 27 {
             let negative = cmpf(x, zero, predicate::LessThan, cmp_ordering::Ordered);
@@ -2074,7 +2448,7 @@ mod kernels {
         } else if OP == 31 {
             log2(x)
         } else if OP == 32 {
-            let ln_10 = constant(std::f32::consts::LN_10, out.shape());
+            let ln_10 = constant(2.302_585_1f32, out.shape());
             log(x) / ln_10
         } else if OP == 33 {
             let root = pow(absf(x), third);
@@ -2123,6 +2497,10 @@ mod kernels {
         out.store(value);
     }
 
+    #[expect(
+        clippy::similar_names,
+        reason = "query, key, and value operands and their tensor layouts follow the mathematical kernel notation"
+    )]
     pub fn nan_to_num_store<const B: i32>(
         out: &mut Tensor<f32, { [B] }>,
         input: &Tensor<f32, { [-1] }>,

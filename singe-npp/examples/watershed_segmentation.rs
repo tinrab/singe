@@ -1,10 +1,11 @@
 mod common;
 
-use singe_cuda::memory::DeviceMemory;
+use singe_cuda::{memory::DeviceMemory, view::DeviceOutputView};
+
 use singe_npp::{
     image::{
         raw::filtering,
-        view::{C1, ImageViewMut},
+        view::{C1, ImageOutputView, ImageViewMut},
     },
     types::{ImageNormalization, Size, WatershedSegmentBoundaryType},
 };
@@ -48,22 +49,34 @@ fn main() -> Result<()> {
 
     for image in images {
         let input = read_raw_u8(image_path("watershed_segmentation", image.name), image.size)?;
-        let mut segments_device = upload(&input)?;
-        let mut labels_device =
-            DeviceMemory::<u32>::zeroes(image.size.width as usize * image.size.height as usize)?;
-        let mut segments = ImageViewMut::<u8, C1>::from_memory(&mut segments_device, image.size)?;
-        let mut labels = ImageViewMut::<u32, C1>::from_memory(&mut labels_device, image.size)?;
-
-        filtering::segment_watershed_u8_c1_in_place(
-            &stream_context,
-            &mut segments,
-            Some(&mut labels),
-            ImageNormalization::Infinity,
-            WatershedSegmentBoundaryType::None,
+        let mut segments_device = upload(stream.context(), &input)?;
+        let mut labels_device = DeviceMemory::<u32>::create_uninit(
+            stream.context(),
+            image.size.width as usize * image.size.height as usize,
         )?;
+        let mut segments = ImageViewMut::<u8, C1>::from_buffer(&mut segments_device, image.size)?;
+        let mut labels = ImageOutputView::<u32, C1>::from_output(
+            DeviceOutputView::from_output(&mut labels_device),
+            image.size,
+        )?;
+
+        stream_context.sync_scope(|| {
+            // SAFETY: the initialized inputs and writable outputs remain borrowed through stream completion.
+            unsafe {
+                filtering::segment_watershed_u8_c1_in_place(
+                    &stream_context,
+                    &mut segments,
+                    Some(&mut labels),
+                    ImageNormalization::Infinity,
+                    WatershedSegmentBoundaryType::None,
+                )
+            }
+        })?;
         stream.synchronize()?;
 
         let segments_host = download(&segments_device)?;
+        // SAFETY: successful completed watershed production writes every label in the ROI.
+        let labels_device = unsafe { labels_device.assume_init() };
         let labels_host = download(&labels_device)?;
         assert!(count_nonzero(&labels_host) > 0);
 

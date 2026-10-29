@@ -1,6 +1,10 @@
+use std::result::Result as StdResult;
+
+use singe_cudss::types::ConfigParameter;
+
 mod common;
 
-use std::{error::Error, str::FromStr};
+use std::{error::Error, slice, str::FromStr};
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudss::{
@@ -9,11 +13,12 @@ use singe_cudss::{
     types::{IndexBase, MatrixType, MatrixViewType, ReorderingAlgorithm},
 };
 
-use crate::common::*;
+use crate::common::{create_context, dense_matrix, dense_output, solve};
 
-type Result<T> = std::result::Result<T, Box<dyn Error>>;
+type Result<T> = StdResult<T, Box<dyn Error>>;
 
 fn main() -> Result<()> {
+    let (cuda, stream, context) = create_context()?;
     println!("cuDSS example: solving a Matrix Market SPD system");
 
     let matrix = parse_coordinate_matrix(include_str!("./data/matrix.mtx"))?;
@@ -21,23 +26,20 @@ fn main() -> Result<()> {
     assert_eq!(matrix.rows, matrix.cols);
     assert_eq!(matrix.rows as usize, rhs.len());
 
-    let row_offsets = DeviceMemory::from_slice(&matrix.row_offsets)?;
-    let col_indices = DeviceMemory::from_slice(&matrix.col_indices)?;
-    let a_values = DeviceMemory::from_slice(&matrix.values)?;
-    let b_values = DeviceMemory::from_slice(&rhs)?;
-    let x_values = DeviceMemory::<f64>::zeroes(rhs.len())?;
+    let row_offsets = DeviceMemory::from_slice(&cuda, &matrix.row_offsets)?;
+    let col_indices = DeviceMemory::from_slice(&cuda, &matrix.col_indices)?;
+    let a_values = DeviceMemory::from_slice(&cuda, &matrix.values)?;
+    let b_values = DeviceMemory::from_slice(&cuda, &rhs)?;
+    let mut x_values = DeviceMemory::<f64>::create_uninit(&cuda, rhs.len())?;
 
-    let (cuda, _stream, context) = create_context()?;
     let mut config = Config::create()?;
     let reordering = ReorderingAlgorithm::Default;
-    config.set(
-        singe_cudss::types::ConfigParameter::ReorderingAlgorithm,
-        &reordering,
-    )?;
+    // SAFETY: the value pointer and size describe a local of the parameter type.
+    unsafe { config.set_raw(ConfigParameter::ReorderingAlgorithm, &reordering) }?;
     let mut data = context.create_data()?;
 
     let b = dense_matrix(matrix.rows, 1, matrix.rows, &b_values)?;
-    let mut x = dense_matrix(matrix.cols, 1, matrix.cols, &x_values)?;
+    let mut x = dense_output(matrix.cols, 1, matrix.cols, x_values.output())?;
     let a = Matrix::create_csr(
         CsrMatrixDescriptor {
             rows: matrix.rows,
@@ -47,15 +49,29 @@ fn main() -> Result<()> {
             view_type: MatrixViewType::Upper,
             index_base: IndexBase::Zero,
         },
-        &row_offsets,
+        row_offsets.view(),
         None,
-        &col_indices,
-        &a_values,
+        col_indices.view(),
+        a_values.view(),
     )?;
 
-    solve(&context, &config, &mut data, &a, &mut x, &b)?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        solve(
+            slice::from_ref(&stream),
+            &context,
+            &config,
+            &mut data,
+            &a,
+            &mut x,
+            &b,
+        )
+    }?;
     cuda.synchronize()?;
 
+    drop(x);
+    // SAFETY: checked completed production initialized this compact output.
+    let x_values = unsafe { x_values.assume_init() };
     let x = x_values.copy_to_host_vec()?;
     let residual = residual_norm(&matrix, &x, &rhs);
     println!("solution: {x:?}");
@@ -138,9 +154,7 @@ fn parse_array_vector(input: &str) -> Result<Vec<f64>> {
         return Err("only one right-hand side is supported".into());
     }
 
-    let values: Vec<_> = lines
-        .map(f64::from_str)
-        .collect::<std::result::Result<_, _>>()?;
+    let values: Vec<_> = lines.map(f64::from_str).collect::<StdResult<_, _>>()?;
     if values.len() != rows {
         return Err(format!("expected {rows} rhs values, parsed {}", values.len()).into());
     }
@@ -155,7 +169,7 @@ where
     let values: Vec<_> = line
         .split_whitespace()
         .map(T::from_str)
-        .collect::<std::result::Result<_, _>>()?;
+        .collect::<StdResult<_, _>>()?;
     values
         .try_into()
         .map_err(|values: Vec<T>| format!("expected {N} values, got {}", values.len()).into())

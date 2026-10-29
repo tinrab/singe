@@ -6,17 +6,21 @@ use singe_cudnn::{
     data_type::DataType,
     error::{Error, Result, Status},
     frontend::{
-        composite::sdpa::SdpaFp8BackwardInputs,
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{
-            AttentionBackwardConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+        composite::sdpa::{
+            SdpaFp8BackwardInputs, SdpaFp8BackwardOutputConfig, SdpaGradientOutputConfig,
         },
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{
+            AttentionBackwardConfig, AttentionDiagonalAlignment, AttentionDiagonalBand,
+            AttentionMaskMode, AttentionScoreConfig, AttentionSequenceInputs,
+        },
+        plan::{CompileConfig, HeuristicMode},
     },
     version,
 };
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let context = common::ExampleContext::create()?;
 
     if cudart_version()? < 12_000 {
         println!(
@@ -25,7 +29,7 @@ fn run() -> Result<()> {
         return Ok(());
     }
 
-    let properties = ctx.cudnn.cuda_context().device().properties()?;
+    let properties = context.cudnn.cuda_context().device().properties()?;
     let sm = properties.major * 10 + properties.minor;
     if !(100..=120).contains(&sm) {
         println!("frontend_fp8_sdpa_backward_bottom_right_causal: skipped, requires SM 100.x");
@@ -78,19 +82,19 @@ fn run() -> Result<()> {
         Shape::contiguous([b, h, s_q, 1])?,
     ));
 
-    let attention_scale = graph.tensor(TensorSpec::scalar_f32(0.125)?);
-    let descale_q = graph.tensor(TensorSpec::scalar_f32(1.0)?);
-    let descale_k = graph.tensor_like_named(descale_q, "descale_k")?;
-    let descale_v = graph.tensor_like_named(descale_q, "descale_v")?;
-    let descale_o = graph.tensor_like_named(descale_q, "descale_o")?;
-    let descale_d_o = graph.tensor_like_named(descale_q, "descale_d_o")?;
-    let descale_s = graph.tensor_like_named(descale_q, "descale_s")?;
-    let descale_d_p = graph.tensor_like_named(descale_q, "descale_d_p")?;
-    let scale_s = graph.tensor_like_named(descale_q, "scale_s")?;
-    let scale_d_q = graph.tensor_like_named(descale_q, "scale_d_q")?;
-    let scale_d_k = graph.tensor_like_named(descale_q, "scale_d_k")?;
-    let scale_d_v = graph.tensor_like_named(descale_q, "scale_d_v")?;
-    let scale_d_p = graph.tensor_like_named(descale_q, "scale_d_p")?;
+    let attention_scale = graph.tensor(TensorSpec::scalar_f32(0.125));
+    let descale_q = graph.tensor(TensorSpec::scalar_f32(1.0));
+    let descale_k = graph.tensor_like(descale_q, Some("descale_k"))?;
+    let descale_v = graph.tensor_like(descale_q, Some("descale_v"))?;
+    let descale_o = graph.tensor_like(descale_q, Some("descale_o"))?;
+    let descale_d_o = graph.tensor_like(descale_q, Some("descale_d_o"))?;
+    let descale_s = graph.tensor_like(descale_q, Some("descale_s"))?;
+    let descale_d_p = graph.tensor_like(descale_q, Some("descale_d_p"))?;
+    let scale_s = graph.tensor_like(descale_q, Some("scale_s"))?;
+    let scale_d_q = graph.tensor_like(descale_q, Some("scale_d_q"))?;
+    let scale_d_k = graph.tensor_like(descale_q, Some("scale_d_k"))?;
+    let scale_d_v = graph.tensor_like(descale_q, Some("scale_d_v"))?;
+    let scale_d_p = graph.tensor_like(descale_q, Some("scale_d_p"))?;
     let sequence_length_query = graph.tensor(TensorSpec::new(
         DataType::I32,
         Shape::contiguous([1, 1, 1, 1])?,
@@ -100,7 +104,7 @@ fn run() -> Result<()> {
         Shape::contiguous([1, 1, 1, 1])?,
     ));
 
-    let outputs = match graph.sdpa_fp8_backward_infer(
+    let outputs = match graph.sdpa_fp8_backward(
         SdpaFp8BackwardInputs::new(
             q,
             k,
@@ -122,12 +126,21 @@ fn run() -> Result<()> {
             scale_d_v,
             scale_d_p,
         ),
-        AttentionBackwardConfig::new(DataType::F32).with_score_config(
-            AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::CausalBottomRight {
-                sequence_length_query,
-                sequence_length_key_value,
-            }),
-        ),
+        AttentionBackwardConfig::new()
+            .with_compute_type(DataType::F32)
+            .with_score_config(
+                AttentionScoreConfig::new()
+                    .with_sequence_inputs(AttentionSequenceInputs::per_batch(
+                        sequence_length_query,
+                        sequence_length_key_value,
+                    ))
+                    .with_mask_mode(AttentionMaskMode::DiagonalBand(
+                        AttentionDiagonalBand::causal(AttentionDiagonalAlignment::BottomRight),
+                    )),
+            ),
+        SdpaFp8BackwardOutputConfig::new(SdpaGradientOutputConfig::new(
+            TensorOutputConfig::new().output_tensor(),
+        )),
     ) {
         Ok(outputs) => outputs,
         Err(error) => {
@@ -148,13 +161,13 @@ fn run() -> Result<()> {
             return Err(error);
         }
     };
-    let d_q = outputs.query_gradient();
-    let d_k = outputs.key_gradient();
-    let d_v = outputs.value_gradient();
-    let absolute_max_d_q = outputs.absolute_max_query_gradient();
-    let absolute_max_d_k = outputs.absolute_max_key_gradient();
-    let absolute_max_d_v = outputs.absolute_max_value_gradient();
-    let absolute_max_d_p = outputs.absolute_max_probability_gradient();
+    let d_q = outputs.query_gradient;
+    let d_k = outputs.key_gradient;
+    let d_v = outputs.value_gradient;
+    let absolute_max_d_q = outputs.absolute_max_query_gradient;
+    let absolute_max_d_k = outputs.absolute_max_key_gradient;
+    let absolute_max_d_v = outputs.absolute_max_value_gradient;
+    let absolute_max_d_p = outputs.absolute_max_probability_gradient;
 
     for output in [
         d_q,
@@ -168,7 +181,10 @@ fn run() -> Result<()> {
         graph.mark_as_output(output)?;
     }
 
-    if let Err(error) = graph.compile(&ctx.cudnn, &[HeuristicMode::A]) {
+    if let Err(error) = graph.compile(
+        Some(&context.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+    ) {
         if matches!(
             error,
             Error::Cudnn {

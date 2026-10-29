@@ -1,6 +1,13 @@
 use std::{
-    env, fs,
+    env,
+    error::Error,
+    fmt::Display,
+    fs,
+    io::ErrorKind,
+    iter::Peekable,
     path::{Path, PathBuf},
+    process,
+    str::FromStr,
     sync::Arc,
     thread,
     time::{Duration, Instant},
@@ -8,7 +15,7 @@ use std::{
 
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
-    stream::StreamBinding, types::Complex32,
+    types::Complex32,
 };
 use singe_cutensor::{
     mp::{
@@ -43,26 +50,26 @@ struct Config {
     id_file: PathBuf,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
+impl Config {
+    fn from_environment() -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
             equation: DEFAULT_EQUATION.into(),
             dist_a: String::new(),
             dist_b: String::new(),
             dist_c: String::new(),
             extent: DEFAULT_EXTENT,
             repetitions: DEFAULT_REPETITIONS,
-            rank: env_parse("SINGE_CUTENSOR_MP_RANK").unwrap_or(0),
-            rank_count: env_parse("SINGE_CUTENSOR_MP_NRANKS").unwrap_or(1),
-            local_device: env_parse("SINGE_CUTENSOR_MP_LOCAL_DEVICE"),
+            rank: env_parse("SINGE_CUTENSOR_MP_RANK")?.unwrap_or(0),
+            rank_count: env_parse("SINGE_CUTENSOR_MP_NRANKS")?.unwrap_or(1),
+            local_device: env_parse("SINGE_CUTENSOR_MP_LOCAL_DEVICE")?,
             id_file: env::var_os("SINGE_CUTENSOR_MP_ID_FILE")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| env::temp_dir().join("singe-cutensor-mp-nccl-id.bin")),
-        }
+        })
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn Error>> {
     let config = parse_args()?;
     validate_config(&config)?;
 
@@ -73,10 +80,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cuda_context = CudaContext::retain_primary_for_device(Device::new(local_device))?;
     let stream = cuda_context.create_stream()?;
-    let stream_binding = StreamBinding::Borrowed(stream.to_borrowed());
 
     let communicator = create_communicator(&cuda_context, &config)?;
-    let context = MpContext::create(&communicator, local_device, stream_binding)?;
+    let context = MpContext::create(&communicator, local_device, Some(&stream))?;
 
     if config.rank == 0 {
         println!("cuTENSORMp contraction sample");
@@ -211,10 +217,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let mut workspace_memory = plan.create_workspace_memory()?;
 
-    let mut a = DeviceMemory::<Complex32>::create(product_usize(&local_extent_a)?)?;
-    let mut b = DeviceMemory::<Complex32>::create(product_usize(&local_extent_b)?)?;
-    let mut c = DeviceMemory::<Complex32>::create(product_usize(&local_extent_c)?)?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    let mut a = unsafe {
+        DeviceMemory::<Complex32>::create_unchecked(&cuda_context, product_usize(&local_extent_a)?)
+    }?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    let mut b = unsafe {
+        DeviceMemory::<Complex32>::create_unchecked(&cuda_context, product_usize(&local_extent_b)?)
+    }?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    let mut c = unsafe {
+        DeviceMemory::<Complex32>::create_unchecked(&cuda_context, product_usize(&local_extent_c)?)
+    }?;
 
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         a.set_value_async_unchecked((config.rank & 0xff) as u8, &stream)?;
         b.set_value_async_unchecked(
@@ -229,6 +245,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut timings = Vec::new();
 
     for repetition in 0..config.repetitions {
+        // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
         unsafe {
             c.set_value_async_unchecked(0, &stream)?;
         }
@@ -268,8 +285,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn parse_args() -> Result<Config, Box<dyn std::error::Error>> {
-    let mut config = Config::default();
+fn parse_args() -> Result<Config, Box<dyn Error>> {
+    let mut config = Config::from_environment()?;
     let mut args = env::args().skip(1).peekable();
 
     while let Some(arg) = args.next() {
@@ -297,7 +314,7 @@ fn parse_args() -> Result<Config, Box<dyn std::error::Error>> {
             }
             "--help" | "-h" => {
                 print_usage();
-                std::process::exit(0);
+                process::exit(0);
             }
             other => return Err(format!("unknown argument `{other}`").into()),
         }
@@ -308,9 +325,9 @@ fn parse_args() -> Result<Config, Box<dyn std::error::Error>> {
 
 fn next_value(
     inline: Option<String>,
-    args: &mut std::iter::Peekable<impl Iterator<Item = String>>,
+    args: &mut Peekable<impl Iterator<Item = String>>,
     name: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String, Box<dyn Error>> {
     if let Some(value) = inline {
         return Ok(value);
     }
@@ -335,7 +352,7 @@ fn print_usage() {
     );
 }
 
-fn validate_config(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+fn validate_config(config: &Config) -> Result<(), Box<dyn Error>> {
     if config.rank_count <= 0 {
         return Err("rank count must be positive".into());
     }
@@ -354,7 +371,7 @@ fn validate_config(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
 fn create_communicator(
     cuda_context: &Arc<CudaContext>,
     config: &Config,
-) -> Result<Communicator, Box<dyn std::error::Error>> {
+) -> Result<Communicator, Box<dyn Error>> {
     let id = if config.rank_count == 1 {
         unique_id()?
     } else {
@@ -368,7 +385,7 @@ fn create_communicator(
     )?)
 }
 
-fn unique_id_from_file(rank: i32, path: &Path) -> Result<UniqueId, Box<dyn std::error::Error>> {
+fn unique_id_from_file(rank: i32, path: &Path) -> Result<UniqueId, Box<dyn Error>> {
     if rank == 0 {
         let id = unique_id()?;
         fs::write(path, id.as_bytes())?;
@@ -385,10 +402,7 @@ fn unique_id_from_file(rank: i32, path: &Path) -> Result<UniqueId, Box<dyn std::
                 Ok(_) => {
                     return Err("invalid nccl unique id file length".into());
                 }
-                Err(error)
-                    if error.kind() == std::io::ErrorKind::NotFound
-                        && Instant::now() < deadline =>
-                {
+                Err(error) if error.kind() == ErrorKind::NotFound && Instant::now() < deadline => {
                     thread::sleep(Duration::from_millis(50));
                 }
                 Err(error) => return Err(error.into()),
@@ -397,7 +411,7 @@ fn unique_id_from_file(rank: i32, path: &Path) -> Result<UniqueId, Box<dyn std::
     }
 }
 
-fn split_equation(eq: &str) -> Result<[Vec<char>; 3], Box<dyn std::error::Error>> {
+fn split_equation(eq: &str) -> Result<[Vec<char>; 3], Box<dyn Error>> {
     let compact = eq
         .chars()
         .filter(|c| !c.is_whitespace())
@@ -465,7 +479,7 @@ fn ceil_div(lhs: u64, rhs: u64) -> u64 {
     lhs.div_ceil(rhs)
 }
 
-fn product_usize(values: &[u64]) -> Result<usize, Box<dyn std::error::Error>> {
+fn product_usize(values: &[u64]) -> Result<usize, Box<dyn Error>> {
     values.iter().try_fold(1_usize, |product, &value| {
         let value = usize::try_from(value)?;
         product
@@ -485,7 +499,7 @@ fn print_modes(name: &str, values: &[char]) {
     );
 }
 
-fn print_values<T: std::fmt::Display>(name: &str, values: &[T]) {
+fn print_values<T: Display>(name: &str, values: &[T]) {
     println!(
         "{name}: {}",
         values
@@ -523,9 +537,16 @@ fn print_performance_metrics(
     );
 }
 
-fn env_parse<T>(name: &str) -> Option<T>
+fn env_parse<T>(name: &str) -> Result<Option<T>, Box<dyn Error>>
 where
-    T: std::str::FromStr,
+    T: FromStr,
 {
-    env::var(name).ok()?.parse().ok()
+    match env::var(name) {
+        Ok(value) => value
+            .parse()
+            .map(Some)
+            .map_err(|_| format!("invalid {name}: {value}").into()),
+        Err(env::VarError::NotPresent) => Ok(None),
+        Err(error) => Err(error.into()),
+    }
 }

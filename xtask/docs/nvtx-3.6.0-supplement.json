@@ -1,0 +1,87 @@
+{
+  "NVTX_COLOR_ARGB": {
+    "doc": "An ARGB color is provided.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gad03fafe52eed68d119c1c4ea6e92a521"
+  },
+  "NVTX_COLOR_UNKNOWN": {
+    "doc": "Color attribute is unused.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gad03fafe52eed68d119c1c4ea6e92a521"
+  },
+  "NVTX_MESSAGE_TYPE_ASCII": {
+    "doc": "A character sequence is used as payload.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gaf74d5ab5269ee3c1de7aa0059ca31c46"
+  },
+  "NVTX_MESSAGE_TYPE_REGISTERED": {
+    "doc": "A unique string handle that was registered with `nvtxDomainRegisterStringA` or nvtxDomainRegisterStringW().",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gaf74d5ab5269ee3c1de7aa0059ca31c46"
+  },
+  "NVTX_MESSAGE_TYPE_UNICODE": {
+    "doc": "A wide character sequence is used as payload.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gaf74d5ab5269ee3c1de7aa0059ca31c46"
+  },
+  "NVTX_MESSAGE_UNKNOWN": {
+    "doc": "Message attribute is unused.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___g_e_n_e_r_a_l.html#gaf74d5ab5269ee3c1de7aa0059ca31c46"
+  },
+  "NVTX_PAYLOAD_TYPE_DOUBLE": {
+    "doc": "A 64 bit floating point value is used as payload.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.html#ga2cd77099163a1997f5adff5457e6e5d7"
+  },
+  "NVTX_PAYLOAD_TYPE_FLOAT": {
+    "doc": "A 32 bit floating point value is used as payload.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.html#ga2cd77099163a1997f5adff5457e6e5d7"
+  },
+  "NVTX_PAYLOAD_TYPE_INT32": {
+    "doc": "A 32-bit signed integer value is used as payload.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.html#ga2cd77099163a1997f5adff5457e6e5d7"
+  },
+  "NVTX_PAYLOAD_TYPE_INT64": {
+    "doc": "A 64 bit signed integer value is used as payload.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.html#ga2cd77099163a1997f5adff5457e6e5d7"
+  },
+  "NVTX_PAYLOAD_TYPE_UNSIGNED_INT32": {
+    "doc": "A 32-bit unsigned integer value is used as payload.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.html#ga2cd77099163a1997f5adff5457e6e5d7"
+  },
+  "NVTX_PAYLOAD_TYPE_UNSIGNED_INT64": {
+    "doc": "A 64 bit unsigned integer value is used as payload.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.html#ga2cd77099163a1997f5adff5457e6e5d7"
+  },
+  "NVTX_PAYLOAD_UNKNOWN": {
+    "doc": "Payload attribute is unused.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___e_v_e_n_t___a_t_t_r_i_b_u_t_e_s.html#ga2cd77099163a1997f5adff5457e6e5d7"
+  },
+  "NVTX_RESOURCE_TYPE_GENERIC_HANDLE": {
+    "doc": "Generic handle assumed to have no collisions with other handles.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gabaaf30c7cfd72033a5521de326eacdab"
+  },
+  "NVTX_RESOURCE_TYPE_GENERIC_POINTER": {
+    "doc": "Generic pointer assumed to have no collisions with other pointers.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gabaaf30c7cfd72033a5521de326eacdab"
+  },
+  "NVTX_RESOURCE_TYPE_GENERIC_THREAD_NATIVE": {
+    "doc": "OS native thread identifier.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gabaaf30c7cfd72033a5521de326eacdab"
+  },
+  "NVTX_RESOURCE_TYPE_GENERIC_THREAD_POSIX": {
+    "doc": "POSIX pthread identifier.",
+    "kind": "enum_member",
+    "uri": "https://nvidia.github.io/NVTX/doxygen/group___r_e_s_o_u_r_c_e___n_a_m_i_n_g.html#gabaaf30c7cfd72033a5521de326eacdab"
+  }
+}

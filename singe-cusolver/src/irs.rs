@@ -1,16 +1,26 @@
-use std::{ptr, slice};
+#![expect(
+    clippy::many_single_char_names,
+    reason = "BLAS and factorization operand names follow the standard mathematical API"
+)]
+use std::{mem, ptr, slice};
 
-use singe_cuda::{data_type::DataTypeLike, memory::DeviceMemory};
+use singe_cuda::{
+    data_type::DataTypeLike,
+    view::{DeviceOutput, DeviceOutputView, DeviceRepr},
+};
 
 use crate::{
     context::Context,
     error::{Error, Result},
-    layout::{MatrixMut, MatrixRef},
+    layout::{MatrixMut, MatrixOutput, MatrixRef},
     sys, try_ffi,
     types::{IrsRefinement, PrecisionType},
     utility::{to_i32, to_u64, to_usize},
 };
 
+/// Owns iterative-refinement configuration and tracks its main and lowest precisions.
+///
+/// Complete each solve before reconfiguring or destroying the parameters. [`Self::create`] selects [`IrsRefinement::None`] initially.
 #[derive(Debug)]
 pub struct IrsParams {
     handle: sys::cusolverDnIRSParams_t,
@@ -18,31 +28,47 @@ pub struct IrsParams {
     lowest_precision: Option<PrecisionType>,
 }
 
+/// Owns iteration counts and optional residual history for one iterative-refinement solve.
+///
+/// Create native storage with [`Self::create`]. Complete the solve before inspecting its results; raw execution must retain this object through completion.
 #[derive(Debug, Default)]
 pub struct IrsInfos {
     handle: sys::cusolverDnIRSInfos_t,
     residual_history_requested: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Iteration count and residual norm recorded at one outer refinement step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResidualHistoryEntry<T> {
+    /// Cumulative iteration count at this outer step, stored in the residual scalar type.
     pub total_iterations: T,
+    /// Residual norm recorded at this outer step; row zero describes the initial residual.
     pub residual_norm: T,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+/// Owned copy of the valid rows from a completed native residual-history matrix.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResidualHistory<T> {
+    /// Valid outer-iteration rows, including the initial residual; undefined native trailing rows are omitted.
     pub rows: Vec<ResidualHistoryEntry<T>>,
+    /// Original native history column stride in scalar elements, equal to the maximum iteration count plus one.
+    ///
+    /// This can exceed `rows.len()` because only valid rows are copied.
     pub leading_dimension: usize,
 }
 
+/// Dimensions for an iterative-refinement solve of a square linear system.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IrsSolve {
+    /// Order of the square coefficient matrix.
     pub n: usize,
+    /// Number of right-hand-side columns.
     pub right_hand_sides: usize,
 }
 
 impl IrsSolve {
+    /// Records the system order and right-hand-side count without validating their native limits.
+    #[must_use]
     pub fn new(n: usize, right_hand_sides: usize) -> Self {
         Self {
             n,
@@ -50,50 +76,82 @@ impl IrsSolve {
         }
     }
 
+    /// Returns the device scratch requirement in bytes for `T` and the current IRS parameters.
+    ///
+    /// Fills any unset precision selectors from `T`. Requery after changing the solver configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if CUDA context binding fails, dimensions are zero or exceed native integer limits, the element type cannot be mapped to a supported precision, configured main precision differs from the element type, native precision setup or workspace querying fails, or the returned byte count does not fit `usize`.
     pub fn workspace_size<T: DataTypeLike>(
         self,
-        ctx: &Context,
+        context: &Context,
         params: &mut IrsParams,
     ) -> Result<usize> {
-        xgesv_buffer_size::<T>(ctx, params, self.n, self.right_hand_sides)
+        xgesv_buffer_size::<T>(context, params, self.n, self.right_hand_sides)
     }
 
-    pub fn execute<T: DataTypeLike>(
+    /// Queues iterative refinement using the supplied matrix and workspace bindings.
+    ///
+    /// # Safety
+    ///
+    /// Follow [`xgesv`]'s initialization, ordering, aliasing, and lifetime contract.
+    ///
+    /// Returns the host iteration report. This wrapper does not add a stream-completion wait; follow the raw solve contract before inspecting device status or solution values.
+    ///
+    /// # Errors
+    ///
+    /// Returns errors from [`xgesv`], including invalid matrix or status capacity, insufficient workspace, checked conversion failure, CUDA binding failure, or a native solver error.
+    pub unsafe fn execute<T: DataTypeLike>(
         self,
-        ctx: &Context,
+        context: &Context,
         params: &mut IrsParams,
-        infos: &IrsInfos,
-        bindings: IrsSolveBindings<'_, T>,
+        infos: &mut IrsInfos,
+        mut bindings: IrsSolveBindings<'_, T>,
     ) -> Result<i32> {
-        xgesv(
-            ctx,
-            params,
-            infos,
-            self.n,
-            self.right_hand_sides,
-            bindings.a,
-            bindings.b,
-            bindings.x,
-            bindings.device_workspace,
-            bindings.dev_info,
-        )
+        // SAFETY: the caller upholds xgesv's contract for these exact bindings.
+        unsafe {
+            xgesv(
+                context,
+                params,
+                infos,
+                self.n,
+                self.right_hand_sides,
+                bindings.a,
+                bindings.b,
+                bindings.x,
+                &mut bindings.device_workspace,
+                &mut bindings.dev_info,
+            )
+        }
     }
 }
 
+/// Borrowed matrices, output capacity, and device scratch for a square IRS solve.
+///
+/// These views retain their storage borrows only for the Rust call. Unsafe execution requires the caller to retain all resources through native completion.
 #[derive(Debug)]
-pub struct IrsSolveBindings<'a, T> {
+pub struct IrsSolveBindings<'a, T: DeviceRepr> {
+    /// Initialized square coefficient matrix; native solving may overwrite its logical contents.
     pub a: MatrixMut<'a, T>,
+    /// Initialized right-hand-side matrix with `n` rows per column.
     pub b: MatrixRef<'a, T>,
-    pub x: MatrixMut<'a, T>,
-    pub device_workspace: &'a mut DeviceMemory<u8>,
-    pub dev_info: &'a mut DeviceMemory<i32>,
+    /// Exclusive solution capacity for `n` rows per right-hand-side column. Padding is not produced.
+    pub x: MatrixOutput<'a, T>,
+    /// Exclusive device scratch capacity in bytes, sized for the current IRS configuration.
+    pub device_workspace: DeviceOutputView<'a, u8>,
+    /// Exclusive device status capacity; only the first `i32` element is produced.
+    pub dev_info: DeviceOutputView<'a, i32>,
 }
 
-// IRS parameter/info handles expose mutation through &mut self and inspection
+// SAFETY: IRS parameter/info handles expose mutation through &mut self and inspection
 // through shared references, so immutable sharing follows the cuSOLVER contract.
 unsafe impl Send for IrsParams {}
+
 unsafe impl Sync for IrsParams {}
+
 unsafe impl Send for IrsInfos {}
+
 unsafe impl Sync for IrsInfos {}
 
 impl IrsParams {
@@ -115,6 +173,7 @@ impl IrsParams {
     /// or does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusolverDnIRSParamsCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsCreate(&raw mut handle))?;
         }
@@ -133,7 +192,7 @@ impl IrsParams {
     /// Sets the refinement solver used by IRS operations such as [`xgesv`] and
     /// [`xgels`].
     ///
-    /// Configure the refinement algorithm before the first IRS solve. Newly created [`IrsParams`] do not set one by default.
+    /// Configure the refinement algorithm before the first IRS solve. [`IrsParams::create`] initially selects [`IrsRefinement::None`].
     ///
     /// The supported values are described below.
     ///
@@ -170,6 +229,7 @@ impl IrsParams {
     ///
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn set_refinement_solver(&mut self, refinement: IrsRefinement) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsSetRefinementSolver` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsSetRefinementSolver(
                 self.as_raw(),
@@ -192,6 +252,7 @@ impl IrsParams {
     ///
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn set_main_precision(&mut self, precision: PrecisionType) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsSetSolverMainPrecision` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsSetSolverMainPrecision(
                 self.as_raw(),
@@ -227,6 +288,7 @@ impl IrsParams {
     ///
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn set_lowest_precision(&mut self, precision: PrecisionType) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsSetSolverLowestPrecision` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsSetSolverLowestPrecision(
                 self.as_raw(),
@@ -281,6 +343,7 @@ impl IrsParams {
         main_precision: PrecisionType,
         lowest_precision: PrecisionType,
     ) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsSetSolverPrecisions` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsSetSolverPrecisions(
                 self.as_raw(),
@@ -313,6 +376,7 @@ impl IrsParams {
     ///
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn set_tolerance(&mut self, tolerance: f64) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsSetTol` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsSetTol(self.as_raw(), tolerance))?;
         }
@@ -336,6 +400,7 @@ impl IrsParams {
     ///
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn set_inner_tolerance(&mut self, tolerance: f64) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsSetTolInner` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsSetTolInner(
                 self.as_raw(),
@@ -353,6 +418,7 @@ impl IrsParams {
     ///
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn set_max_iterations(&mut self, max_iterations: i32) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsSetMaxIters` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsSetMaxIters(
                 self.as_raw(),
@@ -374,6 +440,7 @@ impl IrsParams {
     /// Returns an error if `max_iterations` is larger than `MaxIters`, or if
     /// cuSOLVER rejects the parameter structure.
     pub fn set_max_inner_iterations(&mut self, max_iterations: i32) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsSetMaxItersInner` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsSetMaxItersInner(
                 self.as_raw(),
@@ -393,6 +460,7 @@ impl IrsParams {
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn max_iterations(&self) -> Result<i32> {
         let mut value = 0;
+        // SAFETY: `cusolverDnIRSParamsGetMaxIters` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsGetMaxIters(
                 self.as_raw(),
@@ -412,6 +480,7 @@ impl IrsParams {
     ///
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn enable_fallback(&mut self) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsEnableFallback` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsEnableFallback(self.as_raw()))?;
         }
@@ -428,6 +497,7 @@ impl IrsParams {
     ///
     /// Returns an error if cuSOLVER rejects the parameter structure.
     pub fn disable_fallback(&mut self) -> Result<()> {
+        // SAFETY: `cusolverDnIRSParamsDisableFallback` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsDisableFallback(self.as_raw()))?;
         }
@@ -450,6 +520,8 @@ impl IrsParams {
         Ok(())
     }
 
+    /// Returns the borrowed native IRS parameter handle.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusolverDnIRSParams_t {
         self.handle
     }
@@ -461,6 +533,10 @@ impl IrsParams {
     /// `handle` must be a valid `cusolverDnIRSParams_t` created by cuSOLVER.
     /// The returned wrapper takes ownership and will destroy it with
     /// `cusolverDnIRSParamsDestroy`; no other owner may destroy or keep using it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `handle` is null.
     pub unsafe fn from_raw(handle: sys::cusolverDnIRSParams_t) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -475,19 +551,21 @@ impl IrsParams {
     /// Releases ownership and returns the raw cuSOLVER IRS params handle.
     ///
     /// The caller becomes responsible for destroying the handle.
+    #[must_use]
     pub fn into_raw(self) -> sys::cusolverDnIRSParams_t {
         let handle = self.handle;
-        std::mem::forget(self);
+        mem::forget(self);
         handle
     }
 }
 
 impl Drop for IrsParams {
     fn drop(&mut self) {
+        // SAFETY: `cusolverDnIRSParamsDestroy` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusolverDnIRSParamsDestroy(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cusolverDnIRSParamsDestroy(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusolver irs params: {err}");
+                eprintln!("failed to destroy cusolver irs params: {error}");
             }
         }
     }
@@ -505,6 +583,7 @@ impl IrsInfos {
     /// or does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusolverDnIRSInfosCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosCreate(&raw mut handle))?;
         }
@@ -526,6 +605,7 @@ impl IrsInfos {
     /// Returns an error if cuSOLVER rejects the `Infos` structure.
     pub fn niters(&self) -> Result<i32> {
         let mut value = 0;
+        // SAFETY: `cusolverDnIRSInfosGetNiters` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosGetNiters(
                 self.as_raw(),
@@ -545,6 +625,7 @@ impl IrsInfos {
     /// Returns an error if cuSOLVER rejects the `Infos` structure.
     pub fn outer_niters(&self) -> Result<i32> {
         let mut value = 0;
+        // SAFETY: `cusolverDnIRSInfosGetOuterNiters` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosGetOuterNiters(
                 self.as_raw(),
@@ -564,6 +645,7 @@ impl IrsInfos {
     /// Returns an error if cuSOLVER rejects the `Infos` structure.
     pub fn max_iterations(&self) -> Result<i32> {
         let mut value = 0;
+        // SAFETY: `cusolverDnIRSInfosGetMaxIters` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosGetMaxIters(
                 self.as_raw(),
@@ -581,6 +663,7 @@ impl IrsInfos {
     ///
     /// Returns an error if cuSOLVER rejects the `Infos` structure.
     pub fn request_residual_history(&mut self) -> Result<()> {
+        // SAFETY: `cusolverDnIRSInfosRequestResidual` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosRequestResidual(self.as_raw()))?;
         }
@@ -620,6 +703,7 @@ impl IrsInfos {
         }
         let (leading_dimension, valid_rows) = self.residual_history_layout()?;
         let mut history = ptr::null_mut();
+        // SAFETY: `cusolverDnIRSInfosGetResidualHistory` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosGetResidualHistory(
                 self.as_raw(),
@@ -665,6 +749,7 @@ impl IrsInfos {
         }
         let (leading_dimension, valid_rows) = self.residual_history_layout()?;
         let mut history = ptr::null_mut();
+        // SAFETY: `cusolverDnIRSInfosGetResidualHistory` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosGetResidualHistory(
                 self.as_raw(),
@@ -678,6 +763,8 @@ impl IrsInfos {
         }
     }
 
+    /// Returns the borrowed native IRS information handle.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusolverDnIRSInfos_t {
         self.handle
     }
@@ -689,6 +776,10 @@ impl IrsInfos {
     /// `handle` must be a valid `cusolverDnIRSInfos_t` created by cuSOLVER.
     /// The returned wrapper takes ownership and will destroy it with
     /// `cusolverDnIRSInfosDestroy`; no other owner may destroy or keep using it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `handle` is null.
     pub unsafe fn from_raw(handle: sys::cusolverDnIRSInfos_t) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -702,9 +793,10 @@ impl IrsInfos {
     /// Releases ownership and returns the raw cuSOLVER IRS infos handle.
     ///
     /// The caller becomes responsible for destroying the handle.
+    #[must_use]
     pub fn into_raw(self) -> sys::cusolverDnIRSInfos_t {
         let handle = self.handle;
-        std::mem::forget(self);
+        mem::forget(self);
         handle
     }
 
@@ -714,18 +806,15 @@ impl IrsInfos {
             .checked_add(1)
             .ok_or(Error::InvalidResidualHistory)
             .and_then(|value| {
-                usize::try_from(value).map_err(|_| Error::OutOfRange {
-                    name: "residual history leading dimension".into(),
-                })
+                usize::try_from(value)
+                    .map_err(|_| Error::out_of_range("residual history leading dimension"))
             })?;
         let valid_rows = self
             .outer_niters()?
             .checked_add(1)
             .ok_or(Error::InvalidResidualHistory)
             .and_then(|value| {
-                usize::try_from(value).map_err(|_| Error::OutOfRange {
-                    name: "residual history rows".into(),
-                })
+                usize::try_from(value).map_err(|_| Error::out_of_range("residual history rows"))
             })?;
 
         if valid_rows > leading_dimension {
@@ -738,30 +827,39 @@ impl IrsInfos {
 
 impl Drop for IrsInfos {
     fn drop(&mut self) {
+        // SAFETY: `cusolverDnIRSInfosDestroy` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusolverDnIRSInfosDestroy(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cusolverDnIRSInfosDestroy(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusolver irs infos: {err}");
+                eprintln!("failed to destroy cusolver irs infos: {error}");
             }
         }
     }
 }
 
+/// Returns the device workspace requirement in bytes for a square IRS linear solve.
+///
+/// Fills any unset precision selectors from `T`. Configure refinement and precision before querying, and requery after changing the parameters.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, dimensions are zero or exceed native integer limits, the element type cannot be mapped to a supported precision, configured main precision differs from the element type, native precision setup or workspace querying fails, or the returned byte count does not fit `usize`.
 pub fn xgesv_buffer_size<T: DataTypeLike>(
-    ctx: &Context,
+    context: &Context,
     params: &mut IrsParams,
     n: usize,
     nrhs: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
+    context.bind()?;
     if n == 0 || nrhs == 0 {
         return Err(Error::InvalidMatrixShape);
     }
     params.ensure_type_precision::<T>()?;
     let mut workspace_bytes = 0;
+    // SAFETY: `cusolverDnIRSXgesv_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnIRSXgesv_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             to_i32(n, "n")?,
             to_i32(nrhs, "nrhs")?,
@@ -827,64 +925,87 @@ pub fn xgesv_buffer_size<T: DataTypeLike>(
 /// configuration is not supported on the current GPU architecture, if the
 /// library has not been initialized, or if the solve ends with an internal or
 /// numerical failure. Check `niters` and `dinfo` for additional solver details.
-pub fn xgesv<T: DataTypeLike>(
-    ctx: &Context,
+/// # Safety
+///
+/// `A` and `B` must be initialized and ordered before this operation on the
+/// handle's stream. Retain their allocations, the exclusive `A`, `X`, workspace,
+/// and status ranges, and both IRS handles until completion on every path and
+/// throughout captured replay. All ranges must belong to the handle's actual
+/// CUDA context and must not overlap. Do not inspect or mutate IRS handles while
+/// queued work may access them.
+///
+/// On successful completion with `dev_info[0] == 0`, `X` contains n rows in
+/// each right-hand-side column. Leading-dimension padding and unused allocation
+/// tails are not produced. Only the first status element is written. Scratch
+/// contents never establish initialized output values. A successful enqueue
+/// alone does not establish completion or a valid solution.
+pub unsafe fn xgesv<T: DataTypeLike>(
+    context: &Context,
     params: &mut IrsParams,
-    infos: &IrsInfos,
+    infos: &mut IrsInfos,
     n: usize,
     nrhs: usize,
-    a: MatrixMut<'_, T>,
+    mut a: MatrixMut<'_, T>,
     b: MatrixRef<'_, T>,
-    x: MatrixMut<'_, T>,
-    device_workspace: &mut DeviceMemory<u8>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut x: MatrixOutput<'_, T>,
+    device_workspace: &mut impl DeviceOutput<u8>,
+    dev_info: &mut impl DeviceOutput<i32>,
 ) -> Result<i32> {
-    ctx.bind()?;
+    context.bind()?;
     validate_matrix(n, n, a.data.len(), a.leading_dimension)?;
     validate_matrix(n, nrhs, b.data.len(), b.leading_dimension)?;
     validate_matrix(n, nrhs, x.data.len(), x.leading_dimension)?;
     require_info_buffer(dev_info)?;
-    let workspace_bytes = xgesv_buffer_size::<T>(ctx, params, n, nrhs)?;
-    require_workspace_bytes(device_workspace.byte_len(), workspace_bytes)?;
+    let workspace_bytes = xgesv_buffer_size::<T>(context, params, n, nrhs)?;
+    require_workspace_bytes(device_workspace.region().byte_len(), workspace_bytes)?;
     let mut niters = 0;
+    // SAFETY: `cusolverDnIRSXgesv` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnIRSXgesv(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             infos.as_raw(),
             to_i32(n, "n")?,
             to_i32(nrhs, "nrhs")?,
-            a.data.as_mut_ptr() as _,
+            a.data.as_mut_ptr().cast(),
             to_i32(a.leading_dimension, "ldda")?,
-            b.data.as_ptr() as _,
+            b.data.as_ptr().cast_mut().cast(),
             to_i32(b.leading_dimension, "lddb")?,
-            x.data.as_mut_ptr() as _,
+            x.data.as_mut_ptr().cast(),
             to_i32(x.leading_dimension, "lddx")?,
-            device_workspace.as_mut_ptr() as _,
+            device_workspace.as_mut_ptr().cast(),
             to_u64(workspace_bytes, "lwork_bytes")?,
             &raw mut niters,
-            dev_info.as_mut_ptr() as _,
+            dev_info.as_mut_ptr().cast(),
         ))?;
     }
     Ok(niters)
 }
 
+/// Returns the device workspace requirement in bytes for an overdetermined IRS least-squares solve.
+///
+/// Fills any unset precision selectors from `T`. Configure refinement and precision before querying, and requery after changing the parameters.
+///
+/// # Errors
+///
+/// Returns an error if CUDA context binding fails, dimensions are zero or exceed native integer limits, the element type cannot be mapped to a supported precision, configured main precision differs from the element type, native precision setup or workspace querying fails, or the returned byte count does not fit `usize`. Also returns an error if `n > m`.
 pub fn xgels_buffer_size<T: DataTypeLike>(
-    ctx: &Context,
+    context: &Context,
     params: &mut IrsParams,
     m: usize,
     n: usize,
     nrhs: usize,
 ) -> Result<usize> {
-    ctx.bind()?;
+    context.bind()?;
     if m == 0 || n == 0 || nrhs == 0 || n > m {
         return Err(Error::InvalidMatrixShape);
     }
     params.ensure_type_precision::<T>()?;
     let mut workspace_bytes = 0;
+    // SAFETY: `cusolverDnIRSXgels_bufferSize` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnIRSXgels_bufferSize(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
@@ -951,20 +1072,26 @@ pub fn xgels_buffer_size<T: DataTypeLike>(
 /// configuration is not supported on the current GPU architecture, if the
 /// library has not been initialized, or if the solve ends with an internal or
 /// numerical failure. Check `niters` and `dinfo` for additional solver details.
-pub fn xgels<T: DataTypeLike>(
-    ctx: &Context,
+///
+/// # Safety
+///
+/// `A` and `B` must be initialized and ordered before this operation on the handle's stream. Retain their allocations, exclusive `A`, `X`, workspace, and status ranges, and both IRS handles until completion on every path and throughout captured replay. All ranges must belong to the handle's actual CUDA context and must not overlap. Do not inspect or mutate IRS handles while queued work may access them.
+///
+/// `A` has `m` rows and `n` columns; `B` has `m` rows per right-hand side. On successful completion with `dev_info[0] == 0`, `X` contains `n` solution rows in each right-hand-side column. Only the first status element is written. Leading-dimension padding and allocation tails are not produced, and scratch contents are not initialized results. A successful enqueue alone establishes neither completion nor a valid solution.
+pub unsafe fn xgels<T: DataTypeLike>(
+    context: &Context,
     params: &mut IrsParams,
-    infos: &IrsInfos,
+    infos: &mut IrsInfos,
     m: usize,
     n: usize,
     nrhs: usize,
-    a: MatrixMut<'_, T>,
+    mut a: MatrixMut<'_, T>,
     b: MatrixRef<'_, T>,
-    x: MatrixMut<'_, T>,
-    device_workspace: &mut DeviceMemory<u8>,
-    dev_info: &mut DeviceMemory<i32>,
+    mut x: MatrixOutput<'_, T>,
+    device_workspace: &mut impl DeviceOutput<u8>,
+    dev_info: &mut impl DeviceOutput<i32>,
 ) -> Result<i32> {
-    ctx.bind()?;
+    context.bind()?;
     if n > m {
         return Err(Error::InvalidMatrixShape);
     }
@@ -972,33 +1099,34 @@ pub fn xgels<T: DataTypeLike>(
     validate_matrix(m, nrhs, b.data.len(), b.leading_dimension)?;
     validate_matrix(n, nrhs, x.data.len(), x.leading_dimension)?;
     require_info_buffer(dev_info)?;
-    let workspace_bytes = xgels_buffer_size::<T>(ctx, params, m, n, nrhs)?;
-    require_workspace_bytes(device_workspace.byte_len(), workspace_bytes)?;
+    let workspace_bytes = xgels_buffer_size::<T>(context, params, m, n, nrhs)?;
+    require_workspace_bytes(device_workspace.region().byte_len(), workspace_bytes)?;
     let mut niters = 0;
+    // SAFETY: `cusolverDnIRSXgels` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnIRSXgels(
-            ctx.as_raw(),
+            context.as_raw(),
             params.as_raw(),
             infos.as_raw(),
             to_i32(m, "m")?,
             to_i32(n, "n")?,
             to_i32(nrhs, "nrhs")?,
-            a.data.as_mut_ptr() as _,
+            a.data.as_mut_ptr().cast(),
             to_i32(a.leading_dimension, "ldda")?,
-            b.data.as_ptr() as _,
+            b.data.as_ptr().cast_mut().cast(),
             to_i32(b.leading_dimension, "lddb")?,
-            x.data.as_mut_ptr() as _,
+            x.data.as_mut_ptr().cast(),
             to_i32(x.leading_dimension, "lddx")?,
-            device_workspace.as_mut_ptr() as _,
+            device_workspace.as_mut_ptr().cast(),
             to_u64(workspace_bytes, "lwork_bytes")?,
             &raw mut niters,
-            dev_info.as_mut_ptr() as _,
+            dev_info.as_mut_ptr().cast(),
         ))?;
     }
     Ok(niters)
 }
 
-fn require_info_buffer(dev_info: &DeviceMemory<i32>) -> Result<()> {
+fn require_info_buffer(dev_info: &impl DeviceOutput<i32>) -> Result<()> {
     if dev_info.is_empty() {
         return Err(Error::InvalidVectorShape);
     }
@@ -1017,6 +1145,7 @@ unsafe fn copy_residual_history<T: Copy>(
     leading_dimension: usize,
     valid_rows: usize,
 ) -> ResidualHistory<T> {
+    // SAFETY: the caller upholds this function's safety contract.
     let history = unsafe { slice::from_raw_parts(history, leading_dimension.saturating_mul(2)) };
     let mut rows = Vec::with_capacity(valid_rows);
     for row in 0..valid_rows {
@@ -1054,39 +1183,57 @@ mod tests {
 
     #[test]
     fn test_xgesv_solves_diagonal_system() -> Result<()> {
-        let Some(ctx) = setup_context_if_available()? else {
+        let Some(mut context) = setup_context_if_available()? else {
             return Ok(());
         };
         let mut params = IrsParams::create()?;
-        let infos = IrsInfos::create()?;
+        let mut infos = IrsInfos::create()?;
 
-        let mut a = DeviceMemory::from_slice(&[
-            2.0_f32, 0.0, //
-            0.0, 4.0,
-        ])?;
-        let b = DeviceMemory::from_slice(&[
-            6.0_f32, //
-            8.0,
-        ])?;
-        let mut x = DeviceMemory::create(2)?;
-        let workspace_bytes = xgesv_buffer_size::<f32>(&ctx, &mut params, 2, 1)?;
-        let mut workspace = DeviceMemory::create(workspace_bytes.max(1))?;
-        let mut dev_info = DeviceMemory::create(1)?;
-
-        let _ = xgesv(
-            &ctx,
-            &mut params,
-            &infos,
-            2,
-            1,
-            MatrixMut::new(&mut a, 2),
-            MatrixRef::new(&b, 2),
-            MatrixMut::new(&mut x, 2),
-            &mut workspace,
-            &mut dev_info,
+        let mut a = DeviceMemory::from_slice(
+            context.cuda_context(),
+            &[
+                2.0_f32, 0.0, //
+                0.0, 4.0,
+            ],
         )?;
+        let b = DeviceMemory::from_slice(
+            context.cuda_context(),
+            &[
+                6.0_f32, //
+                8.0,
+            ],
+        )?;
+        let mut x = DeviceMemory::<f32>::create_uninit(context.cuda_context(), 2)?;
+        let workspace_bytes = xgesv_buffer_size::<f32>(&context, &mut params, 2, 1)?;
+        let mut workspace =
+            DeviceMemory::<u8>::create_uninit(context.cuda_context(), workspace_bytes)?;
+        let mut dev_info = DeviceMemory::<i32>::create_uninit(context.cuda_context(), 1)?;
 
+        let stream = context.cuda_context().create_stream()?;
+        context.set_stream(Some(&stream))?;
+        stream.sync_scope(|_| {
+            // SAFETY: disjoint buffers and IRS handles survive the draining scope.
+            Ok(unsafe {
+                xgesv(
+                    &context,
+                    &mut params,
+                    &mut infos,
+                    2,
+                    1,
+                    MatrixMut::new(&mut a, 2),
+                    MatrixRef::new(&b, 2),
+                    MatrixOutput::new(&mut x, 2),
+                    &mut workspace,
+                    &mut dev_info,
+                )
+            })
+        })??;
+
+        // SAFETY: successful completion writes the first status element.
+        let dev_info = unsafe { dev_info.assume_init() };
         assert_eq!(dev_info.copy_to_host_vec()?, vec![0]);
+        // SAFETY: status is zero and the compact 2x1 solution has been produced.
+        let x = unsafe { x.assume_init() };
         assert_eq!(x.copy_to_host_vec()?, vec![3.0, 2.0]);
         Ok(())
     }

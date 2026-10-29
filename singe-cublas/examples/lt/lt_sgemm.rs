@@ -8,6 +8,7 @@ use singe_cublas::{
     },
     types::{ComputeType, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
 };
@@ -21,10 +22,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&[1.0_f32, 3.0, 2.0, 4.0])?;
-    let b = DeviceMemory::from_slice(&[5.0_f32, 7.0, 6.0, 8.0])?;
-    let c = DeviceMemory::<f32>::zeroes((M * N) as usize)?;
-    let mut d = DeviceMemory::<f32>::zeroes((M * N) as usize)?;
+    let a = DeviceMemory::from_slice(&cuda, &[1.0_f32, 3.0, 2.0, 4.0])?;
+    let b = DeviceMemory::from_slice(&cuda, &[5.0_f32, 7.0, 6.0, 8.0])?;
+    let c = DeviceMemory::<f32>::zeroed(&cuda, (M * N) as usize)?;
+    let mut d = DeviceMemory::<f32>::create_uninit(&cuda, (M * N) as usize)?;
 
     let a_layout = MatrixLayout::create(DataType::F32, M, K, M as i64)?;
     let b_layout = MatrixLayout::create(DataType::F32, K, N, K as i64)?;
@@ -48,28 +49,34 @@ fn main() -> Result<(), Box<dyn Error>> {
         1,
     )?;
 
-    let mut workspace = DeviceMemory::<u8>::create(heuristics[0].workspace_size)?;
+    let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, heuristics[0].workspace_size)?;
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
 
-    matmul(
-        &lt,
-        &desc,
-        &alpha,
-        &a,
-        &a_layout,
-        &b,
-        &b_layout,
-        &beta,
-        &c,
-        &c_layout,
-        &mut d,
-        &d_layout,
-        Some(&heuristics[0].algorithm),
-        Some(&mut workspace),
-        None,
-    )?;
+    // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
+    unsafe {
+        matmul(
+            &lt,
+            &desc,
+            &alpha,
+            &a,
+            &a_layout,
+            &b,
+            &b_layout,
+            &beta,
+            &c,
+            &c_layout,
+            &mut d.output(),
+            &d_layout,
+            Some(&heuristics[0].algorithm),
+            Some(&mut workspace),
+            None,
+        )
+    }?;
+    cuda.synchronize()?;
 
+    // SAFETY: the packed output descriptor covers every element and matmul has completed.
+    let d = unsafe { d.assume_init() };
     let result = d.copy_to_host_vec()?;
     assert_eq!(result, vec![19.0, 43.0, 22.0, 50.0]);
     println!("lt_sgemm result: {result:?}");

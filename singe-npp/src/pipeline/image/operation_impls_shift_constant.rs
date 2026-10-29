@@ -3,27 +3,31 @@ use crate::{
     error::Result,
     image::{
         arithmetic,
-        view::{C1, C3, C4, ImageView, ImageViewMut},
+        view::{C1, C3, C4, ImageOutputView, ImageView, ImageViewMut},
     },
-};
-
-use super::{
-    ImagePipeline,
-    operation_traits::{LeftShiftConstantImage, RightShiftConstantImage},
+    pipeline::image::{
+        ImagePipeline,
+        operation_traits::{LeftShiftConstantImage, RightShiftConstantImage},
+    },
 };
 
 macro_rules! impl_right_shift_constant_image {
     ($ty:ty, $layout:ty, $constant_ty:ty, $shift:path, $shift_in_place:path) => {
-        impl<'a> RightShiftConstantImage<$ty, $layout> for ImagePipeline<'a, $ty, $layout> {
+        unsafe impl<'a> RightShiftConstantImage<$ty, $layout> for ImagePipeline<'a, $ty, $layout> {
             type Constant = $constant_ty;
 
             fn right_shift_constant_image(
                 stream_context: &StreamContext,
                 source: &ImageView<'_, $ty, $layout>,
                 constant: Self::Constant,
-                destination: &mut ImageViewMut<'_, $ty, $layout>,
+                destination: &mut ImageOutputView<'_, $ty, $layout>,
             ) -> Result<()> {
-                $shift(stream_context, source, constant, destination)
+                stream_context.stream().ensure_not_capturing()?;
+                stream_context.prepare_region(source)?;
+                stream_context.prepare_region(destination)?;
+                stream_context
+                    // SAFETY: the regions were prepared on this stream above, and `sync_scope` completes the work before the borrows end.
+                    .sync_scope(|| unsafe { $shift(stream_context, source, constant, destination) })
             }
 
             fn right_shift_constant_image_in_place(
@@ -31,7 +35,12 @@ macro_rules! impl_right_shift_constant_image {
                 constant: Self::Constant,
                 source_destination: &mut ImageViewMut<'_, $ty, $layout>,
             ) -> Result<()> {
-                $shift_in_place(stream_context, constant, source_destination)
+                stream_context.stream().ensure_not_capturing()?;
+                stream_context.prepare_region(source_destination)?;
+                // SAFETY: the regions were prepared on this stream above, and `sync_scope` completes the work before the borrows end.
+                stream_context.sync_scope(|| unsafe {
+                    $shift_in_place(stream_context, constant, source_destination)
+                })
             }
         }
     };
@@ -39,16 +48,21 @@ macro_rules! impl_right_shift_constant_image {
 
 macro_rules! impl_left_shift_constant_image {
     ($ty:ty, $layout:ty, $constant_ty:ty, $shift:path, $shift_in_place:path) => {
-        impl<'a> LeftShiftConstantImage<$ty, $layout> for ImagePipeline<'a, $ty, $layout> {
+        unsafe impl<'a> LeftShiftConstantImage<$ty, $layout> for ImagePipeline<'a, $ty, $layout> {
             type Constant = $constant_ty;
 
             fn left_shift_constant_image(
                 stream_context: &StreamContext,
                 source: &ImageView<'_, $ty, $layout>,
                 constant: Self::Constant,
-                destination: &mut ImageViewMut<'_, $ty, $layout>,
+                destination: &mut ImageOutputView<'_, $ty, $layout>,
             ) -> Result<()> {
-                $shift(stream_context, source, constant, destination)
+                stream_context.stream().ensure_not_capturing()?;
+                stream_context.prepare_region(source)?;
+                stream_context.prepare_region(destination)?;
+                stream_context
+                    // SAFETY: the regions were prepared on this stream above, and `sync_scope` completes the work before the borrows end.
+                    .sync_scope(|| unsafe { $shift(stream_context, source, constant, destination) })
             }
 
             fn left_shift_constant_image_in_place(
@@ -56,7 +70,12 @@ macro_rules! impl_left_shift_constant_image {
                 constant: Self::Constant,
                 source_destination: &mut ImageViewMut<'_, $ty, $layout>,
             ) -> Result<()> {
-                $shift_in_place(stream_context, constant, source_destination)
+                stream_context.stream().ensure_not_capturing()?;
+                stream_context.prepare_region(source_destination)?;
+                // SAFETY: the regions were prepared on this stream above, and `sync_scope` completes the work before the borrows end.
+                stream_context.sync_scope(|| unsafe {
+                    $shift_in_place(stream_context, constant, source_destination)
+                })
             }
         }
     };
@@ -89,13 +108,9 @@ macro_rules! impl_shift_constant_image {
     };
 }
 
-#[path = "operation_impls_ac4_shift_constant.rs"]
 mod ac4_shift_constant;
-#[path = "operation_impls_i32_shift_constant.rs"]
 mod i32_shift_constant;
-#[path = "operation_impls_signed_right_shift_constant.rs"]
 mod signed_right_shift_constant;
-#[path = "operation_impls_u16_shift_constant.rs"]
 mod u16_shift_constant;
 
 impl_shift_constant_image!(
@@ -107,6 +122,7 @@ impl_shift_constant_image!(
     arithmetic::left_shift_constant_u8_c1,
     arithmetic::left_shift_constant_u8_c1_in_place
 );
+
 impl_shift_constant_image!(
     u8,
     C3,
@@ -116,6 +132,7 @@ impl_shift_constant_image!(
     arithmetic::left_shift_constant_u8_c3,
     arithmetic::left_shift_constant_u8_c3_in_place
 );
+
 impl_shift_constant_image!(
     u8,
     C4,

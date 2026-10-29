@@ -1,0 +1,157 @@
+{
+  "NVJPEG2K_BACKEND_DEFAULT": {
+    "doc": "Default backend implementation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv417nvjpeg2kBackend_t"
+  },
+  "NVJPEG2K_COLORSPACE_GRAY": {
+    "doc": "Grayscale.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kColorSpace_t"
+  },
+  "NVJPEG2K_COLORSPACE_NOT_SUPPORTED": {
+    "doc": "Color space is not supported.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kColorSpace_t"
+  },
+  "NVJPEG2K_COLORSPACE_SRGB": {
+    "doc": "sRGB color space.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kColorSpace_t"
+  },
+  "NVJPEG2K_COLORSPACE_SYCC": {
+    "doc": "sYCC color space.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kColorSpace_t"
+  },
+  "NVJPEG2K_COLORSPACE_UNKNOWN": {
+    "doc": "Color space is unknown.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv420nvjpeg2kColorSpace_t"
+  },
+  "NVJPEG2K_CPRL": {
+    "doc": "Component-Position-Resolution-Layer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kProgOrder_t"
+  },
+  "NVJPEG2K_FORMAT_INTERLEAVED": {
+    "doc": "All components are stored in interleaved order. Not supported when component dimensions differ.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kImageFormat_t"
+  },
+  "NVJPEG2K_FORMAT_PLANAR": {
+    "doc": "All components are stored in separate planes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kImageFormat_t"
+  },
+  "NVJPEG2K_INT16": {
+    "doc": "Signed 16-bit integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kImageType_t"
+  },
+  "NVJPEG2K_LRCP": {
+    "doc": "Layer-Resolution-Component-Position.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kProgOrder_t"
+  },
+  "NVJPEG2K_PCRL": {
+    "doc": "Position-Component-Resolution-Layer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kProgOrder_t"
+  },
+  "NVJPEG2K_QUALITY_TYPE_QUANTIZATION_STEP": {
+    "doc": "Quality value is interpreted as quantization step (by how much pixel data will be divided). The higher the value, the worse quality image is produced. Quality value should be positive floating point.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kQualityType_t"
+  },
+  "NVJPEG2K_QUALITY_TYPE_Q_FACTOR": {
+    "doc": "Quality value is interpreted as JPEG-like quality factor (1.0 worst to 100.0 best). Can only be used when the input colorspace is YCC, Grayscale, or RGB with MCT enabled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kQualityType_t"
+  },
+  "NVJPEG2K_QUALITY_TYPE_TARGET_PSNR": {
+    "doc": "Quality value is interpreted as desired Peak Signal-to-Noise Ratio (PSNR) target. The higher the value, the better quality image is produced. Quality value should be positive floating point. Cannot be used with HT encoder.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv421nvjpeg2kQualityType_t"
+  },
+  "NVJPEG2K_RLCP": {
+    "doc": "Resolution-Layer-Component-Position.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kProgOrder_t"
+  },
+  "NVJPEG2K_RPCL": {
+    "doc": "Resolution-Position-Component-Layer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kProgOrder_t"
+  },
+  "NVJPEG2K_STATUS_ALLOCATOR_FAILURE": {
+    "doc": "The user-provided allocator functions, for either memory allocation or for releasing the memory, returned a non-zero code.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_ARCH_MISMATCH": {
+    "doc": "The device capabilities are not enough for the set of input parameters provided.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_BAD_JPEG": {
+    "doc": "Cannot parse the JPEG2000 stream. Likely due to a corruption that cannot be handled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_EXECUTION_FAILED": {
+    "doc": "Error during the execution of the device tasks.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_IMPLEMENTATION_NOT_SUPPORTED": {
+    "doc": "API is not supported by the backend.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_INTERNAL_ERROR": {
+    "doc": "Unknown error occurred in the library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_INVALID_PARAMETER": {
+    "doc": "Wrong parameter was passed. For example, a null pointer as input data, or an invalid enum value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_JPEG_NOT_SUPPORTED": {
+    "doc": "Attempting to decode a JPEG2000 stream that is not supported by the nvJPEG2000 library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_NOT_INITIALIZED": {
+    "doc": "The library handle was not initialized.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STATUS_SUCCESS": {
+    "doc": "The API call finished successfully. Note that many calls are asynchronous and some errors may only appear after synchronization.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv416nvjpeg2kStatus_t"
+  },
+  "NVJPEG2K_STREAM_J2K": {
+    "doc": "JPEG2000 codestream (.j2k).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv423nvjpeg2kBitstreamType_t"
+  },
+  "NVJPEG2K_STREAM_JP2": {
+    "doc": "JP2 container (.jp2).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv423nvjpeg2kBitstreamType_t"
+  },
+  "NVJPEG2K_UINT16": {
+    "doc": "Unsigned 16-bit integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kImageType_t"
+  },
+  "NVJPEG2K_UINT8": {
+    "doc": "Unsigned 8-bit integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/cuda/nvjpeg2000/apireference.html#_CPPv419nvjpeg2kImageType_t"
+  }
+}

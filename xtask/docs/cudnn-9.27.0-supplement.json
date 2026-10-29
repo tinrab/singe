@@ -1,0 +1,2037 @@
+{
+  "CUDNN_16BIT_INDICES": {
+    "doc": "Compute unsigned short indices.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnindicestype-t"
+  },
+  "CUDNN_32BIT_INDICES": {
+    "doc": "Compute unsigned int indices.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnindicestype-t"
+  },
+  "CUDNN_64BIT_INDICES": {
+    "doc": "Compute unsigned long indices.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnindicestype-t"
+  },
+  "CUDNN_8BIT_INDICES": {
+    "doc": "Compute unsigned char indices.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnindicestype-t"
+  },
+  "CUDNN_ACTIVATION_CLIPPED_RELU": {
+    "doc": "Selects the clipped rectified linear function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnactivationmode-t"
+  },
+  "CUDNN_ACTIVATION_ELU": {
+    "doc": "Selects the exponential linear function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnactivationmode-t"
+  },
+  "CUDNN_ACTIVATION_IDENTITY": {
+    "doc": "Selects the identity function, intended for bypassing the activation step in `cudnnConvolutionBiasActivationForward`. (The `cudnnConvolutionBiasActivationForward` function must use `CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM`.) Does not work with `cudnnActivationForward` or `cudnnActivationBackward`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnactivationmode-t"
+  },
+  "CUDNN_ACTIVATION_RELU": {
+    "doc": "Selects the rectified linear function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnactivationmode-t"
+  },
+  "CUDNN_ACTIVATION_SIGMOID": {
+    "doc": "Selects the sigmoid function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnactivationmode-t"
+  },
+  "CUDNN_ACTIVATION_SWISH": {
+    "doc": "Selects the swish function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnactivationmode-t"
+  },
+  "CUDNN_ACTIVATION_TANH": {
+    "doc": "Selects the hyperbolic tangent function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnactivationmode-t"
+  },
+  "CUDNN_ATTR_CONVOLUTION_COMP_TYPE": {
+    "doc": "The compute type of the convolution operator.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DATA_TYPE`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor"
+  },
+  "CUDNN_ATTR_CONVOLUTION_DILATIONS": {
+    "doc": "Filter dilation.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one or more, but at most `CUDNN_MAX_DIMS` elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor"
+  },
+  "CUDNN_ATTR_CONVOLUTION_FILTER_STRIDES": {
+    "doc": "Filter stride.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one or more, but at most `CUDNN_MAX_DIMS` elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor"
+  },
+  "CUDNN_ATTR_CONVOLUTION_MODE": {
+    "doc": "Convolution or cross-correlation mode.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_CONVOLUTION_MODE`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor"
+  },
+  "CUDNN_ATTR_CONVOLUTION_POST_PADDINGS": {
+    "doc": "Padding at the end of each spatial dimension.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one or more, but at most `CUDNN_MAX_DIMS` elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor"
+  },
+  "CUDNN_ATTR_CONVOLUTION_PRE_PADDINGS": {
+    "doc": "Padding at the beginning of each spatial dimension.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one or more, but at most `CUDNN_MAX_DIMS` elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor"
+  },
+  "CUDNN_ATTR_CONVOLUTION_SPATIAL_DIMS": {
+    "doc": "The number of spatial dimensions, expected array length for each of dilations, filter strides, and padding arrays.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_BEHAVIOR_NOTE": {
+    "doc": "The behavior attributes of the engine.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BEHAVIOR_NOTE`]; zero or more elements.\n* Read-only attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_DEVICEPROP": {
+    "doc": "The descriptor of the device that this engine descriptor targets.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_DEVICEPROP_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-deviceprop-descriptor).\n* Optional attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_GLOBAL_INDEX": {
+    "doc": "The index for the engine.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Valid values are between `0` and `CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT-1`.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_KNOB_INFO": {
+    "doc": "The descriptors of performance knobs of the engine.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_KNOB_INFO_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-knob-info-descriptor).\n* Read-only attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_LAYOUT_INFO": {
+    "doc": "The preferred tensor layouts of the engine.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_LAYOUT_INFO_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-layout-info-descriptor).\n* Read-only attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_NUMERICAL_NOTE": {
+    "doc": "The numerical attributes of the engine.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_NUMERICAL_NOTE`]; zero or more elements.\n* Read-only attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_OPERATION_GRAPH": {
+    "doc": "The operation graph to compute.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operationgraph-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_SHARED_MEMORY_LIMIT": {
+    "doc": "Sets a dynamic shared memory budget for the engine, in bytes.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT32`]; one element.\n* A value of `0` uses the device limit. Values greater than the device limit are clamped to the device limit.\n* FORT/native runtime-fusion engines use the budget when resolving pipeline stages. Other engines ignore it.\n* Optional attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_ENGINE_SM_COUNT_TARGET": {
+    "doc": "The number of SMs to target.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT32`]; one element.\n* Valid values are between `0` and the number of SMs on the device, where `0` is default meaning all the SMs will be used.\n* Optional attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-engine-descriptor"
+  },
+  "CUDNN_ATTR_OPERATIONGRAPH_ENGINE_GLOBAL_COUNT": {
+    "doc": "The number of engines to support the operation graph.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Read-only attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operationgraph-descriptor"
+  },
+  "CUDNN_ATTR_OPERATIONGRAPH_ENGINE_SUPPORTED_COUNT": {
+    "doc": "The number of engines that support the operation graph.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Read-only attribute.\n* Currently unsupported. Placeholder for future implementation.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operationgraph-descriptor"
+  },
+  "CUDNN_ATTR_OPERATIONGRAPH_HANDLE": {
+    "doc": "A cuDNN handle.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_HANDLE`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operationgraph-descriptor"
+  },
+  "CUDNN_ATTR_OPERATIONGRAPH_IS_DYNAMIC_SHAPE_ENABLED": {
+    "doc": "Whether dynamic shape is enabled for the operation graph. The rest of the backend API will treat the graph as a dynamic shape graph and enable this feature.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN`]; one element.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operationgraph-descriptor"
+  },
+  "CUDNN_ATTR_OPERATIONGRAPH_OPS": {
+    "doc": "Operation nodes to form the operation graph.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one or more elements of descriptor type `CUDNN_BACKEND_OPERATION_*_DESCRIPTOR`.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operationgraph-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONCAT_AXIS": {
+    "doc": "The dimension which tensors are being concatenated over.\n\n* Type: [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]\n* Required attribute.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-concat-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONCAT_INPLACE_INDEX": {
+    "doc": "The index of input tensor in the vector of input tensor descriptors that is already present in-place in the output tensor.\n\n* Type: [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]\n* Optional attribute.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-concat-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONCAT_INPUT_DESCS": {
+    "doc": "A vector of input tensor descriptors, which are concatenated in the same order as provided in this vector.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one or more elements of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-concat-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONCAT_OUTPUT_DESC": {
+    "doc": "The output tensor descriptor for the result from concatenation of input tensors.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-concat-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_ALPHA": {
+    "doc": "The alpha value.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-data-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_BETA": {
+    "doc": "The beta value.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-data-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_CONV_DESC": {
+    "doc": "The convolution operator descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-data-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DX": {
+    "doc": "The image gradient tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-data-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_DY": {
+    "doc": "The response gradient tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-data-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_DATA_W": {
+    "doc": "The convolution filter tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-data-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_ALPHA": {
+    "doc": "The alpha value.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.\n* Required attribute. Required to be set before finalization.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-filter-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_BETA": {
+    "doc": "The beta value.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.\n* Required attribute. Required to be set before finalization.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-filter-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_CONV_DESC": {
+    "doc": "The convolution operator descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor).\n* Required attribute. Required to be set before finalization.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-filter-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DW": {
+    "doc": "The convolution filter tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute. Required to be set before finalization.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-filter-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_DY": {
+    "doc": "The response gradient tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute. Required to be set before finalization.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-filter-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_BWD_FILTER_X": {
+    "doc": "The image gradient tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute. Required to be set before finalization.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-backward-filter-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_ALPHA": {
+    "doc": "The alpha value.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.\n* Required to be set before finalization.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-forward-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_BETA": {
+    "doc": "The beta value.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`] or [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]; one or more elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-forward-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_CONV_DESC": {
+    "doc": "The convolution operator descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_CONVOLUTION_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-convolution-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-forward-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_W": {
+    "doc": "The convolution filter tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-forward-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_X": {
+    "doc": "The image tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-forward-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_CONVOLUTION_FORWARD_Y": {
+    "doc": "The response tensor descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-convolution-forward-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_MATMUL_ADESC": {
+    "doc": "The Matrix A descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_MATMUL_BDESC": {
+    "doc": "The Matrix B descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_MATMUL_CDESC": {
+    "doc": "The Matrix C descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_MATMUL_DESC": {
+    "doc": "The `matmul` operation descriptor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_MATMUL_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-matmul-descriptor).\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_MATMUL_GEMM_K_OVERRIDE_DESC": {
+    "doc": "The tensor `gemm_k_override` descriptor. Allows you to override the K dimension of a batch matmul through this tensor. It is only supported as documented in the [Fused Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-fprop), [Fused Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-bprop), [Fused Flash Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-fprop \"(in NVIDIA cuDNN)\"), and [Fused Flash Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-bprop \"(in NVIDIA cuDNN)\") sections.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Optional attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_MATMUL_GEMM_M_OVERRIDE_DESC": {
+    "doc": "The tensor `gemm_m_override` descriptor. Allows you to override the M dimension of a batch matmul through this tensor. It is only supported as documented in the [Fused Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-fprop), [Fused Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-bprop), [Fused Flash Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-fprop \"(in NVIDIA cuDNN)\"), and [Fused Flash Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-bprop \"(in NVIDIA cuDNN)\") sections.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Optional attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_MATMUL_GEMM_N_OVERRIDE_DESC": {
+    "doc": "The tensor `gemm_n_override` descriptor. Allows you to override the N dimension of a batch matmul through this tensor. It is only supported as documented in the [Fused Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-fprop), [Fused Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/developer/graph-api.html#fused-multi-head-att-bprop), [Fused Flash Attention fprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-fprop \"(in NVIDIA cuDNN)\"), and [Fused Flash Attention bprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#flash-fused-multi-head-att-bprop \"(in NVIDIA cuDNN)\") sections.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Optional attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_MATMUL_IRREGULARLY_STRIDED_BATCH_COUNT": {
+    "doc": "Number of `matmul` operations to perform in the batch on matrix.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Default value is `1`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-matmul-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_REDUCTION_DESC": {
+    "doc": "The `reduction` operation descriptor.\n\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`] one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-reduction-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_REDUCTION_XDESC": {
+    "doc": "The matrix `X` descriptor.\n\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`] one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-reduction-descriptor"
+  },
+  "CUDNN_ATTR_OPERATION_REDUCTION_YDESC": {
+    "doc": "The matrix `Y` descriptor.\n\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`] one element of descriptor type [CUDNN_BACKEND_TENSOR_DESCRIPTOR](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor).\n* Required attribute.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-operation-reduction-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_AXIS": {
+    "doc": "Sets the axis value for `GEN_INDEX`. The index will be generated for this axis.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Default value is `-1`.\n* Needs to lie between `[0,input_dim_size-1]`. For example, if your input has dimensions [N,C,H,W], the axis can be set to anything in `[0,3]`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_ELU_ALPHA": {
+    "doc": "Sets the alpha value for ELU. If `(value &lt; 0.0) value = alpha * (e^value - 1.0)`:\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.\n* Default value is `1.0f`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_MATH_PREC": {
+    "doc": "The math precision of the computation.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DATA_TYPE`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_MODE": {
+    "doc": "Mode of the pointwise operation.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_POINTWISE_MODE`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_NAN_PROPAGATION": {
+    "doc": "Specifies a method by which to propagate NaNs.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_NAN_PROPOGATION`]; one element.\n* Required only for comparison based pointwise modes, like ReLU.\n* Current support only includes enum value [`cudnnNanPropagation_t::CUDNN_PROPAGATE_NAN`].\n* Default value is [`cudnnNanPropagation_t::CUDNN_NOT_PROPAGATE_NAN`].\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP": {
+    "doc": "Sets the lower clip value for ReLU. If `(value &lt; lower_clip) value = lower_clip + lower_clip_slope * (value - lower_clip)`:\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.\n* Default value is `0.0f`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_RELU_LOWER_CLIP_SLOPE": {
+    "doc": "Sets the lower clip slope value for ReLU. If `(value &lt; lower_clip) value = lower_clip + lower_clip_slope * (value - lower_clip)`:\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.\n* Default value is `0.0f`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_RELU_UPPER_CLIP": {
+    "doc": "Sets the upper clip value for ReLU. If `(value > upper_clip) value = upper_clip`:\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.\n* Default value is `Numeric limit max`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_SOFTPLUS_BETA": {
+    "doc": "Sets the beta value for softplus. If `value = log (1 + e^(beta * value)) / beta`:\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.\n* Default value is `1.0f`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_POINTWISE_SWISH_BETA": {
+    "doc": "Sets the beta value for swish. If `value = value / (1 + e^(-beta * value))`:\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DOUBLE`]/ [`cudnnBackendAttributeType_t::CUDNN_TYPE_FLOAT`]; one element.\n* Default value is `1.0f`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-pointwise-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_BYTE_ALIGNMENT": {
+    "doc": "Byte alignment of pointers for this tensor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_DATA_TYPE": {
+    "doc": "Data type of tensor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_DATA_TYPE`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_DIMENSIONS": {
+    "doc": "Tensor dimensions.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; at most `CUDNN_MAX_DIMS` elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_IS_VIRTUAL": {
+    "doc": "Indicates whether the tensor is virtual. A virtual tensor is an intermediate tensor in the operation graph that exists in transient and not read from or written to in global device memory.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN`]; one element.\n* Default value is `false`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_RAGGED_OFFSET_DESC": {
+    "doc": "A ragged tensor, that is, a tensor with nested variable length lists as inner dimensions, will have another tensor called the ragged offset descriptor that contains offsets in memory to the next variable length list.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_BACKEND_DESCRIPTOR`]; one element.\n* Default value is `None`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_STRIDES": {
+    "doc": "Tensor strides.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; at most `CUDNN_MAX_DIMS` elements.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_UNIQUE_ID": {
+    "doc": "An integer that uniquely identifies the tensor.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Required attribute.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_VECTORIZED_DIMENSION": {
+    "doc": "Index of the vectorized dimension.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Required to be set before finalization if [`cudnnBackendAttributeName_t::CUDNN_ATTR_TENSOR_VECTOR_COUNT`] is set to a value different than its default; otherwise it’s ignored.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_ATTR_TENSOR_VECTOR_COUNT": {
+    "doc": "Size of vectorization.\n\n```text\n* [`cudnnBackendAttributeType_t::CUDNN_TYPE_INT64`]; one element.\n* Default value is `1`.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnn-backend-tensor-descriptor"
+  },
+  "CUDNN_BATCHNORM_OPS_BN": {
+    "doc": "Only batch normalization is performed, per-activation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormops-t"
+  },
+  "CUDNN_BATCHNORM_OPS_BN_ACTIVATION": {
+    "doc": "First, the batch normalization is performed, and then the activation is performed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormops-t"
+  },
+  "CUDNN_BATCHNORM_OPS_BN_ADD_ACTIVATION": {
+    "doc": "Performs the batch normalization, then element-wise addition, followed by the activation operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormops-t"
+  },
+  "CUDNN_BATCHNORM_PER_ACTIVATION": {
+    "doc": "Normalization is performed per-activation. This mode is intended to be used after the non-convolutional network layers. In this mode, the tensor dimensions of `bnBias` and `bnScale` and the parameters used in the `cudnnBatchNormalization*` functions are 1xCxHxW.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormmode-t"
+  },
+  "CUDNN_BATCHNORM_SPATIAL": {
+    "doc": "Normalization is performed over N+spatial dimensions. This mode is intended for use after convolutional layers (where spatial invariance is desired). In this mode, the `bnBias` and `bnScale` tensor dimensions are 1xCx1x1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormmode-t"
+  },
+  "CUDNN_BATCHNORM_SPATIAL_PERSISTENT": {
+    "doc": "This mode is similar to [`cudnnBatchNormMode_t::CUDNN_BATCHNORM_SPATIAL`] but it can be faster for some tasks.\n\nAn optimized path may be selected for [`cudnnDataType_t::CUDNN_DATA_FLOAT`] and [`cudnnDataType_t::CUDNN_DATA_HALF`] types, compute capability 6.0 or higher for the following two batch normalization API calls: [cudnnBatchNormalizationForwardTraining()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormalizationforwardtraining), and [cudnnBatchNormalizationBackward()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormalizationbackward). In the case of [cudnnBatchNormalizationBackward()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormalizationbackward), the `savedMean` and `savedInvVariance` arguments should not be `NULL`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnbatchnormmode-t"
+  },
+  "CUDNN_BIDIRECTIONAL": {
+    "doc": "Each layer of the network iterates recurrently from the first input to the last and separately from the last input to the first. The outputs of the two are concatenated at each iteration giving the output of the layer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnndirectionmode-t"
+  },
+  "CUDNN_CONVOLUTION": {
+    "doc": "In this mode, a convolution operation will be done when applying the filter to the images.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnconvolutionmode-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_DATA_ALGO_0": {
+    "doc": "This algorithm expresses the convolution as a sum of matrix products without actually explicitly forming the matrix that holds the input tensor data. The sum is done using the atomic add operation, thus the results are non-deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwddataalgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_DATA_ALGO_1": {
+    "doc": "This algorithm expresses the convolution as a matrix product without actually explicitly forming the matrix that holds the input tensor data. The results are deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwddataalgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT": {
+    "doc": "This algorithm uses a Fast-Fourier Transform approach to compute the convolution. A significant memory workspace is needed to store intermediate results. The results are deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwddataalgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING": {
+    "doc": "This algorithm uses the Fast-Fourier Transform approach but splits the inputs into tiles. A significant memory workspace is needed to store intermediate results but less than [`cudnnConvolutionBwdDataAlgo_t::CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT`] for large size images. The results are deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwddataalgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD": {
+    "doc": "This algorithm uses the Winograd Transform approach to compute the convolution. A reasonably sized workspace is needed to store intermediate results. The results are deterministic.\n\n# Note\n\nThe [`cudnnConvolutionBwdDataAlgo_t::CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD`] algorithm is **not** supported on GPUs based on the NVIDIA Hopper GPU architecture and later GPU architectures.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwddataalgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED": {
+    "doc": "This algorithm uses the Winograd Transform approach to compute the convolution. A significant workspace may be needed to store intermediate results. The results are deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwddataalgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0": {
+    "doc": "This algorithm expresses the convolution as a sum of matrix products without actually explicitly forming the matrix that holds the input tensor data. The sum is done using the atomic add operation, thus the results are non-deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwdfilteralgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1": {
+    "doc": "This algorithm expresses the convolution as a matrix product without actually explicitly forming the matrix that holds the input tensor data. The results are deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwdfilteralgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3": {
+    "doc": "This algorithm is similar to [`cudnnConvolutionBwdFilterAlgo_t::CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0`] but uses some small workspace to precompute some indices. The results are also non-deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwdfilteralgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT": {
+    "doc": "This algorithm uses the Fast-Fourier Transform approach to compute the convolution. A significant workspace is needed to store intermediate results. The results are deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwdfilteralgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING": {
+    "doc": "This algorithm uses the Fast-Fourier Transform approach to compute the convolution but splits the input tensor into tiles. A significant workspace may be needed to store intermediate results. The results are deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwdfilteralgo-t"
+  },
+  "CUDNN_CONVOLUTION_BWD_FILTER_WINOGRAD_NONFUSED": {
+    "doc": "This algorithm uses the Winograd Transform approach to compute the convolution. A significant workspace may be needed to store intermediate results. The results are deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionbwdfilteralgo-t"
+  },
+  "CUDNN_CONVOLUTION_FWD_ALGO_DIRECT": {
+    "doc": "This algorithm expresses the convolution as a direct convolution (for example, without implicitly or explicitly doing a matrix multiplication).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionfwdalgo-t"
+  },
+  "CUDNN_CONVOLUTION_FWD_ALGO_FFT": {
+    "doc": "This algorithm uses the Fast-Fourier Transform approach to compute the convolution. A significant memory workspace is needed to store intermediate results.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionfwdalgo-t"
+  },
+  "CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING": {
+    "doc": "This algorithm uses the Fast-Fourier Transform approach but splits the inputs into tiles. A significant memory workspace is needed to store intermediate results but less than [`cudnnConvolutionFwdAlgo_t::CUDNN_CONVOLUTION_FWD_ALGO_FFT`] for large size images.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionfwdalgo-t"
+  },
+  "CUDNN_CONVOLUTION_FWD_ALGO_GEMM": {
+    "doc": "This algorithm expresses convolution as an explicit matrix product. A significant memory workspace is needed to store the matrix that holds the input tensor data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionfwdalgo-t"
+  },
+  "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM": {
+    "doc": "This algorithm expresses the convolution as a matrix product without actually explicitly forming the matrix that holds the input tensor data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionfwdalgo-t"
+  },
+  "CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PPRECOMP_GEMM": {
+    "doc": "This algorithm expresses the convolution as a matrix product without actually explicitly forming the matrix that holds the input tensor data, but still needs some memory workspace to precompute some indices in order to facilitate the implicit construction of the matrix that holds the input tensor data.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionfwdalgo-t"
+  },
+  "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD": {
+    "doc": "This algorithm uses the Winograd Transform approach to compute the convolution. A reasonably sized workspace is needed to store intermediate results.\n\n# Note\n\nThe [`cudnnConvolutionFwdAlgo_t::CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD`] algorithm is **not** supported on GPUs based on the NVIDIA Hopper GPU architecture and later GPU architectures.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionfwdalgo-t"
+  },
+  "CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED": {
+    "doc": "This algorithm uses the Winograd Transform approach to compute the convolution. A significant workspace may be needed to store intermediate results.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnconvolutionfwdalgo-t"
+  },
+  "CUDNN_CROSS_CORRELATION": {
+    "doc": "In this mode, a cross-correlation operation will be done when applying the filter to the images.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnconvolutionmode-t"
+  },
+  "CUDNN_CTC_LOSS_ALGO_DETERMINISTIC": {
+    "doc": "Results are guaranteed to be reproducible.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnctclossalgo-t"
+  },
+  "CUDNN_CTC_LOSS_ALGO_NON_DETERMINISTIC": {
+    "doc": "Results are not guaranteed to be reproducible.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnctclossalgo-t"
+  },
+  "CUDNN_DATA_BFLOAT16": {
+    "doc": "The data is a 16-bit quantity, with 7 mantissa bits, 8 exponent bits, and 1 sign bit.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_BOOLEAN": {
+    "doc": "The data is a boolean (`bool`).\n\nNote that for type [`cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN`], elements are expected to be “packed”: that is, one byte contains 8 elements of type [`cudnnBackendAttributeType_t::CUDNN_TYPE_BOOLEAN`]. Further, within each byte, elements are indexed from the least significant bit to the most significant bit. For example, a 1 dimensional tensor of 8 elements containing 01001111 has value 1 for elements 0 through 3, 0 for elements 4 and 5, 1 for element 6 and 0 for element 7.\n\nTensors with more than 8 elements simply use more bytes, where the order is also from least significant to most significant byte. Note, CUDA is little-endian, meaning that the least significant byte has the lower memory address address. For example, in the case of 16 elements, 01001111 11111100 has value 1 for elements 0 through 3, 0 for elements 4 and 5, 1 for element 6 and 0 for element 7, value 0 for elements 8 and 9, 1 for elements 10 through 15.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_DOUBLE": {
+    "doc": "The data is a 64-bit double-precision floating-point (`double`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_FAST_FLOAT_FOR_FP8": {
+    "doc": "The data type is a higher throughput but lower precision compute type (compared to [`cudnnDataType_t::CUDNN_DATA_FLOAT`]) used for FP8 tensor core operations.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_FLOAT": {
+    "doc": "The data is a 32-bit single-precision floating-point (`float`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_FP8_E4M3": {
+    "doc": "The data is an 8-bit quantity, with 3 mantissa bits, 4 exponent bits, and 1 sign bit.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_FP8_E5M2": {
+    "doc": "The data is an 8-bit quantity, with 2 mantissa bits, 5 exponent bits, and 1 sign bit.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_HALF": {
+    "doc": "The data is a 16-bit floating-point.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_INT32": {
+    "doc": "The data is a 32-bit signed integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_INT64": {
+    "doc": "The data is a 64-bit signed integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_INT8": {
+    "doc": "The data is an 8-bit signed integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_INT8x32": {
+    "doc": "The data is 32-element vectors, each element being an 8-bit signed integer. This data type is only supported with the tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`]. Moreover, this data type can only be used with `algo 1`, meaning, `CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM`. For more information, refer to `cudnnConvolutionFwdAlgo_t`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_INT8x4": {
+    "doc": "The data is 32-bit elements each composed of 4 8-bit signed integers. This data type is only supported with the tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_UINT8": {
+    "doc": "The data is an 8-bit unsigned integer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DATA_UINT8x4": {
+    "doc": "The data is 32-bit elements each composed of 4 8-bit unsigned integers. This data type is only supported with the tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnndatatype-t"
+  },
+  "CUDNN_DEFAULT_MATH": {
+    "doc": "Tensor Core operations are not used on pre-NVIDIA A100 GPU devices. On A100 GPU architecture devices, Tensor Core TF32 operation is permitted.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnmathtype-t"
+  },
+  "CUDNN_DETERMINISTIC": {
+    "doc": "Results are guaranteed to be reproducible.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnndeterminism-t"
+  },
+  "CUDNN_DIVNORM_PRECOMPUTED_MEANS": {
+    "doc": "The means tensor data pointer is expected to contain means or other kernel convolution values precomputed by the user. The means pointer can also be `NULL`, in that case, it’s considered to be filled with zeroes. This is equivalent to spatial LRN.\n\nIn the backward pass, the means are treated as independent inputs and the gradient over means is computed independently. In this mode, to yield a net gradient over the entire LCN computational graph, the `destDiffMeans` result should be backpropagated through the user’s means layer (which can be implemented using average pooling) and added to the `destDiffData` tensor produced by [cudnnDivisiveNormalizationBackward()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnndivisivenormalizationbackward).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnndivnormmode-t"
+  },
+  "CUDNN_ERRQUERY_BLOCKING": {
+    "doc": "Wait for all tasks to complete in the user stream before reporting the remote kernel error code.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnerrquerymode-t"
+  },
+  "CUDNN_ERRQUERY_NONBLOCKING": {
+    "doc": "Report if all tasks in the user stream of the cuDNN handle were completed. If that is the case, report the remote kernel error code.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnerrquerymode-t"
+  },
+  "CUDNN_ERRQUERY_RAWCODE": {
+    "doc": "Read the error storage location regardless of the kernel completion status.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnerrquerymode-t"
+  },
+  "CUDNN_FMA_MATH": {
+    "doc": "Restricted to only kernels that use FMA instructions.\n\nOn pre-NVIDIA A100 GPU devices, [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] and [`cudnnMathType_t::CUDNN_FMA_MATH`] have the same behavior: Tensor Core kernels will not be selected. With NVIDIA Ampere architecture and CUDA toolkit 11, [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] permits TF32 Tensor Core operation and [`cudnnMathType_t::CUDNN_FMA_MATH`] does not. The TF32 behavior for [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] and the other Tensor Core math types can be explicitly disabled by the environment variable `NVIDIA_TF32_OVERRIDE=0`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnmathtype-t"
+  },
+  "CUDNN_FUSED_BN_FINALIZE_STATISTICS_INFERENCE = 3": {
+    "doc": "Computes the equivalent `scale` and `bias` from the learned running statistics and the learned `scale` and `bias`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedops-t"
+  },
+  "CUDNN_FUSED_BN_FINALIZE_STATISTICS_TRAINING = 2": {
+    "doc": "Computes the equivalent `scale` and `bias` from `ySum`, `ySqSum`, learned `scale`, and `bias`. Optionally, update running statistics and generate saved stats.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedops-t"
+  },
+  "CUDNN_FUSED_CONV_SCALE_BIAS_ADD_ACTIVATION = 4": {
+    "doc": "On a per-channel basis, performs these operations in this order: `convolution`, `scale`, `add bias`, element-wise addition with another tensor, and `activation`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedops-t"
+  },
+  "CUDNN_FUSED_DACTIVATION_FORK_DBATCHNORM = 6": {
+    "doc": "On a per-channel basis, performs these operations in this order: backward activation, fork (meaning, write out gradient for the residual branch), and backward batch norm.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedops-t"
+  },
+  "CUDNN_FUSED_SCALE_BIAS_ACTIVATION_CONV_BNSTATS = 0": {
+    "doc": "On a per-channel basis, it performs these operations in this order: `scale`, `add bias`, `activation`, `convolution`, and generate `batchNorm` statistics.\n\nPipeline: input `x` is scaled and biased (`y_0 = scale(x) + bias`), passed through ReLU (`y_1 = ReLU(y_0)`), convolved (`y = conv(y_1, w)`), and used to compute, reduce, finalize, and update batch-normalization statistics](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/_images/cudnnFusedOps_t-1.png).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedops-t"
+  },
+  "CUDNN_FUSED_SCALE_BIAS_ACTIVATION_WGRAD = 1": {
+    "doc": "On a per-channel basis, it performs these operations in this order: `scale`, `add bias`, `activation`, convolution backward weights, and generate `batchNorm` statistics.\n\nPipeline: input `x` is scaled and biased, passed through activation, and used with convolution backward-weights to generate `dw`](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/_images/cudnnFusedOps_t-2.png).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedops-t"
+  },
+  "CUDNN_FUSED_SCALE_BIAS_ADD_ACTIVATION_GEN_BITMASK = 5": {
+    "doc": "On a per-channel basis, performs these operations in this order: `scale` and `bias` on one tensor, `scale` and `bias` on a second tensor, element-wise addition of these two tensors, and on the resulting tensor performs `activation` and generates activation bit mask.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedops-t"
+  },
+  "CUDNN_FWD_MODE_INFERENCE": {
+    "doc": "Selects the inference mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnforwardmode-t"
+  },
+  "CUDNN_FWD_MODE_TRAINING": {
+    "doc": "Selects the training mode.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnforwardmode-t"
+  },
+  "CUDNN_GENSTATS_SUM_SQSUM": {
+    "doc": "In this mode, the sum and sum of squares of the input tensor along the specified dimensions are computed and written out. The reduction dimensions currently supported are limited per channel, however additional support may be added upon request.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnngenstatsmode-t"
+  },
+  "CUDNN_GRU": {
+    "doc": "A three-gate network consisting of Gated Recurrent Units (GRU).\n\nIn the forward pass, the output h t for a given iteration can be computed from the recurrent input h t-1 and the previous layer input x t given matrices `W`, `R`, and the bias vectors. In addition, the following applies:\n\n* σ is the sigmoid operator such that: σ(x) = 1 / (1 + e -x),\n* ◦ represents a point-wise multiplication,\n* `tanh` is the hyperbolic tangent function, and\n* i t, r t, h’ t represent the input, reset, and new gates respectively.\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_DOUBLE_BIAS`] (default mode), then the following equations with biases b W and b R apply:\n\ni t = σ(W i x t + R i h t-1 + b Wi + b Ru)\n\nr t = σ(W r x t + R r h t-1 + b Wr + b Rr)\n\nh’ t = tanh(W h x t + r t ◦ (R h h t-1 + b Rh) + b Wh)\n\nh t = (1 - i t) ◦ h’ t + i t ◦ h t-1\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_SINGLE_INP_BIAS`], then the following equations with bias `b` apply:\n\ni t = σ(W i x t + R i h t-1 + b i)\n\nr t = σ(W r x t + R r h t-1 + b r)\n\nh’ t = tanh(W h x t + r t ◦ (R h h t-1) + b Wh)\n\nh t = (1 - i t) ◦ h’ t + i t ◦ h t-1\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_SINGLE_REC_BIAS`], then the following equations with bias `b` apply:\n\ni t = σ(W i x t + R i h t-1 + b i)\n\nr t = σ(W r x t + R r h t-1 + b r)\n\nh’ t = tanh(W h x t + r t ◦ (R h h t-1 + b Rh))\n\nh t = (1 - i t) ◦ h’ t + i t ◦ h t-1\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_NO_BIAS`], then the following equations apply:\n\ni t = σ(W i x t + R i h t-1)\n\nr t = σ(W r x t + R r h t-1)\n\nh’ t = tanh(W h x t + rt ◦ (R h h t-1))\n\nh t = (1 - i t) ◦ h’ t + i t ◦ h t-1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnmode-t"
+  },
+  "CUDNN_HEUR_MODE_A and CUDNN_HEUR_MODE_INSTANT": {
+    "doc": "[`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_A`] provides the exact same functionality as [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`]. The purpose of this renaming is to better match the naming of [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_B`].\n\n```text\nConsider the use of [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`] as deprecated; instead, use [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_A`].\n\n[`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_A`] utilizes a decision tree heuristic which provides optimal inference time on the CPU in comparison to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_B`].\n\n[`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_A`] and [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`] support the following operation node or operation graph:\n\n* [ConvolutionFwd](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#convolutionfwd \"(in NVIDIA cuDNN)\")\n* [ConvolutionBwdFilter](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#convolutionbwdfilter \"(in NVIDIA cuDNN)\")\n* [ConvolutionBwdData](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#convolutionbwddata \"(in NVIDIA cuDNN)\")\n* [ConvBNfprop](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#convbnfprop \"(in NVIDIA cuDNN)\")\n* [ConvBNwgrad](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#convbnwgrad \"(in NVIDIA cuDNN)\")\n* [ConvBiasAct](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#convbiasact \"(in NVIDIA cuDNN)\")\n* [ConvScaleBiasAct](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#convscalebiasact \"(in NVIDIA cuDNN)\")\n* [DgradDreluBNBwdWeight](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#dgraddrelubnbwdweight \"(in NVIDIA cuDNN)\")\n* [Patterns supported by the runtime fusion engine](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/graph-api.html#runtime-fusion-engine \"(in NVIDIA cuDNN)\")\n\nAll other operation graphs are not supported.\n```",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnbackendheurmode-t"
+  },
+  "CUDNN_HEUR_MODE_B": {
+    "doc": "Can utilize the neural net based heuristics to improve generalization performance compared to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`].\n\nIn cases where the neural net is utilized, inference time on the CPU will be increased by 10-100x compared to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`]. These neural net heuristics are not supported for any of the following cases:\n\n* 3-D convolutions\n* Grouped convolutions (`groupCount` larger than `1`)\n* Dilated convolutions (any dilation for any spatial dimension larger than `1`)\n\nFurther, the neural net is only enabled on x86 platforms when cuDNN is run on an A100 GPU. In cases where the neural net is not supported, [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_B`] will fall back to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`]. [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_B`] will also fall back to [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_INSTANT`] in cases where the overhead of [`cudnnBackendHeurMode_t::CUDNN_HEUR_MODE_B`] is projected to reduce overall network performance.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnbackendheurmode-t"
+  },
+  "CUDNN_HEUR_MODE_FALLBACK": {
+    "doc": "This heuristic mode is intended to be used for finding fallback options which provide functional support (without any expectation of providing optimal GPU performance).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnbackendheurmode-t"
+  },
+  "CUDNN_LINEAR_INPUT": {
+    "doc": "A biased matrix multiplication is performed at the input of the first recurrent layer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnninputmode-t"
+  },
+  "CUDNN_LOSS_NORMALIZATION_NONE": {
+    "doc": "The input probs of the [cudnnCTCLoss()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnctcloss) function is expected to be the normalized probability, and the output `gradients` is the gradient of loss with respect to the unnormalized probability.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnlossnormalizationmode-t"
+  },
+  "CUDNN_LOSS_NORMALIZATION_SOFTMAX": {
+    "doc": "The input probs of the [cudnnCTCLoss()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnctcloss) function is expected to be the unnormalized activation from the previous layer, and the output `gradients` is the gradient with respect to the activation. Internally the probability is computed by softmax normalization.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnlossnormalizationmode-t"
+  },
+  "CUDNN_LRN_CROSS_CHANNEL_DIM1": {
+    "doc": "LRN computation is performed across the tensor’s dimension `dimA[1]`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnlrnmode-t"
+  },
+  "CUDNN_LSTM": {
+    "doc": "A four-gate LSTM (Long Short-Term Memory) network with no peephole connections.\n\nIn the forward pass, the output h t and cell output c t for a given iteration can be computed from the recurrent input h t-1, the cell input c t-1 and the previous layer input x t, given the matrices `W`, `R`, and the bias vectors. In addition, the following applies:\n\n* σ is the sigmoid operator such that: σ(x) = 1 / (1 + e -x),\n* ◦ represents a point-wise multiplication,\n* `tanh` is the hyperbolic tangent function, and\n* i t, f t, o t, c’ t represent the input, forget, output and new gates respectively.\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_DOUBLE_BIAS`] (default mode), then the following equations with biases b W and b R apply:\n\ni t = σ(W i x t + R i h t-1 + b Wi + b Ri)\n\nf t = σ(W f x t + R f h t-1 + b Wf + b Rf)\n\no t = σ(W o x t + R o h t-1 + b Wo + b Ro)\n\nc’ t = tanh(W c x t + R c h t-1 + b Wc + b Rc)\n\nc t = f t ◦ c t-1 + i t ◦ c’ t\n\nh t = o t ◦ tanh(c t)\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_SINGLE_INP_BIAS`] or [`cudnnRNNBiasMode_t::CUDNN_RNN_SINGLE_REC_BIAS`], then the following equations with bias `b` apply:\n\ni t = σ(W i x t + R i h t-1 + b i)\n\nf t = σ(W f x t + R f h t-1 + b f)\n\no t = σ(W o x t + R o h t-1 + b o)\n\nc’ t = tanh(W c x t + R c h t-1 + b c)\n\nc t = f t ◦ c t-1 + i t ◦ c’ t\n\nh t = o t ◦ tanh(c t)\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_NO_BIAS`], then the following equations apply:\n\ni t = σ(W i x t + R i h t-1)\n\nf t = σ(W f x t + R f h t-1)\n\no t = σ(W o x t + R o h t-1)\n\nc’ t = tanh(W c x t + R c h t-1)\n\nc t = f t ◦ c t-1 + i t ◦ c’ t\n\nh t = o t ◦ tanh(c t).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnmode-t"
+  },
+  "CUDNN_MH_ATTN_K_BIASES": {
+    "doc": "Selects the input projection biases for `keys`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnmultiheadattnweightkind-t"
+  },
+  "CUDNN_MH_ATTN_K_WEIGHTS": {
+    "doc": "Selects the input projection weights for `keys`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnmultiheadattnweightkind-t"
+  },
+  "CUDNN_MH_ATTN_O_BIASES": {
+    "doc": "Selects the output projection biases.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnmultiheadattnweightkind-t"
+  },
+  "CUDNN_MH_ATTN_O_WEIGHTS": {
+    "doc": "Selects the output projection weights.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnmultiheadattnweightkind-t"
+  },
+  "CUDNN_MH_ATTN_Q_BIASES": {
+    "doc": "Selects the input projection biases for `queries`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnmultiheadattnweightkind-t"
+  },
+  "CUDNN_MH_ATTN_Q_WEIGHTS": {
+    "doc": "Selects the input projection weights for `queries`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnmultiheadattnweightkind-t"
+  },
+  "CUDNN_MH_ATTN_V_BIASES": {
+    "doc": "Selects the input projection biases for `values`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnmultiheadattnweightkind-t"
+  },
+  "CUDNN_MH_ATTN_V_WEIGHTS": {
+    "doc": "Selects the input projection weights for `values`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnmultiheadattnweightkind-t"
+  },
+  "CUDNN_NON_DETERMINISTIC": {
+    "doc": "Results are not guaranteed to be reproducible.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnndeterminism-t"
+  },
+  "CUDNN_NORM_ALGO_PERSIST": {
+    "doc": "This mode is similar to [`cudnnNormAlgo_t::CUDNN_NORM_ALGO_STANDARD`], however it only supports [`cudnnNormMode_t::CUDNN_NORM_PER_CHANNEL`] and can be faster for some tasks.\n\nAn optimized path may be selected for [`cudnnDataType_t::CUDNN_DATA_FLOAT`] and [`cudnnDataType_t::CUDNN_DATA_HALF`] types, compute capability 6.0 or higher for the following two normalization API calls: [cudnnNormalizationForwardTraining()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormalizationforwardtraining) and [cudnnNormalizationBackward()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormalizationbackward). In the case of [cudnnNormalizationBackward()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormalizationbackward), the `savedMean` and `savedInvVariance` arguments should not be `NULL`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormalgo-t"
+  },
+  "CUDNN_NORM_ALGO_STANDARD": {
+    "doc": "Standard normalization is performed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormalgo-t"
+  },
+  "CUDNN_NORM_OPS_NORM": {
+    "doc": "Only normalization is performed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormops-t"
+  },
+  "CUDNN_NORM_OPS_NORM_ACTIVATION": {
+    "doc": "First, the normalization is performed, then the activation is performed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormops-t"
+  },
+  "CUDNN_NORM_OPS_NORM_ADD_ACTIVATION": {
+    "doc": "Performs the normalization, then element-wise addition, followed by the activation operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormops-t"
+  },
+  "CUDNN_NORM_PER_ACTIVATION": {
+    "doc": "Normalization is performed per-activation. This mode is intended to be used after the non-convolutional network layers. In this mode, the tensor dimensions of `normBias` and `normScale` and the parameters used in the `cudnnNormalization*` functions are 1xCxHxW.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormmode-t"
+  },
+  "CUDNN_NORM_PER_CHANNEL": {
+    "doc": "Normalization is performed per-channel over N+spatial dimensions. This mode is intended for use after convolutional layers (where spatial invariance is desired). In this mode, the `normBias` and `normScale` tensor dimensions are 1xCx1x1.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnnormmode-t"
+  },
+  "CUDNN_NOT_PROPAGATE_NAN": {
+    "doc": "`NAN` numbers are not propagated.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnnanpropagation-t"
+  },
+  "CUDNN_OP_TENSOR_ADD": {
+    "doc": "The operation to be performed is addition.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnoptensorop-t"
+  },
+  "CUDNN_OP_TENSOR_MAX": {
+    "doc": "The operation to be performed is a maximum comparison.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnoptensorop-t"
+  },
+  "CUDNN_OP_TENSOR_MIN": {
+    "doc": "The operation to be performed is a minimum comparison.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnoptensorop-t"
+  },
+  "CUDNN_OP_TENSOR_MUL": {
+    "doc": "The operation to be performed is multiplication.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnoptensorop-t"
+  },
+  "CUDNN_OP_TENSOR_NOT": {
+    "doc": "The operation to be performed is negation, performed on only the `A` tensor.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnoptensorop-t"
+  },
+  "CUDNN_OP_TENSOR_SQRT": {
+    "doc": "The operation to be performed is square root, performed on only the `A` tensor.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnoptensorop-t"
+  },
+  "CUDNN_PARAM_BN_Z_EQSCALEBIAS_DESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnTensorDescriptor_t\\*](cudnn-ops-library.md#cudnntensordescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "CUDNN_PARAM_BN_Z_EQSCALE_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "CUDNN_PARAM_ZDATA_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "CUDNN_POINTWISE_ABS": {
+    "doc": "A pointwise absolute value of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_ADD": {
+    "doc": "A pointwise addition between two tensors is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_ADD_SQUARE": {
+    "doc": "A pointwise addition between the first tensor and the square of the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_BINARY_SELECT": {
+    "doc": "A pointwise value is selected amongst two input tensors based on a given predicate tensor.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_CEIL": {
+    "doc": "A pointwise ceiling of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_CMP_EQ": {
+    "doc": "A pointwise truth value of the first tensor equal to the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_CMP_GE": {
+    "doc": "A pointwise truth value of the first tensor greater than equal to the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_CMP_GT": {
+    "doc": "A pointwise truth value of the first tensor greater than the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_CMP_LE": {
+    "doc": "A pointwise truth value of the first tensor less than equal to the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_CMP_LT": {
+    "doc": "A pointwise truth value of the first tensor less than the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_CMP_NEQ": {
+    "doc": "A pointwise truth value of the first tensor not equal to the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_COS": {
+    "doc": "A pointwise trigonometric cosine of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_DIV": {
+    "doc": "A pointwise true division of the first tensor by second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_ELU_BWD": {
+    "doc": "A pointwise first derivative of Exponential Linear Unit activation of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_ELU_FWD": {
+    "doc": "A pointwise Exponential Linear Unit activation function of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_ERF": {
+    "doc": "A pointwise Error Function is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_EXP": {
+    "doc": "A pointwise exponential of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_FLOOR": {
+    "doc": "A pointwise floor of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_GELU_APPROX_TANH_BWD": {
+    "doc": "A pointwise first derivative of the tanh approximation of the Gaussian Error Linear Unit activation of the input tensor is computed. This is computed as $0.5\\left( 1+\\tanh\\left( b\\left( x+cx^{3} \\right) \\right)+bxsech^{2}\\left( b\\left( cx^{3}+x \\right) \\right)\\left( 3cx^{2}+1 \\right)dy \\right)$ where $b$ is $\\sqrt{2/\\pi}$ and $c$ is $0.044715$.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_GELU_APPROX_TANH_FWD": {
+    "doc": "A pointwise tanh approximation of the Gaussian Error Linear Unit activation function of the input tensor is computed. The tanh GELU approximation is computed as $0.5x\\left( 1+\\tanh\\left[ \\sqrt{2/\\pi}\\left( x+0.044715x^{3} \\right) \\right] \\right)$. For more information, refer to the [GAUSSIAN ERROR LINEAR UNIT (GELUS)](https://arxiv.org/pdf/1606.08415.pdf) paper.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_GELU_BWD": {
+    "doc": "A pointwise first derivative of Gaussian Error Linear Unit activation of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_GELU_FWD": {
+    "doc": "A pointwise Gaussian Error Linear Unit activation function of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_GEN_INDEX": {
+    "doc": "A pointwise index value of the input tensor is generated along a given axis.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_IDENTITY": {
+    "doc": "No computation is performed. As with other pointwise modes, this mode provides implicit conversions by specifying the data type of the input tensor as one type, and the data type of the output tensor as another.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_LOG": {
+    "doc": "A pointwise natural logarithm of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_LOGICAL_AND": {
+    "doc": "A pointwise truth value of the first tensor logical `AND` second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_LOGICAL_NOT": {
+    "doc": "A pointwise truth value of input tensors logical `NOT` is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_LOGICAL_OR": {
+    "doc": "A pointwise truth value of the first tensor logical `OR` second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_MAX": {
+    "doc": "A pointwise maximum is taken between two tensors.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_MIN": {
+    "doc": "A pointwise minimum is taken between two tensors.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_MOD": {
+    "doc": "A pointwise floating-point remainder of the first tensor’s division by the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_MUL": {
+    "doc": "A pointwise multiplication between two tensors is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_NEG": {
+    "doc": "A pointwise numerical negative of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_POW": {
+    "doc": "A pointwise value from the first tensor to the power of the second tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_RECIPROCAL": {
+    "doc": "A pointwise reciprocal of the input tensor is computed. In other words, for every element x in the input tensor, 1/x is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_RELU_BWD": {
+    "doc": "A pointwise first derivative of rectified linear activation of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_RELU_FWD": {
+    "doc": "A pointwise rectified linear activation function of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_RSQRT": {
+    "doc": "A pointwise reciprocal of the square root of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SIGMOID_BWD": {
+    "doc": "A pointwise first derivative of sigmoid activation of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SIGMOID_FWD": {
+    "doc": "A pointwise sigmoid activation function of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SIN": {
+    "doc": "A pointwise trigonometric sine of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SOFTPLUS_BWD": {
+    "doc": "A pointwise first derivative of softplus activation of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SOFTPLUS_FWD": {
+    "doc": "A pointwise softplus activation function of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SQRT": {
+    "doc": "A pointwise square root of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SUB": {
+    "doc": "A pointwise subtraction between two tensors is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SWISH_BWD": {
+    "doc": "A pointwise first derivative of swish activation of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_SWISH_FWD": {
+    "doc": "A pointwise swish activation function of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_TAN": {
+    "doc": "A pointwise trigonometric tangent of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_TANH_BWD": {
+    "doc": "A pointwise first derivative of tanh activation of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POINTWISE_TANH_FWD": {
+    "doc": "A pointwise tanh activation function of the input tensor is computed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnpointwisemode-t"
+  },
+  "CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING": {
+    "doc": "Values inside the pooling window are averaged. The number of elements used to calculate the average excludes spatial locations falling in the padding region.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnpoolingmode-t"
+  },
+  "CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING": {
+    "doc": "Values inside the pooling window are averaged. The number of elements used to calculate the average includes spatial locations falling in the padding region.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnpoolingmode-t"
+  },
+  "CUDNN_POOLING_MAX": {
+    "doc": "The maximum value inside the pooling window is used.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnpoolingmode-t"
+  },
+  "CUDNN_POOLING_MAX_DETERMINISTIC": {
+    "doc": "The maximum value inside the pooling window is used. The algorithm used is deterministic.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnpoolingmode-t"
+  },
+  "CUDNN_PROPAGATE_NAN": {
+    "doc": "`NAN` numbers are propagated.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnnanpropagation-t"
+  },
+  "CUDNN_PTR_16B_ALIGNED = 2": {
+    "doc": "Indicates that the pointer to the tensor in the `variantPack` will not be `NULL`, and will have 16 byte alignment.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedopspointerplaceholder-t"
+  },
+  "CUDNN_PTR_ELEM_ALIGNED = 1": {
+    "doc": "Indicates that the pointer to the tensor in the `variantPack` will not be `NULL`, and will have element alignment.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedopspointerplaceholder-t"
+  },
+  "CUDNN_PTR_NULL = 0": {
+    "doc": "Indicates that the pointer to the tensor in the `variantPack` will be `NULL`.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnfusedopspointerplaceholder-t"
+  },
+  "CUDNN_REDUCE_TENSOR_ADD": {
+    "doc": "The operation to be performed is addition.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_AMAX": {
+    "doc": "The operation to be performed is a maximum comparison of absolute values.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_AVG": {
+    "doc": "The operation to be performed is averaging.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_FLATTENED_INDICES": {
+    "doc": "Compute indices. The resulting indices are relative, and flattened.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnreducetensorindices-t"
+  },
+  "CUDNN_REDUCE_TENSOR_MAX": {
+    "doc": "The operation to be performed is a maximum comparison.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_MIN": {
+    "doc": "The operation to be performed is a minimum comparison.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_MUL": {
+    "doc": "The operation to be performed is multiplication.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_MUL_NO_ZEROS": {
+    "doc": "The operation to be performed is multiplication, not including elements of value zero.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_NORM1": {
+    "doc": "The operation to be performed is addition of absolute values.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_NORM2": {
+    "doc": "The operation to be performed is a square root of the sum of squares.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnreducetensorop-t"
+  },
+  "CUDNN_REDUCE_TENSOR_NO_INDICES": {
+    "doc": "Do not compute indices.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnreducetensorindices-t"
+  },
+  "CUDNN_RNG_DISTRIBUTION_BERNOULLI": {
+    "doc": "The bernoulli distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_BERNOULLI_DIST_PROBABILITY`] can be used to specify the probability of generating 1’s.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnrngdistribution-t"
+  },
+  "CUDNN_RNG_DISTRIBUTION_NORMAL": {
+    "doc": "The normal distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_NORMAL_DIST_MEAN`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_NORMAL_DIST_STANDARD_DEVIATION`] can be used to specify the mean and standard deviation of the random number generator.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnrngdistribution-t"
+  },
+  "CUDNN_RNG_DISTRIBUTION_UNIFORM": {
+    "doc": "The uniform distribution is used for the random number generation. The attribute [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_UNIFORM_DIST_MINIMUM`] and [`cudnnBackendAttributeName_t::CUDNN_ATTR_RNG_UNIFORM_DIST_MAXIMUM`] can be used to specify the minimum and maximum value between which the random numbers should be uniformly generated.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnrngdistribution-t"
+  },
+  "CUDNN_RNN_ALGO_PERSIST_DYNAMIC": {
+    "doc": "The recurrent parts of the network are executed using a *persistent kernel* approach. This method is expected to perform reasonably well for small RNN models. [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`] kernels are compiled at runtime and are optimized for specific parameters of the RNN model and active GPU. The limits on the maximum size of a hidden vector when using [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`] may be higher than the corresponding limits of [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_STATIC`]. This algorithm does not utilize NVIDIA Tensor Cores. [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`] is supported on devices with compute capability >= 6.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnalgo-t"
+  },
+  "CUDNN_RNN_ALGO_PERSIST_STATIC": {
+    "doc": "Input GEMMs in this algorithm are performed by cuBLASLt. Recurrent GEMMs, typically with fused element-wise cell operations, are handled by persistent kernels that require all thread blocks of a grid to run concurrently on GPU and communicate. All recurrent weights are stored collaboratively in stream multi-processor (SM) registers and optionally in shared memory. RNN cells are traversed layer-by-layer. GPUs with a larger number of SMs can handle longer hidden state vectors using this algorithm. This method is expected to be fast when the first dimension of the input tensor is small (meaning, a small minibatch). [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_STATIC`] is supported on devices with compute capability >= 6.0.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnalgo-t"
+  },
+  "CUDNN_RNN_ALGO_PERSIST_STATIC_SMALL_H": {
+    "doc": "Despite its name, this algorithm does not rely on persistent GPU kernels (all thread blocks being active at the same time) but in other aspects it operates similarly to [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_STATIC`]. Input GEMMs for all time-steps are performed by cuBLASLt and recurrent GEMMs with fused element-wise operations are handled by “regular” CUDA thread blocks. One thread block collaboratively loads all recurrent weights of one layer (square matrix) and a small number of input data vectors to compute the same number of output elements without any synchronization with other thread blocks. The algorithm is limited by available register resources so the hidden vector size cannot be very large, for example, up to 192 elements for LSTM/GRU cells and up to 384 elements for RELU/TANH cells in the forward pass. This algorithm could be surprisingly fast and it scales well with the number of available SMs for large batch sizes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnalgo-t"
+  },
+  "CUDNN_RNN_ALGO_STANDARD": {
+    "doc": "This algorithm uses cuBLASLt to perform all matrix multiplications and dedicated kernels for cell-specific operations such as applying nonlinearities or adding biases. This is the most versatile RNN algorithm. It supports pseudo-random dropout masks between RNN layers, variable length sequences in unpacked data layouts, recurrent projection in LSTM models, and multiple choices for RNN biases: no bias, one bias, or two biases. The algorithm traverses RNN cells layer-by-layer or in a diagonal pattern through multiple layers with a certain number of time steps grouped into one “comptational chunk”. Whenever possible GEMMs are executed in parallel CUDA streams. This algorithm is expected to deliver robust performance across a wide range of RNN configurations. It is also supported on a broad range of architectures, including the oldest GPUs.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnalgo-t"
+  },
+  "CUDNN_RNN_CLIP_MINMAX": {
+    "doc": "Enables LSTM cell clipping.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnclipmode-t"
+  },
+  "CUDNN_RNN_CLIP_NONE": {
+    "doc": "Disables LSTM cell clipping.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnclipmode-t"
+  },
+  "CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED": {
+    "doc": "Data layout is padded, with outer stride from one batch to the next.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnndatalayout-t"
+  },
+  "CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_PACKED": {
+    "doc": "The sequence length is sorted and packed as in the basic RNN API.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnndatalayout-t"
+  },
+  "CUDNN_RNN_DATA_LAYOUT_SEQ_MAJOR_UNPACKED": {
+    "doc": "Data layout is padded, with outer stride from one time-step to the next.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnndatalayout-t"
+  },
+  "CUDNN_RNN_DOUBLE_BIAS": {
+    "doc": "Applies RNN cell formulas that use two bias vectors.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnbiasmode-t"
+  },
+  "CUDNN_RNN_NO_BIAS": {
+    "doc": "Applies RNN cell formulas that do not use biases.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnbiasmode-t"
+  },
+  "CUDNN_RNN_RELU": {
+    "doc": "A single-gate recurrent neural network with a ReLU activation function.\n\nIn the forward pass, the output h t for a given iteration can be computed from the recurrent input h t-1 and the previous layer input x t, given the matrices `W`, `R`, the bias vectors, and where `ReLU(x) = max(x, 0)`.\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_DOUBLE_BIAS`] (default mode), then the following equation with biases b W and b R applies:\n\nh t = ReLU(W i x t + R i h t-1 + b Wi + b Ri)\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_SINGLE_INP_BIAS`] or [`cudnnRNNBiasMode_t::CUDNN_RNN_SINGLE_REC_BIAS`], then the following equation with bias `b` applies:\n\nh t = ReLU(W i x t + R i h t-1 + b i)\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_NO_BIAS`], then the following equation applies:\n\nh t = ReLU(W i x t + R i h t-1).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnmode-t"
+  },
+  "CUDNN_RNN_SINGLE_INP_BIAS": {
+    "doc": "Applies RNN cell formulas that use one input bias vector in the input GEMM.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnbiasmode-t"
+  },
+  "CUDNN_RNN_SINGLE_REC_BIAS": {
+    "doc": "Applies RNN cell formulas that use one recurrent bias vector in the recurrent GEMM.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnbiasmode-t"
+  },
+  "CUDNN_RNN_TANH": {
+    "doc": "A single-gate recurrent neural network with a `tanh` activation function.\n\nIn the forward pass, the output h t for a given iteration can be computed from the recurrent input h t-1 and the previous layer input x t, given the matrices `W`, `R` the bias vectors, and where `tanh` is the hyperbolic tangent function.\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_DOUBLE_BIAS`] (default mode), then the following equation with biases b W and b R applies:\n\nh t = tanh(W i x t + R i h t-1 + b Wi + b Ri)\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_SINGLE_INP_BIAS`] or [`cudnnRNNBiasMode_t::CUDNN_RNN_SINGLE_REC_BIAS`], then the following equation with bias `b` applies:\n\nh t = tanh(W i x t + R i h t-1 + b i)\n\nIf `cudnnRNNBiasMode_t biasMode` in `rnnDesc` is [`cudnnRNNBiasMode_t::CUDNN_RNN_NO_BIAS`], then the following equation applies:\n\nh t = tanh(W i x t + R i h t-1).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnnmode-t"
+  },
+  "CUDNN_SAMPLER_BILINEAR": {
+    "doc": "Selects the bilinear sampler.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnsamplertype-t"
+  },
+  "CUDNN_SEQDATA_BATCH_DIM": {
+    "doc": "Identifies the `BATCH` dimension or specifies the `BATCH` in the data layout.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnseqdataaxis-t"
+  },
+  "CUDNN_SEQDATA_BEAM_DIM": {
+    "doc": "Identifies the `BEAM` dimension or specifies the `BEAM` in the data layout.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnseqdataaxis-t"
+  },
+  "CUDNN_SEQDATA_TIME_DIM": {
+    "doc": "Identifies the `TIME` (sequence length) dimension or specifies the `TIME` in the data layout.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnseqdataaxis-t"
+  },
+  "CUDNN_SEQDATA_VECT_DIM": {
+    "doc": "Identifies the `VECT` (vector) dimension or specifies the `VECT` in the data layout.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnseqdataaxis-t"
+  },
+  "CUDNN_SEV_ERROR = 1": {
+    "doc": "This value indicates a normal error emitted by cuDNN.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnseverity-t"
+  },
+  "CUDNN_SEV_FATAL = 0": {
+    "doc": "This value indicates a fatal error emitted by cuDNN.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnseverity-t"
+  },
+  "CUDNN_SEV_INFO = 3": {
+    "doc": "This value indicates a piece of information (for example, API log) emitted by cuDNN.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnseverity-t"
+  },
+  "CUDNN_SEV_WARNING = 2": {
+    "doc": "This value indicates a warning emitted by cuDNN.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnseverity-t"
+  },
+  "CUDNN_SIGNAL_SET": {
+    "doc": "The flag variable is updated with the provided signal value atomically.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnsignalmode-t"
+  },
+  "CUDNN_SIGNAL_WAIT": {
+    "doc": "The operation blocks until the flag variable keeps comparing equal to the provided signal value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnsignalmode-t"
+  },
+  "CUDNN_SKIP_INPUT": {
+    "doc": "No operation is performed at the input of the first recurrent layer. If [`cudnnRNNInputMode_t::CUDNN_SKIP_INPUT`] is used the leading dimension of the input tensor must be equal to the hidden state size of the network.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnrnninputmode-t"
+  },
+  "CUDNN_SOFTMAX_ACCURATE": {
+    "doc": "This implementation scales each point of the softmax input domain by its maximum value to avoid potential floating point overflows in the softmax evaluation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnsoftmaxalgorithm-t"
+  },
+  "CUDNN_SOFTMAX_FAST": {
+    "doc": "This implementation applies the straightforward softmax operation.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnsoftmaxalgorithm-t"
+  },
+  "CUDNN_SOFTMAX_LOG": {
+    "doc": "This entry performs the log softmax operation, avoiding overflows by scaling each point in the input domain as in [`cudnnSoftmaxAlgorithm_t::CUDNN_SOFTMAX_ACCURATE`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnsoftmaxalgorithm-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM": {
+    "doc": "This is an error category code. An incorrect value or parameter was passed to the function.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_ATTRIBUTE_TYPE": {
+    "doc": "The cuDNN API has received an invalid or unsupported attribute type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_CUDA_GRAPH_MISMATCH": {
+    "doc": "The cuDNN API has received an unexpected CUDA graph.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_DUPLICATED_ENTRIES": {
+    "doc": "The cuDNN API has received duplicated entries.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_MISALIGNED_POINTER": {
+    "doc": "The cuDNN API has received a misaligned pointer from the user.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_NOT_FINALIZED": {
+    "doc": "The backend descriptor has not been finalized.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_NULL_POINTER": {
+    "doc": "The cuDNN API has unexpectedly received a null pointer from the user.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_OUT_OF_BOUND": {
+    "doc": "The cuDNN API has received an out-of-bound value.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_SHAPE_MISMATCH": {
+    "doc": "The cuDNN API has received inconsistent tensor shapes.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_SIZE_INSUFFICIENT": {
+    "doc": "The cuDNN API has received a memory buffer with insufficient space.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_BAD_PARAM_STREAM_MISMATCH": {
+    "doc": "The cuDNN API has received an unexpected stream.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_CATEGORY(full_error_code)": {
+    "doc": "Extract the category error code from a `cudnnStatus_t` error code `full_error_code`. This is useful for checking if an error belongs to a certain category. For example, `CUDNN_STATUS_CATEGORY(CUDNN_STATUS_BAD_PARAM_NULL_POINTER)` will output [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`].",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_DEPRECATED": {
+    "doc": "This error code may be reported in the warning logging level as a reminder that some functionality is under deprecation and will be removed in the next major version update.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_EXECUTION_FAILED": {
+    "doc": "This is an error category code. The GPU program failed to execute. This is usually caused by a failure to launch a kernel on the GPU, which can be caused by another library that cuDNN depends on.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_EXECUTION_FAILED_CUBLAS": {
+    "doc": "The GPU program failed to execute due to an error reported by cuBLAS.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_EXECUTION_FAILED_CUDART": {
+    "doc": "The GPU program failed to execute due to an error reported by the CUDA runtime.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_EXECUTION_FAILED_CUDA_DRIVER": {
+    "doc": "The GPU program failed to execute due to an error reported by the CUDA driver.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_EXECUTION_FAILED_CURAND": {
+    "doc": "The GPU program failed to execute due to an error reported by cuRAND.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_FULL_ERROR_CODE(category, specific_err)": {
+    "doc": "Recombine a category error code and a specific code in the same category into a full `cudnnStatus_t` error code, such that `CUDNN_STATUS_FULL_ERROR_CODE(CUDNN_STATUS_CATEGORY(e), CUDNN_STATUS_SPECIFIC_ERROR(e)) == e`, for any valid `cudnnStatus_t` error code.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_INTERNAL_ERROR": {
+    "doc": "This is an error category code. An internal cuDNN operation failed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_INTERNAL_ERROR_BAD_LAUNCH_PARAM": {
+    "doc": "Invalid kernel launch parameters are unexpectedly detected.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_INTERNAL_ERROR_COMPILATION_FAILED": {
+    "doc": "A runtime kernel has failed to be compiled.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_INTERNAL_ERROR_DEVICE_ALLOCATION_FAILED": {
+    "doc": "Resource allocation failed inside the cuDNN library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_INTERNAL_ERROR_HOST_ALLOCATION_FAILED": {
+    "doc": "An internal host memory allocation failed inside the cuDNN library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED": {
+    "doc": "Access to GPU memory space failed, which is usually caused by a failure to bind a texture. To correct, prior to the function call, unbind any previously bound textures. Otherwise, this may indicate an internal error/bug in the library.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_INTERNAL_ERROR_UNEXPECTED_VALUE": {
+    "doc": "An unexpected internal inconsistency has been detected.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_LICENSE_ERROR": {
+    "doc": "The functionality requested requires some license and an error was detected when trying to check the current licensing. This error can happen if the license is not present or is expired or if the environment variable `NVIDIA_LICENSE_FILE` is not set properly.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_INITIALIZED": {
+    "doc": "The cuDNN library was not initialized properly. This error is usually returned when a call to [cudnnCreate()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnncreate) fails or when [cudnnCreate()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnncreate) has not been called prior to calling another cuDNN routine. In the former case, it is usually due to an error in the CUDA Runtime API called by [cudnnCreate()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnncreate) or by an error in the hardware setup.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED": {
+    "doc": "This is an error category code. The functionality requested is not currently supported by cuDNN.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH": {
+    "doc": "The function requires a feature absent from the current GPU device.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_BAD_LAUNCH_PARAM": {
+    "doc": "The requested functionality is not available because they lead to invalid kernel launch parameters.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_CUDA_GRAPH_NATIVE_API": {
+    "doc": "The requested functionality is not available because this particular engine does not support the native CUDA graph API. (The engines that do support that API have the behavior note [`cudnnBackendBehaviorNote_t::CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API`].)",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_DATA_TYPE": {
+    "doc": "cuDNN does not currently support the tensor data type.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_GRAPH_PATTERN": {
+    "doc": "cuDNN does not currently support such an operation graph pattern.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDART": {
+    "doc": "The requested functionality is not compatible with the current CUDA runtime.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDA_DRIVER": {
+    "doc": "The requested functionality is not compatible with the current CUDA driver.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_LAYOUT": {
+    "doc": "cuDNN does not currently support the tensor layout.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_PADDING": {
+    "doc": "The requested functionality is not available due to padding requirements.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING": {
+    "doc": "A runtime library required by cuDNN cannot be found in the predefined search paths. These libraries are `libcuda.so` (`nvcuda.dll`) and `libnvrtc.so` (`nvrtc64_&lt;Major Release Version>&lt;Minor Release Version>_0.dll` and `nvrtc-builtins64_&lt;Major Release Version>&lt;Minor Release Version>.dll`).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_SHAPE": {
+    "doc": "cuDNN does not currently support the tensor shapes used in some specific operation or graph pattern.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_SHARED_MEMORY_INSUFFICIENT": {
+    "doc": "The requested functionality is not available due to the insufficient shared memory size on the GPU.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_NOT_SUPPORTED_SUBLIBRARY_UNAVAILABLE": {
+    "doc": "The requested functionality is not available due to missing a sublibrary.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_RUNTIME_FP_OVERFLOW": {
+    "doc": "Numerical overflow occurred during the GPU kernel execution.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_RUNTIME_IN_PROGRESS": {
+    "doc": "Some tasks in the user stream are not completed.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_SERIALIZATION_VERSION_MISMATCH": {
+    "doc": "The schema used for serialization is not what the current cuDNN library expects, thus the serialized artifact is no longer valid and needs to be re-serialized.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_SPECIFIC_ERROR(full_error_code)": {
+    "doc": "Extract the specific error code from a `cudnnStatus_t` error code `full_error_code`, that is, removing the category.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH": {
+    "doc": "Some cuDNN sub libraries have different versions, indicative of an installation issue.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_STATUS_SUCCESS": {
+    "doc": "The operation was completed successfully.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnstatus-t"
+  },
+  "CUDNN_TENSOR_NCHW": {
+    "doc": "This tensor format specifies that the data is laid out in the following order: batch size, feature maps, rows, columns. The strides are implicitly defined in such a way that the data are contiguous in memory with no padding between images, feature maps, rows, and columns; the columns are the inner dimension and the images are the outermost dimension.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnntensorformat-t"
+  },
+  "CUDNN_TENSOR_NCHW_VECT_C": {
+    "doc": "This tensor format specifies that the data is laid out in the following order: batch size, feature maps, rows, columns. However, each element of the tensor is a vector of multiple feature maps. The length of the vector is carried by the data type of the tensor. The strides are implicitly defined in such a way that the data are contiguous in memory with no padding between images, feature maps, rows, and columns; the columns are the inner dimension and the images are the outermost dimension. This format is only supported with tensor data types `CUDNN_DATA_INT8x4`, `CUDNN_DATA_INT8x32`, and `CUDNN_DATA_UINT8x4`.\n\nThe [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`] can also be interpreted in the following way: The NCHW INT8x32 format is really N x (C/32) x H x W x 32 (32 Cs for every W), just as the NCHW INT8x4 format is N x (C/4) x H x W x 4 (4 Cs for every W). Hence, the VECT_C name - each W is a vector (4 or 32) of Cs.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnntensorformat-t"
+  },
+  "CUDNN_TENSOR_NHWC": {
+    "doc": "This tensor format specifies that the data is laid out in the following order: batch size, rows, columns, feature maps. The strides are implicitly defined in such a way that the data are contiguous in memory with no padding between images, rows, columns, and feature maps; the feature maps are the inner dimension and the images are the outermost dimension.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnntensorformat-t"
+  },
+  "CUDNN_TENSOR_OP_MATH": {
+    "doc": "The use of Tensor Core operations is permitted but will not actively perform datatype down conversion on tensors in order to utilize Tensor Cores.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnmathtype-t"
+  },
+  "CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION": {
+    "doc": "The use of Tensor Core operations is permitted and will actively perform datatype down conversion on tensors in order to utilize Tensor Cores.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-graph-library.html#cudnnmathtype-t"
+  },
+  "CUDNN_TRANSFORM_FOLD = 0U": {
+    "doc": "Selects folding.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnfoldingdirection-t"
+  },
+  "CUDNN_TRANSFORM_UNFOLD = 1U": {
+    "doc": "Selects unfolding.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-ops-library.html#cudnnfoldingdirection-t"
+  },
+  "CUDNN_UNIDIRECTIONAL": {
+    "doc": "The network iterates recurrently from the first input to the last.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnndirectionmode-t"
+  },
+  "CUDNN_WGRAD_MODE_ADD": {
+    "doc": "A weight gradient component corresponding to a new batch of inputs is added to previously evaluated weight gradients. Before using this mode, the buffer holding weight gradients should be initialized to zero. Alternatively, the first API call outputting to an uninitialized buffer should use the [`cudnnWgradMode_t::CUDNN_WGRAD_MODE_SET`] option.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnwgradmode-t"
+  },
+  "CUDNN_WGRAD_MODE_SET": {
+    "doc": "A weight gradient component, corresponding to a new batch of inputs, overwrites previously stored weight gradients in the output buffer.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-adv-library.html#cudnnwgradmode-t"
+  },
+  "X_ACTIVATION_DESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnActivationDescriptor_t\\*](cudnn-ops-library.md#cudnnactivationdescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_BIAS": {
+    "doc": "Pointer to sum of `y` square tensor on device, need to agree with previously set `CUDNN_PARAM_BN_BIAS_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_BIAS_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_EQBIAS": {
+    "doc": "Pointer to `batchNorm` equivalent bias tensor on device, need to agree with previously set `CUDNN_PARAM_BN_EQBIAS_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_EQBIAS_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_EQSCALE": {
+    "doc": "Pointer to `batchNorm` equivalent scale tensor on device, need to agree with previously set `CUDNN_PARAM_BN_EQSCALE_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_EQSCALEBIAS_DESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnTensorDescriptor_t](cudnn-ops-library.md#cudnntensordescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_EQSCALE_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_MODE": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnBatchNormMode_t\\*](cudnn-ops-library.md#cudnnbatchnormmode-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_RUNNING_MEAN": {
+    "doc": "Pointer to sum of `y` square tensor on device, need to agree with previously set `CUDNN_PARAM_BN_RUNNING_MEAN_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_RUNNING_MEAN_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_RUNNING_VAR": {
+    "doc": "Pointer to sum of `y` square tensor on device, need to agree with previously set `CUDNN_PARAM_BN_RUNNING_VAR_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_RUNNING_VAR_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_SAVED_INVSTD": {
+    "doc": "Pointer to sum of `y` square tensor on device, need to agree with previously set `CUDNN_PARAM_BN_SAVED_INVSTD_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_SAVED_INVSTD_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_SAVED_MEAN": {
+    "doc": "Pointer to sum of `y` square tensor on device, need to agree with previously se `CUDNN_PARAM_BN_SAVED_MEAN_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_SAVED_MEAN_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_SCALE": {
+    "doc": "Pointer to sum of `y` square tensor on device, need to agree with previously set `CUDNN_PARAM_BN_SCALE_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_SCALEBIAS_MEANVAR_DESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnTensorDescriptor_t](cudnn-ops-library.md#cudnntensordescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_SCALE_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_BN_Z_EQBIAS": {
+    "doc": "Pointer to `batchNorm` equivalent bias tensor on device, need to agree with previously set `CUDNN_PARAM_BN_Z_EQBIAS_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_CONV_DESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnConvolutionDescriptor_t\\*](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutiondescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_DOUBLE_BN_EPSILON": {
+    "doc": "Pointer to a scalar value in double on host memory. A conditioning constant used in the batch normalization formula. Its value should be equal to or greater than the value defined for `CUDNN_BN_MIN_EPSILON` in `cudnn.h`. Refer to `exponentialAverageFactor` in `cudnnBatchNormalization*` APIs.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_DOUBLE_BN_EXP_AVG_FACTOR": {
+    "doc": "Pointer to a scalar value in double on host memory. Factor used in the moving average computation. Refer to `exponentialAverageFactor` in `cudnnBatchNormalization*` APIs.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_DWDATA": {
+    "doc": "Pointer to `dw` (filter gradient output) tensor on device, need to agree with previously set `CUDNN_PARAM_WDATA_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_DWDATA_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_DWDESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnFilterDescriptor_t\\*](cudnn-ops-library.md#cudnnfilterdescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_DYDATA": {
+    "doc": "Pointer to `dy` (gradient input) tensor on device, need to agree with previously set `CUDNN_PARAM_YDATA_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_DYDATA_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_DYDESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnTensorDescriptor_t\\*](cudnn-ops-library.md#cudnntensordescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_INT64_T_BN_ACCUMULATION_COUNT": {
+    "doc": "Pointer to a scalar value in `int64_t` on host memory. This value should describe the number of tensor elements accumulated in the sum of `y` and sum of `y` square tensors. For example, in the single GPU use case, if the mode is `CUDNN_BATCHNORM_SPATIAL` or `CUDNN_BATCHNORM_SPATIAL_PERSISTENT`, the value should be equal to N\\*H\\*W of the tensor from which the statistics are calculated. In multi-GPU use case, if all-reduce has been performed on the sum of `y` and sum of `y` square tensors, this value should be the sum of the single GPU accumulation count on each of the GPUs.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_SIZE_T_WORKSPACE_SIZE_IN_BYTES": {
+    "doc": "Pointer to a `size_t` value in host memory describing the user allocated workspace size in bytes. The amount needs to be equal or larger than the amount requested in [cudnnMakeFusedOpsPlan()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnmakefusedopsplan).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_WDATA": {
+    "doc": "Pointer to `w` (filter) tensor on device, need to agree with previously set `CUDNN_PARAM_WDATA_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_WDATA_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_WDESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnFilterDescriptor_t\\*](cudnn-ops-library.md#cudnnfilterdescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_WORKSPACE": {
+    "doc": "Pointer to user allocated workspace on device. Can be `NULL` if the workspace size requested is `0`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_XDATA": {
+    "doc": "Pointer to `x` (input) tensor on device, need to agree with previously set `CUDNN_PARAM_XDATA_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_XDATA_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_XDESC": {
+    "doc": "In the setter, the `*param` should be `xDesc`, a pointer to a previously initialized [cudnnTensorDescriptor_t](cudnn-ops-library.md#cudnntensordescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_YDATA": {
+    "doc": "Pointer to `y` (output) tensor on device, need to agree with previously set `CUDNN_PARAM_YDATA_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_YDATA_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_YDESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnTensorDescriptor_t\\*](cudnn-ops-library.md#cudnntensordescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_YSQSUM": {
+    "doc": "Pointer to sum of `y` square tensor on device, need to agree with previously set `CUDNN_PARAM_YSQSUM_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_YSQSUM_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_YSTATS_DESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnTensorDescriptor_t\\*](cudnn-ops-library.md#cudnntensordescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_YSUM": {
+    "doc": "Pointer to sum of `y` tensor on device, need to agree with previously set `CUDNN_PARAM_YSUM_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_YSUM_PLACEHOLDER": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized `X_PointerPlaceHolder_t*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_ZDATA": {
+    "doc": "Pointer to `z` tensor on device, need to agree with previously set `CUDNN_PARAM_YDATA_PLACEHOLDER` attribute `*`.",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "X_ZDESC": {
+    "doc": "In the setter, the `*param` should be a pointer to a previously initialized [cudnnTensorDescriptor_t](cudnn-ops-library.md#cudnntensordescriptor-t).",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "_ALGO_0": {
+    "doc": "NCHW CHW-packed",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "_ALGO_1": {
+    "doc": "NCHW CHW-packed",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "_ALGO_3": {
+    "doc": "NCHW CHW-packed",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "_FFT_TILING": {
+    "doc": "NCHW CHW-packed",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "_IMPLICIT_GEMM": {
+    "doc": "Dilation: Greater than `0` for all dimensions `convDesc` Group Count Support: Greater than `0` for all algos",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "_IMPLICIT_PRECOMP_GEMM": {
+    "doc": "Dilation: `1` for all dimensions `convDesc` Group Count Support: Greater than `0` for all algos",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "_WINOGRAD_NONFUSED": {
+    "doc": "NCHW CHW-packed",
+    "kind": "enum_member",
+    "source": "cuda-docs-scraper/docs/cudnn/v9.27.0"
+  },
+  "cudnnConvolutionBwdDataAlgo_t algo": {
+    "doc": "The algorithm runs to obtain the associated performance metrics.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwddataalgoperf-t"
+  },
+  "cudnnConvolutionBwdFilterAlgo_t algo": {
+    "doc": "The algorithm runs to obtain the associated performance metrics.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwdfilteralgoperf-t"
+  },
+  "cudnnConvolutionFwdAlgo_t algo": {
+    "doc": "The algorithm runs to obtain the associated performance metrics.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionfwdalgoperf-t"
+  },
+  "cudnnDeterminism_t determinism": {
+    "doc": "The determinism of the algorithm.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwddataalgoperf-t"
+  },
+  "cudnnMathType_t mathType": {
+    "doc": "The math type provided to the algorithm.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwddataalgoperf-t"
+  },
+  "cudnnStatus_t status": {
+    "doc": "If any error occurs during the workspace allocation or timing of [cudnnConvolutionBackwardData()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbackwarddata), this status will represent that error. Otherwise, this status will be the return status of [cudnnConvolutionBackwardData()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbackwarddata).\n\n* `CUDNN_STATUS_ALLOC_FAILED` if any error occurred during workspace allocation or if the provided workspace is insufficient.\n* [`cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR`] if any error occurred during timing calculations or workspace deallocation.\n* Otherwise, this will be the return status of [cudnnConvolutionBackwardData()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbackwarddata).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwddataalgoperf-t"
+  },
+  "float time": {
+    "doc": "The execution time of [cudnnConvolutionBackwardData()](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbackwarddata) (in milliseconds).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwddataalgoperf-t"
+  },
+  "int reserved[3]": {
+    "doc": "Reserved space for future properties.",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwddataalgoperf-t"
+  },
+  "size_t memory": {
+    "doc": "The workspace size (in bytes).",
+    "kind": "enum_member",
+    "uri": "https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwddataalgoperf-t"
+  }
+}

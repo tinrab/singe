@@ -1,14 +1,19 @@
-use std::{ffi::c_ulong, ptr, sync::LazyLock, thread::available_parallelism};
+use std::{ffi::c_ulong, num::NonZero, ptr, sync::LazyLock, thread::available_parallelism};
 
-use singe_core::string_from_c_chars;
+use singe_core::{checked_conversions, string_from_c_chars};
 use singe_nvml_sys as sys;
 
 use crate::{
     device::Device,
-    error::Result,
+    error::{Error, Result},
     try_ffi,
     types::{ClockRangeI32, ProcessInfo, UtilizationCounter},
 };
+
+checked_conversions!(Error {
+    to_i32 -> i32,
+    to_u32 -> u32,
+});
 
 pub fn option_u64_from_not_available(value: u64) -> Option<u64> {
     if value == sys::NVML_VALUE_NOT_AVAILABLE as u64 {
@@ -18,14 +23,21 @@ pub fn option_u64_from_not_available(value: u64) -> Option<u64> {
     }
 }
 
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "the assertion limits NVML structure sizes to their 24-bit size field"
+)]
 pub const fn struct_version<T>(version: u32) -> u32 {
+    assert!(
+        size_of::<T>() <= 0x00ff_ffff,
+        "NVML structure size exceeds 24 bits"
+    );
+    assert!(version <= 0xff, "NVML structure version exceeds eight bits");
     (size_of::<T>() as u32) | (version << 24)
 }
 
 static ULONG_BITMASK_COUNT: LazyLock<usize> = LazyLock::new(|| {
-    let cpu_count = available_parallelism()
-        .map(|count| count.get())
-        .unwrap_or(64);
+    let cpu_count = available_parallelism().map_or(64, NonZero::get);
     let bits_per_ulong = c_ulong::BITS as usize;
     cpu_count.div_ceil(bits_per_ulong)
 });
@@ -41,7 +53,11 @@ pub fn mask255_bits(mask: sys::nvmlMask255_t) -> Vec<u32> {
         .flat_map(|(word_index, word)| {
             (0..u32::BITS).filter_map(move |bit_index| {
                 let bit = 1u32 << bit_index;
-                (word & bit != 0).then_some((word_index as u32) * u32::BITS + bit_index)
+                (word & bit != 0).then_some(
+                    (u32::try_from(word_index).expect("fixed NVML mask word index fits u32"))
+                        * u32::BITS
+                        + bit_index,
+                )
             })
         })
         .collect()
@@ -53,11 +69,12 @@ pub fn device_string_query(
     function: unsafe extern "C" fn(sys::nvmlDevice_t, *mut i8, u32) -> sys::nvmlReturn_t,
 ) -> Result<String> {
     let mut buffer = vec![0i8; length];
+    // SAFETY: `function` is an NVML string query, and `buffer` holds `buffer.len()` writable bytes.
     unsafe {
         try_ffi!(function(
             device.as_raw(),
             buffer.as_mut_ptr(),
-            buffer.len() as u32
+            to_u32(buffer.len(), "NVML string buffer length")?
         ))?;
     }
     Ok(string_from_c_chars(&buffer))
@@ -108,6 +125,7 @@ pub fn query_process_info_list(
     ) -> sys::nvmlReturn_t,
 ) -> Result<Vec<ProcessInfo>> {
     let mut count = 0;
+    // SAFETY: `function` is an NVML list query; a null array with a zero count asks only for the size.
     let status = unsafe { function(device.as_raw(), &raw mut count, ptr::null_mut()) };
     if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
         return Ok(Vec::new());
@@ -117,6 +135,7 @@ pub fn query_process_info_list(
     }
 
     let mut infos = vec![sys::nvmlProcessInfo_t::default(); count as usize];
+    // SAFETY: `infos` holds `count` writable entries for this list query.
     unsafe {
         try_ffi!(function(
             device.as_raw(),
@@ -134,6 +153,7 @@ pub fn device_utilization_counter(
 ) -> Result<UtilizationCounter> {
     let mut utilization = 0;
     let mut sampling_period_us = 0;
+    // SAFETY: `function` is an NVML device query that writes only the two local outputs.
     unsafe {
         try_ffi!(function(
             device.as_raw(),
@@ -152,7 +172,10 @@ pub fn device_ulong_bitmask_list(
 ) -> Result<Vec<u64>> {
     let count = ulong_bitmask_count();
     let mut values = vec![0 as c_ulong; count];
-    try_ffi!(function(count as u32, values.as_mut_ptr()))?;
+    try_ffi!(function(
+        to_u32(count, "NVML bitmask count")?,
+        values.as_mut_ptr()
+    ))?;
     Ok(values.into_iter().collect())
 }
 
@@ -162,6 +185,7 @@ pub fn device_clock_offset_range(
 ) -> Result<ClockRangeI32> {
     let mut min = 0;
     let mut max = 0;
+    // SAFETY: `function` is an NVML device query that writes only the two local outputs.
     unsafe {
         try_ffi!(function(device.as_raw(), &raw mut min, &raw mut max))?;
     }

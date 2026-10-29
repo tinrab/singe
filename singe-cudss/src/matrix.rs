@@ -1,6 +1,10 @@
-use std::{ffi::c_void, marker::PhantomData, mem::ManuallyDrop, ptr};
+use std::{ffi::c_void, marker::PhantomData, mem::ManuallyDrop, ptr, slice, sync::Arc};
 
-use singe_cuda::{memory::DeviceMemory, types::DevicePtr};
+use singe_cuda::{
+    context::Context as CudaContext,
+    types::DevicePtr,
+    view::{DeviceOutputView, DeviceRepr, DeviceView},
+};
 use singe_cudss_sys as sys;
 
 use crate::{
@@ -20,6 +24,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Matrix<'a> {
     handle: sys::cudssMatrix_t,
+    context: Arc<CudaContext>,
     _marker: PhantomData<&'a ()>,
 }
 
@@ -109,7 +114,7 @@ impl BatchIndex for i64 {
 }
 
 /// Integer type accepted by cuDSS for CSR offsets and indices.
-pub trait MatrixIndex: private::Sealed + Copy + 'static {
+pub trait MatrixIndex: private::Sealed + DeviceRepr {
     /// cuDSS data type corresponding to this integer type.
     const DATA_TYPE: DataType;
 }
@@ -118,6 +123,7 @@ mod private {
     pub trait Sealed {}
 
     impl Sealed for i32 {}
+
     impl Sealed for i64 {}
 }
 
@@ -227,11 +233,92 @@ pub struct BatchCsrMatrixInfo {
     pub index_base: IndexBase,
 }
 
-// Matrix descriptors borrow caller-owned device buffers and own only the cuDSS descriptor handle.
+// SAFETY: matrix descriptors borrow caller-owned device buffers and own only the cuDSS descriptor handle.
 // Moving the descriptor is sound as long as the lifetime keeps the referenced buffers alive.
 unsafe impl Send for Matrix<'_> {}
 
 impl<'a> Matrix<'a> {
+    /// Creates a dense producer destination from exclusive write-only storage.
+    ///
+    /// Descriptor construction does not initialize values. A completed solve
+    /// produces logical matrix elements, not pitch padding or allocation tails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid dimensions or leading dimension, a required
+    /// element count that cannot be represented, or insufficient storage.
+    /// Context-binding and cuDSS descriptor-creation errors are propagated; a
+    /// null descriptor returned after successful creation is also rejected.
+    pub fn create_dense_output<T: DataTypeLike>(
+        desc: DenseMatrixDescriptor,
+        mut values: DeviceOutputView<'a, T>,
+    ) -> Result<Self> {
+        validate_dense_descriptor(desc, Some(values.len()))?;
+        let context = Arc::clone(values.context());
+        // SAFETY: the view establishes aligned writable storage of the checked size.
+        unsafe {
+            Self::create_dense_raw(
+                &context,
+                desc,
+                DevicePtr::from_raw(values.as_mut_ptr().cast()),
+                T::DATA_TYPE,
+            )
+        }
+    }
+
+    /// Rebinds values to exclusive write-only storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the buffer belongs to another context, its element
+    /// type does not match the descriptor, or it is too short for the matrix.
+    /// Errors querying the existing format and shape, validating dimensions or
+    /// size conversions, binding the context, or updating the native pointer
+    /// are also propagated.
+    pub fn set_output<T: DataTypeLike>(
+        &mut self,
+        mut values: DeviceOutputView<'a, T>,
+    ) -> Result<()> {
+        ensure_context(&self.context, values.context())?;
+        self.validate_value_buffer::<T>(values.len())?;
+        // SAFETY: the exclusive output view satisfies the checked matrix layout.
+        unsafe { self.set_values_raw(DevicePtr::from_raw(values.as_mut_ptr().cast())) }
+    }
+
+    fn validate_value_buffer<T: DataTypeLike>(&self, length: usize) -> Result<()> {
+        if self.format()?.contains(MatrixFormat::DENSE) {
+            let info = self.dense_info()?;
+            if info.value_type != T::DATA_TYPE {
+                return Err(Error::UnsupportedDataType {
+                    name: "dense replacement values".into(),
+                });
+            }
+            validate_dense_descriptor(
+                DenseMatrixDescriptor {
+                    rows: info.rows,
+                    columns: info.columns,
+                    leading_dim: info.leading_dim,
+                    layout: info.layout,
+                },
+                Some(length),
+            )
+        } else {
+            let info = self.csr_info()?;
+            if info.value_type != T::DATA_TYPE {
+                return Err(Error::UnsupportedDataType {
+                    name: "sparse replacement values".into(),
+                });
+            }
+            validate_min_len("values", to_usize(info.nnz, "nnz")?, length)
+        }
+    }
+
+    /// CUDA context associated with the descriptor and its device buffers.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        &self.context
+    }
+
     /// Creates a dense matrix descriptor that borrows typed device memory.
     ///
     /// cuDSS stores the values pointer without taking ownership of the device allocation.
@@ -241,10 +328,11 @@ impl<'a> Matrix<'a> {
     /// Returns an error if cuDSS cannot create the matrix descriptor.
     pub fn create_dense<T: DataTypeLike>(
         desc: DenseMatrixDescriptor,
-        values: &'a DeviceMemory<T>,
+        values: DeviceView<'a, T>,
     ) -> Result<Self> {
         validate_dense_descriptor(desc, Some(values.len()))?;
-        unsafe { Self::create_dense_raw(desc, device_ptr(values), T::DATA_TYPE) }
+        // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
+        unsafe { Self::create_dense_raw(values.context(), desc, device_ptr(values), T::DATA_TYPE) }
     }
 
     /// Creates a dense matrix descriptor from an untyped pointer.
@@ -263,11 +351,14 @@ impl<'a> Matrix<'a> {
     /// Returns an error if `desc` is invalid, if cuDSS cannot create the matrix
     /// descriptor, or if cuDSS returns a null handle.
     pub unsafe fn create_dense_raw(
+        context: &Arc<CudaContext>,
         desc: DenseMatrixDescriptor,
         values: DevicePtr,
         value_type: DataType,
     ) -> Result<Self> {
+        context.bind()?;
         validate_dense_descriptor(desc, None)?;
+        // SAFETY: the caller upholds this function's safety contract.
         unsafe {
             let mut handle = ptr::null_mut();
             try_ffi!(sys::cudssMatrixCreateDn(
@@ -284,6 +375,7 @@ impl<'a> Matrix<'a> {
             }
             Ok(Self {
                 handle,
+                context: Arc::clone(context),
                 _marker: PhantomData,
             })
         }
@@ -299,25 +391,32 @@ impl<'a> Matrix<'a> {
     /// Returns an error if cuDSS cannot create the matrix descriptor.
     pub fn create_csr<O, I, T>(
         desc: CsrMatrixDescriptor,
-        row_start: &'a DeviceMemory<O>,
-        row_end: Option<&'a DeviceMemory<O>>,
-        column_indices: &'a DeviceMemory<I>,
-        values: &'a DeviceMemory<T>,
+        row_start: DeviceView<'a, O>,
+        row_end: Option<DeviceView<'a, O>>,
+        column_indices: DeviceView<'a, I>,
+        values: DeviceView<'a, T>,
     ) -> Result<Self>
     where
         O: MatrixIndex,
         I: MatrixIndex,
         T: DataTypeLike,
     {
+        ensure_context(values.context(), row_start.context())?;
+        ensure_context(values.context(), column_indices.context())?;
+        if let Some(row_end) = row_end {
+            ensure_context(values.context(), row_end.context())?;
+        }
         validate_csr_descriptor(
             desc,
             Some(row_start.len()),
-            row_end.map(DeviceMemory::len),
+            row_end.map(|values| values.len()),
             Some(column_indices.len()),
             Some(values.len()),
         )?;
+        // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
         unsafe {
             Self::create_csr_raw(
+                values.context(),
                 desc,
                 device_ptr(row_start),
                 row_end.map_or(DevicePtr::null(), device_ptr),
@@ -351,6 +450,7 @@ impl<'a> Matrix<'a> {
     /// Returns an error if `desc` is invalid, if cuDSS cannot create the matrix
     /// descriptor, or if cuDSS returns a null handle.
     pub unsafe fn create_csr_raw(
+        context: &Arc<CudaContext>,
         desc: CsrMatrixDescriptor,
         row_start: DevicePtr,
         row_end: DevicePtr,
@@ -360,7 +460,9 @@ impl<'a> Matrix<'a> {
         index_type: DataType,
         value_type: DataType,
     ) -> Result<Self> {
+        context.bind()?;
         validate_csr_descriptor(desc, None, None, None, None)?;
+        // SAFETY: the caller upholds this function's safety contract.
         unsafe {
             let mut handle = ptr::null_mut();
             try_ffi!(sys::cudssMatrixCreateCsr(
@@ -384,6 +486,7 @@ impl<'a> Matrix<'a> {
             }
             Ok(Self {
                 handle,
+                context: Arc::clone(context),
                 _marker: PhantomData,
             })
         }
@@ -404,7 +507,11 @@ impl<'a> Matrix<'a> {
         I: BatchIndex,
         T: DataTypeLike,
     {
-        unsafe { Self::create_batch_dense_raw(desc, values.as_ptr(), T::DATA_TYPE) }
+        validate_min_len("values table", desc.rows.len(), values.len())?;
+        // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
+        unsafe {
+            Self::create_batch_dense_raw(values.context(), desc, values.as_ptr(), T::DATA_TYPE)
+        }
     }
 
     /// Creates a non-uniform batch dense descriptor from an untyped pointer table.
@@ -423,12 +530,15 @@ impl<'a> Matrix<'a> {
     /// Returns an error if the descriptor shape arrays are invalid, if cuDSS
     /// cannot create the matrix descriptor, or if cuDSS returns a null handle.
     pub unsafe fn create_batch_dense_raw<I: BatchIndex>(
+        context: &Arc<CudaContext>,
         desc: BatchDenseMatrixDescriptor<'a, I>,
         values: DevicePtr,
         value_type: DataType,
     ) -> Result<Self> {
+        context.bind()?;
         validate_batch_dense_descriptor(desc)?;
         let batch_count = to_i64(desc.rows.len(), "batch_count")?;
+        // SAFETY: the caller upholds this function's safety contract.
         unsafe {
             let mut handle = ptr::null_mut();
             try_ffi!(sys::cudssMatrixCreateBatchDn(
@@ -447,6 +557,7 @@ impl<'a> Matrix<'a> {
             }
             Ok(Self {
                 handle,
+                context: Arc::clone(context),
                 _marker: PhantomData,
             })
         }
@@ -472,8 +583,23 @@ impl<'a> Matrix<'a> {
         J: MatrixIndex,
         T: DataTypeLike,
     {
+        ensure_context(values.context(), row_start.context())?;
+        ensure_context(values.context(), col_indices.context())?;
+        for (name, length) in [
+            ("row start table", row_start.len()),
+            ("column index table", col_indices.len()),
+            ("values table", values.len()),
+        ] {
+            validate_min_len(name, desc.rows.len(), length)?;
+        }
+        if let Some(row_end) = row_end {
+            ensure_context(values.context(), row_end.context())?;
+            validate_min_len("row end table", desc.rows.len(), row_end.len())?;
+        }
+        // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
         unsafe {
             Self::create_batch_csr_raw(
+                values.context(),
                 desc,
                 row_start.as_ptr(),
                 row_end.map_or(DevicePtr::null(), DevicePointerTable::as_ptr),
@@ -504,6 +630,7 @@ impl<'a> Matrix<'a> {
     /// Returns an error if the descriptor shape arrays are invalid, if cuDSS
     /// cannot create the matrix descriptor, or if cuDSS returns a null handle.
     pub unsafe fn create_batch_csr_raw<I: BatchIndex>(
+        context: &Arc<CudaContext>,
         desc: BatchCsrMatrixDescriptor<'a, I>,
         row_start: DevicePtr,
         row_end: DevicePtr,
@@ -513,8 +640,10 @@ impl<'a> Matrix<'a> {
         index_type: DataType,
         value_type: DataType,
     ) -> Result<Self> {
+        context.bind()?;
         validate_batch_csr_descriptor(desc)?;
         let batch_count = to_i64(desc.rows.len(), "batch_count")?;
+        // SAFETY: the caller upholds this function's safety contract.
         unsafe {
             let mut handle = ptr::null_mut();
             try_ffi!(sys::cudssMatrixCreateBatchCsr(
@@ -539,6 +668,7 @@ impl<'a> Matrix<'a> {
             }
             Ok(Self {
                 handle,
+                context: Arc::clone(context),
                 _marker: PhantomData,
             })
         }
@@ -550,6 +680,7 @@ impl<'a> Matrix<'a> {
     ///
     /// Returns an error if cuDSS cannot report the descriptor metadata.
     pub fn dense_info(&self) -> Result<DenseMatrixInfo> {
+        // SAFETY: cuDSS writes only into the local output locations declared in this block.
         unsafe {
             let mut rows = 0;
             let mut columns = 0;
@@ -583,6 +714,7 @@ impl<'a> Matrix<'a> {
     ///
     /// Returns an error if cuDSS cannot report the descriptor metadata.
     pub fn csr_info(&self) -> Result<CsrMatrixInfo> {
+        // SAFETY: cuDSS writes only into the local output locations declared in this block.
         unsafe {
             let mut rows = 0;
             let mut columns = 0;
@@ -639,6 +771,7 @@ impl<'a> Matrix<'a> {
     /// reported batch count cannot be represented as `usize`, or if cuDSS
     /// reports an unsupported batch index type.
     pub fn batch_dense_info(&self) -> Result<BatchDenseMatrixInfo> {
+        // SAFETY: cuDSS writes only into the local output locations declared in this block.
         unsafe {
             let mut batch_count = 0;
             let mut rows = ptr::null_mut();
@@ -681,6 +814,7 @@ impl<'a> Matrix<'a> {
     /// reported batch count cannot be represented as `usize`, or if cuDSS
     /// reports an unsupported batch index type.
     pub fn batch_csr_info(&self) -> Result<BatchCsrMatrixInfo> {
+        // SAFETY: cuDSS writes only into the local output locations declared in this block.
         unsafe {
             let mut batch_count = 0;
             let mut rows = ptr::null_mut();
@@ -740,7 +874,10 @@ impl<'a> Matrix<'a> {
     /// # Errors
     ///
     /// Returns an error if cuDSS rejects the new pointer.
-    pub fn set_values<T: DataTypeLike>(&mut self, values: &'a DeviceMemory<T>) -> Result<()> {
+    pub fn set_values<T: DataTypeLike>(&mut self, values: DeviceView<'a, T>) -> Result<()> {
+        ensure_context(&self.context, values.context())?;
+        self.validate_value_buffer::<T>(values.len())?;
+        // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
         unsafe { self.set_values_raw(device_ptr(values)) }
     }
 
@@ -756,6 +893,7 @@ impl<'a> Matrix<'a> {
     ///
     /// Returns an error if cuDSS rejects the new pointer.
     pub unsafe fn set_values_raw(&mut self, values: DevicePtr) -> Result<()> {
+        // SAFETY: `cudssMatrixSetValues` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cudssMatrixSetValues(
                 self.handle,
@@ -773,16 +911,46 @@ impl<'a> Matrix<'a> {
     /// Returns an error if cuDSS rejects the new pointers.
     pub fn set_csr_values<O, I, T>(
         &mut self,
-        row_start: &'a DeviceMemory<O>,
-        row_end: Option<&'a DeviceMemory<O>>,
-        col_indices: &'a DeviceMemory<I>,
-        values: &'a DeviceMemory<T>,
+        row_start: DeviceView<'a, O>,
+        row_end: Option<DeviceView<'a, O>>,
+        col_indices: DeviceView<'a, I>,
+        values: DeviceView<'a, T>,
     ) -> Result<()>
     where
         O: MatrixIndex,
         I: MatrixIndex,
         T: DataTypeLike,
     {
+        ensure_context(&self.context, values.context())?;
+        ensure_context(&self.context, row_start.context())?;
+        ensure_context(&self.context, col_indices.context())?;
+        if let Some(row_end) = row_end {
+            ensure_context(&self.context, row_end.context())?;
+        }
+        let info = self.csr_info()?;
+        if info.offset_type != O::DATA_TYPE
+            || info.index_type != I::DATA_TYPE
+            || info.value_type != T::DATA_TYPE
+        {
+            return Err(Error::UnsupportedDataType {
+                name: "csr replacement buffers".into(),
+            });
+        }
+        validate_csr_descriptor(
+            CsrMatrixDescriptor {
+                rows: info.rows,
+                columns: info.columns,
+                nnz: info.nnz,
+                matrix_type: info.matrix_type,
+                view_type: info.view_type,
+                index_base: info.index_base,
+            },
+            Some(row_start.len()),
+            row_end.map(|row| row.len()),
+            Some(col_indices.len()),
+            Some(values.len()),
+        )?;
+        // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
         unsafe {
             self.set_csr_values_raw(
                 device_ptr(row_start),
@@ -812,6 +980,7 @@ impl<'a> Matrix<'a> {
         col_indices: DevicePtr,
         values: DevicePtr,
     ) -> Result<()> {
+        // SAFETY: `cudssMatrixSetCsrPointers` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cudssMatrixSetCsrPointers(
                 self.handle,
@@ -830,7 +999,25 @@ impl<'a> Matrix<'a> {
     /// # Errors
     ///
     /// Returns an error if cuDSS rejects the new pointer table.
-    pub fn set_batch_values<T>(&mut self, values: DevicePointerTable<'a, T>) -> Result<()> {
+    pub fn set_batch_values<T: DataTypeLike>(
+        &mut self,
+        values: DevicePointerTable<'a, T>,
+    ) -> Result<()> {
+        ensure_context(&self.context, values.context())?;
+        let (data_type, count) = if self.format()?.contains(MatrixFormat::CSR) {
+            let info = self.batch_csr_info()?;
+            (info.value_type, info.rows.len())
+        } else {
+            let info = self.batch_dense_info()?;
+            (info.value_type, info.rows.len())
+        };
+        if data_type != T::DATA_TYPE {
+            return Err(Error::UnsupportedDataType {
+                name: "batch replacement values".into(),
+            });
+        }
+        validate_min_len("values table", count, values.len())?;
+        // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
         unsafe { self.set_batch_values_raw(values.as_ptr()) }
     }
 
@@ -846,6 +1033,7 @@ impl<'a> Matrix<'a> {
     ///
     /// Returns an error if cuDSS rejects the new pointer table.
     pub unsafe fn set_batch_values_raw(&mut self, values: DevicePtr) -> Result<()> {
+        // SAFETY: `cudssMatrixSetBatchValues` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cudssMatrixSetBatchValues(
                 self.handle,
@@ -873,6 +1061,32 @@ impl<'a> Matrix<'a> {
         J: MatrixIndex,
         T: DataTypeLike,
     {
+        let info = self.batch_csr_info()?;
+        if info.offset_type != O::DATA_TYPE
+            || info.index_type != J::DATA_TYPE
+            || info.value_type != T::DATA_TYPE
+        {
+            return Err(Error::UnsupportedDataType {
+                name: "batch csr replacement buffers".into(),
+            });
+        }
+        for (name, table_context, count) in [
+            ("row start table", row_start.context(), row_start.len()),
+            (
+                "column index table",
+                col_indices.context(),
+                col_indices.len(),
+            ),
+            ("values table", values.context(), values.len()),
+        ] {
+            ensure_context(&self.context, table_context)?;
+            validate_min_len(name, info.rows.len(), count)?;
+        }
+        if let Some(row_end) = row_end {
+            ensure_context(&self.context, row_end.context())?;
+            validate_min_len("row end table", info.rows.len(), row_end.len())?;
+        }
+        // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
         unsafe {
             self.set_batch_csr_values_raw(
                 row_start.as_ptr(),
@@ -901,6 +1115,7 @@ impl<'a> Matrix<'a> {
         col_indices: DevicePtr,
         values: DevicePtr,
     ) -> Result<()> {
+        // SAFETY: `cudssMatrixSetBatchCsrPointers` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cudssMatrixSetBatchCsrPointers(
                 self.handle,
@@ -918,6 +1133,7 @@ impl<'a> Matrix<'a> {
     ///
     /// Returns an error if cuDSS cannot report the format.
     pub fn format(&self) -> Result<MatrixFormat> {
+        // SAFETY: `cudssMatrixGetFormat` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             let mut format = 0;
             try_ffi!(sys::cudssMatrixGetFormat(self.handle, &raw mut format))?;
@@ -941,6 +1157,7 @@ impl<'a> Matrix<'a> {
     ///
     /// Returns an error if cuDSS rejects the row distribution.
     pub fn set_distribution_row_1d(&mut self, first_row: i64, last_row: i64) -> Result<()> {
+        // SAFETY: `cudssMatrixSetDistributionRow1d` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cudssMatrixSetDistributionRow1d(
                 self.handle,
@@ -958,6 +1175,7 @@ impl<'a> Matrix<'a> {
     ///
     /// Returns an error if cuDSS cannot report the row distribution.
     pub fn distribution_row_1d(&self) -> Result<(i64, i64)> {
+        // SAFETY: `cudssMatrixGetDistributionRow1d` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             let mut first_row = 0;
             let mut last_row = 0;
@@ -971,6 +1189,7 @@ impl<'a> Matrix<'a> {
     }
 
     /// Returns the raw cuDSS matrix descriptor handle.
+    #[must_use]
     pub const fn as_raw(&self) -> sys::cudssMatrix_t {
         self.handle
     }
@@ -986,12 +1205,13 @@ impl<'a> Matrix<'a> {
     /// # Errors
     ///
     /// Returns an error if `handle` is null.
-    pub unsafe fn from_raw(handle: sys::cudssMatrix_t) -> Result<Self> {
+    pub unsafe fn from_raw(context: &Arc<CudaContext>, handle: sys::cudssMatrix_t) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
         Ok(Self {
             handle,
+            context: Arc::clone(context),
             _marker: PhantomData,
         })
     }
@@ -999,22 +1219,30 @@ impl<'a> Matrix<'a> {
     /// Consumes this wrapper and returns the owned raw cuDSS matrix descriptor.
     ///
     /// The caller becomes responsible for destroying the returned descriptor.
-    pub fn into_raw(self) -> sys::cudssMatrix_t {
+    #[must_use]
+    pub fn into_raw(self) -> (sys::cudssMatrix_t, Arc<CudaContext>) {
         let matrix = ManuallyDrop::new(self);
-        matrix.handle
+        // SAFETY: transfer the retained context exactly once with the raw handle.
+        unsafe { (matrix.handle, ptr::read(&raw const matrix.context)) }
     }
 }
 
 impl Drop for Matrix<'_> {
     fn drop(&mut self) {
+        let _ = self.context.bind();
+        // SAFETY: `cudssMatrixDestroy` receives live handles owned by the wrappers.
         unsafe {
-            let _ = sys::cudssMatrixDestroy(self.handle);
+            if let Err(error) = try_ffi!(sys::cudssMatrixDestroy(self.handle)) {
+                #[cfg(debug_assertions)]
+                eprintln!("failed to destroy cudss matrix: {error}");
+            }
         }
     }
 }
 
 impl DenseMatrixDescriptor {
     /// Creates a column-major dense matrix descriptor.
+    #[must_use]
     pub fn new(rows: i64, columns: i64, leading_dim: i64) -> Self {
         Self {
             rows,
@@ -1028,6 +1256,7 @@ impl DenseMatrixDescriptor {
     ///
     /// cuDSS documents row-major layout but does not currently support it for
     /// solve right-hand side and solution matrices.
+    #[must_use]
     pub fn new_row_major(rows: i64, columns: i64, leading_dim: i64) -> Self {
         Self {
             rows,
@@ -1043,7 +1272,7 @@ fn validate_batch_len(name: &str, expected: usize, actual: usize) -> Result<()> 
         Ok(())
     } else {
         Err(Error::LengthMismatch {
-            name: name.into(),
+            name: name.to_owned().into(),
             expected,
             actual,
         })
@@ -1143,14 +1372,15 @@ fn validate_min_len(name: &str, expected: usize, actual: usize) -> Result<()> {
         Ok(())
     } else {
         Err(Error::LengthMismatch {
-            name: name.into(),
+            name: name.to_owned().into(),
             expected,
             actual,
         })
     }
 }
 
-fn device_ptr<T>(memory: &DeviceMemory<T>) -> DevicePtr {
+fn device_ptr<T: DeviceRepr>(memory: DeviceView<'_, T>) -> DevicePtr {
+    // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
     unsafe { DevicePtr::from_raw(memory.as_ptr().cast_mut().cast()) }
 }
 
@@ -1158,7 +1388,8 @@ unsafe fn copy_i64_batch(ptr: *mut c_void, len: usize) -> Vec<i64> {
     if ptr.is_null() || len == 0 {
         Vec::new()
     } else {
-        unsafe { std::slice::from_raw_parts(ptr.cast::<i64>(), len).to_vec() }
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { slice::from_raw_parts(ptr.cast::<i64>(), len).to_vec() }
     }
 }
 
@@ -1173,14 +1404,25 @@ unsafe fn copy_index_batch(
     }
 
     match index_type {
+        // SAFETY: the caller upholds this function's safety contract.
         DataType::I32 => Ok(unsafe {
-            std::slice::from_raw_parts(ptr.cast::<i32>(), len)
+            slice::from_raw_parts(ptr.cast::<i32>(), len)
                 .iter()
                 .copied()
                 .map(i64::from)
                 .collect()
         }),
+        // SAFETY: the caller upholds this function's safety contract.
         DataType::I64 => Ok(unsafe { copy_i64_batch(ptr, len) }),
-        _ => Err(Error::UnsupportedDataType { name: name.into() }),
+        _ => Err(Error::UnsupportedDataType {
+            name: name.to_owned().into(),
+        }),
     }
+}
+
+fn ensure_context(expected: &Arc<CudaContext>, actual: &Arc<CudaContext>) -> Result<()> {
+    if expected != actual {
+        return Err(Error::ContextMismatch);
+    }
+    Ok(())
 }

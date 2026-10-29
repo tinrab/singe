@@ -2,13 +2,16 @@ mod common;
 
 use singe_cuda::{cuda_module, memory::DeviceMemory, module::LaunchConfig};
 use singe_cudnn::{
-    backend::behavior::BackendBehaviorNote,
-    backend::tensor::{Shape, TensorSpec},
+    backend::{
+        behavior::BackendBehaviorNote,
+        tensor::{Shape, TensorId, TensorSpec},
+    },
     data_type::DataType,
     error::{Error, Result, Status},
     frontend::{
         graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::HeuristicMode,
+        operation::MatmulConfig,
+        plan::{CompileConfig, EngineConfigFilter, ExecuteArgs, HeuristicMode},
     },
 };
 
@@ -34,7 +37,7 @@ cuda_module! {
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
+    let context = common::ExampleContext::create()?;
 
     let batch = 1_i64;
     let rows = 8_i64;
@@ -52,41 +55,63 @@ fn run() -> Result<()> {
             ),
     );
 
-    let a = graph.tensor(
-        TensorSpec::new(DataType::F32, Shape::contiguous([batch, rows, depth])?).with_id(1000),
-    );
-    let b = graph.tensor(
-        TensorSpec::new(DataType::F32, Shape::contiguous([batch, depth, cols])?).with_id(1001),
-    );
-    let c = graph.tensor(
-        TensorSpec::new(DataType::F32, Shape::contiguous([batch, rows, cols])?).with_id(1002),
-    );
-    graph.matmul(a, b, c, DataType::F32)?;
+    let a = graph.insert_tensor(
+        TensorId::new(1000),
+        TensorSpec::new(DataType::F32, Shape::contiguous([batch, rows, depth])?),
+    )?;
+    let b = graph.insert_tensor(
+        TensorId::new(1001),
+        TensorSpec::new(DataType::F32, Shape::contiguous([batch, depth, cols])?),
+    )?;
+    let c = graph.insert_tensor(
+        TensorId::new(1002),
+        TensorSpec::new(DataType::F32, Shape::contiguous([batch, rows, cols])?),
+    )?;
+    graph.matmul_into(
+        a,
+        b,
+        c,
+        MatmulConfig::new().with_compute_type(DataType::F32),
+    )?;
 
     let compiled = graph
-        .plan_candidates(&ctx.cudnn, &[HeuristicMode::A])?
-        .require_behavior_notes(vec![BackendBehaviorNote::SupportsCudaGraphNativeApi])?
-        .compile(&ctx.cudnn)?;
+        .plan_candidates(
+            Some(&context.cudnn),
+            &CompileConfig::from_heuristic_modes([HeuristicMode::A]),
+        )?
+        .filter(
+            &EngineConfigFilter::new()
+                .with_included_behavior_notes(&[BackendBehaviorNote::SupportsCudaGraphNativeApi]),
+        )
+        .compile(Some(&context.cudnn), &CompileConfig::new())?;
 
     let element_count = (batch * rows * cols) as usize;
-    let mut a_dev = DeviceMemory::from_slice(&vec![1.0_f32; (batch * rows * depth) as usize])?;
-    let mut b_dev = DeviceMemory::from_slice(&vec![1.0_f32; (batch * depth * cols) as usize])?;
-    let mut c_dev = DeviceMemory::<f32>::zeroes(element_count)?;
-    let mut workspace = common::workspace(compiled.workspace_size()?)?;
+    let mut a_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![1.0_f32; (batch * rows * depth) as usize],
+    )?;
+    let mut b_dev = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![1.0_f32; (batch * depth * cols) as usize],
+    )?;
+    let mut c_dev = DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), element_count)?;
+    let mut workspace = common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
 
-    let mut bindings = compiled.bindings();
+    let mut bindings = compiled.bindings()?;
     bindings.set(a, &mut a_dev)?;
     bindings.set(b, &mut b_dev)?;
     bindings.set(c, &mut c_dev)?;
 
-    let mut main_graph = ctx.cudnn.cuda_context().create_graph()?;
-    let cudnn_node = match compiled.append_to_cuda_graph(
-        &ctx.cudnn,
-        &bindings,
-        Some(&mut workspace),
-        &mut main_graph,
-        &[],
-    ) {
+    let mut main_graph = context.cudnn.cuda_context().create_graph()?;
+    // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
+    let cudnn_node = match unsafe {
+        compiled.append_to_cuda_graph(
+            &context.cudnn,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            &mut main_graph,
+            &[],
+        )
+    } {
         Ok(node) => node,
         Err(Error::Cudnn { code, .. })
             if code == Status::NotSupported || code == Status::NotSupportedCudaGraphNativeApi =>
@@ -96,16 +121,17 @@ fn run() -> Result<()> {
         Err(error) => return Err(error),
     };
 
-    let module = postprocess_kernel::Module::create(ctx.cudnn.cuda_context())?;
+    let module = postprocess_kernel::Module::create(context.cudnn.cuda_context())?;
     let scale = 0.5_f32;
     let bias = 1.25_f32;
     let launch = LaunchConfig::for_1d_grid(element_count, 128);
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     let kernel_node = unsafe {
         module.affine_node(
             &mut main_graph,
             &[cudnn_node.clone()],
             &launch,
-            c_dev.as_mut_ptr() as _,
+            &mut c_dev,
             element_count as i32,
             scale,
             bias,
@@ -113,8 +139,11 @@ fn run() -> Result<()> {
     };
 
     let mut executable = main_graph.instantiate()?;
-    executable.launch(&ctx.stream)?;
-    ctx.stream.synchronize()?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        executable.launch(&context.stream)?;
+    }
+    context.stream.synchronize()?;
 
     let output = c_dev.copy_to_host_vec()?;
     let expected = depth as f32 * scale + bias;
@@ -126,36 +155,49 @@ fn run() -> Result<()> {
 
     let scale_new = 0.25_f32;
     let bias_new = 2.0_f32;
-    let mut a_dev_new = DeviceMemory::from_slice(&vec![2.0_f32; (batch * rows * depth) as usize])?;
-    let mut b_dev_new = DeviceMemory::from_slice(&vec![1.5_f32; (batch * depth * cols) as usize])?;
-    let mut c_dev_new = DeviceMemory::<f32>::zeroes(element_count)?;
-    let mut workspace_new = common::workspace(compiled.workspace_size()?)?;
+    let mut a_dev_new = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![2.0_f32; (batch * rows * depth) as usize],
+    )?;
+    let mut b_dev_new = DeviceMemory::from_slice(
+        context.cudnn.cuda_context(),
+        &vec![1.5_f32; (batch * depth * cols) as usize],
+    )?;
+    let mut c_dev_new = DeviceMemory::<f32>::zeroed(context.cudnn.cuda_context(), element_count)?;
+    let mut workspace_new =
+        common::workspace(context.cudnn.cuda_context(), compiled.workspace_size())?;
 
-    let mut bindings_new = compiled.bindings();
+    let mut bindings_new = compiled.bindings()?;
     bindings_new.set(a, &mut a_dev_new)?;
     bindings_new.set(b, &mut b_dev_new)?;
     bindings_new.set(c, &mut c_dev_new)?;
 
-    compiled.update_cuda_graph_node(
-        &ctx.cudnn,
-        &bindings_new,
-        Some(&mut workspace_new),
-        cudnn_node,
-        Some(&mut executable),
-    )?;
+    // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
+    unsafe {
+        compiled.update_cuda_graph_node(
+            &context.cudnn,
+            ExecuteArgs::new(&bindings_new).with_workspace(&mut workspace_new),
+            &cudnn_node,
+            Some(&mut executable),
+        )
+    }?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module.affine_set_node_params(
             &mut executable,
-            kernel_node,
-            &launch,
-            c_dev_new.as_mut_ptr() as _,
+            &kernel_node,
+            launch.geometry(),
+            &mut c_dev_new,
             element_count as i32,
             scale_new,
             bias_new,
         )?;
     }
-    executable.launch(&ctx.stream)?;
-    ctx.stream.synchronize()?;
+    // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        executable.launch(&context.stream)?;
+    }
+    context.stream.synchronize()?;
 
     let output_new = c_dev_new.copy_to_host_vec()?;
     let expected_new = (depth as f32 * 2.0_f32 * 1.5_f32) * scale_new + bias_new;

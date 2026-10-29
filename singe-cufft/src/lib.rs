@@ -4,12 +4,15 @@
 //! transform execution over the raw
 //! `singe-cufft-sys` bindings.
 
+/// cuFFT status codes and errors from planning, execution, and CUDA operations.
 pub mod error;
+/// Single-GPU FFT planning, workspace configuration, and transform submission.
 pub mod plan;
+/// Transform directions, element types, and native plan properties.
 pub mod types;
-
 pub(crate) mod utility;
 
+/// Serialized test setup for cuFFT on CUDA device 0.
 #[cfg(feature = "testing")]
 pub mod testing;
 
@@ -26,6 +29,7 @@ use crate::error::Result;
 /// Returns an error if cuFFT cannot report the loaded library version.
 pub fn version() -> Result<LibraryVersion> {
     let mut version = 0;
+    // SAFETY: `cufftGetVersion` receives valid output locations.
     unsafe {
         try_ffi!(sys::cufftGetVersion(&raw mut version))?;
     }
@@ -45,6 +49,7 @@ pub fn version() -> Result<LibraryVersion> {
 /// Returns an error if cuFFT cannot report the requested property.
 pub fn library_property(property: LibraryProperty) -> Result<i32> {
     let mut value = 0;
+    // SAFETY: `cufftGetProperty` receives valid output locations.
     unsafe {
         try_ffi!(sys::cufftGetProperty(property.into(), &raw mut value))?;
     }
@@ -57,10 +62,14 @@ mod tests {
     use crate::testing::setup_context;
 
     #[test]
-    fn it_works() -> crate::error::Result<()> {
+    fn test_it_works() -> Result<()> {
         let _context = setup_context()?;
         assert_ne!(version()?, 0);
         assert_ne!(library_property(LibraryProperty::Major)?, 0);
         Ok(())
     }
 }
+
+pub mod device;
+
+pub mod xt;

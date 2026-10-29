@@ -1,23 +1,30 @@
 //! GEMM, batched GEMM, ragged batched GEMM, and matvec variants.
 
-#[cfg(feature = "dtype-bf16")]
+use ::cutile::cuda_async::device_buffer::DevicePointer;
+#[cfg(feature = "dtype_bf16")]
 use singe_cuda::types::bf16;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use singe_cuda::types::f16;
 use singe_cuda::{
     stream::Stream,
-    view::{DeviceSlice, DeviceSliceMut},
+    view::{DeviceInput, DeviceOutput, DeviceSliceMut},
 };
 
 #[cfg(feature = "cutile")]
 use crate::cuda::cutile;
 use crate::{
-    cuda::interop::{borrowed_stream, input_pointer, output_pointer},
+    cuda::{
+        autotune::{
+            self, DeviceFingerprint, KernelCompileConfig, Tile2d, TuneOptions, TuneProblemKey,
+            TuneReport, TuningChoice,
+        },
+        interop::{input_pointer, output_pointer},
+    },
     error::{Error, Result},
     utility::{checked_element_count, ensure_len, ensure_len_at_least, ensure_rank3_reach},
 };
 
-trait FiniteScale {
+trait FiniteScale: Copy {
     fn is_finite_scale(self) -> bool;
 }
 
@@ -33,7 +40,8 @@ impl FiniteScale for f64 {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MatmulConfig {
     pub rows: usize,
     pub columns: usize,
@@ -43,9 +51,32 @@ pub struct MatmulConfig {
     pub output_row_stride: usize,
     pub transpose_lhs: bool,
     pub transpose_rhs: bool,
+    pub tuning: TuningChoice<MatmulTuning>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MatmulTuning {
+    Classic(ClassicMatmulTuning),
+    Mma(MatmulMmaTuning),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ClassicMatmulTuning {
+    pub tile_width: usize,
+    pub compile: KernelCompileConfig,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MatmulMmaTuning {
+    pub tile: Tile2d,
+    pub compile: KernelCompileConfig,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BmmConfig {
     pub batch: usize,
     pub rows: usize,
@@ -59,6 +90,21 @@ pub struct BmmConfig {
     pub output_row_stride: usize,
     pub transpose_lhs: bool,
     pub transpose_rhs: bool,
+    pub tuning: TuningChoice<BmmTuning>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum BmmTuning {
+    Classic(ClassicMatmulTuning),
+    Mma(BmmMmaTuning),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BmmMmaTuning {
+    pub tile: Tile2d,
+    pub compile: KernelCompileConfig,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -121,7 +167,7 @@ pub struct GroupedGemmConfig {
     pub top_k: usize,
 }
 
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RaggedBlockScaledBmmConfig {
     /// Number of independent RHS batches. Uses the same `row_indptr` contract
@@ -154,6 +200,7 @@ impl MatmulConfig {
             output_row_stride: columns,
             transpose_lhs: false,
             transpose_rhs: false,
+            tuning: TuningChoice::Default,
         }
     }
 
@@ -167,6 +214,7 @@ impl MatmulConfig {
             output_row_stride: columns,
             transpose_lhs: true,
             transpose_rhs: false,
+            tuning: TuningChoice::Default,
         }
     }
 
@@ -180,6 +228,7 @@ impl MatmulConfig {
             output_row_stride: columns,
             transpose_lhs: false,
             transpose_rhs: true,
+            tuning: TuningChoice::Default,
         }
     }
 
@@ -193,7 +242,70 @@ impl MatmulConfig {
             output_row_stride: columns,
             transpose_lhs: true,
             transpose_rhs: true,
+            tuning: TuningChoice::Default,
         }
+    }
+
+    pub const fn with_tuning(mut self, tuning: TuningChoice<MatmulTuning>) -> Self {
+        self.tuning = tuning;
+        self
+    }
+
+    pub const fn explicit_tuning(self, tuning: MatmulTuning) -> Self {
+        self.with_tuning(TuningChoice::Explicit(tuning))
+    }
+
+    pub const fn cached_tuning(self) -> Self {
+        self.with_tuning(TuningChoice::Cached)
+    }
+
+    pub const fn tune(self, options: TuneOptions) -> Self {
+        self.with_tuning(TuningChoice::Tune(options))
+    }
+
+    pub const fn retune(self, options: TuneOptions) -> Self {
+        self.with_tuning(TuningChoice::Retune(options))
+    }
+}
+
+impl ClassicMatmulTuning {
+    pub const fn tile_width(tile_width: usize) -> Self {
+        Self {
+            tile_width,
+            compile: KernelCompileConfig {
+                occupancy: None,
+                num_cta_in_cga: None,
+                max_divisibility: None,
+            },
+        }
+    }
+
+    pub const fn compile(mut self, compile: KernelCompileConfig) -> Self {
+        self.compile = compile;
+        self
+    }
+}
+
+impl MatmulMmaTuning {
+    pub const fn tile(rows: usize, columns: usize) -> Self {
+        Self {
+            tile: Tile2d::create(rows, columns),
+            compile: KernelCompileConfig {
+                occupancy: None,
+                num_cta_in_cga: None,
+                max_divisibility: None,
+            },
+        }
+    }
+
+    pub const fn compile(mut self, compile: KernelCompileConfig) -> Self {
+        self.compile = compile;
+        self
+    }
+
+    pub const fn occupancy(mut self, occupancy: i32) -> Self {
+        self.compile.occupancy = Some(occupancy);
+        self
     }
 }
 
@@ -215,6 +327,7 @@ impl BmmConfig {
             output_row_stride: columns,
             transpose_lhs: false,
             transpose_rhs: false,
+            tuning: TuningChoice::Default,
         })
     }
 
@@ -240,6 +353,7 @@ impl BmmConfig {
             output_row_stride: columns,
             transpose_lhs: true,
             transpose_rhs: false,
+            tuning: TuningChoice::Default,
         })
     }
 
@@ -265,6 +379,7 @@ impl BmmConfig {
             output_row_stride: columns,
             transpose_lhs: false,
             transpose_rhs: true,
+            tuning: TuningChoice::Default,
         })
     }
 
@@ -290,7 +405,52 @@ impl BmmConfig {
             output_row_stride: columns,
             transpose_lhs: true,
             transpose_rhs: true,
+            tuning: TuningChoice::Default,
         })
+    }
+
+    pub const fn with_tuning(mut self, tuning: TuningChoice<BmmTuning>) -> Self {
+        self.tuning = tuning;
+        self
+    }
+
+    pub const fn explicit_tuning(self, tuning: BmmTuning) -> Self {
+        self.with_tuning(TuningChoice::Explicit(tuning))
+    }
+
+    pub const fn cached_tuning(self) -> Self {
+        self.with_tuning(TuningChoice::Cached)
+    }
+
+    pub const fn tune(self, options: TuneOptions) -> Self {
+        self.with_tuning(TuningChoice::Tune(options))
+    }
+
+    pub const fn retune(self, options: TuneOptions) -> Self {
+        self.with_tuning(TuningChoice::Retune(options))
+    }
+}
+
+impl BmmMmaTuning {
+    pub const fn tile(rows: usize, columns: usize) -> Self {
+        Self {
+            tile: Tile2d::create(rows, columns),
+            compile: KernelCompileConfig {
+                occupancy: None,
+                num_cta_in_cga: None,
+                max_divisibility: None,
+            },
+        }
+    }
+
+    pub const fn compile(mut self, compile: KernelCompileConfig) -> Self {
+        self.compile = compile;
+        self
+    }
+
+    pub const fn occupancy(mut self, occupancy: i32) -> Self {
+        self.compile.occupancy = Some(occupancy);
+        self
     }
 }
 
@@ -472,7 +632,7 @@ impl GroupedGemmConfig {
     }
 }
 
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 impl RaggedBlockScaledBmmConfig {
     pub fn row_major(
         batch: usize,
@@ -503,1110 +663,1739 @@ impl RaggedBlockScaledBmmConfig {
     }
 }
 
-pub fn matmul_f32(
+fn matmul_tune_key(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
+    op: &'static str,
+    dtype: &'static str,
+    config: MatmulConfig,
+) -> Result<autotune::TuneKey> {
+    let device = DeviceFingerprint::create(stream.context().device())?;
+    Ok(autotune::TuneKey::create(
+        op,
+        "cutile",
+        device,
+        TuneProblemKey::Matmul {
+            dtype: dtype.to_owned(),
+            rows: config.rows,
+            columns: config.columns,
+            reduction: config.reduction,
+            lhs_row_stride: config.lhs_row_stride,
+            rhs_row_stride: config.rhs_row_stride,
+            output_row_stride: config.output_row_stride,
+            transpose_lhs: config.transpose_lhs,
+            transpose_rhs: config.transpose_rhs,
+        },
+    ))
+}
+
+fn classic_matmul_candidates() -> Vec<MatmulTuning> {
+    vec![MatmulTuning::Classic(ClassicMatmulTuning::tile_width(128))]
+}
+
+#[cfg(feature = "dtype_f16")]
+fn matmul_f16_f32_candidates(config: MatmulConfig) -> Vec<MatmulTuning> {
+    let mut candidates = classic_matmul_candidates();
+    if is_compact_matmul_transposed_rhs(config) {
+        candidates.extend(
+            [
+                MatmulMmaTuning::tile(8, 32),
+                MatmulMmaTuning::tile(16, 16),
+                MatmulMmaTuning::tile(16, 32),
+                MatmulMmaTuning::tile(16, 64),
+                MatmulMmaTuning::tile(16, 64).occupancy(2),
+                MatmulMmaTuning::tile(16, 64).occupancy(4),
+                MatmulMmaTuning::tile(32, 16),
+            ]
+            .into_iter()
+            .map(MatmulTuning::Mma),
+        );
+    }
+    candidates
+}
+
+fn resolve_matmul_tuning<C, F>(
+    stream: &Stream,
+    op: &'static str,
+    key: autotune::TuneKey,
+    choice: TuningChoice<MatmulTuning>,
+    candidates: C,
+    tune: F,
+) -> Result<Option<MatmulTuning>>
+where
+    C: FnOnce() -> Vec<MatmulTuning>,
+    F: FnOnce(TuneOptions, Vec<MatmulTuning>) -> Result<TuneReport<MatmulTuning>>,
+{
+    match choice {
+        TuningChoice::Default => Ok(None),
+        TuningChoice::Explicit(tuning) => Ok(Some(tuning)),
+        TuningChoice::Cached => {
+            if let Some(tuning) = autotune::cache().get(&key)? {
+                Ok(Some(tuning))
+            } else {
+                Err(autotune::cache_miss_error(op, stream.capture_status()?))
+            }
+        }
+        TuningChoice::Tune(options) => {
+            if let Some(tuning) = autotune::cache().get(&key)? {
+                return Ok(Some(tuning));
+            }
+            let report = tune(options, candidates())?;
+            autotune::cache().insert(key, report.best);
+            Ok(Some(report.best))
+        }
+        TuningChoice::Retune(options) => {
+            let report = tune(options, candidates())?;
+            autotune::cache().insert(key, report.best);
+            Ok(Some(report.best))
+        }
+    }
+}
+
+/// # Safety
+/// The caller must uphold the safety contract of the public wrapper that calls this helper.
+unsafe fn launch_matmul_f32_default(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    config: MatmulConfig,
+) -> Result<()> {
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
+}
+
+/// # Safety
+/// The caller must uphold the safety contract of the public wrapper that calls this helper.
+unsafe fn launch_matmul_f32_with_tuning(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    config: MatmulConfig,
+    tuning: MatmulTuning,
+) -> Result<()> {
+    match tuning {
+        MatmulTuning::Classic(tuning) => {
+            if tuning.tile_width != 128 || !tuning.compile.is_default() {
+                return Err(Error::UnsupportedConfiguration {
+                    op: "matmul_f32".into(),
+                    reason: "only classic tile_width 128 without compile hints is implemented"
+                        .into(),
+                });
+            }
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { launch_matmul_f32_default(stream, out, lhs, rhs, config) }
+        }
+        MatmulTuning::Mma(_) => Err(Error::UnsupportedConfiguration {
+            op: "matmul_f32".into(),
+            reason: "mma tuning is not implemented for matmul_f32".into(),
+        }),
+    }
+}
+
+/// Multiplies the configured logical matrices and writes their product.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matmul_f32(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    match config.tuning {
+        TuningChoice::Default => {
+            // SAFETY: the caller upholds this function's safety contract.
+            return unsafe { launch_matmul_f32_default(stream, out, lhs, rhs, config) };
+        }
+        TuningChoice::Explicit(tuning) => {
+            // SAFETY: the caller upholds this function's safety contract.
+            return unsafe { launch_matmul_f32_with_tuning(stream, out, lhs, rhs, config, tuning) };
+        }
+        TuningChoice::Cached => {}
+        TuningChoice::Tune(_) | TuningChoice::Retune(_) => {
+            autotune::ensure_not_capturing(stream, "matmul_f32")?;
+        }
+    }
+
+    let key = matmul_tune_key(stream, "matmul_f32", "f32", config)?;
+    let tuning = resolve_matmul_tuning(
+        stream,
+        "matmul_f32",
+        key.clone(),
+        config.tuning,
+        classic_matmul_candidates,
+        |options, candidates| {
+            autotune::tune_candidates(stream, "matmul_f32", key, options, candidates, |tuning| {
+                // SAFETY: the caller upholds this function's safety contract.
+                unsafe { launch_matmul_f32_with_tuning(stream, out, lhs, rhs, config, *tuning) }
+            })
+        },
+    )?;
+    if let Some(tuning) = tuning {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_matmul_f32_with_tuning(stream, out, lhs, rhs, config, tuning) }
+    } else {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_matmul_f32_default(stream, out, lhs, rhs, config) }
+    }
 }
 
-pub fn matmul_mma_f32(
+/// Tunes the matrix multiplication and enqueues the selected candidate.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn tune_matmul_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    config: MatmulConfig,
+    options: TuneOptions,
+) -> Result<TuneReport<MatmulTuning>> {
+    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
+    let key = matmul_tune_key(stream, "matmul_f32", "f32", config)?;
+    let report = autotune::tune_candidates(
+        stream,
+        "matmul_f32",
+        key.clone(),
+        options,
+        classic_matmul_candidates(),
+        |tuning| {
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { launch_matmul_f32_with_tuning(stream, out, lhs, rhs, config, *tuning) }
+        },
+    )?;
+    autotune::cache().insert(key, report.best);
+    {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_matmul_f32_with_tuning(stream, out, lhs, rhs, config, report.best) }
+    }?;
+    Ok(report)
+}
+
+/// Multiplies the configured logical matrices and writes their product.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matmul_mma_f32(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_matmul(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_mma_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f64")]
-pub fn matmul_f64(
+#[cfg(feature = "dtype_f64")]
+/// Multiplies the configured logical matrices and writes their product.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matmul_f64(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f64>,
-    lhs: &impl DeviceSlice<f64>,
-    rhs: &impl DeviceSlice<f64>,
+    out: &mut impl DeviceOutput<f64>,
+    lhs: &impl DeviceInput<f64>,
+    rhs: &impl DeviceInput<f64>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_f64(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_f64(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_f16_f32(
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// The caller must uphold the safety contract of the public wrapper that calls this helper.
+unsafe fn launch_matmul_f16_f32_default(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
+    config: MatmulConfig,
+) -> Result<()> {
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
+}
+
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// The caller must uphold the safety contract of the public wrapper that calls this helper.
+unsafe fn launch_matmul_f16_f32_with_tuning(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
+    config: MatmulConfig,
+    tuning: MatmulTuning,
+) -> Result<()> {
+    match tuning {
+        MatmulTuning::Classic(tuning) => {
+            if tuning.tile_width != 128 || !tuning.compile.is_default() {
+                return Err(Error::UnsupportedConfiguration {
+                    op: "matmul_f16_f32".into(),
+                    reason: "only classic tile_width 128 without compile hints is implemented"
+                        .into(),
+                });
+            }
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { launch_matmul_f16_f32_default(stream, out, lhs, rhs, config) }
+        }
+        MatmulTuning::Mma(tuning) => {
+            validate_compact_matmul_transposed_rhs(config)?;
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::matmul::matmul_mma_transposed_rhs_f16_f32_tuned(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(lhs),
+                    input_pointer(rhs),
+                    config.rows,
+                    config.columns,
+                    config.reduction,
+                    config.lhs_row_stride,
+                    config.rhs_row_stride,
+                    config.output_row_stride,
+                    config.transpose_lhs,
+                    config.transpose_rhs,
+                    tuning.tile.rows,
+                    tuning.tile.columns,
+                    tuning.compile,
+                )
+            }
+        }
+    }
+}
+
+#[cfg(feature = "dtype_f16")]
+/// Multiplies the configured logical matrices and writes their product.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matmul_f16_f32(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    match config.tuning {
+        TuningChoice::Default => {
+            // SAFETY: the caller upholds this function's safety contract.
+            return unsafe { launch_matmul_f16_f32_default(stream, out, lhs, rhs, config) };
+        }
+        TuningChoice::Explicit(tuning) => {
+            // SAFETY: the caller upholds this function's safety contract.
+            return unsafe {
+                launch_matmul_f16_f32_with_tuning(stream, out, lhs, rhs, config, tuning)
+            };
+        }
+        TuningChoice::Cached => {}
+        TuningChoice::Tune(_) | TuningChoice::Retune(_) => {
+            autotune::ensure_not_capturing(stream, "matmul_f16_f32")?;
+        }
+    }
+
+    let key = matmul_tune_key(stream, "matmul_f16_f32", "f16_f32", config)?;
+    let tuning = resolve_matmul_tuning(
+        stream,
+        "matmul_f16_f32",
+        key.clone(),
+        config.tuning,
+        || matmul_f16_f32_candidates(config),
+        |options, candidates| {
+            autotune::tune_candidates(
+                stream,
+                "matmul_f16_f32",
+                key,
+                options,
+                candidates,
+                |tuning| {
+                    // SAFETY: the caller upholds this function's safety contract.
+                    unsafe {
+                        launch_matmul_f16_f32_with_tuning(stream, out, lhs, rhs, config, *tuning)
+                    }
+                },
+            )
+        },
+    )?;
+    if let Some(tuning) = tuning {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_matmul_f16_f32_with_tuning(stream, out, lhs, rhs, config, tuning) }
+    } else {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_matmul_f16_f32_default(stream, out, lhs, rhs, config) }
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn matvec_transposed_rhs_f16_f32_1024(
+#[cfg(feature = "dtype_f16")]
+/// Tunes the matrix multiplication and enqueues the selected candidate.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn tune_matmul_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
+    config: MatmulConfig,
+    options: TuneOptions,
+) -> Result<TuneReport<MatmulTuning>> {
+    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
+    let key = matmul_tune_key(stream, "matmul_f16_f32", "f16_f32", config)?;
+    let report = autotune::tune_candidates(
+        stream,
+        "matmul_f16_f32",
+        key.clone(),
+        options,
+        matmul_f16_f32_candidates(config),
+        |tuning| {
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { launch_matmul_f16_f32_with_tuning(stream, out, lhs, rhs, config, *tuning) }
+        },
+    )?;
+    autotune::cache().insert(key, report.best);
+    {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_matmul_f16_f32_with_tuning(stream, out, lhs, rhs, config, report.best) }
+    }?;
+    Ok(report)
+}
+
+#[cfg(feature = "dtype_f16")]
+/// Multiplies a vector by the transposed right-hand matrix.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matvec_transposed_rhs_f16_f32_1024(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
     validate_matvec_transposed_rhs_1024(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matvec_transposed_rhs_f16_f32_1024(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matvec_transposed_rhs_f16_f32_1024(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn matvec_transposed_rhs_f16_f32(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies a vector by the transposed right-hand matrix.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matvec_transposed_rhs_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
     validate_matvec_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matvec_transposed_rhs_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matvec_transposed_rhs_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_mma_transposed_rhs_f16_f32(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies the configured logical matrices and writes their product.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matmul_mma_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    config: MatmulConfig,
-) -> Result<()> {
-    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_matmul_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_transposed_rhs_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_mma_transposed_rhs_f16_f32_tile_8x32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    config: MatmulConfig,
-) -> Result<()> {
-    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_matmul_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_transposed_rhs_f16_f32_tile_8x32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_mma_transposed_rhs_f16_f32_tile_16x32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    config: MatmulConfig,
-) -> Result<()> {
-    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_matmul_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_transposed_rhs_f16_f32_tile_16x32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_mma_transposed_rhs_f16_f32_tile_16x64(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    config: MatmulConfig,
-) -> Result<()> {
-    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_matmul_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_transposed_rhs_f16_f32_tile_16x64(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_mma_transposed_rhs_f16_f32_tile_16x64_occupancy_2(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    config: MatmulConfig,
-) -> Result<()> {
-    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_matmul_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_transposed_rhs_f16_f32_tile_16x64_occupancy_2(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_mma_transposed_rhs_f16_f32_tile_16x64_occupancy_4(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    config: MatmulConfig,
-) -> Result<()> {
-    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_matmul_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_transposed_rhs_f16_f32_tile_16x64_occupancy_4(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_mma_transposed_rhs_f16_f32_tile_32x16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    config: MatmulConfig,
-) -> Result<()> {
-    validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_matmul_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_transposed_rhs_f16_f32_tile_32x16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_mma_f16_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_matmul(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_mma_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn matmul_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies the configured logical matrices and writes their product.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matmul_bf16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_bf16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_bf16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn matmul_mma_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies the configured logical matrices and writes their product.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn matmul_mma_bf16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
     config: MatmulConfig,
 ) -> Result<()> {
     validate_matmul(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_matmul(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_mma_bf16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_mma_bf16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-pub fn matmul_alpha_beta_f32(
+/// Computes `alpha * lhs * rhs + beta * out` using the initialized output accumulator.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Every logical output element must be initialized, even when `beta` is zero.
+pub unsafe fn matmul_alpha_beta_f32(
     stream: &Stream,
     out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
     config: MatmulConfig,
     alpha: f32,
     beta: f32,
 ) -> Result<()> {
     validate_matmul_alpha_beta(out.len(), lhs.len(), rhs.len(), config, alpha, beta)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_alpha_beta_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-        alpha,
-        beta,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_alpha_beta_f32(
+            &stream,
+            output_pointer(out),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+            alpha,
+            beta,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn matmul_alpha_beta_f16_f32(
+#[cfg(feature = "dtype_f16")]
+/// Computes `alpha * lhs * rhs + beta * out` using the initialized output accumulator.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Every logical output element must be initialized, even when `beta` is zero.
+pub unsafe fn matmul_alpha_beta_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: MatmulConfig,
     alpha: f32,
     beta: f32,
 ) -> Result<()> {
     validate_matmul_alpha_beta(out.len(), lhs.len(), rhs.len(), config, alpha, beta)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_alpha_beta_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-        alpha,
-        beta,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_alpha_beta_f16_f32(
+            &stream,
+            output_pointer(out),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+            alpha,
+            beta,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn matmul_alpha_beta_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+/// Computes `alpha * lhs * rhs + beta * out` using the initialized output accumulator.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Every logical output element must be initialized, even when `beta` is zero.
+pub unsafe fn matmul_alpha_beta_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
     config: MatmulConfig,
     alpha: f32,
     beta: f32,
 ) -> Result<()> {
     validate_matmul_alpha_beta(out.len(), lhs.len(), rhs.len(), config, alpha, beta)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_alpha_beta_bf16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-        alpha,
-        beta,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_alpha_beta_bf16_f32(
+            &stream,
+            output_pointer(out),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+            alpha,
+            beta,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f64")]
-pub fn matmul_alpha_beta_f64(
+#[cfg(feature = "dtype_f64")]
+/// Computes `alpha * lhs * rhs + beta * out` using the initialized output accumulator.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Every logical output element must be initialized, even when `beta` is zero.
+pub unsafe fn matmul_alpha_beta_f64(
     stream: &Stream,
     out: &mut impl DeviceSliceMut<f64>,
-    lhs: &impl DeviceSlice<f64>,
-    rhs: &impl DeviceSlice<f64>,
+    lhs: &impl DeviceInput<f64>,
+    rhs: &impl DeviceInput<f64>,
     config: MatmulConfig,
     alpha: f64,
     beta: f64,
 ) -> Result<()> {
     validate_matmul_alpha_beta(out.len(), lhs.len(), rhs.len(), config, alpha, beta)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::matmul_alpha_beta_f64(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-        alpha,
-        beta,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::matmul_alpha_beta_f64(
+            &stream,
+            output_pointer(out),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+            alpha,
+            beta,
+        )
+    }
 }
 
-pub fn bmm_f32(
+fn bmm_tune_key(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
+    op: &'static str,
+    dtype: &'static str,
+    config: BmmConfig,
+) -> Result<autotune::TuneKey> {
+    let device = DeviceFingerprint::create(stream.context().device())?;
+    Ok(autotune::TuneKey::create(
+        op,
+        "cutile",
+        device,
+        TuneProblemKey::Bmm {
+            dtype: dtype.to_owned(),
+            batch: config.batch,
+            rows: config.rows,
+            columns: config.columns,
+            reduction: config.reduction,
+            lhs_batch_stride: config.lhs_batch_stride,
+            lhs_row_stride: config.lhs_row_stride,
+            rhs_batch_stride: config.rhs_batch_stride,
+            rhs_row_stride: config.rhs_row_stride,
+            output_batch_stride: config.output_batch_stride,
+            output_row_stride: config.output_row_stride,
+            transpose_lhs: config.transpose_lhs,
+            transpose_rhs: config.transpose_rhs,
+        },
+    ))
+}
+
+fn bmm_f32_candidates(config: BmmConfig) -> Vec<BmmTuning> {
+    let mut candidates = vec![BmmTuning::Classic(ClassicMatmulTuning::tile_width(128))];
+    if is_compact_bmm_transposed(config) {
+        candidates.extend(
+            [
+                BmmMmaTuning::tile(16, 16),
+                BmmMmaTuning::tile(16, 64),
+                BmmMmaTuning::tile(16, 64).occupancy(2),
+                BmmMmaTuning::tile(16, 64).occupancy(4),
+                BmmMmaTuning::tile(32, 16),
+            ]
+            .into_iter()
+            .map(BmmTuning::Mma),
+        );
+    }
+    candidates
+}
+
+fn resolve_bmm_tuning<C, F>(
+    stream: &Stream,
+    op: &'static str,
+    key: autotune::TuneKey,
+    choice: TuningChoice<BmmTuning>,
+    candidates: C,
+    tune: F,
+) -> Result<Option<BmmTuning>>
+where
+    C: FnOnce() -> Vec<BmmTuning>,
+    F: FnOnce(TuneOptions, Vec<BmmTuning>) -> Result<TuneReport<BmmTuning>>,
+{
+    match choice {
+        TuningChoice::Default => Ok(None),
+        TuningChoice::Explicit(tuning) => Ok(Some(tuning)),
+        TuningChoice::Cached => {
+            if let Some(tuning) = autotune::cache().get(&key)? {
+                Ok(Some(tuning))
+            } else {
+                Err(autotune::cache_miss_error(op, stream.capture_status()?))
+            }
+        }
+        TuningChoice::Tune(options) => {
+            if let Some(tuning) = autotune::cache().get(&key)? {
+                return Ok(Some(tuning));
+            }
+            let report = tune(options, candidates())?;
+            autotune::cache().insert(key, report.best);
+            Ok(Some(report.best))
+        }
+        TuningChoice::Retune(options) => {
+            let report = tune(options, candidates())?;
+            autotune::cache().insert(key, report.best);
+            Ok(Some(report.best))
+        }
+    }
+}
+
+/// # Safety
+/// The caller must uphold the safety contract of the public wrapper that calls this helper.
+unsafe fn launch_bmm_f32_default(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    config: BmmConfig,
+) -> Result<()> {
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
+}
+
+/// # Safety
+/// The caller must uphold the safety contract of the public wrapper that calls this helper.
+unsafe fn launch_bmm_f32_with_tuning(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    config: BmmConfig,
+    tuning: BmmTuning,
+) -> Result<()> {
+    match tuning {
+        BmmTuning::Classic(tuning) => {
+            if tuning.tile_width != 128 || !tuning.compile.is_default() {
+                return Err(Error::UnsupportedConfiguration {
+                    op: "bmm_f32".into(),
+                    reason: "only classic tile_width 128 without compile hints is implemented"
+                        .into(),
+                });
+            }
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { launch_bmm_f32_default(stream, out, lhs, rhs, config) }
+        }
+        BmmTuning::Mma(tuning) => {
+            validate_compact_bmm_transposed(config)?;
+            let stream = stream.to_cuda_core()?;
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe {
+                cutile::matmul::bmm_mma_transposed_f32_tuned(
+                    &stream,
+                    DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+                    input_pointer(lhs),
+                    input_pointer(rhs),
+                    config.batch,
+                    config.rows,
+                    config.columns,
+                    config.reduction,
+                    config.lhs_batch_stride,
+                    config.lhs_row_stride,
+                    config.rhs_batch_stride,
+                    config.rhs_row_stride,
+                    config.output_batch_stride,
+                    config.output_row_stride,
+                    config.transpose_lhs,
+                    config.transpose_rhs,
+                    tuning.tile.rows,
+                    tuning.tile.columns,
+                    tuning.compile,
+                )
+            }
+        }
+    }
+}
+
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_f32(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    match config.tuning {
+        TuningChoice::Default => {
+            // SAFETY: the caller upholds this function's safety contract.
+            return unsafe { launch_bmm_f32_default(stream, out, lhs, rhs, config) };
+        }
+        TuningChoice::Explicit(tuning) => {
+            // SAFETY: the caller upholds this function's safety contract.
+            return unsafe { launch_bmm_f32_with_tuning(stream, out, lhs, rhs, config, tuning) };
+        }
+        TuningChoice::Cached => {}
+        TuningChoice::Tune(_) | TuningChoice::Retune(_) => {
+            autotune::ensure_not_capturing(stream, "bmm_f32")?;
+        }
+    }
+
+    let key = bmm_tune_key(stream, "bmm_f32", "f32", config)?;
+    let tuning = resolve_bmm_tuning(
+        stream,
+        "bmm_f32",
+        key.clone(),
+        config.tuning,
+        || bmm_f32_candidates(config),
+        |options, candidates| {
+            autotune::tune_candidates(stream, "bmm_f32", key, options, candidates, |tuning| {
+                // SAFETY: the caller upholds this function's safety contract.
+                unsafe { launch_bmm_f32_with_tuning(stream, out, lhs, rhs, config, *tuning) }
+            })
+        },
+    )?;
+    if let Some(tuning) = tuning {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_bmm_f32_with_tuning(stream, out, lhs, rhs, config, tuning) }
+    } else {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_bmm_f32_default(stream, out, lhs, rhs, config) }
+    }
 }
 
-pub fn bmm_mma_f32(
+/// Tunes the matrix multiplication and enqueues the selected candidate.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn tune_bmm_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    config: BmmConfig,
+    options: TuneOptions,
+) -> Result<TuneReport<BmmTuning>> {
+    validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
+    let key = bmm_tune_key(stream, "bmm_f32", "f32", config)?;
+    let report = autotune::tune_candidates(
+        stream,
+        "bmm_f32",
+        key.clone(),
+        options,
+        bmm_f32_candidates(config),
+        |tuning| {
+            // SAFETY: the caller upholds this function's safety contract.
+            unsafe { launch_bmm_f32_with_tuning(stream, out, lhs, rhs, config, *tuning) }
+        },
+    )?;
+    autotune::cache().insert(key, report.best);
+    {
+        // SAFETY: the caller upholds this function's safety contract.
+        unsafe { launch_bmm_f32_with_tuning(stream, out, lhs, rhs, config, report.best) }
+    }?;
+    Ok(report)
+}
+
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_mma_f32(
+    stream: &Stream,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_bmm(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_mma_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-pub fn bmm_mma_transposed_f32(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_mma_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
-    config: BmmConfig,
-) -> Result<()> {
-    validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_bmm_transposed(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_transposed_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-pub fn bmm_mma_transposed_f32_tile_16x64(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
-    config: BmmConfig,
-) -> Result<()> {
-    validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_bmm_transposed(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_transposed_f32_tile_16x64(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-pub fn bmm_mma_transposed_f32_tile_16x64_occupancy_2(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
-    config: BmmConfig,
-) -> Result<()> {
-    validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_bmm_transposed(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_transposed_f32_tile_16x64_occupancy_2(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-pub fn bmm_mma_transposed_f32_tile_16x64_occupancy_4(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
-    config: BmmConfig,
-) -> Result<()> {
-    validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_bmm_transposed(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_transposed_f32_tile_16x64_occupancy_4(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-pub fn bmm_mma_transposed_f32_tile_32x16(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
-    config: BmmConfig,
-) -> Result<()> {
-    validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    validate_compact_bmm_transposed(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_transposed_f32_tile_32x16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
-}
-
-#[cfg(feature = "dtype-f16")]
-pub fn bmm_mma_f16_f32(
-    stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_bmm(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_mma_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn bmm_mma_transposed_rhs_f16_f32(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_mma_transposed_rhs_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_bmm_transposed_rhs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_transposed_rhs_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_mma_transposed_rhs_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn bmm_mma_transposed_inputs_f16_f32(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_mma_transposed_inputs_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_bmm_transposed_inputs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_transposed_inputs_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_mma_transposed_inputs_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn bmm_mma_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_mma_bf16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_bmm(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_bf16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_mma_bf16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn bmm_mma_transposed_inputs_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_mma_transposed_inputs_bf16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
     validate_compact_bmm_transposed_inputs(config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_mma_transposed_inputs_bf16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_mma_transposed_inputs_bf16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-pub fn masked_bmm_f32(
+/// Multiplies the active rows of each batch.
+/// Rows at or beyond each `masked_rows` count remain untouched.
+/// Uninitialized output outside those active rows remains uninitialized.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn masked_bmm_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
-    masked_rows: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    masked_rows: &impl DeviceInput<i32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_masked_bmm(out.len(), lhs.len(), rhs.len(), masked_rows.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::masked_bmm_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(masked_rows),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::masked_bmm_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(masked_rows),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn masked_bmm_f16(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies the active rows of each batch.
+/// Rows at or beyond each `masked_rows` count remain untouched.
+/// Uninitialized output outside those active rows remains uninitialized.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn masked_bmm_f16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    masked_rows: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f16>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
+    masked_rows: &impl DeviceInput<i32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_masked_bmm(out.len(), lhs.len(), rhs.len(), masked_rows.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::masked_bmm_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(masked_rows),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::masked_bmm_f16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(masked_rows),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn masked_bmm_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies the active rows of each batch.
+/// Rows at or beyond each `masked_rows` count remain untouched.
+/// Uninitialized output outside those active rows remains uninitialized.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn masked_bmm_bf16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
-    masked_rows: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<bf16>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
+    masked_rows: &impl DeviceInput<i32>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_masked_bmm(out.len(), lhs.len(), rhs.len(), masked_rows.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::masked_bmm_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(masked_rows),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::masked_bmm_bf16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(masked_rows),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-pub fn ragged_bmm_f32(
+/// Multiplies batches whose logical row segments are described by `row_indptr`.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn ragged_bmm_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
-    row_indptr: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    row_indptr: &impl DeviceInput<i32>,
     config: RaggedBmmConfig,
 ) -> Result<()> {
     validate_ragged_bmm(out.len(), lhs.len(), rhs.len(), row_indptr.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::ragged_bmm_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(row_indptr),
-        config.batch,
-        config.max_rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::ragged_bmm_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(row_indptr),
+            config.batch,
+            config.max_rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn ragged_bmm_f16(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies batches whose logical row segments are described by `row_indptr`.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn ragged_bmm_f16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    row_indptr: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f16>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
+    row_indptr: &impl DeviceInput<i32>,
     config: RaggedBmmConfig,
 ) -> Result<()> {
     validate_ragged_bmm(out.len(), lhs.len(), rhs.len(), row_indptr.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::ragged_bmm_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(row_indptr),
-        config.batch,
-        config.max_rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::ragged_bmm_f16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(row_indptr),
+            config.batch,
+            config.max_rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn ragged_bmm_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies batches whose logical row segments are described by `row_indptr`.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn ragged_bmm_bf16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
-    row_indptr: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<bf16>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
+    row_indptr: &impl DeviceInput<i32>,
     config: RaggedBmmConfig,
 ) -> Result<()> {
     validate_ragged_bmm(out.len(), lhs.len(), rhs.len(), row_indptr.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::ragged_bmm_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(row_indptr),
-        config.batch,
-        config.max_rows,
-        config.columns,
-        config.reduction,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::ragged_bmm_bf16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(row_indptr),
+            config.batch,
+            config.max_rows,
+            config.columns,
+            config.reduction,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-pub fn group_gemm_f32(
+/// Multiplies matrices described by the device dimension and offset arrays.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn group_gemm_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f32>,
-    rhs: &impl DeviceSlice<f32>,
-    rows: &impl DeviceSlice<i32>,
-    columns: &impl DeviceSlice<i32>,
-    reductions: &impl DeviceSlice<i32>,
-    lhs_offsets: &impl DeviceSlice<i32>,
-    rhs_offsets: &impl DeviceSlice<i32>,
-    output_offsets: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f32>,
+    rhs: &impl DeviceInput<f32>,
+    rows: &impl DeviceInput<i32>,
+    columns: &impl DeviceInput<i32>,
+    reductions: &impl DeviceInput<i32>,
+    lhs_offsets: &impl DeviceInput<i32>,
+    rhs_offsets: &impl DeviceInput<i32>,
+    output_offsets: &impl DeviceInput<i32>,
     config: GroupGemmConfig,
 ) -> Result<()> {
     validate_group_gemm(
@@ -1618,39 +2407,53 @@ pub fn group_gemm_f32(
         output_offsets.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::group_gemm_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(rows),
-        input_pointer(columns),
-        input_pointer(reductions),
-        input_pointer(lhs_offsets),
-        input_pointer(rhs_offsets),
-        input_pointer(output_offsets),
-        config.group_count,
-        config.max_rows,
-        config.max_columns,
-        config.max_reduction,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::group_gemm_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(rows),
+            input_pointer(columns),
+            input_pointer(reductions),
+            input_pointer(lhs_offsets),
+            input_pointer(rhs_offsets),
+            input_pointer(output_offsets),
+            config.group_count,
+            config.max_rows,
+            config.max_columns,
+            config.max_reduction,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-
-pub fn group_gemm_f16(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies matrices described by the device dimension and offset arrays.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn group_gemm_f16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
-    rows: &impl DeviceSlice<i32>,
-    columns: &impl DeviceSlice<i32>,
-    reductions: &impl DeviceSlice<i32>,
-    lhs_offsets: &impl DeviceSlice<i32>,
-    rhs_offsets: &impl DeviceSlice<i32>,
-    output_offsets: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f16>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
+    rows: &impl DeviceInput<i32>,
+    columns: &impl DeviceInput<i32>,
+    reductions: &impl DeviceInput<i32>,
+    lhs_offsets: &impl DeviceInput<i32>,
+    rhs_offsets: &impl DeviceInput<i32>,
+    output_offsets: &impl DeviceInput<i32>,
     config: GroupGemmConfig,
 ) -> Result<()> {
     validate_group_gemm(
@@ -1662,39 +2465,53 @@ pub fn group_gemm_f16(
         output_offsets.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::group_gemm_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(rows),
-        input_pointer(columns),
-        input_pointer(reductions),
-        input_pointer(lhs_offsets),
-        input_pointer(rhs_offsets),
-        input_pointer(output_offsets),
-        config.group_count,
-        config.max_rows,
-        config.max_columns,
-        config.max_reduction,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::group_gemm_f16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(rows),
+            input_pointer(columns),
+            input_pointer(reductions),
+            input_pointer(lhs_offsets),
+            input_pointer(rhs_offsets),
+            input_pointer(output_offsets),
+            config.group_count,
+            config.max_rows,
+            config.max_columns,
+            config.max_reduction,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-
-pub fn group_gemm_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies matrices described by the device dimension and offset arrays.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn group_gemm_bf16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
-    rows: &impl DeviceSlice<i32>,
-    columns: &impl DeviceSlice<i32>,
-    reductions: &impl DeviceSlice<i32>,
-    lhs_offsets: &impl DeviceSlice<i32>,
-    rhs_offsets: &impl DeviceSlice<i32>,
-    output_offsets: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<bf16>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
+    rows: &impl DeviceInput<i32>,
+    columns: &impl DeviceInput<i32>,
+    reductions: &impl DeviceInput<i32>,
+    lhs_offsets: &impl DeviceInput<i32>,
+    rhs_offsets: &impl DeviceInput<i32>,
+    output_offsets: &impl DeviceInput<i32>,
     config: GroupGemmConfig,
 ) -> Result<()> {
     validate_group_gemm(
@@ -1706,33 +2523,48 @@ pub fn group_gemm_bf16(
         output_offsets.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::group_gemm_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(rows),
-        input_pointer(columns),
-        input_pointer(reductions),
-        input_pointer(lhs_offsets),
-        input_pointer(rhs_offsets),
-        input_pointer(output_offsets),
-        config.group_count,
-        config.max_rows,
-        config.max_columns,
-        config.max_reduction,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::group_gemm_bf16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(rows),
+            input_pointer(columns),
+            input_pointer(reductions),
+            input_pointer(lhs_offsets),
+            input_pointer(rhs_offsets),
+            input_pointer(output_offsets),
+            config.group_count,
+            config.max_rows,
+            config.max_columns,
+            config.max_reduction,
+            config.transpose_rhs,
+        )
+    }
 }
 
-pub fn grouped_gemm_f32(
+/// Multiplies expert row segments, optionally gathering inputs or scattering outputs.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn grouped_gemm_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    input: &impl DeviceSlice<f32>,
-    weights: &impl DeviceSlice<f32>,
-    m_sizes: &impl DeviceSlice<i32>,
-    gather_indices: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f32>,
+    input: &impl DeviceInput<f32>,
+    weights: &impl DeviceInput<f32>,
+    m_sizes: &impl DeviceInput<i32>,
+    gather_indices: &impl DeviceInput<i32>,
     config: GroupedGemmConfig,
 ) -> Result<()> {
     validate_grouped_gemm(
@@ -1743,37 +2575,51 @@ pub fn grouped_gemm_f32(
         gather_indices.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::grouped_gemm_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weights),
-        input_pointer(m_sizes),
-        input_pointer(gather_indices),
-        config.total_tokens,
-        config.expert_count,
-        config.columns,
-        config.reduction,
-        config.input_row_stride,
-        config.weight_expert_stride,
-        config.weight_row_stride,
-        config.output_row_stride,
-        config.permute_input,
-        config.permute_output,
-        config.top_k,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::grouped_gemm_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weights),
+            input_pointer(m_sizes),
+            input_pointer(gather_indices),
+            config.total_tokens,
+            config.expert_count,
+            config.columns,
+            config.reduction,
+            config.input_row_stride,
+            config.weight_expert_stride,
+            config.weight_row_stride,
+            config.output_row_stride,
+            config.permute_input,
+            config.permute_output,
+            config.top_k,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-
-pub fn grouped_gemm_f16(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies expert row segments, optionally gathering inputs or scattering outputs.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn grouped_gemm_f16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    input: &impl DeviceSlice<f16>,
-    weights: &impl DeviceSlice<f16>,
-    m_sizes: &impl DeviceSlice<i32>,
-    gather_indices: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f16>,
+    input: &impl DeviceInput<f16>,
+    weights: &impl DeviceInput<f16>,
+    m_sizes: &impl DeviceInput<i32>,
+    gather_indices: &impl DeviceInput<i32>,
     config: GroupedGemmConfig,
 ) -> Result<()> {
     validate_grouped_gemm(
@@ -1784,37 +2630,51 @@ pub fn grouped_gemm_f16(
         gather_indices.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::grouped_gemm_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weights),
-        input_pointer(m_sizes),
-        input_pointer(gather_indices),
-        config.total_tokens,
-        config.expert_count,
-        config.columns,
-        config.reduction,
-        config.input_row_stride,
-        config.weight_expert_stride,
-        config.weight_row_stride,
-        config.output_row_stride,
-        config.permute_input,
-        config.permute_output,
-        config.top_k,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::grouped_gemm_f16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weights),
+            input_pointer(m_sizes),
+            input_pointer(gather_indices),
+            config.total_tokens,
+            config.expert_count,
+            config.columns,
+            config.reduction,
+            config.input_row_stride,
+            config.weight_expert_stride,
+            config.weight_row_stride,
+            config.output_row_stride,
+            config.permute_input,
+            config.permute_output,
+            config.top_k,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-
-pub fn grouped_gemm_bf16(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies expert row segments, optionally gathering inputs or scattering outputs.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn grouped_gemm_bf16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    input: &impl DeviceSlice<bf16>,
-    weights: &impl DeviceSlice<bf16>,
-    m_sizes: &impl DeviceSlice<i32>,
-    gather_indices: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<bf16>,
+    input: &impl DeviceInput<bf16>,
+    weights: &impl DeviceInput<bf16>,
+    m_sizes: &impl DeviceInput<i32>,
+    gather_indices: &impl DeviceInput<i32>,
     config: GroupedGemmConfig,
 ) -> Result<()> {
     validate_grouped_gemm(
@@ -1825,38 +2685,52 @@ pub fn grouped_gemm_bf16(
         gather_indices.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::grouped_gemm_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(input),
-        input_pointer(weights),
-        input_pointer(m_sizes),
-        input_pointer(gather_indices),
-        config.total_tokens,
-        config.expert_count,
-        config.columns,
-        config.reduction,
-        config.input_row_stride,
-        config.weight_expert_stride,
-        config.weight_row_stride,
-        config.output_row_stride,
-        config.permute_input,
-        config.permute_output,
-        config.top_k,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::grouped_gemm_bf16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(input),
+            input_pointer(weights),
+            input_pointer(m_sizes),
+            input_pointer(gather_indices),
+            config.total_tokens,
+            config.expert_count,
+            config.columns,
+            config.reduction,
+            config.input_row_stride,
+            config.weight_expert_stride,
+            config.weight_row_stride,
+            config.output_row_stride,
+            config.permute_input,
+            config.permute_output,
+            config.top_k,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f8")]
-
-pub fn ragged_block_scaled_bmm_f8e4m3_f32(
+#[cfg(feature = "dtype_f8")]
+/// Multiplies ragged FP8 batches using the supplied block scales.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<u8>,
-    rhs: &impl DeviceSlice<u8>,
-    lhs_scale: &impl DeviceSlice<f32>,
-    rhs_scale: &impl DeviceSlice<f32>,
-    row_indptr: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<u8>,
+    rhs: &impl DeviceInput<u8>,
+    lhs_scale: &impl DeviceInput<f32>,
+    rhs_scale: &impl DeviceInput<f32>,
+    row_indptr: &impl DeviceInput<i32>,
     config: RaggedBlockScaledBmmConfig,
 ) -> Result<()> {
     validate_ragged_block_scaled_bmm(
@@ -1868,39 +2742,53 @@ pub fn ragged_block_scaled_bmm_f8e4m3_f32(
         row_indptr.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::ragged_block_scaled_bmm_f8e4m3_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(lhs_scale),
-        input_pointer(rhs_scale),
-        input_pointer(row_indptr),
-        config.batch,
-        config.max_rows,
-        config.columns,
-        config.reduction,
-        config.scale_block,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.lhs_scale_row_stride,
-        config.rhs_scale_batch_stride,
-        config.rhs_scale_row_stride,
-        config.output_row_stride,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::ragged_block_scaled_bmm_f8e4m3_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(lhs_scale),
+            input_pointer(rhs_scale),
+            input_pointer(row_indptr),
+            config.batch,
+            config.max_rows,
+            config.columns,
+            config.reduction,
+            config.scale_block,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.lhs_scale_row_stride,
+            config.rhs_scale_batch_stride,
+            config.rhs_scale_row_stride,
+            config.output_row_stride,
+        )
+    }
 }
 
-#[cfg(all(feature = "dtype-f8", feature = "dtype-f16"))]
-
-pub fn ragged_block_scaled_bmm_f8e4m3_f16(
+#[cfg(all(feature = "dtype_f8", feature = "dtype_f16"))]
+/// Multiplies ragged FP8 batches using the supplied block scales.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f16>,
-    lhs: &impl DeviceSlice<u8>,
-    rhs: &impl DeviceSlice<u8>,
-    lhs_scale: &impl DeviceSlice<f32>,
-    rhs_scale: &impl DeviceSlice<f32>,
-    row_indptr: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<f16>,
+    lhs: &impl DeviceInput<u8>,
+    rhs: &impl DeviceInput<u8>,
+    lhs_scale: &impl DeviceInput<f32>,
+    rhs_scale: &impl DeviceInput<f32>,
+    row_indptr: &impl DeviceInput<i32>,
     config: RaggedBlockScaledBmmConfig,
 ) -> Result<()> {
     validate_ragged_block_scaled_bmm(
@@ -1912,39 +2800,53 @@ pub fn ragged_block_scaled_bmm_f8e4m3_f16(
         row_indptr.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::ragged_block_scaled_bmm_f8e4m3_f16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(lhs_scale),
-        input_pointer(rhs_scale),
-        input_pointer(row_indptr),
-        config.batch,
-        config.max_rows,
-        config.columns,
-        config.reduction,
-        config.scale_block,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.lhs_scale_row_stride,
-        config.rhs_scale_batch_stride,
-        config.rhs_scale_row_stride,
-        config.output_row_stride,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::ragged_block_scaled_bmm_f8e4m3_f16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(lhs_scale),
+            input_pointer(rhs_scale),
+            input_pointer(row_indptr),
+            config.batch,
+            config.max_rows,
+            config.columns,
+            config.reduction,
+            config.scale_block,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.lhs_scale_row_stride,
+            config.rhs_scale_batch_stride,
+            config.rhs_scale_row_stride,
+            config.output_row_stride,
+        )
+    }
 }
 
-#[cfg(all(feature = "dtype-f8", feature = "dtype-bf16"))]
-
-pub fn ragged_block_scaled_bmm_f8e4m3_bf16(
+#[cfg(all(feature = "dtype_f8", feature = "dtype_bf16"))]
+/// Multiplies ragged FP8 batches using the supplied block scales.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+/// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
+pub unsafe fn ragged_block_scaled_bmm_f8e4m3_bf16(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<bf16>,
-    lhs: &impl DeviceSlice<u8>,
-    rhs: &impl DeviceSlice<u8>,
-    lhs_scale: &impl DeviceSlice<f32>,
-    rhs_scale: &impl DeviceSlice<f32>,
-    row_indptr: &impl DeviceSlice<i32>,
+    out: &mut impl DeviceOutput<bf16>,
+    lhs: &impl DeviceInput<u8>,
+    rhs: &impl DeviceInput<u8>,
+    lhs_scale: &impl DeviceInput<f32>,
+    rhs_scale: &impl DeviceInput<f32>,
+    row_indptr: &impl DeviceInput<i32>,
     config: RaggedBlockScaledBmmConfig,
 ) -> Result<()> {
     validate_ragged_block_scaled_bmm(
@@ -1956,117 +2858,162 @@ pub fn ragged_block_scaled_bmm_f8e4m3_bf16(
         row_indptr.len(),
         config,
     )?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::ragged_block_scaled_bmm_f8e4m3_bf16(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        input_pointer(lhs_scale),
-        input_pointer(rhs_scale),
-        input_pointer(row_indptr),
-        config.batch,
-        config.max_rows,
-        config.columns,
-        config.reduction,
-        config.scale_block,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.lhs_scale_row_stride,
-        config.rhs_scale_batch_stride,
-        config.rhs_scale_row_stride,
-        config.output_row_stride,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::ragged_block_scaled_bmm_f8e4m3_bf16(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            input_pointer(lhs_scale),
+            input_pointer(rhs_scale),
+            input_pointer(row_indptr),
+            config.batch,
+            config.max_rows,
+            config.columns,
+            config.reduction,
+            config.scale_block,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.lhs_scale_row_stride,
+            config.rhs_scale_batch_stride,
+            config.rhs_scale_row_stride,
+            config.output_row_stride,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f64")]
-pub fn bmm_f64(
+#[cfg(feature = "dtype_f64")]
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_f64(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f64>,
-    lhs: &impl DeviceSlice<f64>,
-    rhs: &impl DeviceSlice<f64>,
+    out: &mut impl DeviceOutput<f64>,
+    lhs: &impl DeviceInput<f64>,
+    rhs: &impl DeviceInput<f64>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_f64(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_f64(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-f16")]
-pub fn bmm_f16_f32(
+#[cfg(feature = "dtype_f16")]
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_f16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<f16>,
-    rhs: &impl DeviceSlice<f16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<f16>,
+    rhs: &impl DeviceInput<f16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_f16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_f16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
-#[cfg(feature = "dtype-bf16")]
-pub fn bmm_bf16_f32(
+#[cfg(feature = "dtype_bf16")]
+/// Multiplies each pair of matrices using the configured batch and row strides.
+///
+/// Only logical output elements are written; stride gaps and trailing capacity are unchanged.
+///
+/// # Safety
+///
+/// Inputs must be valid when read and belong to the stream's context.
+/// Order preceding producers before every read, including graph replay.
+/// Retain all resources and exclusive writable access until queued work completes,
+/// including on errors and throughout captured graph replay.
+/// Order previous accesses before this launch and prevent input/output overlap.
+pub unsafe fn bmm_bf16_f32(
     stream: &Stream,
-    out: &mut impl DeviceSliceMut<f32>,
-    lhs: &impl DeviceSlice<bf16>,
-    rhs: &impl DeviceSlice<bf16>,
+    out: &mut impl DeviceOutput<f32>,
+    lhs: &impl DeviceInput<bf16>,
+    rhs: &impl DeviceInput<bf16>,
     config: BmmConfig,
 ) -> Result<()> {
     validate_bmm(out.len(), lhs.len(), rhs.len(), config)?;
-    let stream = borrowed_stream(stream)?;
-    cutile::matmul::bmm_bf16_f32(
-        &stream,
-        output_pointer(out),
-        input_pointer(lhs),
-        input_pointer(rhs),
-        config.batch,
-        config.rows,
-        config.columns,
-        config.reduction,
-        config.lhs_batch_stride,
-        config.lhs_row_stride,
-        config.rhs_batch_stride,
-        config.rhs_row_stride,
-        config.output_batch_stride,
-        config.output_row_stride,
-        config.transpose_lhs,
-        config.transpose_rhs,
-    )
+    let stream = stream.to_cuda_core()?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        cutile::matmul::bmm_bf16_f32(
+            &stream,
+            DevicePointer::from_cu_deviceptr(out.as_mut_ptr() as _),
+            input_pointer(lhs),
+            input_pointer(rhs),
+            config.batch,
+            config.rows,
+            config.columns,
+            config.reduction,
+            config.lhs_batch_stride,
+            config.lhs_row_stride,
+            config.rhs_batch_stride,
+            config.rhs_row_stride,
+            config.output_batch_stride,
+            config.output_row_stride,
+            config.transpose_lhs,
+            config.transpose_rhs,
+        )
+    }
 }
 
 fn validate_matmul(
@@ -2140,16 +3087,21 @@ fn validate_compact_matmul(config: MatmulConfig) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "dtype_f16")]
 fn validate_compact_matmul_transposed_rhs(config: MatmulConfig) -> Result<()> {
-    if config.transpose_lhs
-        || !config.transpose_rhs
-        || config.lhs_row_stride != config.reduction
-        || config.rhs_row_stride != config.reduction
-        || config.output_row_stride != config.columns
-    {
+    if !is_compact_matmul_transposed_rhs(config) {
         return Err(Error::InvalidLength);
     }
     Ok(())
+}
+
+#[cfg(feature = "dtype_f16")]
+fn is_compact_matmul_transposed_rhs(config: MatmulConfig) -> bool {
+    !config.transpose_lhs
+        && config.transpose_rhs
+        && config.lhs_row_stride == config.reduction
+        && config.rhs_row_stride == config.reduction
+        && config.output_row_stride == config.columns
 }
 
 fn validate_bmm(out_len: usize, lhs_len: usize, rhs_len: usize, config: BmmConfig) -> Result<()> {
@@ -2201,6 +3153,7 @@ fn validate_bmm(out_len: usize, lhs_len: usize, rhs_len: usize, config: BmmConfi
     Ok(())
 }
 
+#[cfg(feature = "dtype_f16")]
 fn validate_matvec_transposed_rhs_1024(config: MatmulConfig) -> Result<()> {
     if config.rows != 1
         || config.reduction != 1024
@@ -2214,6 +3167,7 @@ fn validate_matvec_transposed_rhs_1024(config: MatmulConfig) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "dtype_f16")]
 fn validate_matvec_transposed_rhs(config: MatmulConfig) -> Result<()> {
     if config.rows != 1
         || !matches!(config.reduction, 1024 | 2048 | 3072)
@@ -2246,6 +3200,13 @@ fn validate_compact_bmm(config: BmmConfig) -> Result<()> {
 }
 
 fn validate_compact_bmm_transposed(config: BmmConfig) -> Result<()> {
+    if !is_compact_bmm_transposed(config) {
+        return Err(Error::InvalidLength);
+    }
+    Ok(())
+}
+
+fn is_compact_bmm_transposed(config: BmmConfig) -> bool {
     let lhs_rows = if config.transpose_lhs {
         config.reduction
     } else {
@@ -2266,9 +3227,15 @@ fn validate_compact_bmm_transposed(config: BmmConfig) -> Result<()> {
     } else {
         config.columns
     };
-    let lhs_matrix_len = checked_element_count(lhs_rows, lhs_columns)?;
-    let rhs_matrix_len = checked_element_count(rhs_rows, rhs_columns)?;
-    let output_matrix_len = checked_element_count(config.rows, config.columns)?;
+    let Some(lhs_matrix_len) = lhs_rows.checked_mul(lhs_columns) else {
+        return false;
+    };
+    let Some(rhs_matrix_len) = rhs_rows.checked_mul(rhs_columns) else {
+        return false;
+    };
+    let Some(output_matrix_len) = config.rows.checked_mul(config.columns) else {
+        return false;
+    };
     if config.lhs_batch_stride != lhs_matrix_len
         || config.lhs_row_stride != lhs_columns
         || config.rhs_batch_stride != rhs_matrix_len
@@ -2276,11 +3243,12 @@ fn validate_compact_bmm_transposed(config: BmmConfig) -> Result<()> {
         || config.output_batch_stride != output_matrix_len
         || config.output_row_stride != config.columns
     {
-        return Err(Error::InvalidLength);
+        return false;
     }
-    Ok(())
+    true
 }
 
+#[cfg(feature = "dtype_f16")]
 fn validate_compact_bmm_transposed_rhs(config: BmmConfig) -> Result<()> {
     if config.transpose_lhs || !config.transpose_rhs {
         return Err(Error::InvalidLength);
@@ -2288,6 +3256,7 @@ fn validate_compact_bmm_transposed_rhs(config: BmmConfig) -> Result<()> {
     validate_compact_bmm_transposed(config)
 }
 
+#[cfg(any(feature = "dtype_f16", feature = "dtype_bf16"))]
 fn validate_compact_bmm_transposed_inputs(config: BmmConfig) -> Result<()> {
     if !config.transpose_lhs || !config.transpose_rhs {
         return Err(Error::InvalidLength);
@@ -2445,7 +3414,6 @@ fn validate_group_gemm(
 /// nonnegative and bounded by `config.max_*`. Offsets are nonnegative element
 /// offsets into `lhs`, `rhs`, and `out`; this helper checks that every group
 /// stays within the supplied buffer lengths.
-
 pub fn validate_group_gemm_metadata_host(
     lhs_len: usize,
     rhs_len: usize,
@@ -2596,7 +3564,7 @@ pub fn validate_grouped_gemm_metadata_host(
     Ok(())
 }
 
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 fn validate_ragged_block_scaled_bmm(
     out_len: usize,
     lhs_len: usize,
@@ -2663,7 +3631,7 @@ fn validate_ragged_block_scaled_bmm(
 }
 
 /// Validates block-scaled ragged-BMM host metadata and the buffers it indexes.
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 pub fn validate_ragged_block_scaled_bmm_metadata_host(
     out_len: usize,
     lhs_len: usize,
@@ -2685,7 +3653,7 @@ pub fn validate_ragged_block_scaled_bmm_metadata_host(
     validate_ragged_row_indptr_host(row_indptr, config.batch, config.total_rows, config.max_rows)
 }
 
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
 fn checked_div_ceil(value: usize, divisor: usize) -> Result<usize> {
     if divisor == 0 {
         return Err(Error::InvalidLength);
@@ -2737,31 +3705,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn matmul_row_major_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_matmul_row_major_validation_accepts_exact_lengths() -> Result<()> {
         let config = MatmulConfig::row_major(3, 5, 7);
         validate_matmul(15, 21, 35, config)
     }
 
     #[test]
-    fn matmul_transposed_lhs_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_matmul_transposed_lhs_validation_accepts_exact_lengths() -> Result<()> {
         let config = MatmulConfig::row_major_transposed_lhs(3, 5, 7);
         validate_matmul(15, 21, 35, config)
     }
 
     #[test]
-    fn matmul_transposed_rhs_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_matmul_transposed_rhs_validation_accepts_exact_lengths() -> Result<()> {
         let config = MatmulConfig::row_major_transposed_rhs(3, 5, 7);
         validate_matmul(15, 21, 35, config)
     }
 
     #[test]
-    fn matmul_transposed_inputs_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_matmul_transposed_inputs_validation_accepts_exact_lengths() -> Result<()> {
         let config = MatmulConfig::row_major_transposed_inputs(3, 5, 7);
         validate_matmul(15, 21, 35, config)
     }
 
     #[test]
-    fn matmul_mma_validation_accepts_compact_row_major_only() -> Result<()> {
+    fn test_matmul_mma_validation_accepts_compact_row_major_only() -> Result<()> {
         let compact = MatmulConfig::row_major(3, 5, 7);
         validate_compact_matmul(compact)?;
 
@@ -2781,7 +3749,7 @@ mod tests {
     }
 
     #[test]
-    fn bmm_mma_validation_accepts_compact_row_major_only() -> Result<()> {
+    fn test_bmm_mma_validation_accepts_compact_row_major_only() -> Result<()> {
         let compact = BmmConfig::row_major(2, 3, 5, 7)?;
         validate_compact_bmm(compact)?;
 
@@ -2801,7 +3769,7 @@ mod tests {
     }
 
     #[test]
-    fn bmm_mma_transposed_validation_accepts_compact_physical_layouts() -> Result<()> {
+    fn test_bmm_mma_transposed_validation_accepts_compact_physical_layouts() -> Result<()> {
         validate_compact_bmm_transposed(BmmConfig::row_major(2, 3, 5, 7)?)?;
         validate_compact_bmm_transposed(BmmConfig::row_major_transposed_lhs(2, 3, 5, 7)?)?;
         validate_compact_bmm_transposed(BmmConfig::row_major_transposed_rhs(2, 3, 5, 7)?)?;
@@ -2817,25 +3785,31 @@ mod tests {
     }
 
     #[test]
-    fn matmul_validation_rejects_short_rhs() {
+    fn test_matmul_validation_rejects_short_rhs() {
         let config = MatmulConfig::row_major(3, 5, 7);
         assert!(matches!(
             validate_matmul(15, 21, 34, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 
     #[test]
-    fn matmul_transposed_rhs_validation_rejects_short_rhs() {
+    fn test_matmul_transposed_rhs_validation_rejects_short_rhs() {
         let config = MatmulConfig::row_major_transposed_rhs(3, 5, 7);
         assert!(matches!(
             validate_matmul(15, 21, 34, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 
     #[test]
-    fn matmul_alpha_beta_validation_rejects_non_finite_scale() {
+    fn test_matmul_alpha_beta_validation_rejects_non_finite_scale() {
         let config = MatmulConfig::row_major(3, 5, 7);
         assert!(matches!(
             validate_matmul_alpha_beta(15, 21, 35, config, f32::INFINITY, 0.0),
@@ -2847,9 +3821,9 @@ mod tests {
         ));
     }
 
-    #[cfg(feature = "dtype-f64")]
+    #[cfg(feature = "dtype_f64")]
     #[test]
-    fn matmul_alpha_beta_f64_validation_rejects_non_finite_scale() {
+    fn test_matmul_alpha_beta_f64_validation_rejects_non_finite_scale() {
         let config = MatmulConfig::row_major(3, 5, 7);
         assert!(matches!(
             validate_matmul_alpha_beta(15, 21, 35, config, f64::INFINITY, 0.0),
@@ -2862,31 +3836,31 @@ mod tests {
     }
 
     #[test]
-    fn bmm_row_major_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_bmm_row_major_validation_accepts_exact_lengths() -> Result<()> {
         let config = BmmConfig::row_major(2, 3, 5, 7)?;
         validate_bmm(30, 42, 70, config)
     }
 
     #[test]
-    fn bmm_transposed_lhs_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_bmm_transposed_lhs_validation_accepts_exact_lengths() -> Result<()> {
         let config = BmmConfig::row_major_transposed_lhs(2, 3, 5, 7)?;
         validate_bmm(30, 42, 70, config)
     }
 
     #[test]
-    fn bmm_transposed_rhs_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_bmm_transposed_rhs_validation_accepts_exact_lengths() -> Result<()> {
         let config = BmmConfig::row_major_transposed_rhs(2, 3, 5, 7)?;
         validate_bmm(30, 42, 70, config)
     }
 
     #[test]
-    fn bmm_transposed_inputs_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_bmm_transposed_inputs_validation_accepts_exact_lengths() -> Result<()> {
         let config = BmmConfig::row_major_transposed_inputs(2, 3, 5, 7)?;
         validate_bmm(30, 42, 70, config)
     }
 
     #[test]
-    fn bmm_validation_accepts_padded_batch_strides() -> Result<()> {
+    fn test_bmm_validation_accepts_padded_batch_strides() -> Result<()> {
         let config = BmmConfig {
             batch: 2,
             rows: 3,
@@ -2900,80 +3874,96 @@ mod tests {
             output_row_stride: 5,
             transpose_lhs: false,
             transpose_rhs: false,
+            tuning: TuningChoice::Default,
         };
         validate_bmm(33, 45, 81, config)
     }
 
     #[test]
-    fn bmm_transposed_rhs_validation_rejects_short_rhs() -> Result<()> {
+    fn test_bmm_transposed_rhs_validation_rejects_short_rhs() -> Result<()> {
         let config = BmmConfig::row_major_transposed_rhs(2, 3, 5, 7)?;
         assert!(matches!(
             validate_bmm(30, 42, 69, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
         Ok(())
     }
 
     #[test]
-    fn bmm_validation_rejects_short_output() -> Result<()> {
+    fn test_bmm_validation_rejects_short_output() -> Result<()> {
         let config = BmmConfig::row_major(2, 3, 5, 7)?;
         assert!(matches!(
             validate_bmm(29, 42, 70, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
         Ok(())
     }
 
     #[test]
-    fn masked_bmm_validation_accepts_exact_mask_len() -> Result<()> {
+    fn test_masked_bmm_validation_accepts_exact_mask_len() -> Result<()> {
         let config = BmmConfig::row_major(2, 3, 5, 7)?;
         validate_masked_bmm(30, 42, 70, 2, config)
     }
 
     #[test]
-    fn masked_bmm_validation_rejects_short_mask() -> Result<()> {
+    fn test_masked_bmm_validation_rejects_short_mask() -> Result<()> {
         let config = BmmConfig::row_major(2, 3, 5, 7)?;
         assert!(matches!(
             validate_masked_bmm(30, 42, 70, 1, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
         Ok(())
     }
 
     #[test]
-    fn ragged_bmm_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_ragged_bmm_validation_accepts_exact_lengths() -> Result<()> {
         let config = RaggedBmmConfig::row_major_transposed_rhs(3, 5, 4, 7, 11)?;
         validate_ragged_bmm(35, 55, 231, 4, config)
     }
 
     #[test]
-    fn ragged_bmm_validation_rejects_short_indptr() -> Result<()> {
+    fn test_ragged_bmm_validation_rejects_short_indptr() -> Result<()> {
         let config = RaggedBmmConfig::row_major(3, 5, 4, 7, 11)?;
         assert!(matches!(
             validate_ragged_bmm(35, 55, 231, 3, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
         Ok(())
     }
 
     #[test]
-    fn ragged_bmm_transposed_lhs_validation_rejects_short_lhs() -> Result<()> {
+    fn test_ragged_bmm_transposed_lhs_validation_rejects_short_lhs() -> Result<()> {
         let config = RaggedBmmConfig::row_major_transposed_lhs(3, 5, 4, 7, 11)?;
         assert!(matches!(
             validate_ragged_bmm(35, 54, 231, 4, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
         Ok(())
     }
 
     #[test]
-    fn ragged_bmm_metadata_validation_accepts_valid_indptr() -> Result<()> {
+    fn test_ragged_bmm_metadata_validation_accepts_valid_indptr() -> Result<()> {
         let config = RaggedBmmConfig::row_major_transposed_rhs(3, 5, 4, 7, 11)?;
         validate_ragged_bmm_metadata_host(35, 55, 231, &[0, 2, 2, 5], config)
     }
 
     #[test]
-    fn ragged_bmm_metadata_validation_rejects_nonmonotonic_indptr() -> Result<()> {
+    fn test_ragged_bmm_metadata_validation_rejects_nonmonotonic_indptr() -> Result<()> {
         let config = RaggedBmmConfig::row_major(3, 5, 4, 7, 11)?;
         assert!(matches!(
             validate_ragged_bmm_metadata_host(35, 55, 231, &[0, 3, 2, 5], config),
@@ -2983,7 +3973,7 @@ mod tests {
     }
 
     #[test]
-    fn ragged_bmm_metadata_validation_rejects_large_segment() -> Result<()> {
+    fn test_ragged_bmm_metadata_validation_rejects_large_segment() -> Result<()> {
         let config = RaggedBmmConfig::row_major(3, 5, 2, 7, 11)?;
         assert!(matches!(
             validate_ragged_bmm_metadata_host(35, 55, 231, &[0, 3, 4, 5], config),
@@ -2993,7 +3983,7 @@ mod tests {
     }
 
     #[test]
-    fn ragged_bmm_metadata_validation_rejects_wrong_final_row() -> Result<()> {
+    fn test_ragged_bmm_metadata_validation_rejects_wrong_final_row() -> Result<()> {
         let config = RaggedBmmConfig::row_major(3, 5, 4, 7, 11)?;
         assert!(matches!(
             validate_ragged_bmm_metadata_host(35, 55, 231, &[0, 2, 3, 4], config),
@@ -3003,22 +3993,25 @@ mod tests {
     }
 
     #[test]
-    fn group_gemm_validation_accepts_descriptor_lengths() -> Result<()> {
+    fn test_group_gemm_validation_accepts_descriptor_lengths() -> Result<()> {
         let config = GroupGemmConfig::transposed_rhs(2, 4, 5, 7);
         validate_group_gemm(2, 2, 2, 2, 2, 2, config)
     }
 
     #[test]
-    fn group_gemm_validation_rejects_short_descriptor() {
+    fn test_group_gemm_validation_rejects_short_descriptor() {
         let config = GroupGemmConfig::create(2, 4, 5, 7);
         assert!(matches!(
             validate_group_gemm(2, 2, 1, 2, 2, 2, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 
     #[test]
-    fn group_gemm_validation_rejects_zero_max_shape() {
+    fn test_group_gemm_validation_rejects_zero_max_shape() {
         let config = GroupGemmConfig::create(2, 4, 0, 7);
         assert!(matches!(
             validate_group_gemm(2, 2, 2, 2, 2, 2, config),
@@ -3027,7 +4020,7 @@ mod tests {
     }
 
     #[test]
-    fn group_gemm_metadata_validation_accepts_valid_descriptors() -> Result<()> {
+    fn test_group_gemm_metadata_validation_accepts_valid_descriptors() -> Result<()> {
         let config = GroupGemmConfig::create(2, 4, 5, 7);
         validate_group_gemm_metadata_host(
             13,
@@ -3044,7 +4037,7 @@ mod tests {
     }
 
     #[test]
-    fn group_gemm_metadata_validation_rejects_negative_dimension() {
+    fn test_group_gemm_metadata_validation_rejects_negative_dimension() {
         let config = GroupGemmConfig::create(1, 4, 5, 7);
         assert!(matches!(
             validate_group_gemm_metadata_host(
@@ -3064,7 +4057,7 @@ mod tests {
     }
 
     #[test]
-    fn group_gemm_metadata_validation_rejects_dimension_above_max() {
+    fn test_group_gemm_metadata_validation_rejects_dimension_above_max() {
         let config = GroupGemmConfig::create(1, 4, 5, 7);
         assert!(matches!(
             validate_group_gemm_metadata_host(
@@ -3084,7 +4077,7 @@ mod tests {
     }
 
     #[test]
-    fn group_gemm_metadata_validation_rejects_output_overreach() {
+    fn test_group_gemm_metadata_validation_rejects_output_overreach() {
         let config = GroupGemmConfig::create(2, 4, 5, 7);
         assert!(matches!(
             validate_group_gemm_metadata_host(
@@ -3099,12 +4092,15 @@ mod tests {
                 &[0, 7],
                 config,
             ),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 
     #[test]
-    fn group_gemm_metadata_validation_rejects_negative_offset() {
+    fn test_group_gemm_metadata_validation_rejects_negative_offset() {
         let config = GroupGemmConfig::transposed_rhs(1, 4, 5, 7);
         assert!(matches!(
             validate_group_gemm_metadata_host(
@@ -3124,13 +4120,13 @@ mod tests {
     }
 
     #[test]
-    fn grouped_gemm_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_grouped_gemm_validation_accepts_exact_lengths() -> Result<()> {
         let config = GroupedGemmConfig::permuted_input(6, 3, 2, 5, 7, 2);
         validate_grouped_gemm(30, 21, 70, 2, 6, config)
     }
 
     #[test]
-    fn grouped_gemm_validation_rejects_both_permutations() {
+    fn test_grouped_gemm_validation_rejects_both_permutations() {
         let mut config = GroupedGemmConfig::contiguous(6, 2, 5, 7);
         config.permute_input = true;
         config.permute_output = true;
@@ -3141,16 +4137,19 @@ mod tests {
     }
 
     #[test]
-    fn grouped_gemm_validation_rejects_short_weights() {
+    fn test_grouped_gemm_validation_rejects_short_weights() {
         let config = GroupedGemmConfig::contiguous(6, 2, 5, 7);
         assert!(matches!(
             validate_grouped_gemm(30, 42, 69, 2, 6, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
     }
 
     #[test]
-    fn grouped_gemm_validation_rejects_zero_topk() {
+    fn test_grouped_gemm_validation_rejects_zero_topk() {
         let mut config = GroupedGemmConfig::permuted_input(6, 3, 2, 5, 7, 2);
         config.top_k = 0;
         assert!(matches!(
@@ -3160,13 +4159,13 @@ mod tests {
     }
 
     #[test]
-    fn grouped_gemm_metadata_validation_accepts_permuted_input() -> Result<()> {
+    fn test_grouped_gemm_metadata_validation_accepts_permuted_input() -> Result<()> {
         let config = GroupedGemmConfig::permuted_input(6, 3, 2, 5, 7, 2);
         validate_grouped_gemm_metadata_host(30, 21, 70, &[2, 4], &[0, 1, 2, 3, 4, 5], config)
     }
 
     #[test]
-    fn grouped_gemm_metadata_validation_rejects_m_size_sum_mismatch() {
+    fn test_grouped_gemm_metadata_validation_rejects_m_size_sum_mismatch() {
         let config = GroupedGemmConfig::contiguous(6, 2, 5, 7);
         assert!(matches!(
             validate_grouped_gemm_metadata_host(30, 42, 70, &[2, 3], &[0, 1, 2, 3, 4, 5], config,),
@@ -3175,7 +4174,7 @@ mod tests {
     }
 
     #[test]
-    fn grouped_gemm_metadata_validation_rejects_permuted_input_gather_range() {
+    fn test_grouped_gemm_metadata_validation_rejects_permuted_input_gather_range() {
         let config = GroupedGemmConfig::permuted_input(6, 3, 2, 5, 7, 2);
         assert!(matches!(
             validate_grouped_gemm_metadata_host(30, 21, 70, &[2, 4], &[0, 1, 2, 3, 4, 6], config,),
@@ -3184,7 +4183,7 @@ mod tests {
     }
 
     #[test]
-    fn grouped_gemm_metadata_validation_rejects_permuted_output_gather_range() {
+    fn test_grouped_gemm_metadata_validation_rejects_permuted_output_gather_range() {
         let config = GroupedGemmConfig::permuted_output(6, 2, 5, 7);
         assert!(matches!(
             validate_grouped_gemm_metadata_host(30, 42, 70, &[2, 4], &[0, 1, 2, 3, 4, 6], config,),
@@ -3192,27 +4191,30 @@ mod tests {
         ));
     }
 
-    #[cfg(feature = "dtype-f8")]
+    #[cfg(feature = "dtype_f8")]
     #[test]
-    fn ragged_block_scaled_bmm_validation_accepts_exact_lengths() -> Result<()> {
+    fn test_ragged_block_scaled_bmm_validation_accepts_exact_lengths() -> Result<()> {
         let config = RaggedBlockScaledBmmConfig::row_major(2, 5, 3, 4, 5, 2)?;
         validate_ragged_block_scaled_bmm(20, 25, 40, 15, 12, 3, config)
     }
 
-    #[cfg(feature = "dtype-f8")]
+    #[cfg(feature = "dtype_f8")]
     #[test]
-    fn ragged_block_scaled_bmm_validation_rejects_short_rhs_scale() -> Result<()> {
+    fn test_ragged_block_scaled_bmm_validation_rejects_short_rhs_scale() -> Result<()> {
         let config = RaggedBlockScaledBmmConfig::row_major(2, 5, 3, 4, 5, 2)?;
         assert!(matches!(
             validate_ragged_block_scaled_bmm(20, 25, 40, 15, 11, 3, config),
-            Err(Error::LengthMismatch)
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
         ));
         Ok(())
     }
 
-    #[cfg(feature = "dtype-f8")]
+    #[cfg(feature = "dtype_f8")]
     #[test]
-    fn ragged_block_scaled_bmm_metadata_validation_rejects_bad_indptr() -> Result<()> {
+    fn test_ragged_block_scaled_bmm_metadata_validation_rejects_bad_indptr() -> Result<()> {
         let config = RaggedBlockScaledBmmConfig::row_major(2, 5, 3, 4, 5, 2)?;
         assert!(matches!(
             validate_ragged_block_scaled_bmm_metadata_host(20, 25, 40, 15, 12, &[0, 4, 5], config,),

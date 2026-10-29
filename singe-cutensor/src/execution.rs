@@ -1,12 +1,31 @@
-use std::ptr;
+//! Queued operations over layouts described by cuTENSOR plans.
+//!
+//! # Raw execution contract
+//!
+//! Every tensor and workspace must cover its descriptor's complete strided accesses in the plan's actual context.
+//! Order producers before reads and retain plans, streams, allocations and referenced native metadata through completion, including errors and captured replay.
+//! Inputs and accumulators must be valid when read; writable ranges require exclusive access and native aliasing rules.
+//! Output storage may be uninitialized, and only the descriptor's produced elements become initialized after successful completion.
+//! Padding and stride gaps require separate initialization unless the operation explicitly writes them.
 
-use singe_cuda::{data_type::DataTypeLike, memory::DeviceMemory, stream::Stream, types::DevicePtr};
+use std::{mem::MaybeUninit, ptr, sync::Arc};
+
+use singe_cuda::{
+    context::Context as CudaContext,
+    data_type::{DataType, DataTypeLike},
+    error::Error as CudaError,
+    memory::DeviceMemory,
+    stream::Stream,
+    types::DevicePtr,
+    view::{DeviceInput, DeviceOutput, DeviceRegion},
+};
 
 use crate::{
     error::{Error, Result},
     operation::OperationKind,
     plan::Plan,
     sys, try_ffi,
+    utility::to_usize,
 };
 
 impl Plan {
@@ -27,15 +46,18 @@ impl Plan {
     /// or tensor types do not match the plan, tensor dimensions or modes are
     /// invalid, a data type or operation combination is unsupported, or
     /// cuTENSOR rejects the operation.
-    pub fn elementwise_trinary<TA, TB, TC, TD, TScalar>(
+    ///
+    /// # Safety
+    /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
+    pub unsafe fn elementwise_trinary<TA, TB, TC, TD, TScalar>(
         &self,
         alpha: &TScalar,
-        a: &DeviceMemory<TA>,
+        a: &(impl DeviceInput<TA> + ?Sized),
         beta: &TScalar,
-        b: &DeviceMemory<TB>,
+        b: &(impl DeviceInput<TB> + ?Sized),
         gamma: &TScalar,
-        c: &DeviceMemory<TC>,
-        d: &mut DeviceMemory<TD>,
+        c: &(impl DeviceInput<TC> + ?Sized),
+        d: &mut impl DeviceOutput<TD>,
         stream: &Stream,
     ) -> Result<()>
     where
@@ -46,19 +68,21 @@ impl Plan {
         TScalar: DataTypeLike,
     {
         self.context().ensure_stream(stream)?;
+        validate_regions(self, &[a.region(), b.region(), c.region(), d.region()])?;
         validate_elementwise_trinary_types::<TA, TB, TC, TD, TScalar>(self)?;
 
+        // SAFETY: `cutensorElementwiseTrinaryExecute` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorElementwiseTrinaryExecute(
                 self.context().as_raw(),
                 self.as_raw(),
-                ptr::from_ref(alpha) as _,
-                a.as_ptr() as _,
-                ptr::from_ref(beta) as _,
-                b.as_ptr() as _,
-                ptr::from_ref(gamma) as _,
-                c.as_ptr() as _,
-                d.as_mut_ptr() as _,
+                ptr::from_ref(alpha).cast(),
+                a.as_device_ptr().cast(),
+                ptr::from_ref(beta).cast(),
+                b.as_device_ptr().cast(),
+                ptr::from_ref(gamma).cast(),
+                c.as_device_ptr().cast(),
+                d.as_mut_ptr().cast(),
                 stream.as_raw(),
             ))?;
         }
@@ -83,13 +107,16 @@ impl Plan {
     /// or tensor types do not match the plan, tensor dimensions or modes are
     /// invalid, a data type or operation combination is unsupported, or
     /// cuTENSOR rejects the operation.
-    pub fn elementwise_binary<TA, TC, TD, TScalar>(
+    ///
+    /// # Safety
+    /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
+    pub unsafe fn elementwise_binary<TA, TC, TD, TScalar>(
         &self,
         alpha: &TScalar,
-        a: &DeviceMemory<TA>,
+        a: &(impl DeviceInput<TA> + ?Sized),
         gamma: &TScalar,
-        c: &DeviceMemory<TC>,
-        d: &mut DeviceMemory<TD>,
+        c: &(impl DeviceInput<TC> + ?Sized),
+        d: &mut impl DeviceOutput<TD>,
         stream: &Stream,
     ) -> Result<()>
     where
@@ -99,17 +126,19 @@ impl Plan {
         TScalar: DataTypeLike,
     {
         self.context().ensure_stream(stream)?;
+        validate_regions(self, &[a.region(), c.region(), d.region()])?;
         validate_elementwise_binary_types::<TA, TC, TD, TScalar>(self)?;
 
+        // SAFETY: `cutensorElementwiseBinaryExecute` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorElementwiseBinaryExecute(
                 self.context().as_raw(),
                 self.as_raw(),
-                ptr::from_ref(alpha) as _,
-                a.as_ptr() as _,
-                ptr::from_ref(gamma) as _,
-                c.as_ptr() as _,
-                d.as_mut_ptr() as _,
+                ptr::from_ref(alpha).cast(),
+                a.as_device_ptr().cast(),
+                ptr::from_ref(gamma).cast(),
+                c.as_device_ptr().cast(),
+                d.as_mut_ptr().cast(),
                 stream.as_raw(),
             ))?;
         }
@@ -141,11 +170,14 @@ impl Plan {
     /// or tensor types do not match the plan, tensor dimensions or modes are
     /// invalid, a data type or operation combination is unsupported, or
     /// cuTENSOR rejects the operation.
-    pub fn permute<TA, TB, TScalar>(
+    ///
+    /// # Safety
+    /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
+    pub unsafe fn permute<TA, TB, TScalar>(
         &self,
         alpha: &TScalar,
-        a: &DeviceMemory<TA>,
-        b: &mut DeviceMemory<TB>,
+        a: &(impl DeviceInput<TA> + ?Sized),
+        b: &mut impl DeviceOutput<TB>,
         stream: &Stream,
     ) -> Result<()>
     where
@@ -154,15 +186,17 @@ impl Plan {
         TScalar: DataTypeLike,
     {
         self.context().ensure_stream(stream)?;
+        validate_regions(self, &[a.region(), b.region()])?;
         validate_permute_types::<TA, TB, TScalar>(self)?;
 
+        // SAFETY: `cutensorPermute` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorPermute(
                 self.context().as_raw(),
                 self.as_raw(),
-                ptr::from_ref(alpha) as _,
-                a.as_ptr() as _,
-                b.as_mut_ptr() as _,
+                ptr::from_ref(alpha).cast(),
+                a.as_device_ptr().cast(),
+                b.as_mut_ptr().cast(),
                 stream.as_raw(),
             ))?;
         }
@@ -186,15 +220,23 @@ impl Plan {
     /// the plan, the provided workspace is smaller than
     /// [`Plan::required_workspace_size`], the CUDA driver is insufficient, or
     /// cuTENSOR rejects or fails the operation.
-    pub fn contract<TA, TB, TC, TD, TScalar>(
+    /// # Safety
+    ///
+    /// Tensor ranges must cover the plan's complete strided accesses and
+    /// remain live until `stream` completes. Prior producers must precede this
+    /// operation. Input elements must be valid when read. Output and workspace
+    /// writes must not conflict with other access.
+    /// Uninitialized output storage is permitted.
+    /// Only the descriptor's tensor elements are written, so padding remains uninitialized unless initialized separately.
+    pub unsafe fn contract<TA, TB, TC, TD, TScalar>(
         &self,
         alpha: &TScalar,
-        a: &DeviceMemory<TA>,
-        b: &DeviceMemory<TB>,
+        a: &(impl DeviceInput<TA> + ?Sized),
+        b: &(impl DeviceInput<TB> + ?Sized),
         beta: &TScalar,
-        c: &DeviceMemory<TC>,
-        d: &mut DeviceMemory<TD>,
-        workspace: Option<&mut DeviceMemory<u8>>,
+        c: &(impl DeviceInput<TC> + ?Sized),
+        d: &mut impl DeviceOutput<TD>,
+        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
         stream: &Stream,
     ) -> Result<()>
     where
@@ -205,21 +247,26 @@ impl Plan {
         TScalar: DataTypeLike,
     {
         self.context().ensure_stream(stream)?;
+        validate_regions(self, &[a.region(), b.region(), c.region(), d.region()])?;
         validate_contraction_types::<TA, TB, TC, TD, TScalar>(self)?;
-        let (workspace_ptr, workspace_size) =
-            workspace_ptr_and_size(workspace, self.required_workspace_size())?;
+        let (workspace_ptr, workspace_size) = workspace_ptr_and_size(
+            self.context().cuda_context(),
+            workspace,
+            self.required_workspace_size(),
+        )?;
 
+        // SAFETY: `cutensorContract` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorContract(
                 self.context().as_raw(),
                 self.as_raw(),
-                ptr::from_ref(alpha) as _,
-                a.as_ptr() as _,
-                b.as_ptr() as _,
-                ptr::from_ref(beta) as _,
-                c.as_ptr() as _,
-                d.as_mut_ptr() as _,
-                workspace_ptr as _,
+                ptr::from_ref(alpha).cast(),
+                a.as_device_ptr().cast(),
+                b.as_device_ptr().cast(),
+                ptr::from_ref(beta).cast(),
+                c.as_device_ptr().cast(),
+                d.as_mut_ptr().cast(),
+                workspace_ptr.cast(),
                 workspace_size,
                 stream.as_raw(),
             ))?;
@@ -241,14 +288,17 @@ impl Plan {
     /// scalar and tensor types do not match the plan, the provided workspace is
     /// smaller than [`Plan::required_workspace_size`], or cuTENSOR rejects the
     /// operation.
-    pub fn reduce<TA, TC, TD, TScalar>(
+    ///
+    /// # Safety
+    /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
+    pub unsafe fn reduce<TA, TC, TD, TScalar>(
         &self,
         alpha: &TScalar,
-        a: &DeviceMemory<TA>,
+        a: &(impl DeviceInput<TA> + ?Sized),
         beta: &TScalar,
-        c: &DeviceMemory<TC>,
-        d: &mut DeviceMemory<TD>,
-        workspace: Option<&mut DeviceMemory<u8>>,
+        c: &(impl DeviceInput<TC> + ?Sized),
+        d: &mut impl DeviceOutput<TD>,
+        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
         stream: &Stream,
     ) -> Result<()>
     where
@@ -258,20 +308,25 @@ impl Plan {
         TScalar: DataTypeLike,
     {
         self.context().ensure_stream(stream)?;
+        validate_regions(self, &[a.region(), c.region(), d.region()])?;
         validate_reduction_types::<TA, TC, TD, TScalar>(self)?;
-        let (workspace_ptr, workspace_size) =
-            workspace_ptr_and_size(workspace, self.required_workspace_size())?;
+        let (workspace_ptr, workspace_size) = workspace_ptr_and_size(
+            self.context().cuda_context(),
+            workspace,
+            self.required_workspace_size(),
+        )?;
 
+        // SAFETY: `cutensorReduce` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorReduce(
                 self.context().as_raw(),
                 self.as_raw(),
-                ptr::from_ref(alpha) as _,
-                a.as_ptr() as _,
-                ptr::from_ref(beta) as _,
-                c.as_ptr() as _,
-                d.as_mut_ptr() as _,
-                workspace_ptr as _,
+                ptr::from_ref(alpha).cast(),
+                a.as_device_ptr().cast(),
+                ptr::from_ref(beta).cast(),
+                c.as_device_ptr().cast(),
+                d.as_mut_ptr().cast(),
+                workspace_ptr.cast(),
                 workspace_size,
                 stream.as_raw(),
             ))?;
@@ -296,16 +351,23 @@ impl Plan {
     /// the plan, the provided workspace is smaller than
     /// [`Plan::required_workspace_size`], the CUDA driver is insufficient, or
     /// cuTENSOR rejects or fails the operation.
-    pub fn contract_trinary<TA, TB, TC, TD, TE, TScalar>(
+    ///
+    /// # Safety
+    /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
+    #[expect(
+        clippy::many_single_char_names,
+        reason = "tensor operand names follow the native trinary contraction formula"
+    )]
+    pub unsafe fn contract_trinary<TA, TB, TC, TD, TE, TScalar>(
         &self,
         alpha: &TScalar,
-        a: &DeviceMemory<TA>,
-        b: &DeviceMemory<TB>,
-        c: &DeviceMemory<TC>,
+        a: &(impl DeviceInput<TA> + ?Sized),
+        b: &(impl DeviceInput<TB> + ?Sized),
+        c: &(impl DeviceInput<TC> + ?Sized),
         beta: &TScalar,
-        d: &DeviceMemory<TD>,
-        e: &mut DeviceMemory<TE>,
-        workspace: Option<&mut DeviceMemory<u8>>,
+        d: &(impl DeviceInput<TD> + ?Sized),
+        e: &mut impl DeviceOutput<TE>,
+        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
         stream: &Stream,
     ) -> Result<()>
     where
@@ -317,22 +379,30 @@ impl Plan {
         TScalar: DataTypeLike,
     {
         self.context().ensure_stream(stream)?;
+        validate_regions(
+            self,
+            &[a.region(), b.region(), c.region(), d.region(), e.region()],
+        )?;
         validate_contraction_trinary_types::<TA, TB, TC, TD, TE, TScalar>(self)?;
-        let (workspace_ptr, workspace_size) =
-            workspace_ptr_and_size(workspace, self.required_workspace_size())?;
+        let (workspace_ptr, workspace_size) = workspace_ptr_and_size(
+            self.context().cuda_context(),
+            workspace,
+            self.required_workspace_size(),
+        )?;
 
+        // SAFETY: `cutensorContractTrinary` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cutensorContractTrinary(
                 self.context().as_raw(),
                 self.as_raw(),
-                ptr::from_ref(alpha) as _,
-                a.as_ptr() as _,
-                b.as_ptr() as _,
-                c.as_ptr() as _,
-                ptr::from_ref(beta) as _,
-                d.as_ptr() as _,
-                e.as_mut_ptr() as _,
-                workspace_ptr as _,
+                ptr::from_ref(alpha).cast(),
+                a.as_device_ptr().cast(),
+                b.as_device_ptr().cast(),
+                c.as_device_ptr().cast(),
+                ptr::from_ref(beta).cast(),
+                d.as_device_ptr().cast(),
+                e.as_mut_ptr().cast(),
+                workspace_ptr.cast(),
                 workspace_size,
                 stream.as_raw(),
             ))?;
@@ -361,7 +431,12 @@ impl Plan {
     /// active device does not match the plan, the provided workspace is smaller
     /// than [`Plan::required_workspace_size`], the CUDA driver is insufficient,
     /// or cuTENSOR rejects or fails the operation.
-    pub fn block_sparse_contract<TScalar>(
+    ///
+    /// # Safety
+    /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
+    /// Every block pointer must cover its declared native block extent and remain live in the plan's context through completion.
+    /// Retain the host pointer tables through completion and every captured replay.
+    pub unsafe fn block_sparse_contract<TScalar>(
         &self,
         alpha: &TScalar,
         a: &[DevicePtr],
@@ -369,7 +444,7 @@ impl Plan {
         beta: &TScalar,
         c: &[DevicePtr],
         d: &mut [DevicePtr],
-        workspace: Option<&mut DeviceMemory<u8>>,
+        workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
         stream: &Stream,
     ) -> Result<()>
     where
@@ -377,34 +452,24 @@ impl Plan {
     {
         self.context().ensure_stream(stream)?;
         validate_block_sparse_contract_arguments::<TScalar>(self, a, b, c, d)?;
-        let (workspace_ptr, workspace_size) =
-            workspace_ptr_and_size(workspace, self.required_workspace_size())?;
+        let (workspace_ptr, workspace_size) = workspace_ptr_and_size(
+            self.context().cuda_context(),
+            workspace,
+            self.required_workspace_size(),
+        )?;
 
-        let a = a
-            .iter()
-            .map(|ptr| ptr.as_ptr().cast_const())
-            .collect::<Vec<_>>();
-        let b = b
-            .iter()
-            .map(|ptr| ptr.as_ptr().cast_const())
-            .collect::<Vec<_>>();
-        let c = c
-            .iter()
-            .map(|ptr| ptr.as_ptr().cast_const())
-            .collect::<Vec<_>>();
-        let mut d = d.iter().map(|ptr| ptr.as_ptr()).collect::<Vec<_>>();
-
+        // SAFETY: DevicePtr is transparent over a pointer, and the caller retains the tables and block allocations.
         unsafe {
             try_ffi!(sys::cutensorBlockSparseContract(
                 self.context().as_raw(),
                 self.as_raw(),
-                ptr::from_ref(alpha) as _,
-                a.as_ptr() as _,
-                b.as_ptr() as _,
-                ptr::from_ref(beta) as _,
-                c.as_ptr() as _,
-                d.as_mut_ptr() as _,
-                workspace_ptr as _,
+                ptr::from_ref(alpha).cast(),
+                a.as_ptr().cast(),
+                b.as_ptr().cast(),
+                ptr::from_ref(beta).cast(),
+                c.as_ptr().cast(),
+                d.as_mut_ptr().cast(),
+                workspace_ptr.cast(),
                 workspace_size,
                 stream.as_raw(),
             ))?;
@@ -412,6 +477,16 @@ impl Plan {
 
         Ok(())
     }
+}
+
+fn validate_regions(plan: &Plan, regions: &[DeviceRegion<'_>]) -> Result<()> {
+    if regions
+        .iter()
+        .any(|region| region.context() != plan.context().cuda_context())
+    {
+        return Err(CudaError::MemoryContextMismatch.into());
+    }
+    Ok(())
 }
 
 fn validate_elementwise_trinary_types<TA, TB, TC, TD, TScalar>(plan: &Plan) -> Result<()>
@@ -570,17 +645,30 @@ where
         });
     };
     validate_scalar_type(signature.scalar_type, TScalar::data_type())?;
-    validate_pointer_count("a", a_non_zero_blocks as usize, a.len())?;
-    validate_pointer_count("b", b_non_zero_blocks as usize, b.len())?;
-    validate_pointer_count("c", c_non_zero_blocks as usize, c.len())?;
-    validate_pointer_count("d", d_non_zero_blocks as usize, d.len())?;
+    validate_pointer_count(
+        "a",
+        to_usize(a_non_zero_blocks, "nonzero block count")?,
+        a.len(),
+    )?;
+    validate_pointer_count(
+        "b",
+        to_usize(b_non_zero_blocks, "nonzero block count")?,
+        b.len(),
+    )?;
+    validate_pointer_count(
+        "c",
+        to_usize(c_non_zero_blocks, "nonzero block count")?,
+        c.len(),
+    )?;
+    validate_pointer_count(
+        "d",
+        to_usize(d_non_zero_blocks, "nonzero block count")?,
+        d.len(),
+    )?;
     Ok(())
 }
 
-fn validate_tensor_type(
-    expected: singe_cuda::data_type::DataType,
-    actual: singe_cuda::data_type::DataType,
-) -> Result<()> {
+fn validate_tensor_type(expected: DataType, actual: DataType) -> Result<()> {
     if expected != actual {
         return Err(Error::TensorMemoryDataTypeMismatch {
             descriptor: expected,
@@ -590,10 +678,7 @@ fn validate_tensor_type(
     Ok(())
 }
 
-fn validate_scalar_type(
-    expected: singe_cuda::data_type::DataType,
-    actual: singe_cuda::data_type::DataType,
-) -> Result<()> {
+fn validate_scalar_type(expected: DataType, actual: DataType) -> Result<()> {
     if expected != actual {
         return Err(Error::ScalarDataTypeMismatch {
             descriptor: expected,
@@ -606,7 +691,7 @@ fn validate_scalar_type(
 fn validate_pointer_count(name: &str, expected: usize, actual: usize) -> Result<()> {
     if expected != actual {
         return Err(Error::PointerCountMismatch {
-            name: name.into(),
+            name: name.to_owned().into(),
             expected,
             actual,
         });
@@ -615,7 +700,8 @@ fn validate_pointer_count(name: &str, expected: usize, actual: usize) -> Result<
 }
 
 fn workspace_ptr_and_size(
-    workspace: Option<&mut DeviceMemory<u8>>,
+    context: &Arc<CudaContext>,
+    workspace: Option<&mut DeviceMemory<MaybeUninit<u8>>>,
     required: u64,
 ) -> Result<(*mut (), u64)> {
     let Some(workspace) = workspace else {
@@ -629,13 +715,16 @@ fn workspace_ptr_and_size(
         });
     };
 
+    if workspace.context() != context {
+        return Err(CudaError::MemoryContextMismatch.into());
+    }
     let actual = workspace.byte_len() as u64;
     if actual < required {
         return Err(Error::InsufficientWorkspaceSize { required, actual });
     }
     if required != 0
         && !workspace.as_ptr().is_null()
-        && !(workspace.as_ptr() as usize).is_multiple_of(256)
+        && !workspace.as_ptr().addr().is_multiple_of(256)
     {
         return Err(Error::WorkspaceMisaligned {
             required_alignment: 256,
@@ -643,11 +732,14 @@ fn workspace_ptr_and_size(
         });
     }
 
-    Ok((workspace.as_mut_ptr() as _, required))
+    Ok((DeviceMemory::as_mut_ptr(workspace).cast(), required))
 }
 
 #[cfg(all(test, feature = "testing"))]
 mod tests {
+    use singe_core::assert_close;
+    use singe_cuda::{data_type::DataType, stream::StreamBinding};
+
     use super::*;
     use crate::{
         error::Error,
@@ -657,8 +749,6 @@ mod tests {
         testing::setup_context,
         types::{Operator, WorkspacePreference},
     };
-    use singe_core::assert_close;
-    use singe_cuda::data_type::DataType;
 
     fn packed_offset(indices: &[u64], extents: &[u64]) -> usize {
         let mut stride = 1_usize;
@@ -683,8 +773,9 @@ mod tests {
         let mode_b = vec!['j'.into(), 'i'.into()];
 
         let host_a = vec![1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0];
-        let device_a = DeviceMemory::from_slice(&host_a)?;
-        let mut device_b = DeviceMemory::<f32>::create(host_a.len())?;
+        let device_a = DeviceMemory::from_slice(context.cuda_context(), &host_a)?;
+        let mut device_b =
+            DeviceMemory::<f32>::create_uninit(context.cuda_context(), host_a.len())?;
 
         const ALIGNMENT: u32 = 128;
 
@@ -707,10 +798,13 @@ mod tests {
         let plan = Plan::create(&context, &permutation, &preference, workspace_estimate)?;
 
         let alpha = 2.5_f32;
-        plan.permute(&alpha, &device_a, &mut device_b, &stream)?;
+        StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+            // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+            unsafe { plan.permute(&alpha, &device_a, &mut device_b.output(), &stream) }
+        })?;
 
-        stream.synchronize()?;
-
+        // SAFETY: the completed operation produced the full contiguous descriptor output.
+        let device_b = unsafe { device_b.assume_init() };
         let result = device_b.copy_to_host_vec()?;
         let mut expected = vec![0.0_f32; host_a.len()];
 
@@ -740,9 +834,9 @@ mod tests {
         let host_a = vec![1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0];
         let host_c = vec![0.5_f32, -1.0];
 
-        let device_a = DeviceMemory::from_slice(&host_a)?;
-        let device_c = DeviceMemory::from_slice(&host_c)?;
-        let mut device_d = DeviceMemory::from_slice(&host_c)?;
+        let device_a = DeviceMemory::from_slice(context.cuda_context(), &host_a)?;
+        let device_c = DeviceMemory::from_slice(context.cuda_context(), &host_c)?;
+        let mut device_d = DeviceMemory::from_slice(context.cuda_context(), &host_c)?;
 
         const ALIGNMENT: u32 = 128;
 
@@ -771,30 +865,40 @@ mod tests {
         let beta = -0.5_f32;
 
         if plan.required_workspace_size() == 0 {
-            plan.reduce(
-                &alpha,
-                &device_a,
-                &beta,
-                &device_c,
-                &mut device_d,
-                None,
-                &stream,
-            )?;
+            StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+                // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+                unsafe {
+                    plan.reduce(
+                        &alpha,
+                        &device_a,
+                        &beta,
+                        &device_c,
+                        &mut device_d,
+                        None,
+                        &stream,
+                    )
+                }
+            })?;
         } else {
-            let mut workspace =
-                DeviceMemory::<u8>::create(plan.required_workspace_size() as usize)?;
-            plan.reduce(
-                &alpha,
-                &device_a,
-                &beta,
-                &device_c,
-                &mut device_d,
-                Some(&mut workspace),
-                &stream,
+            let mut workspace = DeviceMemory::<u8>::create_uninit(
+                context.cuda_context(),
+                plan.required_workspace_size() as usize,
             )?;
+            StreamBinding::Borrowed(stream.to_borrowed()).sync_scope(|| {
+                // SAFETY: these buffers match the descriptors and stay borrowed through scope completion.
+                unsafe {
+                    plan.reduce(
+                        &alpha,
+                        &device_a,
+                        &beta,
+                        &device_c,
+                        &mut device_d,
+                        Some(&mut workspace),
+                        &stream,
+                    )
+                }
+            })?;
         }
-
-        stream.synchronize()?;
 
         let result = device_d.copy_to_host_vec()?;
         let mut expected = vec![0.0_f32; extent_cd[0] as usize];
@@ -833,9 +937,9 @@ mod tests {
             ComputeDescriptor::f32(),
         )?;
 
-        let err = permutation.set_padding_left(&[1]).unwrap_err();
+        let error = permutation.set_padding_left(&[1]).unwrap_err();
         assert!(matches!(
-            err,
+            error,
             Error::LengthMismatch {
                 expected: 2,
                 actual: 1,
@@ -843,9 +947,9 @@ mod tests {
             }
         ));
 
-        let err = permutation.set_padding_right(&[1]).unwrap_err();
+        let error = permutation.set_padding_right(&[1]).unwrap_err();
         assert!(matches!(
-            err,
+            error,
             Error::LengthMismatch {
                 expected: 2,
                 actual: 1,
@@ -853,15 +957,15 @@ mod tests {
             }
         ));
 
-        let err = permutation.set_padding_left(&[1, u32::MAX]).unwrap_err();
-        assert!(matches!(err, Error::OutOfRange { .. }));
+        let error = permutation.set_padding_left(&[1, u32::MAX]).unwrap_err();
+        assert!(matches!(error, Error::OutOfRange { .. }));
 
-        let err = permutation.set_padding_right(&[1, u32::MAX]).unwrap_err();
-        assert!(matches!(err, Error::OutOfRange { .. }));
+        let error = permutation.set_padding_right(&[1, u32::MAX]).unwrap_err();
+        assert!(matches!(error, Error::OutOfRange { .. }));
 
-        let err = permutation.set_padding_value(7_i32).unwrap_err();
+        let error = permutation.set_padding_value(7_i32).unwrap_err();
         assert!(matches!(
-            err,
+            error,
             Error::ScalarDataTypeMismatch {
                 descriptor: DataType::F32,
                 memory: DataType::I32,
@@ -890,7 +994,7 @@ mod tests {
             TensorDescriptor::create(&context, &extent_cd, DataType::F32, ALIGNMENT)?;
         let descriptor_e = TensorDescriptor::create(&context, &extent_e, DataType::F32, ALIGNMENT)?;
 
-        let err = OperationDescriptor::elementwise_binary(
+        let error = OperationDescriptor::elementwise_binary(
             &context,
             TensorOperand::identity(&descriptor_a, &mode_a),
             TensorOperand::identity(&descriptor_cd, &mode_cd),
@@ -899,9 +1003,9 @@ mod tests {
             ComputeDescriptor::f32(),
         )
         .unwrap_err();
-        assert!(matches!(err, Error::DescriptorMismatch { .. }));
+        assert!(matches!(error, Error::DescriptorMismatch { .. }));
 
-        let err = OperationDescriptor::reduction(
+        let error = OperationDescriptor::reduction(
             &context,
             TensorOperand::identity(&descriptor_a, &mode_a),
             TensorOperand::identity(&descriptor_cd, &mode_cd),
@@ -910,9 +1014,9 @@ mod tests {
             ComputeDescriptor::f32(),
         )
         .unwrap_err();
-        assert!(matches!(err, Error::ModeMismatch { .. }));
+        assert!(matches!(error, Error::ModeMismatch { .. }));
 
-        let err = OperationDescriptor::contraction(
+        let error = OperationDescriptor::contraction(
             &context,
             TensorOperand::identity(&descriptor_a, &mode_a),
             TensorOperand::identity(&descriptor_a, &mode_a),
@@ -921,9 +1025,9 @@ mod tests {
             ComputeDescriptor::f32(),
         )
         .unwrap_err();
-        assert!(matches!(err, Error::DescriptorMismatch { .. }));
+        assert!(matches!(error, Error::DescriptorMismatch { .. }));
 
-        let err = OperationDescriptor::contraction_trinary(
+        let error = OperationDescriptor::contraction_trinary(
             &context,
             TensorOperand::identity(&descriptor_a, &mode_a),
             TensorOperand::identity(&descriptor_a, &mode_a),
@@ -933,7 +1037,7 @@ mod tests {
             ComputeDescriptor::f32(),
         )
         .unwrap_err();
-        assert!(matches!(err, Error::ModeMismatch { .. }));
+        assert!(matches!(error, Error::ModeMismatch { .. }));
 
         Ok(())
     }
@@ -972,10 +1076,11 @@ mod tests {
             .map(|index| (index as f32 - 4.0) * 0.125)
             .collect::<Vec<_>>();
 
-        let device_a = DeviceMemory::from_slice(&host_a)?;
-        let device_b = DeviceMemory::from_slice(&host_b)?;
-        let device_c_input = DeviceMemory::from_slice(&host_c)?;
-        let mut device_c = DeviceMemory::from_slice(&host_c)?;
+        let device_a = DeviceMemory::from_slice(context.cuda_context(), &host_a)?;
+        let device_b = DeviceMemory::from_slice(context.cuda_context(), &host_b)?;
+        let device_c_input = DeviceMemory::from_slice(context.cuda_context(), &host_c)?;
+        let mut device_c =
+            DeviceMemory::<f32>::create_uninit(context.cuda_context(), host_c.len())?;
 
         const ALIGNMENT: u32 = 128;
 
@@ -1003,24 +1108,32 @@ mod tests {
         )?;
         let plan = Plan::create(&context, &contraction, &preference, workspace_estimate)?;
 
-        let mut workspace = DeviceMemory::<u8>::create(plan.required_workspace_size() as usize)?;
+        let mut workspace = DeviceMemory::<u8>::create_uninit(
+            context.cuda_context(),
+            plan.required_workspace_size() as usize,
+        )?;
 
         let alpha = 1.1_f32;
         let beta = 0.0_f32;
 
-        plan.contract(
-            &alpha,
-            &device_a,
-            &device_b,
-            &beta,
-            &device_c_input,
-            &mut device_c,
-            Some(&mut workspace),
-            &stream,
-        )?;
+        // SAFETY: descriptors match these buffers, which remain live until the completion wait below.
+        unsafe {
+            plan.contract(
+                &alpha,
+                &device_a,
+                &device_b,
+                &beta,
+                &device_c_input,
+                &mut device_c.output(),
+                Some(&mut workspace),
+                &stream,
+            )
+        }?;
 
         stream.synchronize()?;
 
+        // SAFETY: the packed output descriptor covers the whole allocation and contraction has completed.
+        let device_c = unsafe { device_c.assume_init() };
         let result = device_c.copy_to_host_vec()?;
         let mut expected = vec![0.0_f32; elements_c as usize];
 

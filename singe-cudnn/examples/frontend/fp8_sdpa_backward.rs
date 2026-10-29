@@ -1,49 +1,46 @@
 mod common;
 
+use std::env::args;
+
+use singe_cuda::memory::DeviceMemory;
 use singe_cudnn::{
     backend::tensor::{Shape, TensorSpec},
-    cudart_version,
-    data_type::DataType,
-    error::{Error, Result},
+    data_type::{DataType, f8e4m3},
+    error::Result,
     frontend::{
-        composite::sdpa::SdpaFp8BackwardInputs,
-        graph::{DataTypePolicy, Graph, GraphConfig},
-        operation::{
-            AttentionBackwardConfig, AttentionMaskMode, AttentionScoreConfig, HeuristicMode,
+        composite::sdpa::{
+            SdpaForwardOutputTensors, SdpaFp8BackwardInputs, SdpaFp8BackwardOutputConfig,
+            SdpaFp8Inputs, SdpaGradientOutputConfig,
         },
+        error::Error as FrontendError,
+        graph::{DataTypePolicy, Graph, GraphConfig, TensorOutputConfig},
+        operation::{
+            AttentionBackwardConfig, AttentionConfig, AttentionDiagonalAlignment,
+            AttentionDiagonalBand, AttentionMaskMode, AttentionScoreConfig, SoftmaxStatsBase,
+        },
+        plan::{CompileConfig, ExecuteArgs, HeuristicMode},
     },
-    version,
 };
 
-fn is_d_k_shape_mismatch(error: &Error) -> bool {
-    matches!(
-        error,
-        Error::DescriptorMismatch { name } if name == "sdpa backward d_k shape"
-    ) || matches!(
-        error,
-        Error::FrontendTensorDimensionsMismatch { operation, .. }
-            if operation == "sdpa backward d_k shape"
+fn interleaved_shape([b, h, s, d]: [i64; 4]) -> Result<Shape> {
+    let storage = Shape::contiguous([b, s, 3, h, d])?;
+    let strides = storage.strides();
+    Shape::with_strides(
+        [b, h, s, d],
+        [strides[0], strides[3], strides[1], strides[4]],
     )
 }
 
 fn run() -> Result<()> {
-    let ctx = common::ExampleContext::create()?;
-
-    if cudart_version()? < 12_000 {
-        println!("frontend_fp8_sdpa_backward: skipped, requires CUDA toolkit 12.0+");
-        return Ok(());
-    }
-    if !ctx.is_hopper_device() && !ctx.is_blackwell_device() {
-        println!("frontend_fp8_sdpa_backward: skipped, requires Hopper or Blackwell Computing GPU");
-        return Ok(());
-    }
-    if version()? < 90_100 {
-        println!("frontend_fp8_sdpa_backward: skipped, requires cuDNN 9.1.0+");
-        return Ok(());
-    }
+    let example = common::ExampleContext::create()?;
 
     let b = 2_i64;
-    let h = 2_i64;
+    let h_kv = 2_i64;
+    let h = if args().any(|argument| argument == "--gqa") {
+        4_i64
+    } else {
+        h_kv
+    };
     let s = 512_i64;
     let d = 128_i64;
 
@@ -56,52 +53,90 @@ fn run() -> Result<()> {
         ),
     );
 
-    let qkv_dims = vec![b, h, s, d];
-    let qkv_strides = vec![s * 3 * h * d, d, 3 * h * d, 1];
-    let output_strides = vec![s * h * d, d, h * d, 1];
-    let stats_dims = vec![b, h, s, 1];
-    let stats_strides = vec![h * s, s, 1, 1];
+    let q = graph
+        .tensor(TensorSpec::new(DataType::F8E4M3, interleaved_shape([b, h, s, d])?).with_name("Q"));
+    let k = graph.tensor(
+        TensorSpec::new(DataType::F8E4M3, interleaved_shape([b, h_kv, s, d])?).with_name("K"),
+    );
+    let v = graph.tensor_like(k, Some("V"))?;
+    let output_storage = Shape::contiguous([b, s, h, d])?;
+    let strides = output_storage.strides();
+    let o = graph.tensor(
+        TensorSpec::new(
+            DataType::F8E4M3,
+            Shape::with_strides(
+                [b, h, s, d],
+                [strides[0], strides[2], strides[1], strides[3]],
+            )?,
+        )
+        .with_name("O"),
+    );
+    let d_o = graph.tensor_like(o, Some("dO"))?;
+    let stats = graph.tensor(
+        TensorSpec::new(DataType::F32, Shape::contiguous([b, h, s, 1])?).with_name("Stats"),
+    );
 
-    let q = graph.tensor(TensorSpec::new(
-        DataType::F8E4M3,
-        Shape::contiguous(qkv_dims.clone())?.with_strides(qkv_strides.clone())?,
-    ));
-    let k = graph.tensor(TensorSpec::new(
-        DataType::F8E4M3,
-        Shape::contiguous(qkv_dims.clone())?.with_strides(qkv_strides.clone())?,
-    ));
-    let v = graph.tensor(TensorSpec::new(
-        DataType::F8E4M3,
-        Shape::contiguous(qkv_dims.clone())?.with_strides(qkv_strides.clone())?,
-    ));
-    let o = graph.tensor(TensorSpec::new(
-        DataType::F8E4M3,
-        Shape::contiguous(qkv_dims.clone())?.with_strides(output_strides.clone())?,
-    ));
-    let d_o = graph.tensor(TensorSpec::new(
-        DataType::F8E4M3,
-        Shape::contiguous(qkv_dims.clone())?.with_strides(output_strides.clone())?,
-    ));
-    let stats = graph.tensor(TensorSpec::new(
-        DataType::F32,
-        Shape::contiguous(stats_dims)?.with_strides(stats_strides)?,
-    ));
+    let descale_q = graph.tensor(TensorSpec::scalar_f32(1.0));
+    let descale_k = graph.tensor_like(descale_q, Some("descale_k"))?;
+    let descale_v = graph.tensor_like(descale_q, Some("descale_v"))?;
+    let descale_o = graph.tensor_like(descale_q, Some("descale_o"))?;
+    let descale_d_o = graph.tensor_like(descale_q, Some("descale_d_o"))?;
+    let descale_s = graph.tensor_like(descale_q, Some("descale_s"))?;
+    let descale_d_p = graph.tensor_like(descale_q, Some("descale_d_p"))?;
+    let scale_s = graph.tensor_like(descale_q, Some("scale_s"))?;
+    let scale_o = graph.tensor_like(descale_q, Some("scale_o"))?;
+    let scale_d_q = graph.tensor_like(descale_q, Some("scale_d_q"))?;
+    let scale_d_k = graph.tensor_like(descale_q, Some("scale_d_k"))?;
+    let scale_d_v = graph.tensor_like(descale_q, Some("scale_d_v"))?;
+    let scale_d_p = graph.tensor_like(descale_q, Some("scale_d_p"))?;
+    let attention_scale = graph.tensor(TensorSpec::scalar_f32(0.123));
 
-    let descale_q = graph.tensor(TensorSpec::scalar_f32(1.0)?);
-    let descale_k = graph.tensor_like_named(descale_q, "descale_k")?;
-    let descale_v = graph.tensor_like_named(descale_q, "descale_v")?;
-    let descale_o = graph.tensor_like_named(descale_q, "descale_o")?;
-    let descale_d_o = graph.tensor_like_named(descale_q, "descale_d_o")?;
-    let descale_s = graph.tensor_like_named(descale_q, "descale_s")?;
-    let descale_d_p = graph.tensor_like_named(descale_q, "descale_d_p")?;
-    let scale_s = graph.tensor_like_named(descale_q, "scale_s")?;
-    let scale_d_q = graph.tensor_like_named(descale_q, "scale_d_q")?;
-    let scale_d_k = graph.tensor_like_named(descale_q, "scale_d_k")?;
-    let scale_d_v = graph.tensor_like_named(descale_q, "scale_d_v")?;
-    let scale_d_p = graph.tensor_like_named(descale_q, "scale_d_p")?;
-    let attention_scale = graph.tensor(TensorSpec::scalar_f32(0.123)?);
+    let score_config = AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::DiagonalBand(
+        AttentionDiagonalBand::causal(AttentionDiagonalAlignment::TopLeft),
+    ));
+    let mut forward_graph = graph.clone();
+    let forward_outputs = forward_graph.sdpa_fp8(
+        SdpaFp8Inputs::new(
+            q,
+            k,
+            v,
+            attention_scale,
+            descale_q,
+            descale_k,
+            descale_v,
+            descale_s,
+            scale_s,
+            scale_o,
+        ),
+        &AttentionConfig::new()
+            .with_name("fp8_attention_forward")
+            .with_score_config(score_config.clone())
+            .with_stats_base(SoftmaxStatsBase::NaturalLog),
+        SdpaForwardOutputTensors::new(TensorOutputConfig::new().output_tensor())
+            .with_stats(TensorOutputConfig::new().output_tensor())
+            .with_absolute_max_probabilities(TensorOutputConfig::new().output_tensor())
+            .with_absolute_max_output(TensorOutputConfig::new().output_tensor()),
+    )?;
+    let forward_o = forward_outputs.output;
+    let forward_stats = forward_outputs.stats.ok_or_else(|| {
+        FrontendError::Compile("requested forward attention statistics are missing".into())
+    })?;
+    let output_shape = graph.shape(o)?.clone();
+    forward_graph.modify_tensor(forward_o, |tensor| tensor.with_shape(output_shape))?;
+    let stats_shape = graph.shape(stats)?.clone();
+    forward_graph.modify_tensor(forward_stats, |tensor| {
+        tensor.with_shape(stats_shape).output_tensor()
+    })?;
+    let forward_amax_ids = [
+        forward_outputs.absolute_max_probabilities.ok_or_else(|| {
+            FrontendError::Compile("requested forward score amax is missing".into())
+        })?,
+        forward_outputs.absolute_max_output.ok_or_else(|| {
+            FrontendError::Compile("requested forward output amax is missing".into())
+        })?,
+    ];
 
-    let outputs = match graph.sdpa_fp8_backward_infer(
+    let outputs = graph.sdpa_fp8_backward(
         SdpaFp8BackwardInputs::new(
             q,
             k,
@@ -123,59 +158,111 @@ fn run() -> Result<()> {
             scale_d_v,
             scale_d_p,
         ),
-        AttentionBackwardConfig::new(DataType::F32).with_score_config(
-            AttentionScoreConfig::new().with_mask_mode(AttentionMaskMode::CausalTopLeft),
-        ),
-    ) {
-        Ok(outputs) => outputs,
-        Err(error) => {
-            if is_d_k_shape_mismatch(&error) {
-                println!(
-                    "frontend_fp8_sdpa_backward: skipped, backend shape mismatch on this configuration"
-                );
-                return Ok(());
-            }
-            return Err(error);
-        }
-    };
-    let d_q = outputs.query_gradient();
-    let d_k = outputs.key_gradient();
-    let d_v = outputs.value_gradient();
-    let absolute_max_d_q = outputs.absolute_max_query_gradient();
-    let absolute_max_d_k = outputs.absolute_max_key_gradient();
-    let absolute_max_d_v = outputs.absolute_max_value_gradient();
-    let absolute_max_d_p = outputs.absolute_max_probability_gradient();
+        AttentionBackwardConfig::new()
+            .with_name("fp8_attention_backward")
+            .with_compute_type(DataType::F32)
+            .with_score_config(score_config),
+        SdpaFp8BackwardOutputConfig::new(SdpaGradientOutputConfig::new(
+            TensorOutputConfig::new().output_tensor(),
+        )),
+    )?;
+    let d_q = outputs.query_gradient;
+    let d_k = outputs.key_gradient;
+    let d_v = outputs.value_gradient;
+    let absolute_max_d_q = outputs.absolute_max_query_gradient;
+    let absolute_max_d_k = outputs.absolute_max_key_gradient;
+    let absolute_max_d_v = outputs.absolute_max_value_gradient;
+    let absolute_max_d_p = outputs.absolute_max_probability_gradient;
 
-    for (output, shape, strides) in [
-        (d_q, qkv_dims.clone(), qkv_strides.clone()),
-        (d_k, qkv_dims.clone(), qkv_strides.clone()),
-        (d_v, qkv_dims, qkv_strides),
-    ] {
-        let tensor = graph
-            .tensor_config(output)?
-            .clone()
-            .output_tensor()
-            .with_shape(Shape::contiguous(shape)?.with_strides(strides)?);
-        graph.replace_tensor(output, tensor)?;
-    }
-    for output in [
+    let output_ids = [
+        d_q,
+        d_k,
+        d_v,
         absolute_max_d_q,
         absolute_max_d_k,
         absolute_max_d_v,
         absolute_max_d_p,
-    ] {
+    ];
+    for output in output_ids {
         graph.mark_as_output(output)?;
     }
 
-    if let Err(error) = graph.compile(&ctx.cudnn, &[HeuristicMode::A]) {
-        if is_d_k_shape_mismatch(&error) {
-            println!(
-                "frontend_fp8_sdpa_backward: skipped, backend shape mismatch on this configuration"
-            );
-            return Ok(());
+    let forward_compiled = forward_graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+    let compiled = graph.compile(
+        Some(&example.cudnn),
+        &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
+    )?;
+    let cuda = example.cudnn.cuda_context();
+    let mut seed = 123_456_789;
+    let inputs = [q, k, v]
+        .into_iter()
+        .map(|id| {
+            let elements = graph.shape(id)?.storage_span()?;
+            let values = common::init_f8e4m3_image(elements, &mut seed);
+            Ok((id, DeviceMemory::from_slice(cuda, &values)?))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let gradient_values = common::init_f8e4m3_image(graph.shape(d_o)?.storage_span()?, &mut seed);
+    let d_o_dev = DeviceMemory::from_slice(cuda, &gradient_values)?;
+    let mut o_dev = DeviceMemory::<f8e4m3>::zeroed(cuda, graph.shape(o)?.storage_span()?)?;
+    let mut stats_dev = DeviceMemory::<f32>::zeroed(cuda, graph.shape(stats)?.storage_span()?)?;
+    {
+        let mut amax_buffers = forward_amax_ids
+            .into_iter()
+            .map(|id| {
+                Ok((
+                    id,
+                    DeviceMemory::<f32>::zeroed(cuda, forward_graph.shape(id)?.storage_span()?)?,
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut workspace = common::workspace(cuda, forward_compiled.workspace_size())?;
+        let mut bindings = forward_compiled.bindings()?;
+        for (id, memory) in &inputs {
+            bindings.set_input(*id, memory)?;
         }
-        return Err(error);
+        bindings.set(forward_o, &mut o_dev)?;
+        bindings.set(forward_stats, &mut stats_dev)?;
+        for (id, memory) in &mut amax_buffers {
+            bindings.set(*id, memory)?;
+        }
+        // SAFETY: inputs, writable saved state and forward scratch remain live through stream completion.
+        example.execute_and_wait(|context| unsafe {
+            forward_compiled.execute(
+                context,
+                ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+            )
+        })?;
     }
+    let mut output_buffers = output_ids
+        .into_iter()
+        .map(|id| {
+            let bytes = graph.tensor_spec(id)?.storage_byte_len(None)?;
+            Ok((id, DeviceMemory::<u8>::zeroed(cuda, bytes)?))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
+    let mut bindings = compiled.bindings()?;
+    for (id, memory) in &inputs {
+        bindings.set_input(*id, memory)?;
+    }
+    bindings.set_input(o, &o_dev)?;
+    bindings.set_input(d_o, &d_o_dev)?;
+    bindings.set_input(stats, &stats_dev)?;
+    for (id, memory) in &mut output_buffers {
+        bindings.set_encoded_bytes(*id, memory)?;
+    }
+    // SAFETY: FP8 inputs, actual saved forward state, writable gradients and workspace remain live through completion.
+    example.execute_and_wait(|context| unsafe {
+        compiled.execute(
+            context,
+            ExecuteArgs::new(&bindings).with_workspace(&mut workspace),
+        )
+    })?;
+    println!("executed fp8 forward and backward attention with saved statistics, query heads: {h}");
     Ok(())
 }
 

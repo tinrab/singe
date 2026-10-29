@@ -1,115 +1,145 @@
 use crate::{
     context::StreamContext,
     error::Result,
-    image::view::{AC4, C3, ChannelLayout, ImageView, ImageViewMut},
-    pipeline::{ImageAllocator, Workspace},
+    image::{
+        color,
+        video::{Frame, VideoFormat, VideoOutputView},
+        view::{AC4, C3, ImageView},
+    },
+    pipeline::image::ImagePipeline,
     types::{ColorSpace, Point},
 };
 
-use super::color::{Uyvp10uToRgbImage, Uyvp10uToRgbOperation};
-use super::{ColorTwistMatrix, ImageBacking, ImagePipeline};
-
-#[path = "color_uyvp_ac4_methods.rs"]
-mod ac4_methods;
-#[path = "color_uyvp_same_type_methods.rs"]
-mod same_type_methods;
-#[path = "color_uyvp_u16_methods.rs"]
 mod u16_methods;
 
-impl<'a> ImagePipeline<'a, u8, C3>
-where
-    Workspace: ImageAllocator<u8, C3>,
-{
-    pub fn uyvp_10u_to_rgb_into<T, L>(
+impl<T: color::RgbToUyvp10u> ImagePipeline<'_, T, C3> {
+    /// Converts every source pixel into packed UYVP and completes the conversion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native color conversion, or stream synchronization fail. The destination
+    /// frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions
+    /// must match. Packed UYVP requires an even pixel width. NPP can reject the selected
+    /// color space or other conversion parameters.
+    /// Image or video view construction can fail.
+    pub fn rgb_to_uyvp_10u_into(
         stream_context: &StreamContext,
-        source: &ImageView<'_, u8, C3>,
-        source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, L>,
+        source: &ImageView<'_, T, C3>,
+        destination: &mut VideoOutputView<'_, u8>,
         color_space: ColorSpace,
-        alpha: Option<<Self as Uyvp10uToRgbImage<T, L>>::Alpha>,
-    ) -> Result<()>
-    where
-        T: Copy,
-        L: ChannelLayout,
-        Self: Uyvp10uToRgbImage<T, L>,
-    {
-        <Self as Uyvp10uToRgbImage<T, L>>::convert(
-            stream_context,
-            source,
-            source_offset,
-            destination,
-            color_space,
-            alpha,
-        )
-    }
-
-    pub fn uyvp_10u_to_rgb<T, L>(
-        self,
-        source_offset: Point,
-        color_space: ColorSpace,
-        alpha: Option<<Self as Uyvp10uToRgbImage<T, L>>::Alpha>,
-    ) -> Result<ImagePipeline<'a, T, L>>
-    where
-        T: Copy,
-        L: ChannelLayout,
-        Workspace: ImageAllocator<T, L>,
-        Self: Uyvp10uToRgbImage<T, L>,
-    {
-        let mut destination = self.workspace.image::<T, L>(self.size())?;
-
-        {
-            let source = self.view()?;
-            let mut destination_view = destination.view_mut()?;
-            <Self as Uyvp10uToRgbImage<T, L>>::convert(
-                self.stream_context,
-                &source,
-                source_offset,
-                &mut destination_view,
-                color_space,
-                alpha,
-            )?;
+    ) -> Result<()> {
+        stream_context.stream().ensure_not_capturing()?;
+        stream_context.prepare_region(source)?;
+        for plane in destination.planes() {
+            stream_context.prepare_region(plane)?;
         }
-
-        Ok(ImagePipeline {
-            stream_context: self.stream_context,
-            workspace: self.workspace,
-            backing: ImageBacking::Owned(destination),
+        stream_context.sync_scope(|| {
+            // SAFETY: checked native dispatch writes the packed extent, and the scope retains
+            // the exclusive destination and source until queued accesses have completed.
+            unsafe {
+                color::rgb_to_uyvp_10u(
+                    stream_context,
+                    source,
+                    Point { x: 0, y: 0 },
+                    destination,
+                    color_space,
+                )
+            }
         })
     }
 
-    pub fn uyvp_10u_to_rgba_into<T>(
-        stream_context: &StreamContext,
-        source: &ImageView<'_, u8, C3>,
-        source_offset: Point,
-        destination: &mut ImageViewMut<'_, T, AC4>,
-        color_space: ColorSpace,
-        alpha: <Self as Uyvp10uToRgbImage<T, AC4>>::Alpha,
-    ) -> Result<()>
-    where
-        T: Copy,
-        Self: Uyvp10uToRgbImage<T, AC4>,
-    {
-        Self::uyvp_10u_to_rgb_into(
-            stream_context,
-            source,
-            source_offset,
-            destination,
+    /// Produces a completed packed UYVP frame with five stored bytes per two pixels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native color conversion, or stream synchronization fail. The destination
+    /// frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions
+    /// must match. Packed UYVP requires an even pixel width. NPP can reject the selected
+    /// color space or other conversion parameters.
+    /// Image or video view construction can fail. Packed frame allocation and checked
+    /// byte-size arithmetic can also fail.
+    pub fn rgb_to_uyvp_10u(self, color_space: ColorSpace) -> Result<Frame<u8>> {
+        self.ensure_eager()?;
+        let mut destination = Frame::<u8>::create_uninit(
+            self.stream_context.cuda_context(),
+            VideoFormat::Uyvp10,
+            self.size(),
+        )?;
+        Self::rgb_to_uyvp_10u_into(
+            self.stream_context,
+            &self.view()?,
+            &mut destination.output()?,
             color_space,
-            Some(alpha),
-        )
+        )?;
+        // SAFETY: successful completed dispatch writes every stored byte of the packed frame.
+        Ok(unsafe { destination.assume_init() })
+    }
+}
+
+impl<T: color::RgbaToUyvp10u> ImagePipeline<'_, T, AC4> {
+    /// Converts every source pixel into packed UYVP and completes the conversion.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native color conversion, or stream synchronization fail. The destination
+    /// frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions
+    /// must match. Packed UYVP requires an even pixel width. NPP can reject the selected
+    /// color space or other conversion parameters.
+    /// Image or video view construction can fail.
+    pub fn rgba_to_uyvp_10u_into(
+        stream_context: &StreamContext,
+        source: &ImageView<'_, T, AC4>,
+        destination: &mut VideoOutputView<'_, u8>,
+        color_space: ColorSpace,
+    ) -> Result<()> {
+        stream_context.stream().ensure_not_capturing()?;
+        stream_context.prepare_region(source)?;
+        for plane in destination.planes() {
+            stream_context.prepare_region(plane)?;
+        }
+        stream_context.sync_scope(|| {
+            // SAFETY: checked native dispatch writes the packed extent, and the scope retains
+            // the exclusive destination and source until queued accesses have completed.
+            unsafe {
+                color::rgba_to_uyvp_10u(
+                    stream_context,
+                    source,
+                    Point { x: 0, y: 0 },
+                    destination,
+                    color_space,
+                )
+            }
+        })
     }
 
-    pub fn uyvp_10u_to_rgba<T>(
-        self,
-        source_offset: Point,
-        color_space: ColorSpace,
-        alpha: <Self as Uyvp10uToRgbImage<T, AC4>>::Alpha,
-    ) -> Result<ImagePipeline<'a, T, AC4>>
-    where
-        T: Copy,
-        Workspace: ImageAllocator<T, AC4>,
-        Self: Uyvp10uToRgbImage<T, AC4>,
-    {
-        self.uyvp_10u_to_rgb::<T, AC4>(source_offset, color_space, Some(alpha))
+    /// Produces a completed packed UYVP frame, discarding source alpha.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if capture checks, CUDA context binding or region preparation,
+    /// producer waits, native color conversion, or stream synchronization fail. The destination
+    /// frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions
+    /// must match. Packed UYVP requires an even pixel width. NPP can reject the selected
+    /// color space or other conversion parameters.
+    /// Image or video view construction can fail. Packed frame allocation and checked
+    /// byte-size arithmetic can also fail.
+    pub fn rgba_to_uyvp_10u(self, color_space: ColorSpace) -> Result<Frame<u8>> {
+        self.ensure_eager()?;
+        let mut destination = Frame::<u8>::create_uninit(
+            self.stream_context.cuda_context(),
+            VideoFormat::Uyvp10,
+            self.size(),
+        )?;
+        Self::rgba_to_uyvp_10u_into(
+            self.stream_context,
+            &self.view()?,
+            &mut destination.output()?,
+            color_space,
+        )?;
+        // SAFETY: successful completed dispatch writes every stored byte of the packed frame.
+        Ok(unsafe { destination.assume_init() })
     }
 }

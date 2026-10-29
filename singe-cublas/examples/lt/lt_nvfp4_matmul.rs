@@ -9,6 +9,7 @@ use singe_cublas::{
     },
     types::{ComputeType, Operation},
 };
+
 use singe_cuda::{
     context::Context as CudaContext,
     data_type::DataType,
@@ -26,15 +27,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     let cuda = CudaContext::create_for_device(Device::new(0))?;
     let lt = LtContext::create(&cuda)?;
 
-    let a = DeviceMemory::from_slice(&vec![f4e2m1::from_bits(1); (M * K) as usize])?;
-    let b = DeviceMemory::from_slice(&vec![f4e2m1::from_bits(1); (K * N) as usize])?;
-    let c = DeviceMemory::<bf16>::zeroes((M * N) as usize)?;
-    let mut d = DeviceMemory::<f4e2m1>::zeroes((M * N) as usize)?;
+    let a = DeviceMemory::from_slice(&cuda, &vec![f4e2m1::from_bits(1); (M * K) as usize])?;
+    let b = DeviceMemory::from_slice(&cuda, &vec![f4e2m1::from_bits(1); (K * N) as usize])?;
+    let c = DeviceMemory::<bf16>::zeroed(&cuda, (M * N) as usize)?;
+    let mut d = DeviceMemory::<f4e2m1>::zeroed(&cuda, (M * N) as usize)?;
 
-    let a_scale = DeviceMemory::from_slice(&[f8e4m3::from_bits(1)])?;
-    let b_scale = DeviceMemory::from_slice(&[f8e4m3::from_bits(1)])?;
-    let d_scale = DeviceMemory::from_slice(&[1.0_f32])?;
-    let d_out_scale = DeviceMemory::from_slice(&[f8e4m3::from_bits(1)])?;
+    let a_scale = DeviceMemory::from_slice(&cuda, &[f8e4m3::from_bits(1)])?;
+    let b_scale = DeviceMemory::from_slice(&cuda, &[f8e4m3::from_bits(1)])?;
+    let d_scale = DeviceMemory::from_slice(&cuda, &[1.0_f32])?;
+    let d_out_scale = DeviceMemory::from_slice(&cuda, &[f8e4m3::from_bits(1)])?;
 
     let a_layout = MatrixLayout::create(DataType::F4E2M1, M, K, M as i64)?;
     let b_layout = MatrixLayout::create(DataType::F4E2M1, K, N, K as i64)?;
@@ -65,27 +66,31 @@ fn main() -> Result<(), Box<dyn Error>> {
         &preference,
         1,
     )?;
-    let mut workspace = DeviceMemory::<u8>::create(heuristics[0].workspace_size)?;
+    let mut workspace = DeviceMemory::<u8>::create_uninit(&cuda, heuristics[0].workspace_size)?;
 
     let alpha = 1.0_f32;
     let beta = 0.0_f32;
-    matmul(
-        &lt,
-        &desc,
-        &alpha,
-        &a,
-        &a_layout,
-        &b,
-        &b_layout,
-        &beta,
-        &c,
-        &c_layout,
-        &mut d,
-        &d_layout,
-        Some(&heuristics[0].algorithm),
-        Some(&mut workspace),
-        None,
-    )?;
+    // SAFETY: layouts match the retained buffers and scalars; the default stream is drained below.
+    unsafe {
+        matmul(
+            &lt,
+            &desc,
+            &alpha,
+            &a,
+            &a_layout,
+            &b,
+            &b_layout,
+            &beta,
+            &c,
+            &c_layout,
+            &mut d,
+            &d_layout,
+            Some(&heuristics[0].algorithm),
+            Some(&mut workspace),
+            None,
+        )
+    }?;
+    cuda.synchronize()?;
 
     println!(
         "lt_nvfp4_matmul output elements: {}",

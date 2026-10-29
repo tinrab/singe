@@ -1,41 +1,66 @@
 use std::sync::Arc;
 
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use cutile::half::f16;
-use cutile::{
-    cuda_async::device_buffer::DevicePointer, cuda_core::Stream, tile_kernel::TileKernel,
-};
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
 #[cfg(any(
-    feature = "dtype-i8",
-    feature = "dtype-u8",
-    feature = "dtype-i32",
-    feature = "dtype-u32",
-    feature = "dtype-i64",
-    feature = "dtype-u64",
+    feature = "dtype_i8",
+    feature = "dtype_u8",
+    feature = "dtype_i32",
+    feature = "dtype_u32",
+    feature = "dtype_i64",
+    feature = "dtype_u64",
 ))]
 use crate::cuda::cutile::kernel::common as kernel_common;
-#[cfg(feature = "dtype-f16")]
+#[cfg(feature = "dtype_f16")]
 use crate::cuda::cutile::kernel::f16::shape as kernel_f16;
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 use crate::cuda::cutile::kernel::f32::shape as kernel_f32;
-#[cfg(feature = "dtype-f64")]
+#[cfg(feature = "dtype_f64")]
 use crate::cuda::cutile::kernel::f64::shape as kernel_f64;
 use crate::{
     cuda::cutile::{
-        DeviceOpExt,
+        DeviceOpExt, TileKernel,
         utility::{VectorLaunch, checked_device_pointer},
     },
     error::{Error, Result},
     utility::{
-        checked_i32_value, checked_rank2_i32, checked_rank3_i32, checked_rank4_i32,
-        checked_rank4_len,
+        checked_element_count, checked_i32_value, checked_rank2_i32, checked_rank3_i32,
+        checked_rank4_i32, checked_rank4_len,
     },
 };
 
+// The shape kernels form flattened source offsets in signed 32-bit tiles.
+// Individual dimension and stride conversions do not bound their products or sum.
+fn ensure_i32_source_offsets<const R: usize>(
+    dimensions: [usize; R],
+    strides: [usize; R],
+    starts: [usize; R],
+) -> Result<()> {
+    if dimensions.contains(&0) {
+        return Ok(());
+    }
+    let mut maximum = 0usize;
+    for axis in 0..R {
+        let coordinate = starts[axis]
+            .checked_add(dimensions[axis] - 1)
+            .ok_or(Error::SizeOverflow)?;
+        let span = coordinate
+            .checked_mul(strides[axis])
+            .ok_or(Error::SizeOverflow)?;
+        maximum = maximum.checked_add(span).ok_or(Error::SizeOverflow)?;
+    }
+    checked_i32_value(maximum)?;
+    Ok(())
+}
+
 macro_rules! copy_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -44,9 +69,10 @@ macro_rules! copy_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { $kernel::$kernel_fn(out, input, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
@@ -55,43 +81,55 @@ macro_rules! copy_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 copy_fn!(copy_f32, f32, kernel_f32, copy_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 copy_fn!(copy_f16, f16, kernel_f16, copy_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 copy_fn!(copy_f64, f64, kernel_f64, copy_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 copy_fn!(copy_u8, u8, kernel_common, copy_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 copy_fn!(copy_i8, i8, kernel_common, copy_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 copy_fn!(copy_u32, u32, kernel_common, copy_u32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 copy_fn!(copy_u64, u64, kernel_common, copy_u64);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 copy_fn!(copy_i32, i32, kernel_common, copy_i32);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 copy_fn!(copy_i64, i64, kernel_common, copy_i64);
 
 macro_rules! transpose_2d_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
             rows: usize,
             cols: usize,
         ) -> Result<()> {
-            let len = crate::utility::checked_element_count(rows, cols)?;
+            let len = $crate::utility::checked_element_count(rows, cols)?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let rows_i32 = checked_i32_value(rows)?;
             let cols_i32 = checked_i32_value(cols)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe { $kernel::$kernel_fn(out, input, rows_i32, cols_i32, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
@@ -100,28 +138,39 @@ macro_rules! transpose_2d_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 transpose_2d_fn!(transpose_2d_f32, f32, kernel_f32, transpose_2d_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 transpose_2d_fn!(transpose_2d_f16, f16, kernel_f16, transpose_2d_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 transpose_2d_fn!(transpose_2d_f64, f64, kernel_f64, transpose_2d_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 transpose_2d_fn!(transpose_2d_u8, u8, kernel_common, transpose_2d_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 transpose_2d_fn!(transpose_2d_i8, i8, kernel_common, transpose_2d_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 transpose_2d_fn!(transpose_2d_u32, u32, kernel_common, transpose_2d_u32);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 transpose_2d_fn!(transpose_2d_i32, i32, kernel_common, transpose_2d_i32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 transpose_2d_fn!(transpose_2d_u64, u64, kernel_common, transpose_2d_u64);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 transpose_2d_fn!(transpose_2d_i64, i64, kernel_common, transpose_2d_i64);
 
 macro_rules! transpose_last2_rank3_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -129,17 +178,18 @@ macro_rules! transpose_last2_rank3_fn {
             rows: usize,
             cols: usize,
         ) -> Result<()> {
-            let len = crate::utility::checked_element_count(batch, rows)?;
-            let len = crate::utility::checked_element_count(len, cols)?;
+            let len = $crate::utility::checked_element_count(batch, rows)?;
+            let len = $crate::utility::checked_element_count(len, cols)?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let batch_i32 = checked_i32_value(batch)?;
             let rows_i32 = checked_i32_value(rows)?;
             let cols_i32 = checked_i32_value(cols)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(out, input, batch_i32, rows_i32, cols_i32, launch.len_i32)
             }
@@ -150,63 +200,71 @@ macro_rules! transpose_last2_rank3_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_f32,
     f32,
     kernel_f32,
     transpose_last2_rank3_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_f16,
     f16,
     kernel_f16,
     transpose_last2_rank3_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_f64,
     f64,
     kernel_f64,
     transpose_last2_rank3_f64
 );
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_u8,
     u8,
     kernel_common,
     transpose_last2_rank3_u8
 );
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_i8,
     i8,
     kernel_common,
     transpose_last2_rank3_i8
 );
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_u32,
     u32,
     kernel_common,
     transpose_last2_rank3_u32
 );
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_i32,
     i32,
     kernel_common,
     transpose_last2_rank3_i32
 );
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_u64,
     u64,
     kernel_common,
     transpose_last2_rank3_u64
 );
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_i64,
     i64,
@@ -216,7 +274,10 @@ transpose_last2_rank3_fn!(
 
 macro_rules! transpose_last2_rank4_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -226,10 +287,11 @@ macro_rules! transpose_last2_rank4_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
             let dimensions = checked_rank4_i32(dimensions)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -248,63 +310,71 @@ macro_rules! transpose_last2_rank4_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_f32,
     f32,
     kernel_f32,
     transpose_last2_rank4_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_f16,
     f16,
     kernel_f16,
     transpose_last2_rank4_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_f64,
     f64,
     kernel_f64,
     transpose_last2_rank4_f64
 );
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_u8,
     u8,
     kernel_common,
     transpose_last2_rank4_u8
 );
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_i8,
     i8,
     kernel_common,
     transpose_last2_rank4_i8
 );
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_u32,
     u32,
     kernel_common,
     transpose_last2_rank4_u32
 );
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_i32,
     i32,
     kernel_common,
     transpose_last2_rank4_i32
 );
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_u64,
     u64,
     kernel_common,
     transpose_last2_rank4_u64
 );
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_i64,
     i64,
@@ -382,22 +452,27 @@ fn repeat_kv_input_dimensions(output_dimensions: [usize; 4], repeats: usize) -> 
 
 macro_rules! materialize_rank2_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
             dimensions: [usize; 2],
             input_strides: [usize; 2],
         ) -> Result<()> {
-            let len = crate::utility::checked_element_count(dimensions[0], dimensions[1])?;
+            let len = $crate::utility::checked_element_count(dimensions[0], dimensions[1])?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            ensure_i32_source_offsets(dimensions, input_strides, [0; 2])?;
             let dimensions = checked_rank2_i32(dimensions)?;
             let input_strides = checked_rank2_i32(input_strides)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -416,63 +491,71 @@ macro_rules! materialize_rank2_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 materialize_rank2_fn!(
     materialize_rank2_f32,
     f32,
     kernel_f32,
     materialize_rank2_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 materialize_rank2_fn!(
     materialize_rank2_f16,
     f16,
     kernel_f16,
     materialize_rank2_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 materialize_rank2_fn!(
     materialize_rank2_f64,
     f64,
     kernel_f64,
     materialize_rank2_f64
 );
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 materialize_rank2_fn!(
     materialize_rank2_u8,
     u8,
     kernel_common,
     materialize_rank2_u8
 );
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 materialize_rank2_fn!(
     materialize_rank2_i8,
     i8,
     kernel_common,
     materialize_rank2_i8
 );
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 materialize_rank2_fn!(
     materialize_rank2_u32,
     u32,
     kernel_common,
     materialize_rank2_u32
 );
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 materialize_rank2_fn!(
     materialize_rank2_i32,
     i32,
     kernel_common,
     materialize_rank2_i32
 );
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 materialize_rank2_fn!(
     materialize_rank2_u64,
     u64,
     kernel_common,
     materialize_rank2_u64
 );
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 materialize_rank2_fn!(
     materialize_rank2_i64,
     i64,
@@ -482,7 +565,10 @@ materialize_rank2_fn!(
 
 macro_rules! slice_rank2_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -493,16 +579,18 @@ macro_rules! slice_rank2_fn {
         ) -> Result<()> {
             ensure_slice_bounds(output_dimensions, input_dimensions, starts)?;
             let len =
-                crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
+                $crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            ensure_i32_source_offsets(output_dimensions, input_strides, starts)?;
             let output_dimensions = checked_rank2_i32(output_dimensions)?;
             let input_strides = checked_rank2_i32(input_strides)?;
             let starts = checked_rank2_i32(starts)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -523,44 +611,57 @@ macro_rules! slice_rank2_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 slice_rank2_fn!(slice_rank2_f32, f32, kernel_f32, slice_rank2_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 slice_rank2_fn!(slice_rank2_f16, f16, kernel_f16, slice_rank2_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 slice_rank2_fn!(slice_rank2_f64, f64, kernel_f64, slice_rank2_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 slice_rank2_fn!(slice_rank2_u8, u8, kernel_common, slice_rank2_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 slice_rank2_fn!(slice_rank2_i8, i8, kernel_common, slice_rank2_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 slice_rank2_fn!(slice_rank2_u32, u32, kernel_common, slice_rank2_u32);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 slice_rank2_fn!(slice_rank2_i32, i32, kernel_common, slice_rank2_i32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 slice_rank2_fn!(slice_rank2_u64, u64, kernel_common, slice_rank2_u64);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 slice_rank2_fn!(slice_rank2_i64, i64, kernel_common, slice_rank2_i64);
 
 macro_rules! materialize_rank3_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
             dimensions: [usize; 3],
             input_strides: [usize; 3],
         ) -> Result<()> {
-            let len = crate::utility::checked_element_count(dimensions[0], dimensions[1])?;
-            let len = crate::utility::checked_element_count(len, dimensions[2])?;
+            let len = $crate::utility::checked_element_count(dimensions[0], dimensions[1])?;
+            let len = $crate::utility::checked_element_count(len, dimensions[2])?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            ensure_i32_source_offsets(dimensions, input_strides, [0; 3])?;
             let dimensions = checked_rank3_i32(dimensions)?;
             let input_strides = checked_rank3_i32(input_strides)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -581,63 +682,71 @@ macro_rules! materialize_rank3_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 materialize_rank3_fn!(
     materialize_rank3_f32,
     f32,
     kernel_f32,
     materialize_rank3_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 materialize_rank3_fn!(
     materialize_rank3_f16,
     f16,
     kernel_f16,
     materialize_rank3_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 materialize_rank3_fn!(
     materialize_rank3_f64,
     f64,
     kernel_f64,
     materialize_rank3_f64
 );
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 materialize_rank3_fn!(
     materialize_rank3_u8,
     u8,
     kernel_common,
     materialize_rank3_u8
 );
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 materialize_rank3_fn!(
     materialize_rank3_i8,
     i8,
     kernel_common,
     materialize_rank3_i8
 );
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 materialize_rank3_fn!(
     materialize_rank3_u32,
     u32,
     kernel_common,
     materialize_rank3_u32
 );
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 materialize_rank3_fn!(
     materialize_rank3_i32,
     i32,
     kernel_common,
     materialize_rank3_i32
 );
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 materialize_rank3_fn!(
     materialize_rank3_u64,
     u64,
     kernel_common,
     materialize_rank3_u64
 );
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 materialize_rank3_fn!(
     materialize_rank3_i64,
     i64,
@@ -647,7 +756,10 @@ materialize_rank3_fn!(
 
 macro_rules! slice_rank3_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -658,17 +770,19 @@ macro_rules! slice_rank3_fn {
         ) -> Result<()> {
             ensure_slice_bounds(output_dimensions, input_dimensions, starts)?;
             let len =
-                crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
-            let len = crate::utility::checked_element_count(len, output_dimensions[2])?;
+                $crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
+            let len = $crate::utility::checked_element_count(len, output_dimensions[2])?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            ensure_i32_source_offsets(output_dimensions, input_strides, starts)?;
             let output_dimensions = checked_rank3_i32(output_dimensions)?;
             let input_strides = checked_rank3_i32(input_strides)?;
             let starts = checked_rank3_i32(starts)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -692,28 +806,39 @@ macro_rules! slice_rank3_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 slice_rank3_fn!(slice_rank3_f32, f32, kernel_f32, slice_rank3_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 slice_rank3_fn!(slice_rank3_f16, f16, kernel_f16, slice_rank3_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 slice_rank3_fn!(slice_rank3_f64, f64, kernel_f64, slice_rank3_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 slice_rank3_fn!(slice_rank3_u8, u8, kernel_common, slice_rank3_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 slice_rank3_fn!(slice_rank3_i8, i8, kernel_common, slice_rank3_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 slice_rank3_fn!(slice_rank3_u32, u32, kernel_common, slice_rank3_u32);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 slice_rank3_fn!(slice_rank3_i32, i32, kernel_common, slice_rank3_i32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 slice_rank3_fn!(slice_rank3_u64, u64, kernel_common, slice_rank3_u64);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 slice_rank3_fn!(slice_rank3_i64, i64, kernel_common, slice_rank3_i64);
 
 macro_rules! pad_rank2_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -725,21 +850,23 @@ macro_rules! pad_rank2_fn {
         ) -> Result<()> {
             ensure_pad_bounds(output_dimensions, input_dimensions, pad_before)?;
             let len =
-                crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
+                $crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
+            checked_device_pointer(&out)?;
             let input_len =
-                crate::utility::checked_element_count(input_dimensions[0], input_dimensions[1])?;
+                $crate::utility::checked_element_count(input_dimensions[0], input_dimensions[1])?;
             if input_len > 0 {
-                checked_device_pointer(input)?;
+                checked_device_pointer(&input)?;
             }
+            ensure_i32_source_offsets(input_dimensions, input_strides, [0; 2])?;
             let output_dimensions = checked_rank2_i32(output_dimensions)?;
             let input_dimensions = checked_rank2_i32(input_dimensions)?;
             let input_strides = checked_rank2_i32(input_strides)?;
             let pad_before = checked_rank2_i32(pad_before)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -763,28 +890,39 @@ macro_rules! pad_rank2_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 pad_rank2_fn!(pad_rank2_f32, f32, kernel_f32, pad_rank2_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 pad_rank2_fn!(pad_rank2_f16, f16, kernel_f16, pad_rank2_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 pad_rank2_fn!(pad_rank2_f64, f64, kernel_f64, pad_rank2_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 pad_rank2_fn!(pad_rank2_u8, u8, kernel_common, pad_rank2_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 pad_rank2_fn!(pad_rank2_i8, i8, kernel_common, pad_rank2_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 pad_rank2_fn!(pad_rank2_u32, u32, kernel_common, pad_rank2_u32);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 pad_rank2_fn!(pad_rank2_i32, i32, kernel_common, pad_rank2_i32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 pad_rank2_fn!(pad_rank2_u64, u64, kernel_common, pad_rank2_u64);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 pad_rank2_fn!(pad_rank2_i64, i64, kernel_common, pad_rank2_i64);
 
 macro_rules! pad_rank3_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -796,23 +934,25 @@ macro_rules! pad_rank3_fn {
         ) -> Result<()> {
             ensure_pad_bounds(output_dimensions, input_dimensions, pad_before)?;
             let len =
-                crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
-            let len = crate::utility::checked_element_count(len, output_dimensions[2])?;
+                $crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
+            let len = $crate::utility::checked_element_count(len, output_dimensions[2])?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
+            checked_device_pointer(&out)?;
             let input_len =
-                crate::utility::checked_element_count(input_dimensions[0], input_dimensions[1])?;
-            let input_len = crate::utility::checked_element_count(input_len, input_dimensions[2])?;
+                $crate::utility::checked_element_count(input_dimensions[0], input_dimensions[1])?;
+            let input_len = $crate::utility::checked_element_count(input_len, input_dimensions[2])?;
             if input_len > 0 {
-                checked_device_pointer(input)?;
+                checked_device_pointer(&input)?;
             }
+            ensure_i32_source_offsets(input_dimensions, input_strides, [0; 3])?;
             let output_dimensions = checked_rank3_i32(output_dimensions)?;
             let input_dimensions = checked_rank3_i32(input_dimensions)?;
             let input_strides = checked_rank3_i32(input_strides)?;
             let pad_before = checked_rank3_i32(pad_before)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -840,28 +980,39 @@ macro_rules! pad_rank3_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 pad_rank3_fn!(pad_rank3_f32, f32, kernel_f32, pad_rank3_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 pad_rank3_fn!(pad_rank3_f16, f16, kernel_f16, pad_rank3_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 pad_rank3_fn!(pad_rank3_f64, f64, kernel_f64, pad_rank3_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 pad_rank3_fn!(pad_rank3_u8, u8, kernel_common, pad_rank3_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 pad_rank3_fn!(pad_rank3_i8, i8, kernel_common, pad_rank3_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 pad_rank3_fn!(pad_rank3_u32, u32, kernel_common, pad_rank3_u32);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 pad_rank3_fn!(pad_rank3_i32, i32, kernel_common, pad_rank3_i32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 pad_rank3_fn!(pad_rank3_u64, u64, kernel_common, pad_rank3_u64);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 pad_rank3_fn!(pad_rank3_i64, i64, kernel_common, pad_rank3_i64);
 
 macro_rules! materialize_rank4_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -872,11 +1023,13 @@ macro_rules! materialize_rank4_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            ensure_i32_source_offsets(dimensions, input_strides, [0; 4])?;
             let dimensions = checked_rank4_i32(dimensions)?;
             let input_strides = checked_rank4_i32(input_strides)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -899,63 +1052,71 @@ macro_rules! materialize_rank4_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 materialize_rank4_fn!(
     materialize_rank4_f32,
     f32,
     kernel_f32,
     materialize_rank4_f32
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 materialize_rank4_fn!(
     materialize_rank4_f16,
     f16,
     kernel_f16,
     materialize_rank4_f16
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 materialize_rank4_fn!(
     materialize_rank4_f64,
     f64,
     kernel_f64,
     materialize_rank4_f64
 );
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 materialize_rank4_fn!(
     materialize_rank4_u8,
     u8,
     kernel_common,
     materialize_rank4_u8
 );
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 materialize_rank4_fn!(
     materialize_rank4_i8,
     i8,
     kernel_common,
     materialize_rank4_i8
 );
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 materialize_rank4_fn!(
     materialize_rank4_u32,
     u32,
     kernel_common,
     materialize_rank4_u32
 );
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 materialize_rank4_fn!(
     materialize_rank4_i32,
     i32,
     kernel_common,
     materialize_rank4_i32
 );
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 materialize_rank4_fn!(
     materialize_rank4_u64,
     u64,
     kernel_common,
     materialize_rank4_u64
 );
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 materialize_rank4_fn!(
     materialize_rank4_i64,
     i64,
@@ -965,7 +1126,10 @@ materialize_rank4_fn!(
 
 macro_rules! pad_rank4_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -980,16 +1144,18 @@ macro_rules! pad_rank4_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
+            checked_device_pointer(&out)?;
             let input_len = checked_rank4_len(input_dimensions)?;
             if input_len > 0 {
-                checked_device_pointer(input)?;
+                checked_device_pointer(&input)?;
             }
+            ensure_i32_source_offsets(input_dimensions, input_strides, [0; 4])?;
             let output_dimensions = checked_rank4_i32(output_dimensions)?;
             let input_dimensions = checked_rank4_i32(input_dimensions)?;
             let input_strides = checked_rank4_i32(input_strides)?;
             let pad_before = checked_rank4_i32(pad_before)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -1021,28 +1187,39 @@ macro_rules! pad_rank4_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 pad_rank4_fn!(pad_rank4_f32, f32, kernel_f32, pad_rank4_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 pad_rank4_fn!(pad_rank4_f16, f16, kernel_f16, pad_rank4_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 pad_rank4_fn!(pad_rank4_f64, f64, kernel_f64, pad_rank4_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 pad_rank4_fn!(pad_rank4_u8, u8, kernel_common, pad_rank4_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 pad_rank4_fn!(pad_rank4_i8, i8, kernel_common, pad_rank4_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 pad_rank4_fn!(pad_rank4_u32, u32, kernel_common, pad_rank4_u32);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 pad_rank4_fn!(pad_rank4_i32, i32, kernel_common, pad_rank4_i32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 pad_rank4_fn!(pad_rank4_u64, u64, kernel_common, pad_rank4_u64);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 pad_rank4_fn!(pad_rank4_i64, i64, kernel_common, pad_rank4_i64);
 
 macro_rules! slice_rank4_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -1056,12 +1233,14 @@ macro_rules! slice_rank4_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            checked_device_pointer(input)?;
+            checked_device_pointer(&out)?;
+            checked_device_pointer(&input)?;
+            ensure_i32_source_offsets(output_dimensions, input_strides, starts)?;
             let output_dimensions = checked_rank4_i32(output_dimensions)?;
             let input_strides = checked_rank4_i32(input_strides)?;
             let starts = checked_rank4_i32(starts)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -1088,23 +1267,31 @@ macro_rules! slice_rank4_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 slice_rank4_fn!(slice_rank4_f32, f32, kernel_f32, slice_rank4_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 slice_rank4_fn!(slice_rank4_f16, f16, kernel_f16, slice_rank4_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 slice_rank4_fn!(slice_rank4_f64, f64, kernel_f64, slice_rank4_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 slice_rank4_fn!(slice_rank4_u8, u8, kernel_common, slice_rank4_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 slice_rank4_fn!(slice_rank4_i8, i8, kernel_common, slice_rank4_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 slice_rank4_fn!(slice_rank4_u32, u32, kernel_common, slice_rank4_u32);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 slice_rank4_fn!(slice_rank4_i32, i32, kernel_common, slice_rank4_i32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 slice_rank4_fn!(slice_rank4_u64, u64, kernel_common, slice_rank4_u64);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 slice_rank4_fn!(slice_rank4_i64, i64, kernel_common, slice_rank4_i64);
 
 macro_rules! concat_rank2_fn {
@@ -1115,7 +1302,10 @@ macro_rules! concat_rank2_fn {
         $axis0:ident,
         $axis1:ident
     ) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             lhs: DevicePointer<$ty>,
@@ -1128,17 +1318,19 @@ macro_rules! concat_rank2_fn {
         ) -> Result<()> {
             let rhs_dimensions = concat_rhs_dimensions(output_dimensions, lhs_dimensions, axis)?;
             let len =
-                crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
+                $crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
-            if crate::utility::checked_element_count(lhs_dimensions[0], lhs_dimensions[1])? > 0 {
-                checked_device_pointer(lhs)?;
+            checked_device_pointer(&out)?;
+            if $crate::utility::checked_element_count(lhs_dimensions[0], lhs_dimensions[1])? > 0 {
+                checked_device_pointer(&lhs)?;
             }
-            if crate::utility::checked_element_count(rhs_dimensions[0], rhs_dimensions[1])? > 0 {
-                checked_device_pointer(rhs)?;
+            if $crate::utility::checked_element_count(rhs_dimensions[0], rhs_dimensions[1])? > 0 {
+                checked_device_pointer(&rhs)?;
             }
+            ensure_i32_source_offsets(lhs_dimensions, lhs_strides, [0; 2])?;
+            ensure_i32_source_offsets(rhs_dimensions, rhs_strides, [0; 2])?;
             let output_dimensions = checked_rank2_i32(output_dimensions)?;
             let lhs_dimensions = checked_rank2_i32(lhs_dimensions)?;
             let lhs_strides = checked_rank2_i32(lhs_strides)?;
@@ -1146,6 +1338,7 @@ macro_rules! concat_rank2_fn {
             let launch = VectorLaunch::create(len)?;
             macro_rules! enqueue {
                 ($kernel_fn:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         $kernel::$kernel_fn(
                             out,
@@ -1181,7 +1374,7 @@ macro_rules! concat_rank2_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 concat_rank2_fn!(
     concat_rank2_f32,
     f32,
@@ -1189,7 +1382,8 @@ concat_rank2_fn!(
     concat_rank2_f32_axis0,
     concat_rank2_f32_axis1
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 concat_rank2_fn!(
     concat_rank2_f16,
     f16,
@@ -1197,7 +1391,8 @@ concat_rank2_fn!(
     concat_rank2_f16_axis0,
     concat_rank2_f16_axis1
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 concat_rank2_fn!(
     concat_rank2_f64,
     f64,
@@ -1205,7 +1400,8 @@ concat_rank2_fn!(
     concat_rank2_f64_axis0,
     concat_rank2_f64_axis1
 );
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 concat_rank2_fn!(
     concat_rank2_u8,
     u8,
@@ -1213,7 +1409,8 @@ concat_rank2_fn!(
     concat_rank2_u8_axis0,
     concat_rank2_u8_axis1
 );
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 concat_rank2_fn!(
     concat_rank2_i8,
     i8,
@@ -1221,7 +1418,8 @@ concat_rank2_fn!(
     concat_rank2_i8_axis0,
     concat_rank2_i8_axis1
 );
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 concat_rank2_fn!(
     concat_rank2_u32,
     u32,
@@ -1229,7 +1427,8 @@ concat_rank2_fn!(
     concat_rank2_u32_axis0,
     concat_rank2_u32_axis1
 );
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 concat_rank2_fn!(
     concat_rank2_i32,
     i32,
@@ -1237,7 +1436,8 @@ concat_rank2_fn!(
     concat_rank2_i32_axis0,
     concat_rank2_i32_axis1
 );
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 concat_rank2_fn!(
     concat_rank2_u64,
     u64,
@@ -1245,7 +1445,8 @@ concat_rank2_fn!(
     concat_rank2_u64_axis0,
     concat_rank2_u64_axis1
 );
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 concat_rank2_fn!(
     concat_rank2_i64,
     i64,
@@ -1263,7 +1464,10 @@ macro_rules! concat_rank3_fn {
         $axis1:ident,
         $axis2:ident
     ) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             lhs: DevicePointer<$ty>,
@@ -1276,24 +1480,26 @@ macro_rules! concat_rank3_fn {
         ) -> Result<()> {
             let rhs_dimensions = concat_rhs_dimensions(output_dimensions, lhs_dimensions, axis)?;
             let len =
-                crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
-            let len = crate::utility::checked_element_count(len, output_dimensions[2])?;
+                $crate::utility::checked_element_count(output_dimensions[0], output_dimensions[1])?;
+            let len = $crate::utility::checked_element_count(len, output_dimensions[2])?;
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
+            checked_device_pointer(&out)?;
             let lhs_len =
-                crate::utility::checked_element_count(lhs_dimensions[0], lhs_dimensions[1])?;
-            let lhs_len = crate::utility::checked_element_count(lhs_len, lhs_dimensions[2])?;
+                $crate::utility::checked_element_count(lhs_dimensions[0], lhs_dimensions[1])?;
+            let lhs_len = $crate::utility::checked_element_count(lhs_len, lhs_dimensions[2])?;
             if lhs_len > 0 {
-                checked_device_pointer(lhs)?;
+                checked_device_pointer(&lhs)?;
             }
             let rhs_len =
-                crate::utility::checked_element_count(rhs_dimensions[0], rhs_dimensions[1])?;
-            let rhs_len = crate::utility::checked_element_count(rhs_len, rhs_dimensions[2])?;
+                $crate::utility::checked_element_count(rhs_dimensions[0], rhs_dimensions[1])?;
+            let rhs_len = $crate::utility::checked_element_count(rhs_len, rhs_dimensions[2])?;
             if rhs_len > 0 {
-                checked_device_pointer(rhs)?;
+                checked_device_pointer(&rhs)?;
             }
+            ensure_i32_source_offsets(lhs_dimensions, lhs_strides, [0; 3])?;
+            ensure_i32_source_offsets(rhs_dimensions, rhs_strides, [0; 3])?;
             let output_dimensions = checked_rank3_i32(output_dimensions)?;
             let lhs_dimensions = checked_rank3_i32(lhs_dimensions)?;
             let lhs_strides = checked_rank3_i32(lhs_strides)?;
@@ -1301,6 +1507,7 @@ macro_rules! concat_rank3_fn {
             let launch = VectorLaunch::create(len)?;
             macro_rules! enqueue {
                 ($kernel_fn:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         $kernel::$kernel_fn(
                             out,
@@ -1341,7 +1548,7 @@ macro_rules! concat_rank3_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 concat_rank3_fn!(
     concat_rank3_f32,
     f32,
@@ -1350,7 +1557,8 @@ concat_rank3_fn!(
     concat_rank3_f32_axis1,
     concat_rank3_f32_axis2
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 concat_rank3_fn!(
     concat_rank3_f16,
     f16,
@@ -1359,7 +1567,8 @@ concat_rank3_fn!(
     concat_rank3_f16_axis1,
     concat_rank3_f16_axis2
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 concat_rank3_fn!(
     concat_rank3_f64,
     f64,
@@ -1368,7 +1577,8 @@ concat_rank3_fn!(
     concat_rank3_f64_axis1,
     concat_rank3_f64_axis2
 );
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 concat_rank3_fn!(
     concat_rank3_u8,
     u8,
@@ -1377,7 +1587,8 @@ concat_rank3_fn!(
     concat_rank3_u8_axis1,
     concat_rank3_u8_axis2
 );
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 concat_rank3_fn!(
     concat_rank3_i8,
     i8,
@@ -1386,7 +1597,8 @@ concat_rank3_fn!(
     concat_rank3_i8_axis1,
     concat_rank3_i8_axis2
 );
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 concat_rank3_fn!(
     concat_rank3_u32,
     u32,
@@ -1395,7 +1607,8 @@ concat_rank3_fn!(
     concat_rank3_u32_axis1,
     concat_rank3_u32_axis2
 );
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 concat_rank3_fn!(
     concat_rank3_i32,
     i32,
@@ -1404,7 +1617,8 @@ concat_rank3_fn!(
     concat_rank3_i32_axis1,
     concat_rank3_i32_axis2
 );
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 concat_rank3_fn!(
     concat_rank3_u64,
     u64,
@@ -1413,7 +1627,8 @@ concat_rank3_fn!(
     concat_rank3_u64_axis1,
     concat_rank3_u64_axis2
 );
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 concat_rank3_fn!(
     concat_rank3_i64,
     i64,
@@ -1433,7 +1648,10 @@ macro_rules! concat_rank4_fn {
         $axis2:ident,
         $axis3:ident
     ) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             lhs: DevicePointer<$ty>,
@@ -1449,13 +1667,15 @@ macro_rules! concat_rank4_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
+            checked_device_pointer(&out)?;
             if checked_rank4_len(lhs_dimensions)? > 0 {
-                checked_device_pointer(lhs)?;
+                checked_device_pointer(&lhs)?;
             }
             if checked_rank4_len(rhs_dimensions)? > 0 {
-                checked_device_pointer(rhs)?;
+                checked_device_pointer(&rhs)?;
             }
+            ensure_i32_source_offsets(lhs_dimensions, lhs_strides, [0; 4])?;
+            ensure_i32_source_offsets(rhs_dimensions, rhs_strides, [0; 4])?;
             let output_dimensions = checked_rank4_i32(output_dimensions)?;
             let lhs_dimensions = checked_rank4_i32(lhs_dimensions)?;
             let lhs_strides = checked_rank4_i32(lhs_strides)?;
@@ -1463,6 +1683,7 @@ macro_rules! concat_rank4_fn {
             let launch = VectorLaunch::create(len)?;
             macro_rules! enqueue {
                 ($kernel_fn:ident) => {
+                    // SAFETY: the caller upholds this function's safety contract.
                     unsafe {
                         $kernel::$kernel_fn(
                             out,
@@ -1508,7 +1729,7 @@ macro_rules! concat_rank4_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 concat_rank4_fn!(
     concat_rank4_f32,
     f32,
@@ -1518,7 +1739,8 @@ concat_rank4_fn!(
     concat_rank4_f32_axis2,
     concat_rank4_f32_axis3
 );
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 concat_rank4_fn!(
     concat_rank4_f16,
     f16,
@@ -1528,7 +1750,8 @@ concat_rank4_fn!(
     concat_rank4_f16_axis2,
     concat_rank4_f16_axis3
 );
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 concat_rank4_fn!(
     concat_rank4_f64,
     f64,
@@ -1538,7 +1761,8 @@ concat_rank4_fn!(
     concat_rank4_f64_axis2,
     concat_rank4_f64_axis3
 );
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 concat_rank4_fn!(
     concat_rank4_u8,
     u8,
@@ -1548,7 +1772,8 @@ concat_rank4_fn!(
     concat_rank4_u8_axis2,
     concat_rank4_u8_axis3
 );
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 concat_rank4_fn!(
     concat_rank4_i8,
     i8,
@@ -1558,7 +1783,8 @@ concat_rank4_fn!(
     concat_rank4_i8_axis2,
     concat_rank4_i8_axis3
 );
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 concat_rank4_fn!(
     concat_rank4_u32,
     u32,
@@ -1568,7 +1794,8 @@ concat_rank4_fn!(
     concat_rank4_u32_axis2,
     concat_rank4_u32_axis3
 );
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 concat_rank4_fn!(
     concat_rank4_i32,
     i32,
@@ -1578,7 +1805,8 @@ concat_rank4_fn!(
     concat_rank4_i32_axis2,
     concat_rank4_i32_axis3
 );
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 concat_rank4_fn!(
     concat_rank4_u64,
     u64,
@@ -1588,7 +1816,8 @@ concat_rank4_fn!(
     concat_rank4_u64_axis2,
     concat_rank4_u64_axis3
 );
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 concat_rank4_fn!(
     concat_rank4_i64,
     i64,
@@ -1601,7 +1830,10 @@ concat_rank4_fn!(
 
 macro_rules! repeat_kv_rank4_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
-        pub fn $name(
+        /// # Safety
+        /// Pointers must reference correctly sized buffers on the stream's device.
+        /// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+        pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,
             input: DevicePointer<$ty>,
@@ -1614,14 +1846,16 @@ macro_rules! repeat_kv_rank4_fn {
             if len == 0 {
                 return Ok(());
             }
-            checked_device_pointer(out)?;
+            checked_device_pointer(&out)?;
             if checked_rank4_len(input_dimensions)? > 0 {
-                checked_device_pointer(input)?;
+                checked_device_pointer(&input)?;
             }
+            ensure_i32_source_offsets(input_dimensions, input_strides, [0; 4])?;
             let output_dimensions = checked_rank4_i32(output_dimensions)?;
             let input_strides = checked_rank4_i32(input_strides)?;
             let repeats = checked_i32_value(repeats)?;
             let launch = VectorLaunch::create(len)?;
+            // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 $kernel::$kernel_fn(
                     out,
@@ -1645,27 +1879,38 @@ macro_rules! repeat_kv_rank4_fn {
     };
 }
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_f32, f32, kernel_f32, repeat_kv_rank4_f32);
-#[cfg(feature = "dtype-f16")]
+
+#[cfg(feature = "dtype_f16")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_f16, f16, kernel_f16, repeat_kv_rank4_f16);
-#[cfg(feature = "dtype-f64")]
+
+#[cfg(feature = "dtype_f64")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_f64, f64, kernel_f64, repeat_kv_rank4_f64);
-#[cfg(feature = "dtype-u8")]
+
+#[cfg(feature = "dtype_u8")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_u8, u8, kernel_common, repeat_kv_rank4_u8);
-#[cfg(feature = "dtype-i8")]
+
+#[cfg(feature = "dtype_i8")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_i8, i8, kernel_common, repeat_kv_rank4_i8);
-#[cfg(feature = "dtype-u32")]
+
+#[cfg(feature = "dtype_u32")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_u32, u32, kernel_common, repeat_kv_rank4_u32);
-#[cfg(feature = "dtype-i32")]
+
+#[cfg(feature = "dtype_i32")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_i32, i32, kernel_common, repeat_kv_rank4_i32);
-#[cfg(feature = "dtype-u64")]
+
+#[cfg(feature = "dtype_u64")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_u64, u64, kernel_common, repeat_kv_rank4_u64);
-#[cfg(feature = "dtype-i64")]
+
+#[cfg(feature = "dtype_i64")]
 repeat_kv_rank4_fn!(repeat_kv_rank4_i64, i64, kernel_common, repeat_kv_rank4_i64);
 
-#[cfg(feature = "dtype-f32")]
-pub fn pack_downsample_2d_f32(
+#[cfg(feature = "dtype_f32")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn pack_downsample_2d_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     input: DevicePointer<f32>,
@@ -1679,13 +1924,14 @@ pub fn pack_downsample_2d_f32(
     if !rows.is_multiple_of(factor) {
         return Err(Error::LengthMismatch);
     }
-    checked_device_pointer(out)?;
-    checked_device_pointer(input)?;
-    let len = crate::utility::checked_element_count(rows, cols)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&input)?;
+    let len = checked_element_count(rows, cols)?;
     let launch = VectorLaunch::create(len)?;
     let rows = checked_i32_value(rows)?;
     let cols = checked_i32_value(cols)?;
     let factor = checked_i32_value(factor)?;
+    // SAFETY: the caller upholds this function's safety contract.
     unsafe { kernel_f32::pack_downsample_2d_f32(out, input, rows, cols, factor, launch.len_i32) }
         .grid(launch.grid)
         .enqueue_on(stream)?;

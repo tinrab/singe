@@ -1,60 +1,107 @@
-use std::{marker::PhantomData, mem::ManuallyDrop, ptr, sync::Arc};
+use std::{mem, mem::ManuallyDrop, ptr, sync::Arc};
 
-use singe_cuda::context::Context as CudaContext;
-use singe_cuda::data_type::DataType;
-use singe_cuda::types::DevicePtr;
+use singe_cuda::{context::Context as CudaContext, data_type::DataType, view::DeviceOutputView};
 
 use crate::{
     context::Context,
+    descriptor::{RawResource, workspace},
     error::{Error, Result},
     matrix::{DenseMatrixDescriptor, SparseMatrixDescriptor},
     sys, try_ffi,
     types::{Operation, SpMmOpAlgorithm},
 };
 
+/// Owns native analysis state for sparse-sparse matrix multiplication.
 #[derive(Debug)]
 pub struct SpGemmDescriptor {
     handle: sys::cusparseSpGEMMDescr_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
 }
 
+/// Owns native sparse-triangular solve analysis state for one right-hand side.
 #[derive(Debug)]
 pub struct SpSvDescriptor {
     handle: sys::cusparseSpSVDescr_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
 }
 
+/// Owns native sparse-triangular solve analysis state for multiple right-hand sides.
 #[derive(Debug)]
 pub struct SpSmDescriptor {
     handle: sys::cusparseSpSMDescr_t,
-    cuda_ctx: Arc<CudaContext>,
+    cuda_context: Arc<CudaContext>,
 }
 
+/// Owns a custom sparse-dense multiplication plan and its cuSPARSE context.
+///
+/// The plan borrows its matrix descriptors and custom operator code for its lifetime.
 #[derive(Debug)]
 pub struct SpMmOpPlan<'a> {
-    context: &'a Context,
+    context: Context,
     handle: sys::cusparseSpMMOpPlan_t,
-    _matrix_a: PhantomData<&'a SparseMatrixDescriptor<'a>>,
-    _matrix_b: PhantomData<&'a DenseMatrixDescriptor<'a>>,
-    _matrix_c: PhantomData<&'a DenseMatrixDescriptor<'a>>,
+    workspace_size_bytes: usize,
+    matrix_a: &'a SparseMatrixDescriptor<'a>,
+    matrix_b: &'a DenseMatrixDescriptor<'a>,
+    matrix_c: &'a mut DenseMatrixDescriptor<'a>,
+    code: Vec<&'a [u8]>,
 }
 
-// Operation descriptors and plans own cuSPARSE analysis state but do not expose
-// pointer rebinding through shared references, so immutable sharing is allowed.
+/// Native `SpMM` plan ownership, its library context, matrix borrows, and custom code.
+/// Destroy `handle` before releasing these fields, or re-adopt the complete value.
+#[derive(Debug)]
+pub struct RawSpMmOpPlan<'a> {
+    /// cuSPARSE context owned by the plan.
+    pub context: Context,
+    /// Native custom-operation plan handle.
+    pub handle: sys::cusparseSpMMOpPlan_t,
+    /// Required execution workspace size in bytes.
+    pub workspace_size_bytes: usize,
+    /// Borrowed sparse input matrix descriptor.
+    pub matrix_a: &'a SparseMatrixDescriptor<'a>,
+    /// Borrowed dense input matrix descriptor.
+    pub matrix_b: &'a DenseMatrixDescriptor<'a>,
+    /// Exclusively borrowed dense output matrix descriptor.
+    pub matrix_c: &'a mut DenseMatrixDescriptor<'a>,
+    /// Borrowed custom operator code that must remain live with the plan.
+    pub code: Vec<&'a [u8]>,
+}
+
+// SAFETY: shared descriptor access exposes only metadata and raw handles.
+// Unsafe execution and analysis callers must serialize native mutations and
+// retain analysis resources through the final dependent operation.
 unsafe impl Send for SpGemmDescriptor {}
+
 unsafe impl Sync for SpGemmDescriptor {}
+
 unsafe impl Send for SpSvDescriptor {}
+
 unsafe impl Sync for SpSvDescriptor {}
+
 unsafe impl Send for SpSmDescriptor {}
+
 unsafe impl Sync for SpSmDescriptor {}
+
+// SAFETY: the plan owns its movable library context; input metadata stays immutable
+// and its mutable destination borrow remains exclusive across thread transfer.
 unsafe impl Send for SpMmOpPlan<'_> {}
-unsafe impl Sync for SpMmOpPlan<'_> {}
 
 impl SpGemmDescriptor {
-    pub fn create(ctx: &Context) -> Result<Self> {
-        ctx.bind()?;
+    /// Returns the actual CUDA context retained by this analysis descriptor.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        &self.cuda_context
+    }
+
+    /// Creates native analysis state in the supplied cuSPARSE context's CUDA context.
+    ///
+    /// # Errors
+    ///
+    /// Propagates CUDA context-binding and native descriptor-creation errors, and rejects a null returned handle.
+    pub fn create(context: &Context) -> Result<Self> {
+        context.bind()?;
 
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusparseSpGEMM_createDescr` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpGEMM_createDescr(&raw mut handle))?;
         }
@@ -65,12 +112,20 @@ impl SpGemmDescriptor {
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context: Arc::clone(context.cuda_context()),
         })
     }
 
-    pub fn num_products(&self) -> Result<usize> {
+    /// # Safety
+    /// Complete the native estimation phase before reading its product count.
+    ///
+    /// # Errors
+    ///
+    /// Propagates CUDA context-binding and native product-count query errors. Also rejects a negative count or one that cannot fit in `usize`.
+    pub unsafe fn num_products(&self) -> Result<usize> {
+        self.cuda_context.bind()?;
         let mut value = 0_i64;
+        // SAFETY: `cusparseSpGEMM_getNumProducts` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpGEMM_getNumProducts(
                 self.as_raw(),
@@ -78,37 +133,45 @@ impl SpGemmDescriptor {
             ))?;
         }
 
-        usize::try_from(value).map_err(|_| Error::OutOfRange {
-            name: "num_products".into(),
-        })
+        usize::try_from(value).map_err(|_| Error::out_of_range("num_products"))
     }
 
+    /// Returns the native analysis descriptor without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseSpGEMMDescr_t {
         self.handle
     }
 
-    pub(crate) fn ensure_context(&self, ctx: &Context) -> Result<()> {
-        if self.cuda_ctx.as_ref() != ctx.cuda_context().as_ref() {
+    pub(crate) fn ensure_context(&self, context: &Context) -> Result<()> {
+        if self.cuda_context.as_ref() != context.cuda_context().as_ref() {
             return Err(Error::PlanContextMismatch);
         }
         Ok(())
     }
 
-    /// Wraps an existing cuSPARSE SpGEMM descriptor and takes ownership of it.
+    /// Wraps an existing cuSPARSE `SpGEMM` descriptor and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusparseSpGEMMDescr_t` associated with `ctx`.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(handle: sys::cusparseSpGEMMDescr_t, ctx: &Context) -> Result<Self> {
+    /// `parts.handle` must be a uniquely owned `cusparseSpGEMMDescr_t` associated
+    /// with `parts.cuda_context`. Preserve all analysis bindings and workspaces
+    /// through their final dependent operation. No other owner may destroy it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(parts: RawResource<sys::cusparseSpGEMMDescr_t>) -> Result<Self> {
+        let RawResource {
+            handle,
+            cuda_context,
+        } = parts;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context,
         })
     }
 
@@ -117,28 +180,47 @@ impl SpGemmDescriptor {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseSpGEMM_destroyDescr`.
-    pub fn into_raw(self) -> sys::cusparseSpGEMMDescr_t {
-        let descriptor = ManuallyDrop::new(self);
-        descriptor.handle
+    #[must_use]
+    pub fn into_raw(mut self) -> RawResource<sys::cusparseSpGEMMDescr_t> {
+        RawResource {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            cuda_context: Arc::clone(&self.cuda_context),
+        }
     }
 }
 
 impl Drop for SpGemmDescriptor {
     fn drop(&mut self) {
+        if self.handle.is_null() || self.cuda_context.bind().is_err() {
+            return;
+        }
+        // SAFETY: `cusparseSpGEMM_destroyDescr` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseSpGEMM_destroyDescr(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cusparseSpGEMM_destroyDescr(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse spgemm descriptor: {err}");
+                eprintln!("failed to destroy cusparse spgemm descriptor: {error}");
             }
         }
     }
 }
 
 impl SpSvDescriptor {
-    pub fn create(ctx: &Context) -> Result<Self> {
-        ctx.bind()?;
+    /// Returns the actual CUDA context retained by this analysis descriptor.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        &self.cuda_context
+    }
+
+    /// Creates native analysis state in the supplied cuSPARSE context's CUDA context.
+    ///
+    /// # Errors
+    ///
+    /// Propagates CUDA context-binding and native descriptor-creation errors, and rejects a null returned handle.
+    pub fn create(context: &Context) -> Result<Self> {
+        context.bind()?;
 
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusparseSpSV_createDescr` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpSV_createDescr(&raw mut handle))?;
         }
@@ -149,36 +231,46 @@ impl SpSvDescriptor {
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context: Arc::clone(context.cuda_context()),
         })
     }
 
+    /// Returns the native analysis descriptor without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseSpSVDescr_t {
         self.handle
     }
 
-    pub(crate) fn ensure_context(&self, ctx: &Context) -> Result<()> {
-        if self.cuda_ctx.as_ref() != ctx.cuda_context().as_ref() {
+    pub(crate) fn ensure_context(&self, context: &Context) -> Result<()> {
+        if self.cuda_context.as_ref() != context.cuda_context().as_ref() {
             return Err(Error::PlanContextMismatch);
         }
         Ok(())
     }
 
-    /// Wraps an existing cuSPARSE SpSV descriptor and takes ownership of it.
+    /// Wraps an existing cuSPARSE `SpSV` descriptor and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusparseSpSVDescr_t` associated with `ctx`.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(handle: sys::cusparseSpSVDescr_t, ctx: &Context) -> Result<Self> {
+    /// `parts.handle` must be a uniquely owned `cusparseSpSVDescr_t` associated
+    /// with `parts.cuda_context`. Preserve all analysis bindings and workspaces
+    /// through their final dependent operation. No other owner may destroy it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(parts: RawResource<sys::cusparseSpSVDescr_t>) -> Result<Self> {
+        let RawResource {
+            handle,
+            cuda_context,
+        } = parts;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context,
         })
     }
 
@@ -187,28 +279,47 @@ impl SpSvDescriptor {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseSpSV_destroyDescr`.
-    pub fn into_raw(self) -> sys::cusparseSpSVDescr_t {
-        let descriptor = ManuallyDrop::new(self);
-        descriptor.handle
+    #[must_use]
+    pub fn into_raw(mut self) -> RawResource<sys::cusparseSpSVDescr_t> {
+        RawResource {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            cuda_context: Arc::clone(&self.cuda_context),
+        }
     }
 }
 
 impl Drop for SpSvDescriptor {
     fn drop(&mut self) {
+        if self.handle.is_null() || self.cuda_context.bind().is_err() {
+            return;
+        }
+        // SAFETY: `cusparseSpSV_destroyDescr` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseSpSV_destroyDescr(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cusparseSpSV_destroyDescr(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse spsv descriptor: {err}");
+                eprintln!("failed to destroy cusparse spsv descriptor: {error}");
             }
         }
     }
 }
 
 impl SpSmDescriptor {
-    pub fn create(ctx: &Context) -> Result<Self> {
-        ctx.bind()?;
+    /// Returns the actual CUDA context retained by this analysis descriptor.
+    #[must_use]
+    pub fn cuda_context(&self) -> &Arc<CudaContext> {
+        &self.cuda_context
+    }
+
+    /// Creates native analysis state in the supplied cuSPARSE context's CUDA context.
+    ///
+    /// # Errors
+    ///
+    /// Propagates CUDA context-binding and native descriptor-creation errors, and rejects a null returned handle.
+    pub fn create(context: &Context) -> Result<Self> {
+        context.bind()?;
 
         let mut handle = ptr::null_mut();
+        // SAFETY: `cusparseSpSM_createDescr` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpSM_createDescr(&raw mut handle))?;
         }
@@ -219,36 +330,46 @@ impl SpSmDescriptor {
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context: Arc::clone(context.cuda_context()),
         })
     }
 
+    /// Returns the native analysis descriptor without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseSpSMDescr_t {
         self.handle
     }
 
-    pub(crate) fn ensure_context(&self, ctx: &Context) -> Result<()> {
-        if self.cuda_ctx.as_ref() != ctx.cuda_context().as_ref() {
+    pub(crate) fn ensure_context(&self, context: &Context) -> Result<()> {
+        if self.cuda_context.as_ref() != context.cuda_context().as_ref() {
             return Err(Error::PlanContextMismatch);
         }
         Ok(())
     }
 
-    /// Wraps an existing cuSPARSE SpSM descriptor and takes ownership of it.
+    /// Wraps an existing cuSPARSE `SpSM` descriptor and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusparseSpSMDescr_t` associated with `ctx`.
-    /// Ownership of `handle` is transferred to the returned descriptor, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(handle: sys::cusparseSpSMDescr_t, ctx: &Context) -> Result<Self> {
+    /// `parts.handle` must be a uniquely owned `cusparseSpSMDescr_t` associated
+    /// with `parts.cuda_context`. Preserve all analysis bindings and workspaces
+    /// through their final dependent operation. No other owner may destroy it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(parts: RawResource<sys::cusparseSpSMDescr_t>) -> Result<Self> {
+        let RawResource {
+            handle,
+            cuda_context,
+        } = parts;
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
         Ok(Self {
             handle,
-            cuda_ctx: Arc::clone(ctx.cuda_context()),
+            cuda_context,
         })
     }
 
@@ -257,15 +378,26 @@ impl SpSmDescriptor {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseSpSM_destroyDescr`.
-    pub fn into_raw(self) -> sys::cusparseSpSMDescr_t {
-        let descriptor = ManuallyDrop::new(self);
-        descriptor.handle
+    #[must_use]
+    pub fn into_raw(mut self) -> RawResource<sys::cusparseSpSMDescr_t> {
+        RawResource {
+            handle: mem::replace(&mut self.handle, ptr::null_mut()),
+            cuda_context: Arc::clone(&self.cuda_context),
+        }
     }
 }
 
 impl<'a> SpMmOpPlan<'a> {
-    pub fn create(
-        ctx: &'a Context,
+    /// # Safety
+    ///
+    /// Custom operation code and matrix bindings must match the native ABI.
+    /// Retain all participants through any native work, including failure paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a matrix belongs to another CUDA context or the reported workspace size cannot fit in `usize`. Also propagates context-binding and native custom-plan creation errors, and rejects a null returned plan handle.
+    pub unsafe fn create(
+        context: Context,
         op_a: Operation,
         op_b: Operation,
         matrix_a: &'a SparseMatrixDescriptor<'a>,
@@ -273,23 +405,24 @@ impl<'a> SpMmOpPlan<'a> {
         matrix_c: &'a mut DenseMatrixDescriptor<'a>,
         compute_type: DataType,
         algorithm: SpMmOpAlgorithm,
-        add_operation_ltoir: Option<&[u8]>,
-        mul_operation_ltoir: Option<&[u8]>,
-        epilogue_ltoir: Option<&[u8]>,
-    ) -> Result<(Self, usize)> {
-        matrix_a.ensure_context(ctx)?;
-        matrix_b.ensure_context(ctx)?;
-        matrix_c.ensure_context(ctx)?;
-        ctx.bind()?;
+        add_operation_ltoir: Option<&'a [u8]>,
+        mul_operation_ltoir: Option<&'a [u8]>,
+        epilogue_ltoir: Option<&'a [u8]>,
+    ) -> Result<Self> {
+        matrix_a.ensure_context(&context)?;
+        matrix_b.ensure_context(&context)?;
+        matrix_c.ensure_context(&context)?;
+        context.bind()?;
 
         let mut handle = ptr::null_mut();
         let mut workspace_size = 0;
         let (add_ptr, add_len) = ltoir_parts(add_operation_ltoir);
         let (mul_ptr, mul_len) = ltoir_parts(mul_operation_ltoir);
         let (epilogue_ptr, epilogue_len) = ltoir_parts(epilogue_ltoir);
+        // SAFETY: `cusparseSpMMOp_createPlan` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(sys::cusparseSpMMOp_createPlan(
-                ctx.as_raw(),
+                context.as_raw(),
                 &raw mut handle,
                 op_a.into(),
                 op_b.into(),
@@ -312,22 +445,33 @@ impl<'a> SpMmOpPlan<'a> {
             return Err(Error::NullHandle);
         }
 
-        Ok((
-            Self {
-                context: ctx,
-                handle,
-                _matrix_a: PhantomData,
-                _matrix_b: PhantomData,
-                _matrix_c: PhantomData,
-            },
-            usize::try_from(workspace_size).map_err(|_| Error::OutOfRange {
-                name: "spmm op workspace size".into(),
-            })?,
-        ))
+        let mut plan = Self {
+            context,
+            handle,
+            workspace_size_bytes: 0,
+            matrix_a,
+            matrix_b,
+            matrix_c,
+            code: [add_operation_ltoir, mul_operation_ltoir, epilogue_ltoir]
+                .into_iter()
+                .flatten()
+                .collect(),
+        };
+        plan.workspace_size_bytes = usize::try_from(workspace_size)
+            .map_err(|_| Error::out_of_range("spmm op workspace size"))?;
+        Ok(plan)
     }
 
+    /// Borrows the cuSPARSE context owned by this plan.
+    #[must_use]
     pub fn context(&self) -> &Context {
-        self.context
+        &self.context
+    }
+
+    /// Required scratch capacity for this compiled plan, in bytes.
+    #[must_use]
+    pub const fn required_workspace_size_bytes(&self) -> usize {
+        self.workspace_size_bytes
     }
 
     /// NVRTC and nvJitLink are not currently available on Arm64 Android platforms.
@@ -348,7 +492,7 @@ impl<'a> SpMmOpPlan<'a> {
     ///
     /// Only `op_a == Operation::NonTranspose` is currently supported.
     ///
-    /// [`SpMmOpPlan::create`] returns the workspace size together with the compiled kernel state needed by [`SpMmOpPlan::execute`].
+    /// [`SpMmOpPlan::required_workspace_size_bytes`] reports the scratch capacity needed by this compiled plan.
     ///
     /// The custom add, multiply, and epilogue operators must accept and return the selected compute type.
     /// The compute type may be `float`, `double`, `cuComplex`, `cuDoubleComplex`, or `int`.
@@ -409,43 +553,71 @@ impl<'a> SpMmOpPlan<'a> {
     /// # Errors
     ///
     /// Returns an error if the CUDA context cannot be bound or if cuSPARSE
-    /// rejects the prepared SpMM operation.
-    #[allow(deprecated)]
-    pub fn execute(&self, external_buffer: Option<DevicePtr>) -> Result<()> {
+    /// rejects the prepared `SpMM` operation.
+    #[expect(
+        deprecated,
+        reason = "wraps deprecated upstream API values that remain part of the supported surface"
+    )]
+    /// # Safety
+    ///
+    /// Retain the plan, descriptors, and correctly sized scratch with exclusive
+    /// destination access through completion on every path and captured replay.
+    pub unsafe fn execute(&self, external_buffer: Option<DeviceOutputView<'_, u8>>) -> Result<()> {
+        let external_buffer = workspace(&self.context, external_buffer)?;
+        let actual = external_buffer.map_or(0, singe_cuda::view::DeviceRegion::byte_len);
+        if actual < self.workspace_size_bytes {
+            return Err(Error::LengthMismatch {
+                name: "spmm op workspace".into(),
+                expected: self.workspace_size_bytes,
+                actual,
+            });
+        }
+
         self.context.bind()?;
 
+        // SAFETY: `cusparseSpMMOp` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cusparseSpMMOp(
                 self.as_raw(),
-                external_buffer.unwrap_or(DevicePtr::null()).as_ptr() as _,
+                external_buffer
+                    .map_or(ptr::null_mut(), singe_cuda::view::DeviceRegion::as_ptr)
+                    .cast(),
             ))?;
         }
         Ok(())
     }
 
+    /// Returns the native custom-operation plan handle without transferring ownership.
+    #[must_use]
     pub fn as_raw(&self) -> sys::cusparseSpMMOpPlan_t {
         self.handle
     }
 
-    /// Wraps an existing cuSPARSE SpMM operation plan and takes ownership of it.
+    /// Wraps an existing cuSPARSE `SpMM` operation plan and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusparseSpMMOpPlan_t` associated with `ctx`
-    /// and with matrix descriptors that remain valid for lifetime `'a`.
-    /// Ownership of `handle` is transferred to the returned plan, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(ctx: &'a Context, handle: sys::cusparseSpMMOpPlan_t) -> Result<Self> {
-        if handle.is_null() {
+    /// `parts.handle` must be a uniquely owned plan created with `parts.context`,
+    /// the supplied matrix descriptors, and the retained custom code.
+    /// `parts.workspace_size_bytes` must be its actual queried scratch capacity.
+    /// Preserve all allocation and analysis bindings for lifetime `'a`, with
+    /// exclusive destination access. No other owner may destroy the plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the native handle is null.
+    pub unsafe fn from_raw(parts: RawSpMmOpPlan<'a>) -> Result<Self> {
+        if parts.handle.is_null() {
             return Err(Error::NullHandle);
         }
-
         Ok(Self {
-            context: ctx,
-            handle,
-            _matrix_a: PhantomData,
-            _matrix_b: PhantomData,
-            _matrix_c: PhantomData,
+            context: parts.context,
+            handle: parts.handle,
+            workspace_size_bytes: parts.workspace_size_bytes,
+            matrix_a: parts.matrix_a,
+            matrix_b: parts.matrix_b,
+            matrix_c: parts.matrix_c,
+            code: parts.code,
         })
     }
 
@@ -454,42 +626,59 @@ impl<'a> SpMmOpPlan<'a> {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with `cusparseSpMMOp_destroyPlan`.
-    pub fn into_raw(self) -> sys::cusparseSpMMOpPlan_t {
+    #[must_use]
+    pub fn into_raw(self) -> RawSpMmOpPlan<'a> {
         let plan = ManuallyDrop::new(self);
-        plan.handle
+        // SAFETY: every owned field is moved once and the original plan never drops.
+        unsafe {
+            RawSpMmOpPlan {
+                handle: plan.handle,
+                workspace_size_bytes: plan.workspace_size_bytes,
+                context: ptr::read(&raw const plan.context),
+                matrix_a: plan.matrix_a,
+                matrix_b: plan.matrix_b,
+                matrix_c: ptr::read(&raw const plan.matrix_c),
+                code: ptr::read(&raw const plan.code),
+            }
+        }
     }
 }
 
 impl Drop for SpMmOpPlan<'_> {
     fn drop(&mut self) {
-        if let Err(err) = self.context.bind() {
+        if self.handle.is_null() {
+            return;
+        }
+        if let Err(error) = self.context.bind() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind cusparse spmm op plan context during drop: {err}");
+            eprintln!("failed to bind cusparse spmm op plan context during drop: {error}");
             return;
         }
 
+        // SAFETY: `cusparseSpMMOp_destroyPlan` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseSpMMOp_destroyPlan(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cusparseSpMMOp_destroyPlan(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse spmm op plan: {err}");
+                eprintln!("failed to destroy cusparse spmm op plan: {error}");
             }
         }
     }
 }
 
 fn ltoir_parts(buffer: Option<&[u8]>) -> (*const u8, usize) {
-    match buffer {
-        Some(buffer) => (buffer.as_ptr(), buffer.len()),
-        None => (ptr::null(), 0),
-    }
+    buffer.map_or((ptr::null(), 0), |buffer| (buffer.as_ptr(), buffer.len()))
 }
 
 impl Drop for SpSmDescriptor {
     fn drop(&mut self) {
+        if self.handle.is_null() || self.cuda_context.bind().is_err() {
+            return;
+        }
+        // SAFETY: `cusparseSpSM_destroyDescr` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(sys::cusparseSpSM_destroyDescr(self.handle)) {
+            if let Err(error) = try_ffi!(sys::cusparseSpSM_destroyDescr(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse spsm descriptor: {err}");
+                eprintln!("failed to destroy cusparse spsm descriptor: {error}");
             }
         }
     }

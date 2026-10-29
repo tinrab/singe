@@ -1,11 +1,27 @@
-use super::*;
+#[cfg(feature = "dtype_f32")]
+use std::sync::Arc;
 
-#[cfg(feature = "dtype-f32")]
+#[cfg(feature = "dtype_f32")]
+use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
+
+#[cfg(feature = "dtype_f32")]
+use crate::{
+    cuda::cutile::{
+        DeviceOpExt, attention::SlidingWindowAttention, kernel::attention as kernel_attention,
+        runtime::tile_kernel::TileKernel, utility::checked_device_pointer,
+    },
+    error::{Error, Result},
+};
+
+#[cfg(feature = "dtype_f32")]
 /// Causal left-window attention.
 ///
 /// For query absolute position `q_abs`, only keys satisfying `key_abs <= q_abs` and `key_abs + window > q_abs` are visible.
 /// KV heads are mapped with contiguous grouped-query attention semantics.
-pub fn sliding_window_attention_f32(
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn sliding_window_attention_f32(
     stream: &Arc<Stream>,
     out: DevicePointer<f32>,
     query: DevicePointer<f32>,
@@ -35,10 +51,10 @@ pub fn sliding_window_attention_f32(
     scale: f32,
     output_scale: f32,
 ) -> Result<()> {
-    checked_device_pointer(out)?;
-    checked_device_pointer(query)?;
-    checked_device_pointer(key)?;
-    checked_device_pointer(value)?;
+    checked_device_pointer(&out)?;
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&value)?;
 
     let params = SlidingWindowAttention::create(
         batch,
@@ -92,6 +108,7 @@ pub fn sliding_window_attention_f32(
     } = params;
 
     match (head_dim, window) {
+        // SAFETY: the caller upholds this function's safety contract.
         (32, 128) => unsafe {
             kernel_attention::sliding_window_attention_f32_hd32_w128(
                 out,
@@ -126,6 +143,7 @@ pub fn sliding_window_attention_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         (64, 750) => unsafe {
             kernel_attention::sliding_window_attention_f32_hd64_w750(
                 out,
@@ -160,6 +178,7 @@ pub fn sliding_window_attention_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         (64, 1024) => unsafe {
             kernel_attention::sliding_window_attention_f32_hd64_w1024(
                 out,
@@ -194,6 +213,7 @@ pub fn sliding_window_attention_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         (4, _) => unsafe {
             kernel_attention::sliding_window_attention_f32_hd4(
                 out,
@@ -228,6 +248,7 @@ pub fn sliding_window_attention_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         (8, _) => unsafe {
             kernel_attention::sliding_window_attention_f32_hd8(
                 out,
@@ -262,6 +283,7 @@ pub fn sliding_window_attention_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         (16, _) => unsafe {
             kernel_attention::sliding_window_attention_f32_hd16(
                 out,
@@ -296,6 +318,7 @@ pub fn sliding_window_attention_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         (32, _) => unsafe {
             kernel_attention::sliding_window_attention_f32_hd32(
                 out,
@@ -330,6 +353,7 @@ pub fn sliding_window_attention_f32(
         }
         .grid(grid)
         .enqueue_on(stream)?,
+        // SAFETY: the caller upholds this function's safety contract.
         (64, _) => unsafe {
             kernel_attention::sliding_window_attention_f32_hd64(
                 out,

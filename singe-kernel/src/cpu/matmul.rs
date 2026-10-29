@@ -1,5 +1,14 @@
 //! GEMM, batched GEMM, ragged batched GEMM, and matvec variants.
 
+mod blocked;
+
+pub use blocked::{matmul_strided_f32, matmul_strided_f64};
+
+#[must_use]
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "the portable GEMM reference requires separate multiply and add rounding in reduction order"
+)]
 pub fn matmul_f32(
     lhs: &[f32],
     rhs: &[f32],
@@ -34,6 +43,11 @@ pub fn matmul_f32(
     out
 }
 
+#[must_use]
+#[expect(
+    clippy::suboptimal_flops,
+    reason = "the portable GEMM reference requires separate multiply and add rounding in reduction order"
+)]
 pub fn matmul_f64(
     lhs: &[f64],
     rhs: &[f64],
@@ -68,6 +82,7 @@ pub fn matmul_f64(
     out
 }
 
+#[must_use]
 pub fn bmm_f32(
     lhs: &[f32],
     rhs: &[f32],
@@ -98,7 +113,7 @@ pub fn bmm_f32(
                     } else {
                         batch_index * rhs_batch_stride + k * rhs_row_stride + column
                     };
-                    sum += lhs[lhs_index] * rhs[rhs_index];
+                    sum = lhs[lhs_index].mul_add(rhs[rhs_index], sum);
                 }
                 out[batch_index * rows * columns + row * columns + column] = sum;
             }
@@ -107,6 +122,7 @@ pub fn bmm_f32(
     out
 }
 
+#[must_use]
 pub fn masked_bmm_f32(
     lhs: &[f32],
     rhs: &[f32],
@@ -125,7 +141,10 @@ pub fn masked_bmm_f32(
 ) -> Vec<f32> {
     let mut out = initial_out.to_vec();
     for batch_index in 0..batch {
-        let valid_rows = masked_rows[batch_index].clamp(0, rows as i32) as usize;
+        let valid_rows = masked_rows[batch_index].clamp(
+            0,
+            i32::try_from(rows).expect("kernel dimension or index exceeds the i32 interface"),
+        ) as usize;
         for row in 0..valid_rows {
             for column in 0..columns {
                 let mut sum = 0.0f32;
@@ -140,7 +159,7 @@ pub fn masked_bmm_f32(
                     } else {
                         batch_index * rhs_batch_stride + k * rhs_row_stride + column
                     };
-                    sum += lhs[lhs_index] * rhs[rhs_index];
+                    sum = lhs[lhs_index].mul_add(rhs[rhs_index], sum);
                 }
                 out[batch_index * rows * columns + row * columns + column] = sum;
             }
@@ -149,6 +168,7 @@ pub fn masked_bmm_f32(
     out
 }
 
+#[must_use]
 pub fn ragged_bmm_f32(
     lhs: &[f32],
     rhs: &[f32],
@@ -181,7 +201,7 @@ pub fn ragged_bmm_f32(
                     } else {
                         batch_index * rhs_batch_stride + k * rhs_row_stride + column
                     };
-                    sum += lhs[lhs_index] * rhs[rhs_index];
+                    sum = lhs[lhs_index].mul_add(rhs[rhs_index], sum);
                 }
                 out[global_row * columns + column] = sum;
             }
@@ -190,6 +210,7 @@ pub fn ragged_bmm_f32(
     out
 }
 
+#[must_use]
 pub fn group_gemm_f32(
     lhs: &[f32],
     rhs: &[f32],
@@ -220,7 +241,7 @@ pub fn group_gemm_f32(
                     } else {
                         rhs_base + k * group_columns + column
                     };
-                    sum += lhs[lhs_index] * rhs[rhs_index];
+                    sum = lhs[lhs_index].mul_add(rhs[rhs_index], sum);
                 }
                 out[output_base + row * group_columns + column] = sum;
             }
@@ -234,6 +255,7 @@ pub fn group_gemm_f32(
 /// `m_sizes` gives the token count for each expert. For each expert group, rows
 /// are multiplied by that expert's `[columns, reduction]` weight tile.
 /// When `permute_input` or `permute_output` is set, `gather_indices` maps sorted expert rows back to the original token/top-k routing order.
+#[must_use]
 pub fn grouped_gemm_f32(
     input: &[f32],
     weights: &[f32],
@@ -273,7 +295,7 @@ pub fn grouped_gemm_f32(
                     let input_index = input_row * input_row_stride + k;
                     let weight_index =
                         expert * weight_expert_stride + column * weight_row_stride + k;
-                    sum += input[input_index] * weights[weight_index];
+                    sum = input[input_index].mul_add(weights[weight_index], sum);
                 }
                 out[output_row * output_row_stride + column] = sum;
             }
@@ -282,8 +304,9 @@ pub fn grouped_gemm_f32(
     }
     out
 }
-#[cfg(feature = "dtype-f8")]
 
+#[cfg(feature = "dtype_f8")]
+#[must_use]
 pub fn ragged_block_scaled_bmm_f32(
     lhs: &[u8],
     rhs: &[u8],
@@ -314,10 +337,10 @@ pub fn ragged_block_scaled_bmm_f32(
                     let rhs_scale_index = batch_index * rhs_scale_batch_stride
                         + (column / scale_block) * rhs_scale_row_stride
                         + scale_k;
-                    sum += f8e4m3_value(lhs[lhs_index])
+                    sum = (f8e4m3_value(lhs[lhs_index])
                         * f8e4m3_value(rhs[rhs_index])
-                        * lhs_scale[lhs_scale_index]
-                        * rhs_scale[rhs_scale_index];
+                        * lhs_scale[lhs_scale_index])
+                        .mul_add(rhs_scale[rhs_scale_index], sum);
                 }
                 out[global_row * columns + column] = sum;
             }
@@ -326,7 +349,8 @@ pub fn ragged_block_scaled_bmm_f32(
     out
 }
 
-#[cfg(feature = "dtype-f8")]
+#[cfg(feature = "dtype_f8")]
+#[must_use]
 pub fn f8e4m3_value(value: u8) -> f32 {
     let sign = if value & 0x80 == 0 { 1.0 } else { -1.0 };
     let exponent = (value >> 3) & 0x0f;
@@ -337,13 +361,14 @@ pub fn f8e4m3_value(value: u8) -> f32 {
         if mantissa == 0 {
             sign * 0.0
         } else {
-            sign * (mantissa as f32 / 8.0) * 2f32.powi(-6)
+            sign * (f32::from(mantissa) / 8.0) * 2f32.powi(-6)
         }
     } else {
-        sign * (1.0 + mantissa as f32 / 8.0) * 2f32.powi(exponent as i32 - 7)
+        sign * (1.0 + f32::from(mantissa) / 8.0) * 2f32.powi(i32::from(exponent) - 7)
     }
 }
 
+#[must_use]
 pub fn bmm_f64(
     lhs: &[f64],
     rhs: &[f64],
@@ -374,7 +399,7 @@ pub fn bmm_f64(
                     } else {
                         batch_index * rhs_batch_stride + k * rhs_row_stride + column
                     };
-                    sum += lhs[lhs_index] * rhs[rhs_index];
+                    sum = lhs[lhs_index].mul_add(rhs[rhs_index], sum);
                 }
                 out[batch_index * rows * columns + row * columns + column] = sum;
             }

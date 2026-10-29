@@ -3,6 +3,11 @@
 
 #[cutile::module]
 mod kernels {
+    use crate::cuda::cutile::runtime as cutile;
+    #[allow(
+        clippy::wildcard_imports,
+        reason = "cuTile-generated dtype kernels share the core DSL prelude and its expansion traits"
+    )]
     use cutile::core::*;
     #[cutile::entry()]
     pub fn quantize_f32_u8<const B: i32>(
@@ -14,14 +19,14 @@ mod kernels {
         let values: Tile<f32, { [B] }> = load_tile_like(input, out);
         let raw = values / broadcast_scalar(scale, out.shape())
             + broadcast_scalar(zero_point, out.shape());
-        let low = constant(0.0f32, out.shape());
-        let high = constant(255.0f32, out.shape());
-        let clamped = min_tile(max_tile(raw, low), high);
-        let floored = floor(clamped);
+        let low: Tile<f32, { [B] }> = constant(0.0f32, out.shape());
+        let high: Tile<f32, { [B] }> = constant(255.0f32, out.shape());
+        let clamped: Tile<f32, { [B] }> = min_tile(max_tile(raw, low), high);
+        let floored: Tile<f32, { [B] }> = floor(clamped);
         let fraction = clamped - floored;
-        let half = constant(0.5f32, out.shape());
-        let one = constant(1.0f32, out.shape());
-        let two = constant(2.0f32, out.shape());
+        let half: Tile<f32, { [B] }> = constant(0.5f32, out.shape());
+        let one: Tile<f32, { [B] }> = constant(1.0f32, out.shape());
+        let two: Tile<f32, { [B] }> = constant(2.0f32, out.shape());
         let floor_half = floor(floored / two);
         let floor_is_odd = cmpf(
             floor_half * two,
@@ -51,14 +56,14 @@ mod kernels {
         let values: Tile<f32, { [B] }> = load_tile_like(input, out);
         let raw = values / broadcast_scalar(scale, out.shape())
             + broadcast_scalar(zero_point, out.shape());
-        let low = constant(-128.0f32, out.shape());
-        let high = constant(127.0f32, out.shape());
-        let clamped = min_tile(max_tile(raw, low), high);
-        let floored = floor(clamped);
+        let low: Tile<f32, { [B] }> = constant(-128.0f32, out.shape());
+        let high: Tile<f32, { [B] }> = constant(127.0f32, out.shape());
+        let clamped: Tile<f32, { [B] }> = min_tile(max_tile(raw, low), high);
+        let floored: Tile<f32, { [B] }> = floor(clamped);
         let fraction = clamped - floored;
-        let half = constant(0.5f32, out.shape());
-        let one = constant(1.0f32, out.shape());
-        let two = constant(2.0f32, out.shape());
+        let half: Tile<f32, { [B] }> = constant(0.5f32, out.shape());
+        let one: Tile<f32, { [B] }> = constant(1.0f32, out.shape());
+        let two: Tile<f32, { [B] }> = constant(2.0f32, out.shape());
         let floor_half = floor(floored / two);
         let floor_is_odd = cmpf(
             floor_half * two,
