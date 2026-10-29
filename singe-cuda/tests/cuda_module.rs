@@ -4,9 +4,10 @@ use singe_cuda::{
     cuda_module,
     error::{Error, Result},
     memory::DeviceMemory,
-    module::LaunchConfig,
+    module::{KernelParameters, LaunchConfig},
     nvrtc::Status as NvrtcStatus,
-    stream::StreamCaptureMode,
+    stream::{StreamCaptureMode, StreamCaptureScope},
+    testing::bootstrap,
 };
 
 cuda_module! {
@@ -26,6 +27,16 @@ cuda_module! {
                 }
             }
         "#,
+        exports: {
+            scale_add {
+                parameters: { input: read, output: write },
+                requirements: singe_cuda::kernel::launch::LaunchRequirements {
+                    rank: singe_cuda::kernel::launch::LaunchRank::One,
+                    axis_coordinates: Some(singe_cuda::kernel::launch::CoordinateWidth::I32),
+                    ..singe_cuda::kernel::launch::LaunchRequirements::DEFAULT
+                },
+            },
+        },
     }
 }
 
@@ -143,24 +154,25 @@ fn create_module_or_skip<T>(result: Result<T>) -> Option<T> {
 }
 
 #[test]
-fn launches_kernel_from_generated_module() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+fn test_launches_kernel_from_generated_module() {
+    let (_lock, context) = bootstrap().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let alpha = 2.5f32;
     let length = input.len() as i32;
 
-    let input_device = DeviceMemory::from_slice(&input).unwrap();
-    let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+    let input_device = DeviceMemory::from_slice(&context, &input).unwrap();
+    let mut output_device = DeviceMemory::<f32>::zeroed(&context, output.len()).unwrap();
 
-    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .scale_add_with_memory(&config, &input_device, &mut output_device, alpha, length)
+            .scale_add(&config, &input_device, &mut output_device, alpha, length)
             .unwrap();
     }
 
@@ -174,23 +186,24 @@ fn launches_kernel_from_generated_module() {
 }
 
 #[test]
-fn launches_cxx_linkage_kernel_from_generated_module() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+fn test_launches_cxx_linkage_kernel_from_generated_module() {
+    let (_lock, context) = bootstrap().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let factor = 3.0f32;
     let length = input.len() as i32;
 
-    let mut values_device = DeviceMemory::from_slice(&input).unwrap();
+    let mut values_device = DeviceMemory::from_slice(&context, &input).unwrap();
 
-    let Some(module) = create_module_or_skip(cxx_linkage_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(cxx_linkage_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .cxx_scale_with_memory(&config, &mut values_device, factor, length)
+            .cxx_scale(&config, &mut values_device, factor, length)
             .unwrap();
     }
 
@@ -201,24 +214,25 @@ fn launches_cxx_linkage_kernel_from_generated_module() {
 }
 
 #[test]
-fn launches_kernel_with_scalar_alias_parameters() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+fn test_launches_kernel_with_scalar_alias_parameters() {
+    let (_lock, context) = bootstrap().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let length = input.len() as i32;
     let flags = 1_u32;
 
-    let input_device = DeviceMemory::from_slice(&input).unwrap();
-    let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+    let input_device = DeviceMemory::from_slice(&context, &input).unwrap();
+    let mut output_device = DeviceMemory::<f32>::zeroed(&context, output.len()).unwrap();
 
-    let Some(module) = create_module_or_skip(alias_scalar_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(alias_scalar_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .alias_scalar_with_memory(&config, &input_device, &mut output_device, length, flags)
+            .alias_scalar(&config, &input_device, &mut output_device, length, flags)
             .unwrap();
     }
 
@@ -229,24 +243,25 @@ fn launches_kernel_with_scalar_alias_parameters() {
 }
 
 #[test]
-fn launches_raw_pointer_kernel_from_generated_module() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+fn test_launches_raw_pointer_kernel_from_generated_module() {
+    let (_lock, context) = bootstrap().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let alpha = 2.5f32;
     let length = input.len() as i32;
 
-    let input_device = DeviceMemory::from_slice(&input).unwrap();
-    let output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+    let input_device = DeviceMemory::from_slice(&context, &input).unwrap();
+    let output_device = DeviceMemory::<f32>::zeroed(&context, output.len()).unwrap();
 
-    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .scale_add(
+            .scale_add_raw(
                 &config,
                 input_device.as_ptr(),
                 output_device.as_mut_ptr(),
@@ -266,25 +281,26 @@ fn launches_raw_pointer_kernel_from_generated_module() {
 }
 
 #[test]
-fn launches_kernel_on_stream_from_generated_module() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
-    let stream = ctx.create_stream().unwrap();
+fn test_launches_kernel_on_stream_from_generated_module() {
+    let (_lock, context) = bootstrap().unwrap();
+    let stream = context.create_stream().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let alpha = 2.5f32;
     let length = input.len() as i32;
 
-    let input_device = DeviceMemory::from_slice(&input).unwrap();
-    let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+    let input_device = DeviceMemory::from_slice(&context, &input).unwrap();
+    let mut output_device = DeviceMemory::<f32>::zeroed(&context, output.len()).unwrap();
 
-    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .scale_add_with_memory_on(
+            .scale_add_on(
                 &config,
                 &stream,
                 &input_device,
@@ -306,26 +322,27 @@ fn launches_kernel_on_stream_from_generated_module() {
 }
 
 #[test]
-fn updates_kernel_node_params_from_generated_module() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
-    let stream = ctx.create_stream().unwrap();
+fn test_updates_kernel_node_params_from_generated_module() {
+    let (_lock, context) = bootstrap().unwrap();
+    let stream = context.create_stream().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let alpha = 2.5f32;
     let length = input.len() as i32;
 
-    let input_device = DeviceMemory::from_slice(&input).unwrap();
-    let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+    let input_device = DeviceMemory::from_slice(&context, &input).unwrap();
+    let mut output_device = DeviceMemory::<f32>::zeroed(&context, output.len()).unwrap();
 
-    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
-    let mut graph = ctx.create_graph().unwrap();
+    let mut graph = context.create_graph().unwrap();
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     let node = unsafe {
         module
-            .scale_add_with_memory_node(
+            .scale_add_node(
                 &mut graph,
                 &[],
                 &config,
@@ -345,12 +362,13 @@ fn updates_kernel_node_params_from_generated_module() {
 
     let mut executable = graph.instantiate().unwrap();
     drop(graph);
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .scale_add_with_memory_set_node_params(
+            .scale_add_set_node_params(
                 &mut executable,
-                node,
-                &config,
+                &node,
+                config.geometry(),
                 &input_device,
                 &mut output_device,
                 alpha,
@@ -358,7 +376,10 @@ fn updates_kernel_node_params_from_generated_module() {
             )
             .unwrap();
     }
-    executable.launch(&stream).unwrap();
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        executable.launch(&stream).unwrap();
+    }
     stream.synchronize().unwrap();
 
     output_device.copy_to_host(&mut output).unwrap();
@@ -371,12 +392,12 @@ fn updates_kernel_node_params_from_generated_module() {
 }
 
 #[test]
-fn rejects_node_from_different_graph() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+fn test_rejects_node_from_different_graph() {
+    let (_lock, context) = bootstrap().unwrap();
 
-    let mut graph = ctx.create_graph().unwrap();
+    let mut graph = context.create_graph().unwrap();
     let node = graph.add_empty_node(&[]).unwrap();
-    let mut other_graph = ctx.create_graph().unwrap();
+    let mut other_graph = context.create_graph().unwrap();
 
     assert!(matches!(
         other_graph.add_empty_node(&[node]),
@@ -386,52 +407,53 @@ fn rejects_node_from_different_graph() {
     let mut executable = graph.instantiate().unwrap();
     let other_node = other_graph.add_empty_node(&[]).unwrap();
     assert!(matches!(
-        executable.disable_node(other_node),
+        executable.disable_node(&other_node),
         Err(Error::GraphNodeMismatch)
     ));
 }
 
 #[test]
-fn child_graph_returns_borrowed_graph() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+fn test_child_graph_returns_borrowed_graph() {
+    let (_lock, context) = bootstrap().unwrap();
 
-    let mut child = ctx.create_graph().unwrap();
+    let mut child = context.create_graph().unwrap();
     child.add_empty_node(&[]).unwrap();
 
-    let mut parent = ctx.create_graph().unwrap();
+    let mut parent = context.create_graph().unwrap();
     let child_node = parent.add_child_graph_node(&[], &child).unwrap();
     let borrowed_child = child_node.child_graph().unwrap();
 
     assert_eq!(borrowed_child.topology_summary().unwrap().nodes, 1);
-    assert_eq!(borrowed_child.context(), Some(ctx.as_ref()));
+    assert_eq!(borrowed_child.context(), Some(&context));
 }
 
 #[test]
-fn graph_kernel_node_copies_borrowed_scalar_arguments() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
-    let stream = ctx.create_stream().unwrap();
+fn test_graph_kernel_node_copies_borrowed_scalar_arguments() {
+    let (_lock, context) = bootstrap().unwrap();
+    let stream = context.create_stream().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let mut alpha = 2.5f32;
     let mut length = input.len() as i32;
 
-    let input_device = DeviceMemory::from_slice(&input).unwrap();
-    let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+    let input_device = DeviceMemory::from_slice(&context, &input).unwrap();
+    let mut output_device = DeviceMemory::<f32>::zeroed(&context, output.len()).unwrap();
 
-    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&context)) else {
         return;
     };
     let function = module.raw().function("scale_add").unwrap();
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
-    let mut params = singe_cuda::module::KernelParameters::new();
+    let mut params = KernelParameters::new();
     params
-        .device_slice(&input_device)
+        .device_input(&input_device)
         .device_slice_mut(&mut output_device)
         .arg(&alpha)
         .arg(&length);
 
-    let mut graph = ctx.create_graph().unwrap();
+    let mut graph = context.create_graph().unwrap();
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         function
             .add_to_graph(&mut graph, &[], &config, &mut params)
@@ -442,7 +464,10 @@ fn graph_kernel_node_copies_borrowed_scalar_arguments() {
     length = 0;
 
     let executable = graph.instantiate().unwrap();
-    executable.launch(&stream).unwrap();
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        executable.launch(&stream).unwrap();
+    }
     stream.synchronize().unwrap();
 
     output_device.copy_to_host(&mut output).unwrap();
@@ -457,26 +482,27 @@ fn graph_kernel_node_copies_borrowed_scalar_arguments() {
 }
 
 #[test]
-fn records_kernel_operation_during_capture() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
-    let stream = ctx.create_stream().unwrap();
+fn test_records_kernel_operation_during_capture() {
+    let (_lock, context) = bootstrap().unwrap();
+    let stream = context.create_stream().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let alpha = 2.5f32;
     let length = input.len() as i32;
 
-    let input_device = DeviceMemory::from_slice(&input).unwrap();
-    let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+    let input_device = DeviceMemory::from_slice(&context, &input).unwrap();
+    let mut output_device = DeviceMemory::<f32>::zeroed(&context, output.len()).unwrap();
 
-    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
 
     let executable = stream
+        // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
         .capture_executable(StreamCaptureMode::Relaxed, |scope| unsafe {
-            module.scale_add_with_memory_record(
+            module.scale_add_record(
                 scope,
                 &config,
                 &input_device,
@@ -487,7 +513,10 @@ fn records_kernel_operation_during_capture() {
         })
         .unwrap();
 
-    executable.launch(&stream).unwrap();
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        executable.launch(&stream).unwrap();
+    }
     stream.synchronize().unwrap();
 
     output_device.copy_to_host(&mut output).unwrap();
@@ -500,26 +529,27 @@ fn records_kernel_operation_during_capture() {
 }
 
 #[test]
-fn adds_kernel_node_from_generated_module() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
-    let stream = ctx.create_stream().unwrap();
+fn test_adds_kernel_node_from_generated_module() {
+    let (_lock, context) = bootstrap().unwrap();
+    let stream = context.create_stream().unwrap();
 
     let input = vec![1.0f32, 2.0, 3.5, -4.0, 8.25];
     let mut output = vec![0.0f32; input.len()];
     let alpha = 2.5f32;
     let length = input.len() as i32;
 
-    let input_device = DeviceMemory::from_slice(&input).unwrap();
-    let mut output_device = DeviceMemory::<f32>::zeroes(output.len()).unwrap();
+    let input_device = DeviceMemory::from_slice(&context, &input).unwrap();
+    let mut output_device = DeviceMemory::<f32>::zeroed(&context, output.len()).unwrap();
 
-    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(scale_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(input.len(), 128);
-    let mut graph = ctx.create_graph().unwrap();
+    let mut graph = context.create_graph().unwrap();
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .scale_add_with_memory_node(
+            .scale_add_node(
                 &mut graph,
                 &[],
                 &config,
@@ -532,7 +562,10 @@ fn adds_kernel_node_from_generated_module() {
     }
 
     let executable = graph.instantiate().unwrap();
-    executable.launch(&stream).unwrap();
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
+    unsafe {
+        executable.launch(&stream).unwrap();
+    }
     stream.synchronize().unwrap();
 
     output_device.copy_to_host(&mut output).unwrap();
@@ -544,20 +577,21 @@ fn adds_kernel_node_from_generated_module() {
 }
 
 #[test]
-fn launches_kernel_with_headers() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+fn test_launches_kernel_with_headers() {
+    let (_lock, context) = bootstrap().unwrap();
 
     let mut values = vec![1.0f32, 2.5, -3.0, 0.25];
     let length = values.len() as i32;
-    let mut values_device = DeviceMemory::from_slice(&values).unwrap();
+    let mut values_device = DeviceMemory::from_slice(&context, &values).unwrap();
 
-    let Some(module) = create_module_or_skip(header_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(header_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(values.len(), 128);
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .add_bias_with_memory(&config, &mut values_device, length)
+            .add_bias(&config, &mut values_device, length)
             .unwrap();
     }
 
@@ -566,20 +600,21 @@ fn launches_kernel_with_headers() {
 }
 
 #[test]
-fn exports_selected_kernel_with_renamed_method() {
-    let (_lock, ctx) = singe_cuda::testing::bootstrap().unwrap();
+fn test_exports_selected_kernel_with_renamed_method() {
+    let (_lock, context) = bootstrap().unwrap();
 
     let mut values = vec![1.0f32, 2.5, -3.0, 0.25];
     let length = values.len() as i32;
-    let mut values_device = DeviceMemory::from_slice(&values).unwrap();
+    let mut values_device = DeviceMemory::from_slice(&context, &values).unwrap();
 
-    let Some(module) = create_module_or_skip(exported_kernel::Module::create(&ctx)) else {
+    let Some(module) = create_module_or_skip(exported_kernel::Module::create(&context)) else {
         return;
     };
     let config = LaunchConfig::for_1d_grid(values.len(), 128);
+    // SAFETY: the test keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         module
-            .double_values_with_memory(&config, &mut values_device, length)
+            .double_values(&config, &mut values_device, length)
             .unwrap();
     }
 
@@ -588,7 +623,7 @@ fn exports_selected_kernel_with_renamed_method() {
 }
 
 #[test]
-fn generated_module_uses_source_pointer_and_scalar_types() {
+fn test_generated_module_uses_source_pointer_and_scalar_types() {
     let _raw_method: unsafe fn(
         &typed_kernel::Module,
         &LaunchConfig,
@@ -596,7 +631,7 @@ fn generated_module_uses_source_pointer_and_scalar_types() {
         *mut f32,
         usize,
         u32,
-    ) -> singe_cuda::error::Result<()> = typed_kernel::Module::typed_params;
+    ) -> Result<()> = typed_kernel::Module::typed_params_raw;
     let _memory_method: unsafe fn(
         &typed_kernel::Module,
         &LaunchConfig,
@@ -604,14 +639,14 @@ fn generated_module_uses_source_pointer_and_scalar_types() {
         &mut DeviceMemory<f32>,
         usize,
         u32,
-    ) -> singe_cuda::error::Result<()> = typed_kernel::Module::typed_params_with_memory;
+    ) -> Result<()> = typed_kernel::Module::typed_params;
     let _memory_record_method: unsafe fn(
         &typed_kernel::Module,
-        &singe_cuda::stream::StreamCaptureScope<'_>,
+        &StreamCaptureScope<'_>,
         &LaunchConfig,
         &DeviceMemory<f32>,
         &mut DeviceMemory<f32>,
         usize,
         u32,
-    ) -> singe_cuda::error::Result<()> = typed_kernel::Module::typed_params_with_memory_record;
+    ) -> Result<()> = typed_kernel::Module::typed_params_record;
 }

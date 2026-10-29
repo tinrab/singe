@@ -29,10 +29,6 @@
         cudnnRedistBase = "https://developer.download.nvidia.com/compute/cudnn/redist";
         cudssRedistBase = "https://developer.download.nvidia.com/compute/cudss/redist";
         cutensorRedistBase = "https://developer.download.nvidia.com/compute/cutensor/redist";
-        nvcompRedistBase = "https://developer.download.nvidia.com/compute/nvcomp/redist";
-        nvimgcodecRedistBase = "https://developer.download.nvidia.com/compute/nvimgcodec/redist";
-        nvtiffRedistBase = "https://developer.download.nvidia.com/compute/nvtiff/redist";
-        nvjpeg2000RedistBase = "https://developer.download.nvidia.com/compute/nvjpeg2000/redist";
         ncclGencodeString = lib.concatStringsSep " " [
           "-gencode=arch=compute_120,code=sm_120"
           "-gencode=arch=compute_120,code=compute_120"
@@ -125,224 +121,139 @@
             };
           };
 
-        cudaMajorRedist =
-          {
-            base,
-            name,
-            version,
-            cudaVersion,
-            sha256,
-          }:
-          pkgs.runCommand "${name}-${version}-cuda${cudaVersion}"
-            {
-              src = fetchRedist {
-                inherit base sha256;
-                path = "${name}/linux-x86_64/${name}-linux-x86_64-${version}-archive.tar.xz";
-              };
-              nativeBuildInputs = [
-                pkgs.autoPatchelfHook
-                pkgs.patchelf
-              ];
-              buildInputs = [
-                pkgs.stdenv.cc.cc.lib
-                pkgs.zlib
-              ];
-              autoPatchelfIgnoreMissingDeps = [
-                "libcuda.so.1"
-                "libnvidia-ml.so.1"
-                "libnvidia-ptxjitcompiler.so.1"
-              ];
-            }
-            ''
-              mkdir -p "$out"
-              tar xf "$src" --strip-components=1 -C "$out"
-
-              for path in bin cmake extensions include lib64; do
-                if [ -e "$out/${cudaVersion}/$path" ] && [ ! -e "$out/$path" ]; then
-                  ln -s "${cudaVersion}/$path" "$out/$path"
-                fi
-              done
-
-              if [ -d "$out/lib64" ] && [ ! -e "$out/lib" ]; then
-                ln -s lib64 "$out/lib"
-              fi
-
-              rpath="${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.glibc}/lib:$out/lib:$out/extensions"
-
-              while IFS= read -r file; do
-                if patchelf --print-needed "$file" >/dev/null 2>&1; then
-                  patchelf --set-rpath "$rpath" "$file"
-                fi
-
-                if patchelf --print-interpreter "$file" >/dev/null 2>&1; then
-                  patchelf --set-interpreter "${pkgs.glibc}/lib/ld-linux-x86-64.so.2" "$file"
-                fi
-              done < <(find "$out" -type f -perm -0100)
-            '';
-
         cudaPackages = rec {
           cccl = cudaRedist {
             name = "cccl";
-            version = "13.3.3.3.1";
-            sha256 = "67746da12f16229ac4ebde78ce7895e42b069d1d3e2ae2d2d25f90bc43679d68";
+            version = "13.3.4.3.1";
+            sha256 = "6b7516074f42f80dd3feb9c11318c8e1c5ab56cdd9f18fff4c5ace2e7e0a8209";
           };
 
           cuda_crt = cudaRedist {
             name = "cuda_crt";
-            version = "13.3.33";
-            sha256 = "4755d36d24c6ef7697a2d3e1dbb23c4562c9c0d97d48390d4cbd8ab32dec5b5f";
+            version = "13.4.92";
+            sha256 = "c969e61ded12dbf0cf20ace72867f1622ec0e8ea1e1d305e27761012025f7aaa";
           };
 
           cuda_cudart = cudaRedist {
             name = "cuda_cudart";
-            version = "13.3.29";
-            sha256 = "1e59c4888267d27ba1a9bd0f3669a6439db1334a96e754cd9013c7c73e18dc9d";
+            version = "13.4.92";
+            sha256 = "0ac5dbc538d04e9983bc493b410cce4b459e1ee9f5f6654b6464ef7b3e14a8b5";
           };
 
           cuda_culibos = cudaRedist {
             name = "cuda_culibos";
-            version = "13.3.33";
-            sha256 = "db36b1381bb3105f2f13591393131d93f501958ebd44e9d0d52234cbbaf8cbd0";
+            version = "13.4.92";
+            sha256 = "241c618719e0613ce73b781c4e84b5eccf04e5baa3bae57de07980edb68a0e55";
           };
 
           cuda_cupti = cudaRedist {
             name = "cuda_cupti";
-            version = "13.3.35";
-            sha256 = "8ec73c3063039a780a45d136329563a5c15e3a034b1b082196cd8d98add053ba";
+            version = "13.4.92";
+            sha256 = "d182ce791affb8cc33e68c773d05f74b1719548d7f24e12b73525cae75d9d51e";
           };
 
           cuda_nvcc = cudaRedist {
             name = "cuda_nvcc";
-            version = "13.3.33";
-            sha256 = "93b098bda4a562ebf3541523ce82adc43f106a81dcf28bcbf8f0d8e093d1c66f";
+            version = "13.4.92";
+            sha256 = "60998f40cc9df5826b2a846e2dcc328133fbc5ef539398ce0a21cf5dcac7193d";
           };
 
           cuda_nvdisasm = cudaRedist {
             name = "cuda_nvdisasm";
-            version = "13.3.29";
-            sha256 = "95b7f617ea11bb983a7150827a14ff4488cba10f0171fa8ae2e845bd58823456";
+            version = "13.4.92";
+            sha256 = "d0af2b49c3ba6b4f64f3e284e0229d234aa88beeba8e033a8a4fe5db7c4cc3b6";
           };
 
           cuda_nvml_dev = cudaRedist {
             name = "cuda_nvml_dev";
-            version = "13.3.29";
-            sha256 = "b62508923dadc0ac79fb1846eeb444296813cb077964e0c8348ba051bc0160aa";
+            version = "13.4.92";
+            sha256 = "3ef4df4c820f56a659883b0a0d5c7d2e2086f87e981a455f16498fedcd3bb9ca";
           };
 
           cuda_nvrtc = cudaRedist {
             name = "cuda_nvrtc";
-            version = "13.3.33";
-            sha256 = "9e8f78278215babd1236b137252424ca7912c185bd093201f5d97f7dd763b74a";
+            version = "13.4.92";
+            sha256 = "defc747cfa5953b86f4c67414fc349d21149e9d513c096cb89c64b8ec4c0c932";
           };
 
           cuda_nvtx = cudaRedist {
             name = "cuda_nvtx";
-            version = "13.3.29";
-            sha256 = "7c7c2567e35de98b5bf92bef06b97ccc90cd472ca44b9b1558b25812a54df64e";
+            version = "13.4.92";
+            sha256 = "d767ac8b8bb40f5d58602ce900e8bf2fe073c1ebb4a7d405ff67674009fa83ce";
           };
 
           cuda_profiler_api = cudaRedist {
             name = "cuda_profiler_api";
-            version = "13.3.27";
-            sha256 = "5aa4df91651f19c2c7c3ac0531cdcd96e18f5227a60efb81b18ca282be719780";
+            version = "13.4.92";
+            sha256 = "9d405e9b0fd9a5c29e680d6f6750b9ca79b7df91e253d4dffea3495057a75f08";
           };
 
           cuda_tileiras = cudaRedist {
             name = "cuda_tileiras";
-            version = "13.3.36";
-            sha256 = "1b055db199f806c746d53331200ccd8480bfdddd14638ed2911f30ee0cc4447b";
+            version = "13.4.92";
+            sha256 = "4b5f41dc0c99f2cb4dd20090c5a20a7756a6cfbf07c8dd21e960edec2e6ee3be";
           };
 
           libcublas = cudaRedist {
             name = "libcublas";
-            version = "13.5.1.27";
-            sha256 = "35a898360520d6101ffcaf36c0d04496b54d4fc2afb82f7fce44218c54513808";
+            version = "13.8.0.4";
+            sha256 = "bd6ffcce561672da6abb928214a6694f392741e7d1e2d7dfde0da4bd651706b6";
           };
 
           libcufft = cudaRedist {
             name = "libcufft";
-            version = "12.3.0.29";
-            sha256 = "b2404952a5d630fbbc13e12d36975ef87a9c05c71c321c2cb5b3820789e47462";
+            version = "12.4.0.43";
+            sha256 = "f7f8ac2cc67714989a3c8140cda39b1b7ed7d462a491e1ad3f53adb777f5070f";
           };
 
           libcufile = cudaRedist {
             name = "libcufile";
-            version = "1.18.0.66";
-            sha256 = "be4b6376f9e407176f5bc1802c873a79ba629bc2b0b928a7b059471ef0d90081";
+            version = "1.19.1.55";
+            sha256 = "8a79272aa67dd952107384a7d0d6f6466c319419ddca156bcfe15d186a23b293";
           };
 
           libcurand = cudaRedist {
             name = "libcurand";
-            version = "10.4.3.29";
-            sha256 = "0218e62ab413e435dcd0274ec8e63b62214e6aba8519201061d1597e73caadbb";
+            version = "10.4.4.72";
+            sha256 = "6f725f9187dc5f675308b830f786c163f5b1b499d86986f94fb60aa701c13c0b";
           };
 
           libcusolver = cudaRedist {
             name = "libcusolver";
-            version = "12.2.2.18";
-            sha256 = "100b49bc0b6372fe17c1fea3400dbb4cd12313ad326dea516fa26eb1d20c1a32";
+            version = "12.3.4.7";
+            sha256 = "dd89888e75628ada3fece05eb642d8e492667fdf3714c4659104c9636863f6ec";
           };
 
           libcusparse = cudaRedist {
             name = "libcusparse";
-            version = "12.8.1.7";
-            sha256 = "c258aab32bd5c3f19eb9e82be368501b8e24c21d5825f2ab86473008a26ba0c7";
+            version = "12.8.6.72";
+            sha256 = "1c1fe7f04d74878e1cabc6d0161882caac766c2872e469743a1993366572640b";
           };
 
           libnpp = cudaRedist {
             name = "libnpp";
-            version = "13.1.2.48";
-            sha256 = "12fefdcae4c94a7b977b399b87b2a717ce8a11464a7ed55b8b2518c3261c08b4";
-          };
-
-          libnvjpeg = cudaRedist {
-            name = "libnvjpeg";
-            version = "13.2.1.68";
-            sha256 = "22610703f7bc4e57d9b7b2f39ea7055c7495b603ab8fbf107b6d735a16746d4e";
-          };
-
-          libnvjpeg_2k = cudaVariantRedist {
-            base = nvjpeg2000RedistBase;
-            name = "libnvjpeg_2k";
-            version = "0.10.0.49";
-            cudaVersion = "13";
-            sha256 = "31f52bb363a63089552954b055fbbe84f8ac64e4f9850c9d9a2366338fe15f12";
-          };
-
-          libnvtiff = cudaVariantRedist {
-            base = nvtiffRedistBase;
-            name = "libnvtiff";
-            version = "0.6.0.78";
-            cudaVersion = "13";
-            sha256 = "8018c8dcff3bcac9f0e74827d312f67169b9fd01b40b2bbb431dd9bf8a5c38aa";
+            version = "13.2.0.58";
+            sha256 = "6e219a5472d28d7e038e88c2a5d1ab18f936f3a13cc8dd4c62f08c0e6233780a";
           };
 
           libnvvm = cudaRedist {
             name = "libnvvm";
-            version = "13.3.33";
-            sha256 = "fc9c1fd5844e44c0e5eeb051378c1b13cf0e3bb3fe4966d5103c38885424f802";
+            version = "13.4.92";
+            sha256 = "0e619cf3d5b27f7c812665599ca9761fc296e56129b24a85d822a5d8a1a3bd75";
           };
 
           libnvjitlink = cudaRedist {
             name = "libnvjitlink";
-            version = "13.2.78";
-            sha256 = "75fb264ce48651095972ab3aaaefab0809f69245f859aabbf2113f4c5e01d400";
-          };
-
-          nvimgcodec = cudaMajorRedist {
-            base = nvimgcodecRedistBase;
-            name = "nvimgcodec";
-            version = "0.8.0.22";
-            cudaVersion = "13";
-            sha256 = "4da5a5ae724e5bb35e3c567babce9367bcdae6b594c03a4d7802e399f2d81342";
+            version = "13.4.92";
+            sha256 = "e24557473e5e2e1dc591209558523deaca48b32123fe2b822f994b8e691c8ae3";
           };
 
           cudnn = cudaVariantRedist {
             base = cudnnRedistBase;
             name = "cudnn";
-            version = "9.22.0.52";
+            version = "9.27.0.42";
             cudaVersion = "13";
-            sha256 = "6853561e3fbb545e2d25ad567876eadbfff4db49e210abd285e82b55bcb982b0";
+            sha256 = "dd3245ba3aca8593934fc946d08649ad3a5ee8500e8da3870bc23bf7ddccd7f9";
           };
 
           libcudss = cudaVariantRedist {
@@ -356,28 +267,21 @@
           libcutensor = cudaVariantRedist {
             base = cutensorRedistBase;
             name = "libcutensor";
-            version = "2.6.0.4";
+            version = "2.8.1.0";
             cudaVersion = "13";
-            sha256 = "f70003a4817da3db2f1f7726328c31332ada89a496446fe30b90f414eccda487";
+            sha256 = "03051950d98911ce21d977fd7ef697b6ff963b885df8844a326e25b9d400ae7a";
           };
 
-          nvcomp = cudaVariantRedist {
-            base = nvcompRedistBase;
-            name = "nvcomp";
-            version = "5.2.0.10";
-            cudaVersion = "13";
-            sha256 = "2dd6c184c79fa5402c9b63a274e778d4b52e8d736ee927da81f07c1f8bed12ff";
-          };
-
-          nccl = pkgs.stdenv.mkDerivation rec {
+          # CUDA 13.4 supports GCC through version 15.
+          nccl = pkgs.gcc15Stdenv.mkDerivation rec {
             pname = "nccl";
-            version = "2.28.7-1";
+            version = "2.32.3-1";
 
             src = pkgs.fetchFromGitHub {
               owner = "NVIDIA";
               repo = "nccl";
               tag = "v${version}";
-              hash = "sha256-NM19OiBBGmv3cGoVoRLKSh9Y59hiDoei9NIrRnTqWeA=";
+              hash = "sha256-xUllfdWAL0Ee9P9T9CZC2ddkPRnSXZXgwApgO398i6g=";
             };
 
             nativeBuildInputs = [
@@ -389,6 +293,7 @@
             buildInputs = [
               cccl
               cuda_cudart
+              pkgs.openssl
             ];
 
             env = lib.optionalAttrs (ncclGencodeString != "") {
@@ -396,6 +301,7 @@
             };
 
             postPatch = ''
+              patchShebangs ./src/misc/generate_git_version.py
               patchShebangs ./src/device/generate.py
               patchShebangs ./src/device/symmetric/generate.py
 
@@ -405,6 +311,7 @@
 
             makeFlags = [
               "CXXSTD=-std=c++17"
+              "TLS_BACKEND=OPENSSL3"
               "CUDA_HOME=${cudaCompilerToolkit}"
               "CUDA_INC=${cudaCompilerToolkit}/include"
               "CUDA_LIB=${cudaCompilerToolkit}/lib"
@@ -415,7 +322,7 @@
           };
 
           cudaCompilerToolkit = pkgs.symlinkJoin {
-            name = "cuda-toolkit-13.3";
+            name = "cuda-toolkit-13.4.2";
             paths = [
               cccl
               cuda_crt
@@ -438,7 +345,7 @@
           };
 
           cudatoolkit = pkgs.symlinkJoin {
-            name = "cuda-toolkit-13.3";
+            name = "cuda-toolkit-13.4.2";
             paths = [
               cudaCompilerToolkit
               libcublas
@@ -470,34 +377,41 @@
           libcusparse
           libcutensor
           libnpp
-          libnvjpeg
-          libnvjpeg_2k
-          libnvtiff
           libnvjitlink
           libnvvm
-          nvcomp
-          nvimgcodec
           nccl
+          pkgs.openssl
+          pkgs.zlib
           pkgs.openmpi
           pkgs.stdenv.cc.cc.lib
         ];
 
-        nvimgcodecExtensionPath = "${cudaPackages.nvimgcodec}/extensions";
-        extraRuntimeLibraryPaths = [
-          "${cudaPackages.libnvtiff}/lib/13"
-        ];
         driverLibraryPath = "/run/opengl-driver/lib";
-        runtimeLibraryPath = "${lib.makeLibraryPath cudaLibs}:${lib.concatStringsSep ":" extraRuntimeLibraryPaths}:${nvimgcodecExtensionPath}";
+        runtimeLibraryPath = "${lib.makeLibraryPath cudaLibs}";
+        frameworkTools = with pkgs; [
+          cargo
+          rustc
+          rustfmt
+          clippy
+          just
+          uv
+          git
+          protobuf
+          python314
+          cacert
+          actionlint
+          ripgrep
+          util-linux
+          nixfmt
+        ];
       in
       {
         packages = {
           cudaToolkit = cudaPackages.cudatoolkit;
-          nvcomp = cudaPackages.nvcomp;
-          nvimgcodec = cudaPackages.nvimgcodec;
         };
 
         devShells.default = pkgs.mkShell {
-          name = "cuda-13.3-dev";
+          name = "cuda-13.4.2-dev";
           hardeningDisable = [ "fortify" ];
 
           packages = [
@@ -505,6 +419,7 @@
 
             pkgs.gcc15
             llvmPkgs.clang
+            pkgs.rust-bindgen
             pkgs.cmake
             pkgs.pkg-config
           ]
@@ -539,11 +454,6 @@
             export NVTX_PATH="${pathOf cudaPackages.cuda_nvtx}"
             export NVTX_INCLUDE_PATH="${includeOf cudaPackages.cuda_nvtx}"
 
-            export NVIMGCODEC_ROOT="${cudaPackages.nvimgcodec}"
-            export NVIMGCODEC_PATH="${pathOf cudaPackages.nvimgcodec}"
-            export NVIMGCODEC_INCLUDE_PATH="${includeOf cudaPackages.nvimgcodec}"
-            export NVIMGCODEC_EXTENSIONS_PATH="${nvimgcodecExtensionPath}"
-
             export NVML_ROOT="${cudaPackages.cuda_nvml_dev}"
             export NVML_PATH="${pathOf cudaPackages.cuda_nvml_dev}/stubs"
             export NVML_INCLUDE_PATH="${includeOf cudaPackages.cuda_nvml_dev}"
@@ -576,10 +486,6 @@
             export NCCL_PATH="${pathOf cudaPackages.nccl}"
             export NCCL_INCLUDE_PATH="${includeOf cudaPackages.nccl}"
 
-            export NVCOMP_ROOT="${cudaPackages.nvcomp}"
-            export NVCOMP_PATH="${pathOf cudaPackages.nvcomp}"
-            export NVCOMP_INCLUDE_PATH="${includeOf cudaPackages.nvcomp}"
-
             export NVVM_ROOT="${cudaPackages.libnvvm}"
             export NVVM_PATH="${pathOf cudaPackages.libnvvm}"
             export NVVM_INCLUDE_PATH="${includeOf cudaPackages.libnvvm}"
@@ -587,18 +493,6 @@
             export NPP_ROOT="${cudaPackages.libnpp}"
             export NPP_PATH="${pathOf cudaPackages.libnpp}"
             export NPP_INCLUDE_PATH="${includeOf cudaPackages.libnpp}"
-
-            export NVJPEG_ROOT="${cudaPackages.libnvjpeg}"
-            export NVJPEG_PATH="${pathOf cudaPackages.libnvjpeg}"
-            export NVJPEG_INCLUDE_PATH="${includeOf cudaPackages.libnvjpeg}"
-
-            export NVJPEG2K_ROOT="${cudaPackages.libnvjpeg_2k}"
-            export NVJPEG2K_PATH="${pathOf cudaPackages.libnvjpeg_2k}"
-            export NVJPEG2K_INCLUDE_PATH="${includeOf cudaPackages.libnvjpeg_2k}"
-
-            export NVTIFF_ROOT="${cudaPackages.libnvtiff}"
-            export NVTIFF_PATH="${pathOf cudaPackages.libnvtiff}"
-            export NVTIFF_INCLUDE_PATH="${includeOf cudaPackages.libnvtiff}"
 
             export CURAND_ROOT="${cudaPackages.libcurand}"
             export CURAND_PATH="${pathOf cudaPackages.libcurand}"

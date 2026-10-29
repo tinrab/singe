@@ -1,3 +1,6 @@
+pub(crate) mod entry_points;
+
+use singe_core::CudaRuntimeVersion;
 use singe_cuda_sys::driver;
 
 use crate::{error::Result, try_ffi};
@@ -10,12 +13,13 @@ use crate::{error::Result, try_ffi};
 ///
 /// Returns an error if CUDA cannot query the driver version or if a previous asynchronous launch
 /// reported an error.
-pub fn version() -> Result<i32> {
+pub fn version() -> Result<CudaRuntimeVersion> {
     let mut version: i32 = 0;
+    // SAFETY: `cuDriverGetVersion` receives valid output locations.
     unsafe {
         try_ffi!(driver::cuDriverGetVersion(&raw mut version))?;
     }
-    Ok(version)
+    Ok(CudaRuntimeVersion::from(version))
 }
 
 #[cfg(all(test, feature = "testing"))]
@@ -23,7 +27,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    fn test_it_works() {
         assert_ne!(version().unwrap(), 0);
     }
 }

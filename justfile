@@ -1,4 +1,4 @@
-TEST_FEATURES := "testing,cuda_13_3"
+TEST_FEATURES := "testing,cuda_13_4,cutile"
 export RUSTFLAGS := "-Awarnings"
 export CUDNN_LOGLEVEL_DBG := "0"
 export CUDNN_LOGDEST_DBG := "stdout"
@@ -74,7 +74,6 @@ generate:
         (cd "./${crate}" && just generate)
     done
 
-    cargo xtask gen-ptx-instructions
     cargo xtask document
     cargo xtask gen-cutile-dtype-kernels
     cargo xtask gen-cutile-fused
@@ -85,25 +84,29 @@ check:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    # cargo check --workspace --no-default-features
     cargo check --workspace --features {{ TEST_FEATURES }}
     cargo check --workspace --features {{ TEST_FEATURES }} --tests
     cargo check --workspace --features {{ TEST_FEATURES }} --examples
 
+[arg("features", long="features")]
 [arg("fix", long="fix", value="true")]
-lint fix="false":
+[arg("package", long="package")]
+lint fix="false" package="" features=TEST_FEATURES:
     #!/usr/bin/env bash
     set -euxo pipefail
 
-    # cargo fmt --all -- --check
+    # Skip cuTile-generated kernel APIs while keeping other workspace crates strict.
+    scope=(--workspace --exclude singe-kernel)
+    if [[ -n "{{ package }}" ]]; then
+        scope=(--package "{{ package }}" --all-targets --no-default-features)
+    fi
 
     disallow=(
         warnings
         deprecated
-        # unsafe_code
-        # trivial_casts
-        # trivial_numeric_casts
         # missing_docs
+        # clippy::missing_errors_doc
+        # clippy::missing_panics_doc
         unused_extern_crates
         unused_import_braces
         unused_qualifications
@@ -114,28 +117,32 @@ lint fix="false":
         clippy::complexity
         clippy::perf
         clippy::style
-        # clippy::pedantic
-        # clippy::nursery
-        # clippy::missing_errors_doc
-        # clippy::missing_panics_doc
+        clippy::absolute_paths
+        clippy::pedantic
+        clippy::nursery
     )
     allow=(
         missing_docs
-        clippy::missing_safety_doc
-        clippy::missing_panics_doc
         clippy::missing_errors_doc
+        clippy::missing_panics_doc
+        trivial_casts
+        trivial_numeric_casts
+        clippy::cast_sign_loss
+        clippy::cast_precision_loss
+        clippy::assert_is_empty
+        clippy::too_many_lines
+        clippy::float_cmp
+        clippy::too_long_first_doc_paragraph
         clippy::too_many_arguments
         clippy::missing_const_for_fn
-        clippy::similar_names
-        clippy::type_complexity
     )
 
 
     if [ "{{ fix }}" = "true" ]; then
-        cargo clippy --workspace --features {{ TEST_FEATURES }} --fix --allow-dirty \
+        cargo clippy --no-deps "${scope[@]}" --features "{{ features }}" --fix --allow-dirty \
             -- ${disallow[@]/#/-D } ${allow[@]/#/-A }
     else
-        cargo clippy --workspace --features {{ TEST_FEATURES }} \
+        cargo clippy --no-deps "${scope[@]}" --features "{{ features }}" \
             -- ${disallow[@]/#/-D } ${allow[@]/#/-A }
     fi
 

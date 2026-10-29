@@ -4,15 +4,21 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_core::{impl_enum_conversion, impl_enum_display};
 use singe_cuda_sys::library_types::cudaDataType_t;
 
-use crate::types::{
-    Complex32, Complex64, bf16, f4e2m1, f6e2m3, f6e3m2, f8e4m3, f8e5m2, f8ue8m0, f16,
+use crate::{
+    types::{
+        Complex, Complex32, Complex64, bf16, f4e2m1, f6e2m3, f6e3m2, f8e4m3, f8e5m2, f8ue5m3,
+        f8ue8m0, f16,
+    },
+    view::{AnyBitPatternDeviceRepr, NoUninitDeviceRepr},
 };
 
 /// Rust wrapper for CUDA's data type enum.
-#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
+#[non_exhaustive]
 #[repr(u32)]
 pub enum DataType {
+    /// Real as an unsigned `nv_fp8_ue5m3`.
+    F8UE5M3 = cudaDataType_t::CUDA_R_8F_UE5M3 as _,
     /// 16-bit real half precision floating-point (IEEE 754-2008 binary16).
     F16 = cudaDataType_t::CUDA_R_16F as _,
     /// 32-bit complex (2x16-bit half precision floats).
@@ -86,31 +92,46 @@ pub enum DataType {
 impl_enum_conversion!(DataType, cudaDataType_t);
 
 impl DataType {
+    /// Returns the whole-byte storage size of one element.
+    ///
+    /// Sub-byte formats use one byte per storage element here. This method does not compute packed array lengths.
+    #[must_use]
     pub const fn size_of(self) -> usize {
         match self {
-            Self::F16 | Self::Bf16 | Self::I16 | Self::U16 => 2,
             Self::ComplexF16
             | Self::ComplexBf16
             | Self::F32
             | Self::I32
             | Self::U32
+            | Self::ComplexI16
+            | Self::ComplexU16 => 4,
+            Self::ComplexF32
+            | Self::F64
+            | Self::I64
+            | Self::U64
+            | Self::ComplexI32
+            | Self::ComplexU32 => 8,
+            Self::ComplexF64 | Self::ComplexI64 | Self::ComplexU64 => 16,
+            Self::I4
+            | Self::U4
+            | Self::F4E2M1
+            | Self::ComplexI4
+            | Self::ComplexU4
+            | Self::F8E4M3
+            | Self::F8E5M2
+            | Self::F8UE8M0
+            | Self::F8UE5M3
+            | Self::F6E2M3
+            | Self::F6E3M2
             | Self::I8
-            | Self::U8 => 4,
-            Self::ComplexF32 | Self::F64 | Self::I64 | Self::U64 => 8,
-            Self::ComplexF64 => 16,
-            Self::I4 | Self::U4 | Self::F4E2M1 => 1,
-            Self::ComplexI4 | Self::ComplexU4 => 1,
-            Self::F8E4M3 | Self::F8E5M2 | Self::F8UE8M0 => 1,
-            Self::F6E2M3 | Self::F6E3M2 => 1,
-            Self::ComplexI8 | Self::ComplexU8 => 2,
-            Self::ComplexI16 | Self::ComplexU16 => 4,
-            Self::ComplexI32 | Self::ComplexU32 => 8,
-            Self::ComplexI64 | Self::ComplexU64 => 16,
+            | Self::U8 => 1,
+            Self::F16 | Self::Bf16 | Self::I16 | Self::U16 | Self::ComplexI8 | Self::ComplexU8 => 2,
         }
     }
 }
 
 impl_enum_display!(DataType, {
+    Self::F8UE5M3 => "CUDA_R_8F_UE5M3",
     Self::F16 => "CUDA_R_16F",
     Self::ComplexF16 => "CUDA_C_16F",
     Self::Bf16 => "CUDA_R_16BF",
@@ -147,17 +168,30 @@ impl_enum_display!(DataType, {
     Self::F4E2M1 => "CUDA_R_4F_E2M1",
 });
 
-pub trait DataTypeLike: Clone + Copy + Default + Debug + 'static {
+/// A scalar storage representation matching a CUDA numeric datatype.
+///
+/// # Safety
+///
+/// The reported datatype, complexity, size, alignment, and storage ABI must
+/// match this Rust type. Packed formats must follow their CUDA storage-unit
+/// conventions. All bytes of valid values must be initialized, and every
+/// initialized storage pattern must be valid for the Rust representation.
+pub unsafe trait DataTypeLike:
+    AnyBitPatternDeviceRepr + NoUninitDeviceRepr + Default + Debug
+{
+    /// Returns the CUDA numeric type matching this Rust storage representation.
     fn data_type() -> DataType;
 
+    /// Returns whether each stored element contains real and imaginary components.
     fn is_complex() -> bool;
 
+    /// Returns the Rust storage type name supplied by this implementation.
     fn rust_type_name() -> &'static str;
 }
 
 macro_rules! impl_data_type {
     ($ty:ty, $data_type:ident, $is_complex:expr) => {
-        impl DataTypeLike for $ty {
+        unsafe impl DataTypeLike for $ty {
             fn data_type() -> DataType {
                 DataType::$data_type
             }
@@ -175,27 +209,52 @@ macro_rules! impl_data_type {
 }
 
 impl_data_type!(f32, F32, false);
+
 impl_data_type!(f64, F64, false);
+
 impl_data_type!(f16, F16, false);
+
 impl_data_type!(bf16, Bf16, false);
+
 impl_data_type!(f8e4m3, F8E4M3, false);
+
 impl_data_type!(f8e5m2, F8E5M2, false);
+
 impl_data_type!(f8ue8m0, F8UE8M0, false);
+
+impl_data_type!(f8ue5m3, F8UE5M3, false);
+
 impl_data_type!(f6e2m3, F6E2M3, false);
+
 impl_data_type!(f6e3m2, F6E3M2, false);
+
 impl_data_type!(f4e2m1, F4E2M1, false);
+
 impl_data_type!(i8, I8, false);
+
 impl_data_type!(u8, U8, false);
+
 impl_data_type!(i32, I32, false);
+
 impl_data_type!(u32, U32, false);
+
+impl_data_type!(Complex<f16>, ComplexF16, true);
+
+impl_data_type!(Complex<bf16>, ComplexBf16, true);
+
 impl_data_type!(Complex32, ComplexF32, true);
+
 impl_data_type!(Complex64, ComplexF64, true);
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        DataType, DataTypeLike, bf16, f4e2m1, f6e2m3, f6e3m2, f8e4m3, f8e5m2, f8ue8m0, f16,
-    };
+    use super::*;
+
+    #[test]
+    fn test_eight_bit_integer_sizes_match_rust_storage() {
+        assert_eq!(DataType::I8.size_of(), size_of::<i8>());
+        assert_eq!(DataType::U8.size_of(), size_of::<u8>());
+    }
 
     #[test]
     fn test_low_precision_module_reexports_expected_types() {

@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use bitflags::parser;
 use singe_cuda_sys::{driver, runtime};
 
 use crate::{
@@ -19,43 +20,54 @@ bitflags::bitflags! {
     /// Flags for CUDA event creation ([`Context::create_event_with_flags`]).
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct EventFlags: u32 {
+        /// Default event flag.
         const DEFAULT = driver::CUevent_flags::CU_EVENT_DEFAULT as _;
+        /// Event uses blocking synchronization.
         const BLOCKING_SYNC = driver::CUevent_flags::CU_EVENT_BLOCKING_SYNC as _;
+        /// Event will not record timing data.
         const DISABLE_TIMING = driver::CUevent_flags::CU_EVENT_DISABLE_TIMING as _;
+        /// Event is suitable for interprocess use.
+        ///
+        /// `CUevent_flags::CU_EVENT_DISABLE_TIMING` must be set.
         const INTERPROCESS = driver::CUevent_flags::CU_EVENT_INTERPROCESS as _;
     }
 }
 
 impl Display for EventFlags {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        bitflags::parser::to_writer(self, f)
+        parser::to_writer(self, f)
     }
 }
 
 bitflags::bitflags! {
-    /// Flags for `Event::record_raw`.
+    /// Flags controlling event recording and stream capture in [`Event::record`].
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct EventRecordFlags: u32 {
+        /// Record normally, using internal event dependencies during stream capture.
         const DEFAULT = runtime::cudaEventRecordDefault;
+        /// Create an external event-record node during stream capture.
         const EXTERNAL = runtime::cudaEventRecordExternal;
     }
 }
 
 impl Display for EventRecordFlags {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        bitflags::parser::to_writer(self, f)
+        parser::to_writer(self, f)
     }
 }
 
+/// A CUDA event and its retained context.
+///
+/// Recording captures preceding work on a stream; querying, waiting, and elapsed-time calculations refer to the event's most recent recording. Dropping the wrapper destroys its native event handle.
 #[derive(Debug)]
 pub struct Event {
     handle: runtime::cudaEvent_t,
-    ctx: Arc<Context>,
+    context: Arc<Context>,
 }
 
 impl PartialEq for Event {
     fn eq(&self, other: &Self) -> bool {
-        self.handle == other.handle && Arc::ptr_eq(&self.ctx, &other.ctx)
+        self.handle == other.handle && Arc::ptr_eq(&self.context, &other.context)
     }
 }
 
@@ -69,8 +81,8 @@ impl PartialOrd for Event {
 
 impl Ord for Event {
     fn cmp(&self, other: &Self) -> Ordering {
-        let lhs = (Arc::as_ptr(&self.ctx) as usize, self.handle as usize);
-        let rhs = (Arc::as_ptr(&other.ctx) as usize, other.handle as usize);
+        let lhs = (Arc::as_ptr(&self.context) as usize, self.handle as usize);
+        let rhs = (Arc::as_ptr(&other.context) as usize, other.handle as usize);
         lhs.cmp(&rhs)
     }
 }
@@ -80,17 +92,28 @@ impl Event {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid CUDA event owned by `ctx`, and ownership of the
+    /// `handle` must be a valid CUDA event owned by `context`, and ownership of the
     /// handle is transferred to the returned [`Event`]. The handle must not be
     /// destroyed elsewhere after calling this function.
-    pub unsafe fn from_raw(handle: runtime::cudaEvent_t, ctx: Arc<Context>) -> Result<Self> {
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::NullHandle` if `handle` is null. The caller must satisfy the remaining handle validity and ownership requirements.
+    pub unsafe fn from_raw(handle: runtime::cudaEvent_t, context: Arc<Context>) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
 
-        Ok(Self { handle, ctx })
+        Ok(Self { handle, context })
     }
 
+    /// Records the work preceding this call on the supplied stream.
+    ///
+    /// Re-recording replaces the event's captured work. `flags` controls whether capture treats this as an external event record.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts. Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
     pub fn record(&self, stream: &Stream, flags: EventRecordFlags) -> Result<()> {
         if stream.context() != self.context() {
             return Err(Error::StreamContextMismatch);
@@ -98,6 +121,13 @@ impl Event {
         self.record_raw(stream.as_raw(), flags)
     }
 
+    /// Records the work preceding this call on the supplied borrowed stream.
+    ///
+    /// Re-recording replaces the event's captured work. `flags` controls whether capture treats this as an external event record.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts. Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
     pub fn record_borrowed(&self, stream: &BorrowedStream, flags: EventRecordFlags) -> Result<()> {
         if stream.context() != self.context() {
             return Err(Error::StreamContextMismatch);
@@ -105,6 +135,13 @@ impl Event {
         self.record_raw(stream.as_raw(), flags)
     }
 
+    /// Records the work preceding this call on the supplied stream binding.
+    ///
+    /// Re-recording replaces the event's captured work. `flags` controls whether capture treats this as an external event record.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts. Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
     pub fn record_on(&self, stream: &StreamBinding, flags: EventRecordFlags) -> Result<()> {
         if stream.context() != self.context() {
             return Err(Error::StreamContextMismatch);
@@ -113,7 +150,8 @@ impl Event {
     }
 
     fn record_raw(&self, stream: runtime::cudaStream_t, flags: EventRecordFlags) -> Result<()> {
-        self.ctx.bind()?;
+        self.context.bind()?;
+        // SAFETY: `cudaEventRecordWithFlags` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(runtime::cudaEventRecordWithFlags(
                 self.as_raw(),
@@ -139,7 +177,8 @@ impl Event {
     /// [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and
     /// callback diagnostics such as [`crate::error::Status::NotPermitted`].
     pub fn query(&self) -> Result<bool> {
-        self.ctx.bind()?;
+        self.context.bind()?;
+        // SAFETY: `cudaEventQuery` receives live handles owned by the wrappers.
         let error = unsafe { runtime::cudaEventQuery(self.as_raw()) };
         match error {
             runtime::cudaError_t::CUDA_SUCCESS => Ok(true),
@@ -162,7 +201,8 @@ impl Event {
     /// [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and
     /// callback diagnostics such as [`crate::error::Status::NotPermitted`].
     pub fn synchronize(&self) -> Result<()> {
-        self.ctx.bind()?;
+        self.context.bind()?;
+        // SAFETY: `cudaEventSynchronize` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(runtime::cudaEventSynchronize(self.as_raw()))?;
         }
@@ -190,13 +230,14 @@ impl Event {
     /// runtime initialization errors such as [`crate::error::Status::NotInitialized`],
     /// [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and
     /// callback diagnostics such as [`crate::error::Status::NotPermitted`].
-    pub fn elapsed_time_since(&self, start: &Event) -> Result<f32> {
+    pub fn elapsed_time_since(&self, start: &Self) -> Result<f32> {
         if self.context() != start.context() {
             return Err(runtime::cudaError_t::CUDA_ERROR_INVALID_CONTEXT.into());
         }
 
-        self.ctx.bind()?;
+        self.context.bind()?;
         let mut milliseconds = 0.0f32;
+        // SAFETY: `cudaEventElapsedTime` receives live handles owned by the wrappers and valid output locations.
         unsafe {
             try_ffi!(runtime::cudaEventElapsedTime(
                 &raw mut milliseconds,
@@ -207,10 +248,14 @@ impl Event {
         Ok(milliseconds)
     }
 
-    pub fn context(&self) -> &Context {
-        &self.ctx
+    /// Returns the context retained by this event.
+    #[must_use]
+    pub fn context(&self) -> &Arc<Context> {
+        &self.context
     }
 
+    /// Returns the borrowed native event handle without transferring ownership.
+    #[must_use]
     pub const fn as_raw(&self) -> runtime::cudaEvent_t {
         self.handle
     }
@@ -220,33 +265,41 @@ impl Event {
     ///
     /// The caller becomes responsible for eventually destroying the returned
     /// handle with CUDA.
+    #[must_use]
     pub fn into_raw(self) -> runtime::cudaEvent_t {
         let event = ManuallyDrop::new(self);
         event.handle
     }
 }
 
-// CUDA events are synchronization handles. Recording/waiting uses CUDA's event
+// SAFETY: CUDA events are synchronization handles. Recording/waiting uses CUDA's event
 // semantics and does not mutate Rust-owned state through shared references.
 unsafe impl Send for Event {}
+
 unsafe impl Sync for Event {}
 
 impl Drop for Event {
     fn drop(&mut self) {
-        if let Err(err) = self.ctx.bind() {
+        if let Err(error) = self.context.bind() {
             #[cfg(debug_assertions)]
-            eprintln!("failed to bind context before destroying event: {err}");
+            eprintln!("failed to bind context before destroying event: {error}");
         }
+        // SAFETY: `cudaEventDestroy` receives live handles owned by the wrappers.
         unsafe {
-            if let Err(err) = try_ffi!(runtime::cudaEventDestroy(self.handle)) {
+            if let Err(error) = try_ffi!(runtime::cudaEventDestroy(self.handle)) {
                 #[cfg(debug_assertions)]
-                eprintln!("failed to destroy CUDA event: {err}");
+                eprintln!("failed to destroy cuda event: {error}");
             }
         }
     }
 }
 
 impl Context {
+    /// Creates a timing-enabled event with [`EventFlags::DEFAULT`] in this context.
+    ///
+    /// # Errors
+    ///
+    /// Propagates errors from [`Self::create_event_with_flags`].
     pub fn create_event(self: &Arc<Self>) -> Result<Event> {
         self.create_event_with_flags(EventFlags::DEFAULT)
     }
@@ -274,6 +327,7 @@ impl Context {
     pub fn create_event_with_flags(self: &Arc<Self>, flags: EventFlags) -> Result<Event> {
         self.bind()?;
         let mut handle = ptr::null_mut();
+        // SAFETY: `cudaEventCreateWithFlags` receives valid output locations.
         unsafe {
             try_ffi!(runtime::cudaEventCreateWithFlags(
                 &raw mut handle,
@@ -283,6 +337,7 @@ impl Context {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+        // SAFETY: CUDA just created this handle in this context, and nothing else owns it.
         unsafe { Event::from_raw(handle, Arc::clone(self)) }
     }
 }

@@ -1,147 +1,109 @@
-use std::fmt::{self, Display, Formatter};
+use std::{
+    fmt::{self, Display, Formatter},
+    str::FromStr,
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum GpuArchitecture {
-    Compute75,
-    Compute80,
-    Compute86,
-    Compute87,
-    Compute89,
-    Compute90,
-    Compute90a,
-    Compute100,
-    Compute100f,
-    Compute100a,
-    Compute101,
-    Compute101f,
-    Compute101a,
-    Compute103,
-    Compute103f,
-    Compute103a,
-    Compute110,
-    Compute110f,
-    Compute110a,
-    Compute120,
-    Compute120f,
-    Compute120a,
-    Compute121,
-    Compute121f,
-    Compute121a,
-    Sm75,
-    Sm80,
-    Sm86,
-    Sm87,
-    Sm89,
-    Sm90,
-    Sm90a,
-    Sm100,
-    Sm100f,
-    Sm100a,
-    Sm101,
-    Sm101f,
-    Sm101a,
-    Sm103,
-    Sm103f,
-    Sm103a,
-    Sm110,
-    Sm110f,
-    Sm110a,
-    Sm120,
-    Sm120f,
-    Sm120a,
-    Sm121,
-    Sm121f,
-    Sm121a,
+use crate::error::Error;
+
+macro_rules! architectures {
+    ($($variant:ident => $target:literal),* $(,)?) => {
+        /// CUDA compilation target names accepted by Singe's compiler wrappers.
+        ///
+        /// `compute_` targets are virtual architectures for intermediate code;
+        /// `sm_` targets select real GPU architectures for native device code.
+        /// Display and string parsing use the exact CUDA target spelling.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        #[non_exhaustive]
+        pub enum GpuArchitecture {
+            $(#[doc = concat!("CUDA compilation target `", $target, "`.")]
+            $variant,)*
+        }
+
+        impl GpuArchitecture {
+            /// Returns whether this is a virtual `compute_` target rather than an `sm_` target.
+            pub const fn is_virtual(self) -> bool {
+                match self {
+                    $(Self::$variant => { let target: &str = $target; target.as_bytes()[0] == b'c' },)*
+                }
+            }
+        }
+
+        impl Display for GpuArchitecture {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                f.write_str(match self {
+                    $(Self::$variant => $target,)*
+                })
+            }
+        }
+
+        impl FromStr for GpuArchitecture {
+            type Err = Error;
+
+            fn from_str(target: &str) -> Result<Self, Self::Err> {
+                match target {
+                    $($target => Ok(Self::$variant),)*
+                    _ => Err(Error::UnsupportedArchitecture { target: target.into() }),
+                }
+            }
+        }
+    };
 }
 
-impl GpuArchitecture {
-    pub const fn is_virtual(self) -> bool {
-        matches!(
-            self,
-            Self::Compute75
-                | Self::Compute80
-                | Self::Compute86
-                | Self::Compute87
-                | Self::Compute89
-                | Self::Compute90
-                | Self::Compute90a
-                | Self::Compute100
-                | Self::Compute100f
-                | Self::Compute100a
-                | Self::Compute101
-                | Self::Compute101f
-                | Self::Compute101a
-                | Self::Compute103
-                | Self::Compute103f
-                | Self::Compute103a
-                | Self::Compute110
-                | Self::Compute110f
-                | Self::Compute110a
-                | Self::Compute120
-                | Self::Compute120f
-                | Self::Compute120a
-                | Self::Compute121
-                | Self::Compute121f
-                | Self::Compute121a
-        )
-    }
-}
-
-impl Display for GpuArchitecture {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let value = match self {
-            Self::Compute75 => "compute_75",
-            Self::Compute80 => "compute_80",
-            Self::Compute86 => "compute_86",
-            Self::Compute87 => "compute_87",
-            Self::Compute89 => "compute_89",
-            Self::Compute90 => "compute_90",
-            Self::Compute90a => "compute_90a",
-            Self::Compute100 => "compute_100",
-            Self::Compute100f => "compute_100f",
-            Self::Compute100a => "compute_100a",
-            Self::Compute101 => "compute_101",
-            Self::Compute101f => "compute_101f",
-            Self::Compute101a => "compute_101a",
-            Self::Compute103 => "compute_103",
-            Self::Compute103f => "compute_103f",
-            Self::Compute103a => "compute_103a",
-            Self::Compute110 => "compute_110",
-            Self::Compute110f => "compute_110f",
-            Self::Compute110a => "compute_110a",
-            Self::Compute120 => "compute_120",
-            Self::Compute120f => "compute_120f",
-            Self::Compute120a => "compute_120a",
-            Self::Compute121 => "compute_121",
-            Self::Compute121f => "compute_121f",
-            Self::Compute121a => "compute_121a",
-            Self::Sm75 => "sm_75",
-            Self::Sm80 => "sm_80",
-            Self::Sm86 => "sm_86",
-            Self::Sm87 => "sm_87",
-            Self::Sm89 => "sm_89",
-            Self::Sm90 => "sm_90",
-            Self::Sm90a => "sm_90a",
-            Self::Sm100 => "sm_100",
-            Self::Sm100f => "sm_100f",
-            Self::Sm100a => "sm_100a",
-            Self::Sm101 => "sm_101",
-            Self::Sm101f => "sm_101f",
-            Self::Sm101a => "sm_101a",
-            Self::Sm103 => "sm_103",
-            Self::Sm103f => "sm_103f",
-            Self::Sm103a => "sm_103a",
-            Self::Sm110 => "sm_110",
-            Self::Sm110f => "sm_110f",
-            Self::Sm110a => "sm_110a",
-            Self::Sm120 => "sm_120",
-            Self::Sm120f => "sm_120f",
-            Self::Sm120a => "sm_120a",
-            Self::Sm121 => "sm_121",
-            Self::Sm121f => "sm_121f",
-            Self::Sm121a => "sm_121a",
-        };
-        write!(f, "{value}")
-    }
+architectures! {
+    Compute75 => "compute_75",
+    Compute80 => "compute_80",
+    Compute86 => "compute_86",
+    Compute87 => "compute_87",
+    Compute89 => "compute_89",
+    Compute90 => "compute_90",
+    Compute90a => "compute_90a",
+    Compute100 => "compute_100",
+    Compute100f => "compute_100f",
+    Compute100a => "compute_100a",
+    Compute101 => "compute_101",
+    Compute101f => "compute_101f",
+    Compute101a => "compute_101a",
+    Compute103 => "compute_103",
+    Compute107 => "compute_107",
+    Compute103f => "compute_103f",
+    Compute107f => "compute_107f",
+    Compute103a => "compute_103a",
+    Compute107a => "compute_107a",
+    Compute110 => "compute_110",
+    Compute110f => "compute_110f",
+    Compute110a => "compute_110a",
+    Compute120 => "compute_120",
+    Compute120f => "compute_120f",
+    Compute120a => "compute_120a",
+    Compute121 => "compute_121",
+    Compute121f => "compute_121f",
+    Compute121a => "compute_121a",
+    Sm75 => "sm_75",
+    Sm80 => "sm_80",
+    Sm86 => "sm_86",
+    Sm87 => "sm_87",
+    Sm89 => "sm_89",
+    Sm90 => "sm_90",
+    Sm90a => "sm_90a",
+    Sm100 => "sm_100",
+    Sm100f => "sm_100f",
+    Sm100a => "sm_100a",
+    Sm101 => "sm_101",
+    Sm101f => "sm_101f",
+    Sm101a => "sm_101a",
+    Sm103 => "sm_103",
+    Sm107 => "sm_107",
+    Sm103f => "sm_103f",
+    Sm107f => "sm_107f",
+    Sm103a => "sm_103a",
+    Sm107a => "sm_107a",
+    Sm110 => "sm_110",
+    Sm110f => "sm_110f",
+    Sm110a => "sm_110a",
+    Sm120 => "sm_120",
+    Sm120f => "sm_120f",
+    Sm120a => "sm_120a",
+    Sm121 => "sm_121",
+    Sm121f => "sm_121f",
+    Sm121a => "sm_121a",
 }

@@ -1,0 +1,7 @@
+[project]
+name = "singe"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = ["onnxscript>=0.7.0", "torch>=2.12.0", "transformers>=5.9.0"]

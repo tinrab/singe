@@ -1,10 +1,10 @@
 [package]
 name = "singe-cuda"
 description = "Safe Rust wrappers for CUDA driver, runtime, NVRTC, NVVM, NVTX, memory, streams, modules, and graphs."
-version = "0.1.0-alpha.9"
+version = "0.1.0-alpha.10"
 edition.workspace = true
 repository.workspace = true
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "gpu", "nvtx"]
 include.workspace = true
@@ -13,21 +13,34 @@ include.workspace = true
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
 
 [features]
-default = ["macros", "driver_13_3", "runtime_13_3", "nvrtc_13_3", "nvvm_13_3", "nvtx_3"]
+default = [
+    "macros",
+    "driver_13_4",
+    "runtime_13_4",
+    "nvrtc_13_4",
+    "nvvm_13_4",
+    "nvtx_3",
+    "nvjitlink_13_4",
+]
 
-driver_13_3 = ["singe-cuda-sys/driver_13_3"]
+nvjitlink_13_4 = ["singe-cuda-sys/nvjitlink_13_4"]
 
-runtime_13_3 = ["singe-cuda-sys/runtime_13_3"]
+driver_13_4 = ["singe-cuda-sys/driver_13_4"]
 
-nvrtc_13_3 = ["singe-cuda-sys/nvrtc_13_3"]
+runtime_13_4 = ["singe-cuda-sys/runtime_13_4"]
 
-nvvm_13_3 = ["singe-cuda-sys/nvvm_13_3"]
+nvrtc_13_4 = ["singe-cuda-sys/nvrtc_13_4"]
+
+nvvm_13_4 = ["singe-cuda-sys/nvvm_13_4"]
 
 nvtx_3 = ["singe-cuda-sys/nvtx_3"]
 
 macros = ["dep:singe-cuda-macros"]
 
 testing = []
+
+interop_cuda_core = ["dep:cuda-core"]
+interop_cudarc = ["dep:cudarc"]
 
 [dependencies]
 singe-core.workspace = true
@@ -36,7 +49,10 @@ thiserror.workspace = true
 num_enum.workspace = true
 num-complex.workspace = true
 bitflags.workspace = true
+oxide-artifacts = { workspace = true, features = ["object-read"] }
 half.workspace = true
+cuda-core = { workspace = true, optional = true }
+cudarc = { workspace = true, optional = true }
 
 singe-cuda-macros = { workspace = true, optional = true }
 

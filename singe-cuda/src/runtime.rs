@@ -1,3 +1,4 @@
+use singe_core::CudaRuntimeVersion;
 use singe_cuda_sys::runtime;
 
 use crate::{error::Result, try_ffi};
@@ -19,12 +20,13 @@ use crate::{error::Result, try_ffi};
 ///
 /// Returns an error if CUDA Runtime cannot report its version, if a previous asynchronous launch
 /// failed, or if CUDA Runtime reports initialization or driver/device availability errors.
-pub fn version() -> Result<i32> {
+pub fn version() -> Result<CudaRuntimeVersion> {
     let mut version = 0;
+    // SAFETY: `cudaRuntimeGetVersion` receives valid output locations.
     unsafe {
         try_ffi!(runtime::cudaRuntimeGetVersion(&raw mut version))?;
     }
-    Ok(version)
+    Ok(CudaRuntimeVersion::from(version))
 }
 
 #[cfg(test)]
@@ -32,7 +34,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    fn test_it_works() {
         assert_ne!(version().unwrap(), 0);
     }
 }
