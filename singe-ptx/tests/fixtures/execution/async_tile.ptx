@@ -1,0 +1,80 @@
+// Handwritten sm_80 tiled transforms. No CUDA compiler is needed to run them.
+.version 9.4
+.target sm_80
+.address_size 64
+
+// Two groups stage separate tiles. Computation consumes the first tile while
+// the second is pending. Inactive tail lanes stage zeros and still synchronize.
+.entry groups(.param .u64 input, .param .u64 output, .param .u32 length) {
+    .shared .align 16 .b8 tiles[1024];
+    .reg .u32 t; .reg .u32 block; .reg .u32 i; .reg .u32 j;
+    .reg .u32 n; .reg .u32 offset; .reg .u32 bytes; .reg .u32 value;
+    .reg .u64 src; .reg .u64 dst; .reg .u64 base; .reg .u64 a;
+    .reg .u64 shared_a; .reg .u64 shared_b; .reg .pred p;
+    ld.param.u64 src,[input]; ld.param.u64 dst,[output];
+    ld.param.u32 n,[length]; mov.u32 t,%tid.x; mov.u32 block,%ntid.x;
+    mov.u32 i,%ctaid.x; mul.lo.u32 i,i,block; mul.lo.u32 i,i,2;
+    add.u32 i,i,t; add.u32 j,i,block;
+    mov.u64 base,tiles; mul.wide.u32 shared_a,t,4;
+    add.u64 shared_a,shared_a,base; add.u64 shared_b,shared_a,512;
+    mul.wide.u32 a,i,4; add.u64 a,a,src;
+    setp.lt.u32 p,i,n; selp.u32 bytes,4,0,p;
+    cp.async.ca.shared.global [shared_a],[a],4,bytes;
+    cp.async.commit_group;
+    mul.wide.u32 a,j,4; add.u64 a,a,src;
+    setp.lt.u32 p,j,n; selp.u32 bytes,4,0,p;
+    cp.async.ca.shared.global [shared_b],[a],4,bytes;
+    cp.async.commit_group;
+    cp.async.wait_group 1;
+    bar.sync 0;
+    ld.shared.u32 value,[shared_a]; mad.lo.u32 value,value,3,1;
+    mul.wide.u32 a,i,4; add.u64 a,a,dst;
+    setp.lt.u32 p,i,n; @p st.global.u32 [a],value;
+    cp.async.wait_group 0;
+    bar.sync 0;
+    ld.shared.u32 value,[shared_b]; mad.lo.u32 value,value,3,1;
+    mul.wide.u32 a,j,4; add.u64 a,a,dst;
+    setp.lt.u32 p,j,n; @p st.global.u32 [a],value;
+    ret;
+}
+
+// Reuse a barrier and shared tile for three rounds. Each output adds the next
+// lane's value in its tile, wrapping within the physical block. Missing input
+// lanes contribute zeros. Copies use the automatic pending-count increment.
+.entry barrier(.param .u64 input, .param .u64 output, .param .u32 length) {
+    .shared .align 8 .b64 ready;
+    .shared .align 16 .b8 tile[512];
+    .reg .u32 t; .reg .u32 block; .reg .u32 grid; .reg .u32 cta;
+    .reg .u32 n; .reg .u32 round; .reg .u32 i; .reg .u32 other;
+    .reg .u32 bytes; .reg .u32 value; .reg .u32 neighbor;
+    .reg .u64 src; .reg .u64 dst; .reg .u64 a; .reg .u64 s;
+    .reg .u64 base; .reg .u64 next; .reg .b64 state;
+    .reg .pred leader; .reg .pred valid; .reg .pred complete; .reg .pred more;
+    ld.param.u64 src,[input]; ld.param.u64 dst,[output];
+    ld.param.u32 n,[length]; mov.u32 t,%tid.x; mov.u32 block,%ntid.x;
+    mov.u32 grid,%nctaid.x; mov.u32 cta,%ctaid.x;
+    setp.eq.u32 leader,t,0; @leader mbarrier.init.shared.b64 [ready],block;
+    bar.sync 0;
+    mov.u64 base,tile; mul.wide.u32 s,t,4; add.u64 s,s,base;
+    add.u32 other,t,1; rem.u32 other,other,block;
+    mul.wide.u32 next,other,4; add.u64 next,next,base;
+    mov.u32 round,0;
+loop:
+    mad.lo.u32 i,round,grid,cta; mad.lo.u32 i,i,block,t;
+    mul.wide.u32 a,i,4; add.u64 a,a,src;
+    setp.lt.u32 valid,i,n; selp.u32 bytes,4,0,valid;
+    cp.async.ca.shared.global [s],[a],4,bytes;
+    cp.async.mbarrier.arrive.shared.b64 [ready];
+    mbarrier.arrive.shared.b64 state,[ready];
+wait:
+    mbarrier.test_wait.shared.b64 complete,[ready],state;
+    @!complete bra wait;
+    ld.shared.u32 value,[s]; ld.shared.u32 neighbor,[next];
+    add.u32 value,value,neighbor;
+    mul.wide.u32 a,i,4; add.u64 a,a,dst;
+    @valid st.global.u32 [a],value;
+    bar.sync 0;
+    add.u32 round,round,1; setp.lt.u32 more,round,3; @more bra loop;
+    @leader mbarrier.inval.shared.b64 [ready];
+    ret;
+}

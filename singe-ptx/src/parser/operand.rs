@@ -3,238 +3,186 @@ use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
     character::complete::char,
-    combinator::{opt, recognize},
-    multi::separated_list1,
+    combinator::{map, not, opt, recognize},
+    multi::{separated_list0, separated_list1},
     sequence::{delimited, pair, preceded},
 };
 
 use crate::{
-    ast::{Address, Immediate, Operand},
-    parser::common::{
-        PResult, binary_integer, comma_sep, decimal_integer, float_literal, hex_integer,
-        identifier, lexeme, octal_integer, with_span, ws,
+    ast::{Immediate, Operand, Span},
+    parser::{
+        common::{
+            Input, PResult, comma_sep, displacement, float_literal, identifier, integer_literal,
+            lexeme, text, with_span, ws,
+        },
+        depth,
     },
 };
 
-fn register<'a>(source: &'a str, input: &'a str) -> PResult<'a, Operand> {
-    let (input, (span, name)) = with_span(
-        source,
+fn register_name(input: Input<'_>) -> PResult<'_, &str> {
+    map(
         recognize(preceded(
             char('%'),
             pair(
-                take_while1(|c: char| c.is_ascii_alphanumeric() || c == '_'),
-                take_while(|c: char| c == '.' || c.is_ascii_alphanumeric() || c == '_'),
+                take_while1(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '$'),
+                take_while(|c: char| c == '.' || c.is_ascii_alphanumeric() || c == '_' || c == '$'),
             ),
         )),
+        text,
     )
-    .parse(input)?;
-    Ok((
-        input,
-        Operand::Register {
-            span,
-            name: name.to_string(),
-        },
-    ))
-}
-
-fn register_name(input: &str) -> PResult<'_, &str> {
-    recognize(preceded(
-        char('%'),
-        pair(
-            take_while1(|c: char| c.is_ascii_alphanumeric() || c == '_'),
-            take_while(|c: char| c == '.' || c.is_ascii_alphanumeric() || c == '_'),
-        ),
-    ))
     .parse(input)
 }
 
-fn hex_float_single<'a>(source: &'a str, input: &'a str) -> PResult<'a, Immediate> {
-    let (input, (span, (_, digits))) = with_span(
-        source,
-        pair(alt((tag("0f"), tag("0F"))), take_while_m_n_hex::<8>),
-    )
-    .parse(input)?;
-    let bits = u32::from_str_radix(digits, 16).map_err(|_| {
-        nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::HexDigit,
-        ))
-    })?;
+fn register(input: Input<'_>) -> PResult<'_, Operand> {
+    let (input, (span, name)) = with_span(register_name).parse(input)?;
     Ok((
         input,
-        Immediate::HexFloat32 {
+        Operand::Symbol {
             span,
-            value: f32::from_bits(bits),
+            name: name.to_owned(),
         },
     ))
 }
 
-fn hex_float_double<'a>(source: &'a str, input: &'a str) -> PResult<'a, Immediate> {
-    let (input, (span, (_, digits))) = with_span(
-        source,
-        pair(alt((tag("0d"), tag("0D"))), take_while_m_n_hex::<16>),
-    )
+fn immediate(input: Input<'_>) -> PResult<'_, Operand> {
+    let (input, (span, value)) = with_span(alt((
+        map(float_literal, Immediate::Float),
+        map(integer_literal, |(value, unsigned)| {
+            if unsigned {
+                Immediate::UnsignedInteger(value)
+            } else {
+                Immediate::Integer(value.cast_signed())
+            }
+        }),
+    )))
     .parse(input)?;
-    let bits = u64::from_str_radix(digits, 16).map_err(|_| {
-        nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::HexDigit,
-        ))
-    })?;
-    Ok((
-        input,
-        Immediate::HexFloat64 {
-            span,
-            value: f64::from_bits(bits),
-        },
+    Ok((input, Operand::Immediate { span, value }))
+}
+
+fn address_operand(input: Input<'_>) -> PResult<'_, Operand> {
+    let (input, (span, (_, (), base, offset, _))) = with_span((
+        char('['),
+        ws,
+        alt((register_name, identifier)),
+        opt(lexeme(displacement)),
+        lexeme(char(']')),
     ))
-}
-
-fn take_while_m_n_hex<const N: usize>(input: &str) -> PResult<'_, &str> {
-    let (input, digits) = recognize(take_while1(|c: char| c.is_ascii_hexdigit())).parse(input)?;
-    if digits.len() == N {
-        Ok((input, digits))
-    } else {
-        Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::HexDigit,
-        )))
-    }
-}
-
-fn float_immediate<'a>(source: &'a str, input: &'a str) -> PResult<'a, Immediate> {
-    let (input, (span, value)) = with_span(source, float_literal).parse(input)?;
-    Ok((input, Immediate::Float { span, value }))
-}
-
-fn hex_immediate<'a>(source: &'a str, input: &'a str) -> PResult<'a, Immediate> {
-    let (input, (span, value)) = with_span(source, hex_integer).parse(input)?;
-    Ok((input, Immediate::UnsignedInteger { span, value }))
-}
-
-fn octal_immediate<'a>(source: &'a str, input: &'a str) -> PResult<'a, Immediate> {
-    let (input, (span, value)) = with_span(source, octal_integer).parse(input)?;
-    Ok((input, Immediate::UnsignedInteger { span, value }))
-}
-
-fn binary_immediate<'a>(source: &'a str, input: &'a str) -> PResult<'a, Immediate> {
-    let (input, (span, value)) = with_span(source, binary_integer).parse(input)?;
-    Ok((input, Immediate::UnsignedInteger { span, value }))
-}
-
-fn decimal_immediate<'a>(source: &'a str, input: &'a str) -> PResult<'a, Immediate> {
-    let (input, (span, value)) = with_span(source, decimal_integer).parse(input)?;
-    Ok((input, Immediate::Integer { span, value }))
-}
-
-fn immediate<'a>(source: &'a str, input: &'a str) -> PResult<'a, Operand> {
-    let (input, (span, immediate)) = with_span(
-        source,
-        alt((
-            |input| hex_float_single(source, input),
-            |input| hex_float_double(source, input),
-            |input| float_immediate(source, input),
-            |input| hex_immediate(source, input),
-            |input| octal_immediate(source, input),
-            |input| binary_immediate(source, input),
-            |input| decimal_immediate(source, input),
-        )),
-    )
     .parse(input)?;
-    Ok((input, Operand::Immediate { span, immediate }))
-}
-
-fn address_operand<'a>(source: &'a str, input: &'a str) -> PResult<'a, Operand> {
-    let (input, (span, (_, _, base, _, offset, _, _))) = with_span(
-        source,
-        (
-            char('['),
-            ws,
-            alt((register_name, identifier)),
-            ws,
-            opt(pair(
-                preceded(ws, alt((char('+'), char('-')))),
-                preceded(ws, decimal_integer),
-            )),
-            ws,
-            char(']'),
-        ),
-    )
-    .parse(input)?;
-
-    let offset = offset.map(|(sign, value)| {
-        if sign == '-' {
-            -value.abs()
-        } else {
-            value.abs()
-        }
-    });
-
-    let addr = if base.starts_with('%') {
-        Address::RegisterOffset {
-            span,
-            register: base.to_string(),
-            offset: offset.unwrap_or(0),
-        }
-    } else {
-        match offset {
-            Some(off) => Address::SymbolOffset {
-                span,
-                symbol: base.to_string(),
-                offset: off,
-            },
-            None => Address::Symbol {
-                span,
-                name: base.to_string(),
-            },
-        }
-    };
     Ok((
         input,
         Operand::Address {
             span,
-            address: addr,
+            base: base.to_owned(),
+            offset: offset.unwrap_or(0),
         },
     ))
 }
 
-fn vector_operand<'a>(source: &'a str, input: &'a str) -> PResult<'a, Operand> {
-    let (input, (span, elements)) = with_span(
-        source,
-        delimited(
-            lexeme(char('{')),
-            separated_list1(comma_sep, lexeme(|input| operand(source, input))),
-            lexeme(char('}')),
-        ),
-    )
+fn vector_operand(input: Input<'_>, depth: usize) -> PResult<'_, Operand> {
+    let (input, (span, elements)) = with_span(delimited(
+        lexeme(char('{')),
+        separated_list1(comma_sep, lexeme(|input| operand(input, depth + 1))),
+        lexeme(char('}')),
+    ))
     .parse(input)?;
     Ok((input, Operand::Vector { span, elements }))
 }
 
-fn bit_bucket<'a>(source: &'a str, input: &'a str) -> PResult<'a, Operand> {
-    let (input, (span, _)) = with_span(source, char('_')).parse(input)?;
-    Ok((input, Operand::BitBucket { span }))
+fn tuple_operand(input: Input<'_>, depth: usize) -> PResult<'_, Operand> {
+    let (input, (span, elements)) = with_span(delimited(
+        lexeme(char('(')),
+        separated_list0(
+            comma_sep,
+            lexeme(preceded(not(char(')')), |input| operand(input, depth + 1))),
+        ),
+        lexeme(char(')')),
+    ))
+    .parse(input)?;
+    Ok((input, Operand::Tuple { span, elements }))
 }
 
-fn label_operand<'a>(source: &'a str, input: &'a str) -> PResult<'a, Operand> {
-    let (input, (span, name)) = with_span(source, identifier).parse(input)?;
+fn symbol_operand(input: Input<'_>) -> PResult<'_, Operand> {
+    let (input, (span, name)) = with_span(alt((identifier, map(tag("_"), text)))).parse(input)?;
     Ok((
         input,
-        Operand::Label {
-            span,
-            name: name.to_string(),
+        if name == "_" {
+            Operand::BitBucket { span }
+        } else {
+            Operand::Symbol {
+                span,
+                name: name.to_owned(),
+            }
         },
     ))
 }
 
-pub fn operand<'a>(source: &'a str, input: &'a str) -> PResult<'a, Operand> {
-    alt((
-        |input| register(source, input),
-        |input| vector_operand(source, input),
-        |input| address_operand(source, input),
-        |input| immediate(source, input),
-        |input| bit_bucket(source, input),
-        |input| label_operand(source, input),
+fn atom(input: Input<'_>, depth: usize) -> PResult<'_, Operand> {
+    let start = input.location_offset();
+    let (input, negated) = opt(char('!')).parse(input)?;
+    let child_depth = depth + usize::from(negated.is_some());
+    depth::check(child_depth, input)?;
+    let (input, operand) = alt((
+        register,
+        |input| vector_operand(input, child_depth),
+        |input| tuple_operand(input, child_depth),
+        address_operand,
+        immediate,
+        symbol_operand,
     ))
-    .parse(input)
+    .parse(input)?;
+    Ok((
+        input,
+        if negated.is_some() {
+            Operand::Negated {
+                span: Span::new(start, input.location_offset()),
+                operand: Box::new(operand),
+            }
+        } else {
+            operand
+        },
+    ))
+}
+
+pub fn operand(input: Input<'_>, depth: usize) -> PResult<'_, Operand> {
+    depth::check(depth, input)?;
+    let start = input.location_offset();
+    let (input, first) = atom(input, depth)?;
+    let (input, second) = opt(preceded(
+        lexeme(char('|')),
+        lexeme(|input| atom(input, depth)),
+    ))
+    .parse(input)?;
+    if let Some(second) = &second {
+        depth::check(
+            depth + 1 + operand_depth(&first).max(operand_depth(second)),
+            input,
+        )?;
+    }
+    Ok((
+        input,
+        match second {
+            Some(second) => Operand::Pair {
+                span: Span::new(start, input.location_offset()),
+                first: Box::new(first),
+                second: Box::new(second),
+            },
+            None => first,
+        },
+    ))
+}
+
+fn operand_depth(value: &Operand) -> usize {
+    match value {
+        Operand::Vector { elements, .. } | Operand::Tuple { elements, .. } => elements
+            .iter()
+            .map(operand_depth)
+            .max()
+            .map_or(0, |depth| depth + 1),
+        Operand::Pair { first, second, .. } => 1 + operand_depth(first).max(operand_depth(second)),
+        Operand::Negated { operand, .. } => 1 + operand_depth(operand),
+        Operand::Symbol { .. }
+        | Operand::Immediate { .. }
+        | Operand::Address { .. }
+        | Operand::BitBucket { .. } => 0,
+    }
 }

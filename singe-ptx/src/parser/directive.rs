@@ -1,9 +1,9 @@
 use nom::{
     Parser,
     branch::alt,
-    bytes::complete::{tag, take_while1},
+    bytes::complete::{tag, tag_no_case, take_while1},
     character::complete::char,
-    combinator::{map, opt, value},
+    combinator::{map, not, opt, peek, recognize, value},
     multi::{many0, separated_list0, separated_list1},
     sequence::{delimited, pair, preceded, terminated},
 };
@@ -12,111 +12,89 @@ use crate::{
     ast::{
         Attribute, CallPrototype, DirectiveStatement, FunctionDirective, Initializer,
         InitializerBinaryOp, InitializerCastType, InitializerUnaryOp, LabelPattern, LocDirective,
-        LocFunctionName, LocInlineSite, Parameter, SectionDataWidth, SectionDirective, SectionLine,
-        SectionValue, TopLevelItem, VariableDecl,
+        LocFunctionName, LocInlineSite, Parameter, PointerAnnotation, SectionDataWidth,
+        SectionDirective, SectionLine, SectionValue, Span, TopLevelItem, VariableDecl,
     },
     parser::{
         common::{
-            PResult, alignment, binary_integer, comma_sep, decimal_integer, float_literal,
-            hex_integer, identifier, lexeme, linking_directive, octal_integer, parse_u32,
-            scalar_type, semicolon, state_space, string_literal, vector_size, with_span, ws,
+            Input, PResult, alignment, comma_sep, decimal, displacement, float_literal, identifier,
+            integer_literal, keyword, lexeme, linking_directive, scalar_type, semicolon,
+            state_space, string_literal, text, unsigned_literal, vector_size, with_span, ws,
         },
+        depth,
         function::function,
     },
 };
 
-fn dotted_symbol(input: &str) -> PResult<'_, &str> {
+fn dotted_symbol(input: Input<'_>) -> PResult<'_, &str> {
     alt((
         identifier,
-        nom::combinator::recognize(pair(
-            char('.'),
-            take_while1(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '.'),
-        )),
+        map(
+            recognize(pair(
+                char('.'),
+                take_while1(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '.'),
+            )),
+            text,
+        ),
     ))
     .parse(input)
 }
 
-fn parse_u64(input: &str) -> PResult<'_, u64> {
-    let (input, digits) = take_while1(|c: char| c.is_ascii_digit()).parse(input)?;
-    let val = digits.parse().map_err(|_| {
-        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Digit))
-    })?;
-    Ok((input, val))
-}
-
-fn hex_or_decimal_u64(input: &str) -> PResult<'_, u64> {
+fn attribute(input: Input<'_>) -> PResult<'_, Attribute> {
     alt((
-        hex_integer,
-        octal_integer,
-        binary_integer,
-        map(decimal_integer, |value| value as u64),
-    ))
-    .parse(input)
-}
-
-fn attribute<'a>(source: &'a str, input: &'a str) -> PResult<'a, Attribute> {
-    alt((
-        map(with_span(source, tag(".managed")), |(span, _)| {
+        map(with_span(keyword(".managed")), |(span, _)| {
             Attribute::Managed { span }
         }),
         map(
-            with_span(
-                source,
-                preceded(
-                    tag(".unified"),
-                    delimited(
-                        lexeme(char('(')),
-                        pair(
-                            lexeme(hex_or_decimal_u64),
-                            preceded(comma_sep, lexeme(hex_or_decimal_u64)),
-                        ),
-                        lexeme(char(')')),
+            with_span(preceded(
+                keyword(".unified"),
+                delimited(
+                    lexeme(char('(')),
+                    pair(
+                        lexeme(unsigned_literal),
+                        preceded(comma_sep, lexeme(unsigned_literal)),
                     ),
+                    lexeme(char(')')),
                 ),
-            ),
+            )),
             |(span, (uuid1, uuid2))| Attribute::Unified { span, uuid1, uuid2 },
         ),
     ))
     .parse(input)
 }
 
-pub fn attributes<'a>(source: &'a str, input: &'a str) -> PResult<'a, Vec<Attribute>> {
+pub fn attributes(input: Input<'_>) -> PResult<'_, Vec<Attribute>> {
     preceded(
-        tag(".attribute"),
+        keyword(".attribute"),
         delimited(
             lexeme(char('(')),
-            separated_list1(comma_sep, lexeme(|input| attribute(source, input))),
+            separated_list1(comma_sep, lexeme(attribute)),
             lexeme(char(')')),
         ),
     )
     .parse(input)
 }
 
-fn float_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    let (input, (span, value)) = with_span(source, float_literal).parse(input)?;
+fn float_initializer(input: Input<'_>) -> PResult<'_, Initializer> {
+    let (input, (span, value)) = with_span(float_literal).parse(input)?;
     Ok((input, Initializer::Float { span, value }))
 }
 
-fn integer_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    alt((
-        map(with_span(source, hex_integer), |(span, value)| {
-            Initializer::UnsignedInteger { span, value }
-        }),
-        map(with_span(source, octal_integer), |(span, value)| {
-            Initializer::UnsignedInteger { span, value }
-        }),
-        map(with_span(source, binary_integer), |(span, value)| {
-            Initializer::UnsignedInteger { span, value }
-        }),
-        map(with_span(source, decimal_integer), |(span, value)| {
-            Initializer::Integer { span, value }
-        }),
-    ))
-    .parse(input)
+fn integer_initializer(input: Input<'_>) -> PResult<'_, Initializer> {
+    let (input, (span, (value, unsigned))) = with_span(integer_literal).parse(input)?;
+    let initializer = if unsigned {
+        Initializer::UnsignedInteger { span, value }
+    } else {
+        Initializer::Integer {
+            span,
+            value: (value).cast_signed(),
+        }
+    };
+    Ok((input, initializer))
 }
 
-fn symbol_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    let (input, (span, symbol)) = with_span(source, identifier).parse(input)?;
+fn symbol_initializer(input: Input<'_>) -> PResult<'_, Initializer> {
+    let (input, (span, symbol)) = with_span(identifier).parse(input)?;
     Ok((
         input,
         Initializer::Symbol {
@@ -126,18 +104,46 @@ fn symbol_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initia
     ))
 }
 
-fn generic_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    let (input, (span, (_, expr))) = with_span(
-        source,
-        pair(
-            tag("generic"),
-            delimited(
-                lexeme(char('(')),
-                lexeme(|input| expression(source, input)),
-                lexeme(char(')')),
-            ),
+fn initializer_depth(value: &Initializer) -> usize {
+    match value {
+        Initializer::Cast { expr, .. }
+        | Initializer::Generic { expr, .. }
+        | Initializer::Unary { expr, .. } => 1 + initializer_depth(expr),
+        Initializer::Masked { value, .. } => 1 + initializer_depth(value),
+        Initializer::List { values, .. } => values
+            .iter()
+            .map(initializer_depth)
+            .max()
+            .map_or(0, |depth| depth + 1),
+        Initializer::Binary { left, right, .. } => {
+            1 + initializer_depth(left).max(initializer_depth(right))
+        }
+        Initializer::Conditional {
+            condition,
+            then_expr,
+            else_expr,
+            ..
+        } => {
+            1 + initializer_depth(condition)
+                .max(initializer_depth(then_expr))
+                .max(initializer_depth(else_expr))
+        }
+        Initializer::Integer { .. }
+        | Initializer::UnsignedInteger { .. }
+        | Initializer::Float { .. }
+        | Initializer::Symbol { .. } => 0,
+    }
+}
+
+fn generic_initializer(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
+    let (input, (span, (_, expr))) = with_span(pair(
+        keyword("generic"),
+        delimited(
+            lexeme(char('(')),
+            lexeme(|input| expression(input, depth + 1)),
+            lexeme(char(')')),
         ),
-    )
+    ))
     .parse(input)?;
     Ok((
         input,
@@ -148,18 +154,15 @@ fn generic_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initi
     ))
 }
 
-fn masked_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    let (input, (span, (mask, value))) = with_span(
-        source,
-        pair(
-            alt((hex_integer, octal_integer, binary_integer)),
-            delimited(
-                lexeme(char('(')),
-                lexeme(|input| expression(source, input)),
-                lexeme(char(')')),
-            ),
+fn masked_initializer(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
+    let (input, (span, (mask, value))) = with_span(pair(
+        preceded(peek(tag_no_case("0x")), unsigned_literal),
+        delimited(
+            lexeme(char('(')),
+            lexeme(|input| expression(input, depth + 1)),
+            lexeme(char(')')),
         ),
-    )
+    ))
     .parse(input)?;
     Ok((
         input,
@@ -171,34 +174,33 @@ fn masked_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initia
     ))
 }
 
-fn initializer_list<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    let (input, (span, values)) = with_span(
-        source,
-        delimited(
-            lexeme(char('{')),
-            separated_list0(comma_sep, lexeme(|input| initializer(source, input))),
-            lexeme(char('}')),
+fn initializer_list(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
+    let (input, (span, values)) = with_span(delimited(
+        lexeme(char('{')),
+        separated_list0(
+            comma_sep,
+            lexeme(preceded(not(char('}')), |input| {
+                initializer(input, depth + 1)
+            })),
         ),
-    )
+        lexeme(char('}')),
+    ))
     .parse(input)?;
     Ok((input, Initializer::List { span, values }))
 }
 
-fn cast_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    let (input, (span, (ty, expr))) = with_span(
-        source,
-        pair(
-            delimited(
-                lexeme(char('(')),
-                alt((
-                    map(tag(".s64"), |_| InitializerCastType::S64),
-                    map(tag(".u64"), |_| InitializerCastType::U64),
-                )),
-                lexeme(char(')')),
-            ),
-            lexeme(|input| unary_expression(source, input)),
+fn cast_initializer(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
+    let (input, (span, (ty, expr))) = with_span(pair(
+        delimited(
+            lexeme(char('(')),
+            alt((
+                map(keyword(".s64"), |_| InitializerCastType::S64),
+                map(keyword(".u64"), |_| InitializerCastType::U64),
+            )),
+            lexeme(char(')')),
         ),
-    )
+        lexeme(|input| unary_expression(input, depth + 1)),
+    ))
     .parse(input)?;
     Ok((
         input,
@@ -210,30 +212,30 @@ fn cast_initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initiali
     ))
 }
 
-fn primary_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn primary_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     alt((
         delimited(
             lexeme(char('(')),
-            lexeme(|input| expression(source, input)),
+            lexeme(|input| expression(input, depth + 1)),
             lexeme(char(')')),
         ),
-        |input| generic_initializer(source, input),
-        |input| masked_initializer(source, input),
-        |input| float_initializer(source, input),
-        |input| integer_initializer(source, input),
-        |input| symbol_initializer(source, input),
+        |input| generic_initializer(input, depth),
+        |input| masked_initializer(input, depth),
+        float_initializer,
+        integer_initializer,
+        symbol_initializer,
     ))
     .parse(input)
 }
 
-fn unary_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn unary_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
+    depth::check(depth, input)?;
     alt((
-        |input| cast_initializer(source, input),
+        |input| cast_initializer(input, depth),
         map(
-            with_span(
-                source,
-                preceded(lexeme(char('+')), |input| unary_expression(source, input)),
-            ),
+            with_span(preceded(lexeme(char('+')), |input| {
+                unary_expression(input, depth + 1)
+            })),
             |(span, expr)| Initializer::Unary {
                 span,
                 op: InitializerUnaryOp::Plus,
@@ -241,10 +243,9 @@ fn unary_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initiali
             },
         ),
         map(
-            with_span(
-                source,
-                preceded(lexeme(char('-')), |input| unary_expression(source, input)),
-            ),
+            with_span(preceded(lexeme(char('-')), |input| {
+                unary_expression(input, depth + 1)
+            })),
             |(span, expr)| Initializer::Unary {
                 span,
                 op: InitializerUnaryOp::Minus,
@@ -252,10 +253,9 @@ fn unary_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initiali
             },
         ),
         map(
-            with_span(
-                source,
-                preceded(lexeme(char('!')), |input| unary_expression(source, input)),
-            ),
+            with_span(preceded(lexeme(char('!')), |input| {
+                unary_expression(input, depth + 1)
+            })),
             |(span, expr)| Initializer::Unary {
                 span,
                 op: InitializerUnaryOp::LogicalNot,
@@ -263,38 +263,41 @@ fn unary_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initiali
             },
         ),
         map(
-            with_span(
-                source,
-                preceded(lexeme(char('~')), |input| unary_expression(source, input)),
-            ),
+            with_span(preceded(lexeme(char('~')), |input| {
+                unary_expression(input, depth + 1)
+            })),
             |(span, expr)| Initializer::Unary {
                 span,
                 op: InitializerUnaryOp::BitwiseNot,
                 expr: Box::new(expr),
             },
         ),
-        |input| primary_expression(source, input),
+        |input| primary_expression(input, depth),
     ))
     .parse(input)
 }
 
 fn binary_expression<'a, F>(
-    source: &'a str,
-    mut input: &'a str,
+    mut input: Input<'a>,
+    depth: usize,
     next: F,
     operators: &[(&str, InitializerBinaryOp)],
 ) -> PResult<'a, Initializer>
 where
-    F: Copy + Fn(&'a str, &'a str) -> PResult<'a, Initializer>,
+    F: Copy + Fn(Input<'a>, usize) -> PResult<'a, Initializer>,
 {
-    let (next_input, _) = ws(input)?;
-    let (next_input, mut left) = next(source, next_input)?;
+    let (next_input, ()) = ws(input)?;
+    let (next_input, mut left) = next(next_input, depth)?;
     input = next_input;
 
     loop {
         let mut matched = None;
         for (token, op) in operators {
             if let Ok((after_op, _)) = lexeme(tag(*token)).parse(input) {
+                // Leave && and || for the lower-precedence logical expressions.
+                if matches!(*token, "&" | "|") && after_op.fragment().starts_with(*token) {
+                    continue;
+                }
                 matched = Some((after_op, *op));
                 break;
             }
@@ -304,9 +307,14 @@ where
             break;
         };
 
-        let (after_rhs, _) = ws(after_op)?;
-        let (after_rhs, right) = next(source, after_rhs)?;
-        let span = crate::ast::Span::new(left_span(&left), right_span(&right));
+        let (after_rhs, ()) = ws(after_op)?;
+        let (after_rhs, right) = next(after_rhs, depth)?;
+        let span = Span::new(left.span().start, right.span().end);
+        // Reject before wrapping so every partial tree stays safe to clone and drop.
+        depth::check(
+            depth + 1 + initializer_depth(&left).max(initializer_depth(&right)),
+            after_op,
+        )?;
         left = Initializer::Binary {
             span,
             op,
@@ -319,10 +327,10 @@ where
     Ok((input, left))
 }
 
-fn multiplicative_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn multiplicative_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         unary_expression,
         &[
             ("*", InitializerBinaryOp::Mul),
@@ -332,10 +340,10 @@ fn multiplicative_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a,
     )
 }
 
-fn additive_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn additive_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         multiplicative_expression,
         &[
             ("+", InitializerBinaryOp::Add),
@@ -344,10 +352,10 @@ fn additive_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initi
     )
 }
 
-fn shift_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn shift_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         additive_expression,
         &[
             ("<<", InitializerBinaryOp::Shl),
@@ -356,10 +364,10 @@ fn shift_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initiali
     )
 }
 
-fn relational_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn relational_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         shift_expression,
         &[
             ("<=", InitializerBinaryOp::Le),
@@ -370,10 +378,10 @@ fn relational_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Ini
     )
 }
 
-fn equality_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn equality_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         relational_expression,
         &[
             ("==", InitializerBinaryOp::Eq),
@@ -382,66 +390,75 @@ fn equality_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initi
     )
 }
 
-fn bitand_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn bitand_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         equality_expression,
         &[("&", InitializerBinaryOp::BitAnd)],
     )
 }
 
-fn bitxor_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn bitxor_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         bitand_expression,
         &[("^", InitializerBinaryOp::BitXor)],
     )
 }
 
-fn bitor_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn bitor_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         bitxor_expression,
         &[("|", InitializerBinaryOp::BitOr)],
     )
 }
 
-fn logical_and_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn logical_and_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         bitor_expression,
         &[("&&", InitializerBinaryOp::LogicalAnd)],
     )
 }
 
-fn logical_or_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn logical_or_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
     binary_expression(
-        source,
         input,
+        depth,
         logical_and_expression,
         &[("||", InitializerBinaryOp::LogicalOr)],
     )
 }
 
-fn conditional_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    let start = source.len() - input.len();
-    let (input, condition) = logical_or_expression(source, input)?;
+fn conditional_expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
+    depth::check(depth, input)?;
+    let start = input.location_offset();
+    let (input, condition) = logical_or_expression(input, depth)?;
     let (input, question) = opt(lexeme(char('?'))).parse(input)?;
     if question.is_none() {
         return Ok((input, condition));
     }
 
-    let (input, then_expr) = expression(source, input)?;
+    let (input, then_expr) = expression(input, depth + 1)?;
     let (input, _) = lexeme(char(':')).parse(input)?;
-    let (input, else_expr) = conditional_expression(source, input)?;
+    let (input, else_expr) = conditional_expression(input, depth + 1)?;
+    depth::check(
+        depth
+            + 1
+            + initializer_depth(&condition)
+                .max(initializer_depth(&then_expr))
+                .max(initializer_depth(&else_expr)),
+        input,
+    )?;
     Ok((
         input,
         Initializer::Conditional {
-            span: crate::ast::Span::new(start, source.len() - input.len()),
+            span: Span::new(start, input.location_offset()),
             condition: Box::new(condition),
             then_expr: Box::new(then_expr),
             else_expr: Box::new(else_expr),
@@ -449,71 +466,41 @@ fn conditional_expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, In
     ))
 }
 
-fn expression<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
-    conditional_expression(source, input)
+fn expression(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
+    depth::check(depth, input)?;
+    conditional_expression(input, depth)
 }
 
-fn initializer<'a>(source: &'a str, input: &'a str) -> PResult<'a, Initializer> {
+fn initializer(input: Input<'_>, depth: usize) -> PResult<'_, Initializer> {
+    depth::check(depth, input)?;
     alt((
-        |input| initializer_list(source, input),
-        |input| expression(source, input),
+        |input| initializer_list(input, depth),
+        |input| expression(input, depth),
     ))
     .parse(input)
 }
 
-fn array_bounds(input: &str) -> PResult<'_, Vec<Option<u32>>> {
+fn array_bounds(input: Input<'_>) -> PResult<'_, Vec<Option<u32>>> {
     many0(delimited(
         lexeme(char('[')),
-        opt(lexeme(parse_u32)),
+        opt(lexeme(decimal)),
         lexeme(char(']')),
     ))
     .parse(input)
 }
 
-fn left_span(initializer: &Initializer) -> usize {
-    match initializer {
-        Initializer::Integer { span, .. }
-        | Initializer::UnsignedInteger { span, .. }
-        | Initializer::Float { span, .. }
-        | Initializer::Symbol { span, .. }
-        | Initializer::Cast { span, .. }
-        | Initializer::Generic { span, .. }
-        | Initializer::Masked { span, .. }
-        | Initializer::List { span, .. }
-        | Initializer::Unary { span, .. }
-        | Initializer::Binary { span, .. }
-        | Initializer::Conditional { span, .. } => span.start,
-    }
-}
-
-fn right_span(initializer: &Initializer) -> usize {
-    match initializer {
-        Initializer::Integer { span, .. }
-        | Initializer::UnsignedInteger { span, .. }
-        | Initializer::Float { span, .. }
-        | Initializer::Symbol { span, .. }
-        | Initializer::Cast { span, .. }
-        | Initializer::Generic { span, .. }
-        | Initializer::Masked { span, .. }
-        | Initializer::List { span, .. }
-        | Initializer::Unary { span, .. }
-        | Initializer::Binary { span, .. }
-        | Initializer::Conditional { span, .. } => span.end,
-    }
-}
-
-pub fn parameter<'a>(source: &'a str, input: &'a str) -> PResult<'a, Parameter> {
-    let (input, (span, (space, align, ty, ptr, name, bounds))) = with_span(
-        source,
-        (
-            opt(lexeme(state_space)),
-            opt(lexeme(alignment)),
-            lexeme(scalar_type),
-            opt(lexeme(tag(".ptr"))),
-            lexeme(alt((identifier, value("_", char('_'))))),
-            array_bounds,
-        ),
-    )
+pub fn parameter(input: Input<'_>) -> PResult<'_, Parameter> {
+    let (input, (span, (space, align, ty, ptr, name, bounds))) = with_span((
+        opt(lexeme(state_space)),
+        opt(lexeme(alignment)),
+        lexeme(scalar_type),
+        opt(preceded(
+            lexeme(keyword(".ptr")),
+            (opt(lexeme(state_space)), opt(lexeme(alignment))),
+        )),
+        lexeme(alt((identifier, value("_", char('_'))))),
+        array_bounds,
+    ))
     .parse(input)?;
 
     Ok((
@@ -525,46 +512,48 @@ pub fn parameter<'a>(source: &'a str, input: &'a str) -> PResult<'a, Parameter> 
             state_space: space,
             alignment: align,
             array_bounds: bounds,
-            ptr: ptr.is_some(),
+            pointer: ptr.map(|(state_space, alignment)| PointerAnnotation {
+                state_space,
+                alignment,
+            }),
         },
     ))
 }
 
-pub fn param_list<'a>(source: &'a str, input: &'a str) -> PResult<'a, Vec<Parameter>> {
+pub fn param_list(input: Input<'_>) -> PResult<'_, Vec<Parameter>> {
     delimited(
         lexeme(char('(')),
-        separated_list0(comma_sep, lexeme(|input| parameter(source, input))),
+        separated_list0(comma_sep, lexeme(parameter)),
         lexeme(char(')')),
     )
     .parse(input)
 }
 
-pub fn variable_decl<'a>(source: &'a str, input: &'a str) -> PResult<'a, VariableDecl> {
-    let (input, (span, (linkage, space, attributes, align, vec, ty, name, count, bounds, init, _))) =
-        with_span(
-            source,
-            (
-                opt(lexeme(linking_directive)),
-                opt(lexeme(state_space)),
-                opt(lexeme(|input| attributes(source, input))),
-                opt(lexeme(alignment)),
-                opt(lexeme(vector_size)),
-                lexeme(scalar_type),
-                lexeme(identifier),
-                opt(delimited(
-                    lexeme(char('<')),
-                    lexeme(parse_u32),
-                    lexeme(char('>')),
-                )),
-                array_bounds,
-                opt(preceded(
-                    lexeme(char('=')),
-                    lexeme(|input| initializer(source, input)),
-                )),
-                semicolon,
-            ),
-        )
-        .parse(input)?;
+pub fn variable_decl(input: Input<'_>, depth: usize) -> PResult<'_, VariableDecl> {
+    let (
+        input,
+        (span, (linkage, space, attributes, align, vec, ty, name, count, bounds, init, ())),
+    ) = with_span((
+        opt(lexeme(linking_directive)),
+        opt(lexeme(state_space)),
+        opt(lexeme(attributes)),
+        opt(lexeme(alignment)),
+        opt(lexeme(vector_size)),
+        lexeme(scalar_type),
+        lexeme(identifier),
+        opt(delimited(
+            lexeme(char('<')),
+            lexeme(decimal),
+            lexeme(char('>')),
+        )),
+        array_bounds,
+        opt(preceded(
+            lexeme(char('=')),
+            lexeme(|input| initializer(input, depth)),
+        )),
+        semicolon,
+    ))
+    .parse(input)?;
 
     Ok((
         input,
@@ -584,88 +573,74 @@ pub fn variable_decl<'a>(source: &'a str, input: &'a str) -> PResult<'a, Variabl
     ))
 }
 
-pub fn function_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, FunctionDirective> {
+pub fn function_directive(input: Input<'_>) -> PResult<'_, FunctionDirective> {
     alt((
-        map(with_span(source, tag(".noreturn")), |(span, _)| {
+        map(with_span(keyword(".noreturn")), |(span, _)| {
             FunctionDirective::NoReturn { span }
         }),
         map(
-            with_span(source, preceded(tag(".maxnreg"), lexeme(parse_u32))),
+            with_span(preceded(keyword(".maxnreg"), lexeme(decimal))),
             |(span, value)| FunctionDirective::MaxNReg { span, value },
         ),
         map(
-            with_span(
-                source,
-                preceded(
-                    tag(".maxntid"),
-                    separated_list1(comma_sep, lexeme(parse_u32)),
-                ),
-            ),
+            with_span(preceded(
+                keyword(".maxntid"),
+                separated_list1(comma_sep, lexeme(decimal)),
+            )),
             |(span, values)| FunctionDirective::MaxNTid { span, values },
         ),
         map(
-            with_span(
-                source,
-                preceded(
-                    tag(".reqntid"),
-                    separated_list1(comma_sep, lexeme(parse_u32)),
-                ),
-            ),
+            with_span(preceded(
+                keyword(".reqntid"),
+                separated_list1(comma_sep, lexeme(decimal)),
+            )),
             |(span, values)| FunctionDirective::ReqNTid { span, values },
         ),
         map(
-            with_span(source, preceded(tag(".minnctapersm"), lexeme(parse_u32))),
+            with_span(preceded(keyword(".minnctapersm"), lexeme(decimal))),
             |(span, value)| FunctionDirective::MinNCtaPerSm { span, value },
         ),
         map(
-            with_span(source, preceded(tag(".abi_preserve"), lexeme(parse_u32))),
+            with_span(preceded(keyword(".abi_preserve"), lexeme(decimal))),
             |(span, value)| FunctionDirective::AbiPreserve { span, value },
         ),
         map(
-            with_span(
-                source,
-                preceded(tag(".abi_preserve_control"), lexeme(parse_u32)),
-            ),
+            with_span(preceded(keyword(".abi_preserve_control"), lexeme(decimal))),
             |(span, value)| FunctionDirective::AbiPreserveControl { span, value },
         ),
         map(
-            with_span(
-                source,
-                preceded(
-                    tag(".pragma"),
-                    terminated(lexeme(string_literal), opt(semicolon)),
-                ),
-            ),
+            with_span(preceded(
+                keyword(".pragma"),
+                terminated(lexeme(string_literal), opt(semicolon)),
+            )),
             |(span, value)| FunctionDirective::Pragma { span, value },
         ),
     ))
     .parse(input)
 }
 
-fn pragma<'a>(source: &'a str, input: &'a str) -> PResult<'a, TopLevelItem> {
-    let (input, (span, (_, value, _))) = with_span(
-        source,
-        (lexeme(tag(".pragma")), lexeme(string_literal), semicolon),
-    )
+fn pragma(input: Input<'_>) -> PResult<'_, TopLevelItem> {
+    let (input, (span, (_, value, ()))) = with_span((
+        lexeme(keyword(".pragma")),
+        lexeme(string_literal),
+        semicolon,
+    ))
     .parse(input)?;
     Ok((input, TopLevelItem::Pragma { span, value }))
 }
 
-fn file_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, TopLevelItem> {
-    let (input, (span, (_, _, index, name, metadata, _))) = with_span(
-        source,
-        (
-            lexeme(tag(".file")),
-            ws,
-            parse_u32,
-            lexeme(string_literal),
-            opt(preceded(
-                comma_sep,
-                pair(lexeme(parse_u64), preceded(comma_sep, lexeme(parse_u64))),
-            )),
-            opt(semicolon),
-        ),
-    )
+fn file_directive(input: Input<'_>) -> PResult<'_, TopLevelItem> {
+    let (input, (span, (_, (), index, name, metadata, _))) = with_span((
+        lexeme(keyword(".file")),
+        ws,
+        decimal,
+        lexeme(string_literal),
+        opt(preceded(
+            comma_sep,
+            pair(lexeme(decimal), preceded(comma_sep, lexeme(decimal))),
+        )),
+        opt(semicolon),
+    ))
     .parse(input)?;
 
     Ok((
@@ -674,23 +649,20 @@ fn file_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, TopLevelIt
             span,
             index,
             name,
-            timestamp: Some(metadata.map(|(timestamp, _)| timestamp).unwrap_or(0)),
-            file_size: Some(metadata.map(|(_, file_size)| file_size).unwrap_or(0)),
+            timestamp: Some(metadata.map_or(0, |(timestamp, _)| timestamp)),
+            file_size: Some(metadata.map_or(0, |(_, file_size)| file_size)),
         },
     ))
 }
 
-fn alias_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, TopLevelItem> {
-    let (input, (span, (_, alias, _, target, _))) = with_span(
-        source,
-        (
-            lexeme(tag(".alias")),
-            lexeme(identifier),
-            comma_sep,
-            lexeme(identifier),
-            semicolon,
-        ),
-    )
+fn alias_directive(input: Input<'_>) -> PResult<'_, TopLevelItem> {
+    let (input, (span, (_, alias, (), target, ()))) = with_span((
+        lexeme(keyword(".alias")),
+        lexeme(identifier),
+        comma_sep,
+        lexeme(identifier),
+        semicolon,
+    ))
     .parse(input)?;
 
     Ok((
@@ -703,32 +675,25 @@ fn alias_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, TopLevelI
     ))
 }
 
-fn section_width(input: &str) -> PResult<'_, SectionDataWidth> {
+fn section_width(input: Input<'_>) -> PResult<'_, SectionDataWidth> {
     alt((
-        value(SectionDataWidth::B8, tag(".b8")),
-        value(SectionDataWidth::B16, tag(".b16")),
-        value(SectionDataWidth::B32, tag(".b32")),
-        value(SectionDataWidth::B64, tag(".b64")),
+        value(SectionDataWidth::B8, keyword(".b8")),
+        value(SectionDataWidth::B16, keyword(".b16")),
+        value(SectionDataWidth::B32, keyword(".b32")),
+        value(SectionDataWidth::B64, keyword(".b64")),
     ))
     .parse(input)
 }
 
-fn section_value<'a>(source: &'a str, input: &'a str) -> PResult<'a, SectionValue> {
-    let label_value = map(
-        with_span(source, identifier),
-        |(span, label): (crate::ast::Span, &str)| SectionValue::Label {
+fn section_value(input: Input<'_>) -> PResult<'_, SectionValue> {
+    let label_value = map(with_span(identifier), |(span, label): (Span, &str)| {
+        SectionValue::Label {
             span,
             name: label.to_string(),
-        },
-    );
+        }
+    });
     let label_offset = map(
-        with_span(
-            source,
-            pair(
-                identifier,
-                preceded(lexeme(char('+')), lexeme(decimal_integer)),
-            ),
-        ),
+        with_span(pair(identifier, lexeme(displacement))),
         |(span, (label, offset))| SectionValue::LabelOffset {
             span,
             label: label.to_string(),
@@ -736,10 +701,10 @@ fn section_value<'a>(source: &'a str, input: &'a str) -> PResult<'a, SectionValu
         },
     );
     let label_difference = map(
-        with_span(
-            source,
-            pair(identifier, preceded(lexeme(char('-')), lexeme(identifier))),
-        ),
+        with_span(pair(
+            identifier,
+            preceded(lexeme(char('-')), lexeme(identifier)),
+        )),
         |(span, (left, right))| SectionValue::LabelDifference {
             span,
             left: left.to_string(),
@@ -748,52 +713,46 @@ fn section_value<'a>(source: &'a str, input: &'a str) -> PResult<'a, SectionValu
     );
 
     alt((
-        map(with_span(source, hex_integer), |(span, value)| {
-            SectionValue::UnsignedInteger { span, value }
-        }),
-        map(with_span(source, octal_integer), |(span, value)| {
-            SectionValue::UnsignedInteger { span, value }
-        }),
-        map(with_span(source, binary_integer), |(span, value)| {
-            SectionValue::UnsignedInteger { span, value }
-        }),
-        map(with_span(source, decimal_integer), |(span, value)| {
-            SectionValue::Integer { span, value }
+        map(with_span(integer_literal), |(span, (value, unsigned))| {
+            if unsigned {
+                SectionValue::UnsignedInteger { span, value }
+            } else {
+                SectionValue::Integer {
+                    span,
+                    value: value.cast_signed(),
+                }
+            }
         }),
         label_difference,
         label_offset,
         label_value,
-        map(
-            with_span(source, dotted_symbol),
-            |(span, label): (crate::ast::Span, &str)| SectionValue::Label {
+        map(with_span(dotted_symbol), |(span, label): (Span, &str)| {
+            SectionValue::Label {
                 span,
                 name: label.to_string(),
-            },
-        ),
+            }
+        }),
     ))
     .parse(input)
 }
 
-fn section_line<'a>(source: &'a str, input: &'a str) -> PResult<'a, SectionLine> {
+fn section_line(input: Input<'_>) -> PResult<'_, SectionLine> {
     alt((
         map(
-            with_span(source, terminated(lexeme(identifier), lexeme(char(':')))),
+            with_span(terminated(lexeme(identifier), lexeme(char(':')))),
             |(span, label)| SectionLine::Label {
                 span,
                 name: label.to_string(),
             },
         ),
         map(
-            with_span(
-                source,
-                pair(
-                    lexeme(section_width),
-                    terminated(
-                        separated_list1(comma_sep, lexeme(|input| section_value(source, input))),
-                        opt(semicolon),
-                    ),
+            with_span(pair(
+                lexeme(section_width),
+                terminated(
+                    separated_list1(comma_sep, lexeme(section_value)),
+                    opt(semicolon),
                 ),
-            ),
+            )),
             |(span, (width, values))| SectionLine::Data {
                 span,
                 width,
@@ -804,19 +763,16 @@ fn section_line<'a>(source: &'a str, input: &'a str) -> PResult<'a, SectionLine>
     .parse(input)
 }
 
-fn section_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, TopLevelItem> {
-    let (input, (span, (_, name, lines))) = with_span(
-        source,
-        (
-            lexeme(tag(".section")),
-            lexeme(dotted_symbol),
-            delimited(
-                lexeme(char('{')),
-                many0(lexeme(|input| section_line(source, input))),
-                lexeme(char('}')),
-            ),
+fn section_directive(input: Input<'_>) -> PResult<'_, TopLevelItem> {
+    let (input, (span, (_, name, lines))) = with_span((
+        lexeme(keyword(".section")),
+        lexeme(dotted_symbol),
+        delimited(
+            lexeme(char('{')),
+            many0(lexeme(section_line)),
+            lexeme(char('}')),
         ),
-    )
+    ))
     .parse(input)?;
 
     Ok((
@@ -829,93 +785,77 @@ fn section_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, TopLeve
     ))
 }
 
-fn label_pattern<'a>(source: &'a str, input: &'a str) -> PResult<'a, LabelPattern> {
-    let (input, (span, (name, count))) = with_span(
-        source,
-        pair(
-            identifier,
-            opt(delimited(
-                lexeme(char('<')),
-                lexeme(parse_u32),
-                lexeme(char('>')),
-            )),
-        ),
-    )
+fn label_pattern(input: Input<'_>) -> PResult<'_, LabelPattern> {
+    let (input, (span, (name, count))) = with_span(pair(
+        identifier,
+        opt(delimited(
+            lexeme(char('<')),
+            lexeme(decimal),
+            lexeme(char('>')),
+        )),
+    ))
     .parse(input)?;
 
-    let pattern = match count {
-        Some(count) => LabelPattern::Range {
+    let pattern = count.map_or_else(
+        || LabelPattern::Name {
+            span,
+            name: name.to_string(),
+        },
+        |count| LabelPattern::Range {
             span,
             prefix: name.to_string(),
             count,
         },
-        None => LabelPattern::Name {
-            span,
-            name: name.to_string(),
-        },
-    };
+    );
     Ok((input, pattern))
 }
 
-fn loc_function_name<'a>(source: &'a str, input: &'a str) -> PResult<'a, LocFunctionName> {
+fn loc_function_name(input: Input<'_>) -> PResult<'_, LocFunctionName> {
     map(
-        with_span(
-            source,
-            pair(
-                dotted_symbol,
-                opt(preceded(lexeme(char('+')), lexeme(decimal_integer))),
-            ),
-        ),
-        |(span, (label, offset))| match offset {
-            Some(offset) => LocFunctionName::LabelOffset {
-                span,
-                label: label.to_string(),
-                offset,
-            },
-            None => LocFunctionName::Label {
-                span,
-                label: label.to_string(),
-            },
+        with_span(pair(dotted_symbol, opt(lexeme(displacement)))),
+        |(span, (label, offset))| {
+            offset.map_or_else(
+                || LocFunctionName::Label {
+                    span,
+                    label: label.to_string(),
+                },
+                |offset| LocFunctionName::LabelOffset {
+                    span,
+                    label: label.to_string(),
+                    offset,
+                },
+            )
         },
     )
     .parse(input)
 }
 
-fn loc_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, LocDirective> {
-    let (input, (span, (_, file, line, column, function_name, inlined_at))) = with_span(
-        source,
-        (
-            tag(".loc"),
-            lexeme(parse_u32),
-            lexeme(parse_u32),
-            lexeme(parse_u32),
-            opt(preceded(
-                lexeme(char(',')),
-                preceded(
-                    lexeme(tag("function_name")),
-                    lexeme(|input| loc_function_name(source, input)),
+fn loc_directive(input: Input<'_>) -> PResult<'_, LocDirective> {
+    let (input, (span, (_, file, line, column, function_name, inlined_at))) = with_span((
+        keyword(".loc"),
+        lexeme(decimal),
+        lexeme(decimal),
+        lexeme(decimal),
+        opt(preceded(
+            lexeme(char(',')),
+            preceded(lexeme(keyword("function_name")), lexeme(loc_function_name)),
+        )),
+        opt(preceded(
+            lexeme(char(',')),
+            preceded(
+                lexeme(keyword("inlined_at")),
+                map(
+                    with_span((lexeme(decimal), lexeme(decimal), lexeme(decimal))),
+                    |(span, (file, line, column))| LocInlineSite {
+                        span,
+                        file,
+                        line,
+                        column,
+                    },
                 ),
-            )),
-            opt(preceded(
-                lexeme(char(',')),
-                preceded(
-                    lexeme(tag("inlined_at")),
-                    map(
-                        with_span(
-                            source,
-                            (lexeme(parse_u32), lexeme(parse_u32), lexeme(parse_u32)),
-                        ),
-                        |(span, (file, line, column))| LocInlineSite {
-                            span,
-                            file,
-                            line,
-                            column,
-                        },
-                    ),
-                ),
-            )),
-        ),
-    )
+            ),
+        )),
+    ))
     .parse(input)?;
 
     Ok((
@@ -931,64 +871,46 @@ fn loc_directive<'a>(source: &'a str, input: &'a str) -> PResult<'a, LocDirectiv
     ))
 }
 
-pub fn directive_statement<'a>(source: &'a str, input: &'a str) -> PResult<'a, DirectiveStatement> {
+pub fn directive_statement(input: Input<'_>) -> PResult<'_, DirectiveStatement> {
     alt((
         map(
-            with_span(
-                source,
-                preceded(
-                    tag(".pragma"),
-                    terminated(lexeme(string_literal), semicolon),
-                ),
-            ),
+            with_span(preceded(
+                keyword(".pragma"),
+                terminated(lexeme(string_literal), semicolon),
+            )),
             |(span, value)| DirectiveStatement::Pragma { span, value },
         ),
+        map(loc_directive, DirectiveStatement::Loc),
         map(
-            |input| loc_directive(source, input),
-            DirectiveStatement::Loc,
-        ),
-        map(
-            with_span(
-                source,
-                preceded(
-                    tag(".branchtargets"),
-                    terminated(
-                        separated_list1(comma_sep, lexeme(|input| label_pattern(source, input))),
-                        semicolon,
-                    ),
-                ),
-            ),
+            with_span(preceded(
+                keyword(".branchtargets"),
+                terminated(separated_list1(comma_sep, lexeme(label_pattern)), semicolon),
+            )),
             |(span, labels)| DirectiveStatement::BranchTargets { span, labels },
         ),
         map(
-            with_span(
-                source,
-                preceded(
-                    tag(".calltargets"),
-                    terminated(
-                        separated_list1(comma_sep, lexeme(map(identifier, str::to_string))),
-                        semicolon,
-                    ),
+            with_span(preceded(
+                keyword(".calltargets"),
+                terminated(
+                    separated_list1(comma_sep, lexeme(map(identifier, str::to_string))),
+                    semicolon,
                 ),
-            ),
+            )),
             |(span, targets)| DirectiveStatement::CallTargets { span, targets },
         ),
         map(
-            with_span(
-                source,
-                preceded(
-                    tag(".callprototype"),
-                    terminated(
-                        (
-                            opt(|input| param_list(source, input)),
-                            lexeme(alt((identifier, value("_", char('_'))))),
-                            opt(|input| param_list(source, input)),
-                            many0(lexeme(|input| function_directive(source, input))),
-                        ),
-                        semicolon,
+            with_span(preceded(
+                keyword(".callprototype"),
+                terminated(
+                    (
+                        opt(param_list),
+                        lexeme(alt((identifier, value("_", char('_'))))),
+                        opt(param_list),
+                        many0(lexeme(function_directive)),
                     ),
+                    semicolon,
                 ),
-            ),
+            )),
             |(span, (return_params, placeholder, params, directives))| {
                 DirectiveStatement::CallPrototype {
                     span,
@@ -1006,14 +928,14 @@ pub fn directive_statement<'a>(source: &'a str, input: &'a str) -> PResult<'a, D
     .parse(input)
 }
 
-pub fn top_level_item<'a>(source: &'a str, input: &'a str) -> PResult<'a, TopLevelItem> {
+pub fn top_level_item(input: Input<'_>) -> PResult<'_, TopLevelItem> {
     alt((
-        map(|input| function(source, input), TopLevelItem::Function),
-        |input| pragma(source, input),
-        |input| file_directive(source, input),
-        |input| alias_directive(source, input),
-        |input| section_directive(source, input),
-        map(|input| variable_decl(source, input), TopLevelItem::Variable),
+        map(function, TopLevelItem::Function),
+        pragma,
+        file_directive,
+        alias_directive,
+        section_directive,
+        map(|input| variable_decl(input, 0), TopLevelItem::Variable),
     ))
     .parse(input)
 }

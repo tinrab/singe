@@ -1,0 +1,52 @@
+// Count inputs with warp reduction and sum binary32 weights with global atomics.
+.version 9.4
+.target sm_80
+.address_size 64
+.global .u32 total_count = 0;
+.global .f32 total_weight = 0f00000000;
+
+.visible .entry weighted_reduce(.param .u64 input, .param .u32 count) {
+    .reg .u32 index;
+    .reg .u32 block;
+    .reg .u32 block_size;
+    .reg .u32 thread;
+    .reg .u32 lane;
+    .reg .u32 bound;
+    .reg .u32 first;
+    .reg .u32 members;
+    .reg .u32 remaining;
+    .reg .u32 mask;
+    .reg .u32 population;
+    .reg .u64 address;
+    .reg .u64 offset;
+    .reg .f32 weight;
+    .reg .f32 previous;
+    .reg .pred active;
+    ld.param.u32 bound, [count];
+    mov.u32 block, %ctaid.x;
+    mov.u32 block_size, %ntid.x;
+    mov.u32 thread, %tid.x;
+    mov.u32 lane, %laneid;
+    mad.lo.u32 index, block, block_size, thread;
+    setp.ge.u32 active, index, bound;
+    @active ret;
+
+    sub.u32 first, index, lane;
+    sub.u32 members, bound, first;
+    sub.u32 first, thread, lane;
+    sub.u32 remaining, block_size, first;
+    min.u32 members, members, remaining;
+    min.u32 members, members, 32;
+    sub.u32 remaining, 32, members;
+    shr.u32 mask, 0xffffffff, remaining;
+    redux.sync.add.u32 population, 1, mask;
+    setp.eq.u32 active, lane, 0;
+    @active red.global.add.u32 [total_count], population;
+
+    ld.param.u64 address, [input];
+    mul.wide.u32 offset, index, 4;
+    add.u64 address, address, offset;
+    ld.global.f32 weight, [address];
+    atom.global.add.f32 previous, [total_weight], weight;
+    ret;
+}

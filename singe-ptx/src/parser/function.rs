@@ -1,102 +1,102 @@
 use nom::{
     Parser,
     branch::alt,
-    bytes::complete::tag,
     character::complete::char,
-    combinator::{map, opt, peek},
+    combinator::{cut, map, opt, peek},
     multi::many0,
-    sequence::delimited,
+    sequence::{preceded, terminated},
 };
 
 use crate::{
-    ast::{Function, Statement},
+    ast::{Function, Span, Statement},
     parser::{
-        common::{PResult, identifier, lexeme, linking_directive, semicolon},
+        common,
+        common::{Input, PResult, identifier, keyword, lexeme, linking_directive, semicolon},
+        depth, directive,
         directive::{attributes, directive_statement, function_directive, param_list},
         instruction::instruction,
-        offset,
     },
 };
 
-fn label<'a>(source: &'a str, input: &'a str) -> PResult<'a, Statement> {
-    let start = offset(source, input);
+fn label(input: Input<'_>) -> PResult<'_, Statement> {
+    let start = input.location_offset();
     let (input, name) = lexeme(identifier).parse(input)?;
     let (input, _) = lexeme(char(':')).parse(input)?;
     Ok((
         input,
         Statement::Label {
-            span: crate::ast::Span::new(start, offset(source, input)),
+            span: Span::new(start, input.location_offset()),
             name: name.to_string(),
         },
     ))
 }
 
-fn block<'a>(source: &'a str, input: &'a str) -> PResult<'a, Statement> {
-    let start = offset(source, input);
-    let (input, statements) = body(source, input)?;
+fn block(input: Input<'_>, depth: usize) -> PResult<'_, Statement> {
+    let start = input.location_offset();
+    peek(char('{')).parse(input)?;
+    let (input, statements) = body(input, depth + 1)?;
     Ok((
         input,
         Statement::Block {
-            span: crate::ast::Span::new(start, offset(source, input)),
+            span: Span::new(start, input.location_offset()),
             statements,
         },
     ))
 }
 
-fn statement<'a>(source: &'a str, input: &'a str) -> PResult<'a, Statement> {
+fn statement(input: Input<'_>, depth: usize) -> PResult<'_, Statement> {
     alt((
-        |input| block(source, input),
-        |input| label(source, input),
+        |input| block(input, depth),
+        label,
         map(
-            |input| super::directive::variable_decl(source, input),
+            |input| directive::variable_decl(input, depth),
             Statement::Variable,
         ),
-        map(
-            |input| directive_statement(source, input),
-            Statement::Directive,
-        ),
-        map(|input| instruction(source, input), Statement::Instruction),
+        map(directive_statement, Statement::Directive),
+        map(|input| instruction(input, depth), Statement::Instruction),
     ))
     .parse(input)
 }
 
-fn body<'a>(source: &'a str, input: &'a str) -> PResult<'a, Vec<Statement>> {
-    delimited(
+fn body(input: Input<'_>, depth: usize) -> PResult<'_, Vec<Statement>> {
+    depth::check(depth, input)?;
+    preceded(
         lexeme(char('{')),
-        many0(lexeme(|input| statement(source, input))),
-        lexeme(char('}')),
+        cut(terminated(
+            many0(lexeme(|input| statement(input, depth))),
+            lexeme(char('}')),
+        )),
     )
     .parse(input)
 }
 
-fn has_return_param_list(input: &str) -> PResult<'_, ()> {
+fn has_return_param_list(input: Input<'_>) -> PResult<'_, ()> {
     let (input, _) = lexeme(char('(')).parse(input)?;
-    let (input, _) = lexeme(alt((tag(".param"), tag(".reg")))).parse(input)?;
+    let (input, _) = lexeme(alt((keyword(".param"), keyword(".reg")))).parse(input)?;
     Ok((input, ()))
 }
 
-pub fn function<'a>(source: &'a str, input: &'a str) -> PResult<'a, Function> {
-    let (input, _) = super::common::ws(input)?;
-    let start = offset(source, input);
+pub fn function(input: Input<'_>) -> PResult<'_, Function> {
+    let (input, ()) = common::ws(input)?;
+    let start = input.location_offset();
     let (input, linkage) = opt(lexeme(linking_directive)).parse(input)?;
-    let (input, kind) = lexeme(alt((tag(".entry"), tag(".func")))).parse(input)?;
-    let entry = kind == ".entry";
-    let (input, attributes) = opt(lexeme(|input| attributes(source, input))).parse(input)?;
+    let (input, kind) = lexeme(alt((keyword(".entry"), keyword(".func")))).parse(input)?;
+    let entry = *kind.fragment() == ".entry";
+    let (input, attributes) = opt(lexeme(attributes)).parse(input)?;
 
     let (input, return_params) = if !entry && peek(has_return_param_list).parse(input).is_ok() {
-        map(|input| param_list(source, input), Some).parse(input)?
+        map(param_list, Some).parse(input)?
     } else {
         (input, None)
     };
 
     let (input, name) = lexeme(identifier).parse(input)?;
-    let (input, params) = opt(|input| param_list(source, input)).parse(input)?;
-    let (input, directives) =
-        many0(lexeme(|input| function_directive(source, input))).parse(input)?;
-    let (input, fn_body) = opt(|input| body(source, input)).parse(input)?;
+    let (input, params) = opt(param_list).parse(input)?;
+    let (input, directives) = many0(lexeme(function_directive)).parse(input)?;
+    let (input, fn_body) = opt(|input| body(input, 0)).parse(input)?;
 
     let input = if fn_body.is_none() {
-        let (input, _) = semicolon(input)?;
+        let (input, ()) = semicolon(input)?;
         input
     } else {
         input
@@ -105,7 +105,7 @@ pub fn function<'a>(source: &'a str, input: &'a str) -> PResult<'a, Function> {
     Ok((
         input,
         Function {
-            span: crate::ast::Span::new(start, offset(source, input)),
+            span: Span::new(start, input.location_offset()),
             linkage,
             entry,
             name: name.to_string(),

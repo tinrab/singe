@@ -1,14 +1,18 @@
-//! CUDA PTX parser, AST, and generated instruction metadata utilities.
+//! PTX parsing, validation, and a CPU emulator for `sm_80` kernels.
 //!
-//! This crate parses PTX assembly into a Rust AST and exposes generated metadata
-//! for known PTX instructions.
+//! [`parser::parse_module`] builds an owned [`ast`] that keeps the source byte span of
+//! every node. [`emulator::ParsedModule::compile`] checks that a kernel can execute, and an
+//! [`emulator::Emulator`] runs it. Emulator commands return submissions that can be waited
+//! on or awaited.
 //!
 //! # Example
 //!
 //! ```
+//! use singe_ptx::emulator::ParsedModule;
+//!
 //! let ptx = r#"
-//! .version 9.1
-//! .target sm_90
+//! .version 9.4
+//! .target sm_80
 //! .address_size 64
 //!
 //! .visible .entry add(.param .u64 data) {
@@ -16,16 +20,16 @@
 //! }
 //! "#;
 //!
-//! let module = singe_ptx::parser::parse_module(ptx)?;
-//! assert_eq!(module.version.major, 9);
-//! assert_eq!(module.items.len(), 1);
-//! # Ok::<(), singe_ptx::error::ParseError>(())
+//! let parsed = ParsedModule::parse(ptx)?;
+//! let kernel = parsed.compile("add")?;
+//! assert_eq!(kernel.parameters()[0].storage().byte_len(), 8);
+//! kernel.launch_requirements().validate_block([128, 1, 1])?;
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+/// Owned PTX syntax tree. Every node records its source byte range.
 pub mod ast;
-pub mod error;
+pub mod diagnostic;
+pub mod emulator;
+/// PTX parser producing the [`ast`] syntax tree.
 pub mod parser;
-
-mod generated;
-
-pub use generated::instruction_set::*;

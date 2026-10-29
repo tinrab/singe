@@ -1,0 +1,30 @@
+// Handwritten sm_80 acceptance kernel. A rows and B columns contain packed words.
+.version 9.3
+.target sm_80
+.address_size 64
+.entry int8_matmul(.param .u64 input_a,.param .u64 input_b,.param .u64 output,
+                  .param .u32 rows,.param .u32 columns,.param .u32 words) {
+ .reg .u32 index; .reg .u32 thread_id; .reg .u32 m; .reg .u32 n; .reg .u32 k; .reg .u32 row; .reg .u32 column;
+ .reg .u32 count; .reg .u32 position; .reg .u32 a_index; .reg .u32 b_index;
+ .reg .b32 a; .reg .b32 b; .reg .s32 sum;
+ .reg .b64 a_ptr; .reg .b64 b_ptr; .reg .b64 out_ptr; .reg .b64 offset;
+ .reg .pred p;
+ mov.u32 thread_id,%tid.x; mov.u32 index,%ctaid.x; mad.lo.u32 index,index,128,thread_id;
+ ld.param.u32 m,[rows]; ld.param.u32 n,[columns]; ld.param.u32 k,[words];
+ mul.lo.u32 count,m,n; setp.ge.u32 p,index,count; @p ret;
+ div.u32 row,index,n; rem.u32 column,index,n;
+ mul.lo.u32 a_index,row,k; mul.lo.u32 b_index,column,k;
+ ld.param.u64 a_ptr,[input_a]; ld.param.u64 b_ptr,[input_b]; ld.param.u64 out_ptr,[output];
+ mul.wide.u32 offset,a_index,4; add.u64 a_ptr,a_ptr,offset;
+ mul.wide.u32 offset,b_index,4; add.u64 b_ptr,b_ptr,offset;
+ mov.s32 sum,0; mov.u32 position,0;
+ loop:
+ setp.ge.u32 p,position,k; @p bra done;
+ ld.global.b32 a,[a_ptr]; ld.global.b32 b,[b_ptr];
+ dp4a.s32.u32 sum,a,b,sum;
+ add.u64 a_ptr,a_ptr,4; add.u64 b_ptr,b_ptr,4;
+ add.u32 position,position,1; bra loop;
+ done:
+ mul.wide.u32 offset,index,4; add.u64 out_ptr,out_ptr,offset;
+ st.global.s32 [out_ptr],sum; ret;
+}

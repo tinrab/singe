@@ -1,0 +1,65 @@
+// Handwritten sm_80 scalar acceptance kernels. No CUDA tools are required.
+.version 9.3
+.target sm_80
+.address_size 64
+.entry vector_add_f64(.param .u64 input_a, .param .u64 input_b, .param .u64 output, .param .u32 n) {
+ .reg .u32 i; .reg .u32 thread_id; .reg .u32 size; .reg .pred p;
+ .reg .b64 a; .reg .b64 b; .reg .b64 o; .reg .b64 offset;
+ .reg .f64 x; .reg .f64 y;
+ mov.u32 thread_id,%tid.x; mov.u32 i,%ctaid.x; mul.lo.u32 i,i,128; add.u32 i,i,thread_id;
+ ld.param.u32 size,[n]; setp.ge.u32 p,i,size; @p ret;
+ ld.param.u64 a,[input_a]; ld.param.u64 b,[input_b]; ld.param.u64 o,[output];
+ mul.wide.u32 offset,i,8; add.u64 a,a,offset; add.u64 b,b,offset; add.u64 o,o,offset;
+ ld.global.f64 x,[a]; ld.global.f64 y,[b]; add.rn.f64 x,x,y; st.global.f64 [o],x; ret;
+}
+.entry saxpy_f64(.param .u64 input_a, .param .u64 input_b, .param .f64 alpha, .param .u32 n) {
+ .reg .u32 i; .reg .u32 thread_id; .reg .u32 size; .reg .pred p;
+ .reg .b64 a; .reg .b64 b; .reg .b64 offset;
+ .reg .f64 x; .reg .f64 y; .reg .f64 scale;
+ mov.u32 thread_id,%tid.x; mov.u32 i,%ctaid.x; mul.lo.u32 i,i,128; add.u32 i,i,thread_id;
+ ld.param.u32 size,[n]; setp.ge.u32 p,i,size; @p ret;
+ ld.param.u64 a,[input_a]; ld.param.u64 b,[input_b]; ld.param.f64 scale,[alpha];
+ mul.wide.u32 offset,i,8; add.u64 a,a,offset; add.u64 b,b,offset;
+ ld.global.f64 x,[a]; ld.global.f64 y,[b]; fma.rn.f64 y,x,scale,y; st.global.f64 [b],y; ret;
+}
+.entry block_sum_f64(.param .u64 input, .param .u64 output, .param .u32 n) {
+ .shared .align 8 .f64 scratch[128];
+ .reg .u32 i; .reg .u32 size; .reg .u32 t; .reg .u32 stride; .reg .u32 block;
+ .reg .pred p; .reg .b64 a; .reg .b64 o; .reg .b64 s; .reg .b64 next; .reg .b64 offset;
+ .reg .f64 x; .reg .f64 y;
+ mov.u32 t,%tid.x; mov.u32 block,%ctaid.x; mad.lo.u32 i,block,128,t;
+ ld.param.u32 size,[n]; ld.param.u64 a,[input]; ld.param.u64 o,[output];
+ mul.wide.u32 offset,i,8; add.u64 a,a,offset;
+ mov.f64 x,0.0; setp.lt.u32 p,i,size; @p ld.global.f64 x,[a];
+ mov.u64 s,scratch; mul.wide.u32 offset,t,8; add.u64 s,s,offset;
+ st.shared.f64 [s],x; bar.sync 0; mov.u32 stride,64;
+ loop:
+ setp.ge.u32 p,t,stride; @p bra skip;
+ mul.wide.u32 offset,stride,8; add.u64 next,s,offset;
+ ld.shared.f64 x,[s]; ld.shared.f64 y,[next]; add.rn.f64 x,x,y; st.shared.f64 [s],x;
+ skip:
+ bar.sync 0; shr.u32 stride,stride,1; setp.ne.u32 p,stride,0; @p bra loop;
+ setp.ne.u32 p,t,0; @p ret;
+ ld.shared.f64 x,[s]; mul.wide.u32 offset,block,8; add.u64 o,o,offset;
+ st.global.f64 [o],x; ret;
+}
+.entry multiword(.param .u64 input_a, .param .u64 input_b, .param .u64 output, .param .u32 n) {
+ .reg .u32 i; .reg .u32 thread_id; .reg .u32 size; .reg .pred p;
+ .reg .b64 a; .reg .b64 b; .reg .b64 o; .reg .b64 offset;
+ .reg .b32 r<16>;
+ mov.u32 thread_id,%tid.x; mov.u32 i,%ctaid.x; mul.lo.u32 i,i,128; add.u32 i,i,thread_id;
+ ld.param.u32 size,[n]; setp.ge.u32 p,i,size; @p ret;
+ ld.param.u64 a,[input_a]; ld.param.u64 b,[input_b]; ld.param.u64 o,[output];
+ mul.wide.u32 offset,i,8; add.u64 a,a,offset; add.u64 b,b,offset;
+ mul.wide.u32 offset,i,40; add.u64 o,o,offset;
+ ld.global.v2.u32 {r4,r5},[a]; ld.global.v2.u32 {r6,r7},[b];
+ add.cc.u32 r0,r4,r6; addc.cc.u32 r1,r5,r7; addc.u32 r2,0,0;
+ st.global.u32 [o],r0; st.global.u32 [o+4],r1; st.global.u32 [o+8],r2;
+ sub.cc.u32 r0,r4,r6; subc.cc.u32 r1,r5,r7; subc.u32 r2,0,0; neg.s32 r2,r2;
+ st.global.u32 [o+12],r0; st.global.u32 [o+16],r1; st.global.u32 [o+20],r2;
+ mul.lo.u32 r0,r4,r6; mul.hi.u32 r1,r4,r6;
+ mad.lo.cc.u32 r1,r5,r6,r1; madc.hi.u32 r2,r5,r6,0;
+ mad.lo.cc.u32 r1,r4,r7,r1; madc.hi.cc.u32 r2,r4,r7,r2; addc.u32 r3,0,0;
+ mad.lo.cc.u32 r2,r5,r7,r2; madc.hi.u32 r3,r5,r7,r3;
+ st.global.u32 [o+24],r0; st.global.u32 [o+28],r1; st.global.u32 [o+32],r2; st.global.u32 [o+36],r3; ret;
+}

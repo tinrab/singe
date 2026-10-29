@@ -1,18 +1,25 @@
 [package]
 name = "singe-ptx"
-description = "CUDA PTX parser, AST, and instruction metadata utilities."
+description = "Owned PTX syntax, semantic validation, and asynchronous CPU execution."
 version = "0.1.0-alpha.7"
 edition.workspace = true
 repository.workspace = true
-keywords = ["cuda", "nvidia", "ptx", "parser"]
-license-file = "../LICENSE"
+license-file.workspace = true
 readme = "README.md"
-include.workspace = true
+keywords = ["cuda", "nvidia", "ptx", "parser"]
+include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*", "tests/fixtures/**"]
 
 [features]
-default = ["ptx_9_1"]
-ptx_9_1 = []
+cuda_tests = []
 
 [dependencies]
 thiserror.workspace = true
 nom.workspace = true
+nom_locate.workspace = true
+rustc_apfloat.workspace = true
+half.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true

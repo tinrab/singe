@@ -1,0 +1,2080 @@
+{
+  "prelude": ".version 9.3\n.target sm_80\n.address_size 64\n.global .align 16 .b8 data[64];\n.func helper() { ret; }\n",
+  "cases": [
+    {
+      "name": "Move_valid",
+      "body": "mov.u32 %r0, 42;"
+    },
+    {
+      "name": "Special_register_arithmetic_invalid",
+      "body": "add.u32 %r0,%laneid,1;",
+      "error": "special registers require mov or cvt",
+      "error_source": "%laneid"
+    },
+    {
+      "name": "Special_register_store_invalid",
+      "body": "st.global.u32 [data],%laneid;",
+      "error": "special registers require mov or cvt",
+      "error_source": "%laneid"
+    },
+    {
+      "name": "Special_register_collective_invalid",
+      "body": "shfl.sync.idx.b32 %r0,%laneid,0,31,-1;",
+      "error": "special registers require mov or cvt",
+      "error_source": "%laneid"
+    },
+    {
+      "name": "Special_register_address_conversion_invalid",
+      "body": "cvta.to.global.u32 %r0,%laneid;",
+      "error": "special registers require mov or cvt",
+      "error_source": "%laneid"
+    },
+    {
+      "name": "Special_register_unpack_valid",
+      "body": ".reg .b16 lower; .reg .b16 upper; mov.b32 {lower,upper},%laneid;"
+    },
+    {
+      "name": "Move_invalid",
+      "body": "mov.u32 _, 42;",
+      "error": "discarded"
+    },
+    {
+      "name": "IntegerBinary_valid",
+      "body": "add.sat.s32 %r0, %r1, 42;"
+    },
+    {
+      "name": "IntegerBinary_invalid",
+      "body": "add.sat.u32 %r0, %r1, 42;",
+      "error": "saturation"
+    },
+    {
+      "name": "Multiply_valid",
+      "body": "mad.wide.u32 %rd0, %r0, %r1, %rd1;"
+    },
+    {
+      "name": "Multiply_invalid",
+      "body": "mul.wide.u64 %rd0, %rd0, %rd1;",
+      "error": "wide multiplication"
+    },
+    {
+      "name": "Bitwise_valid",
+      "body": "xor.b32 %r0, %r1, 42;"
+    },
+    {
+      "name": "Bitwise_invalid",
+      "body": "and.f32 %f0, %f1, %f2;",
+      "error": "bitwise"
+    },
+    {
+      "name": "Shift_valid",
+      "body": "shr.s32 %r0, %r1, 1;"
+    },
+    {
+      "name": "Shift_invalid",
+      "body": "shl.s32 %r0, %r1, 1;",
+      "error": "shift type"
+    },
+    {
+      "name": "FloatBinary_valid",
+      "body": "add.rz.ftz.sat.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "FloatBinary_invalid",
+      "body": "div.sat.f32 %f0, %f1, %f2;",
+      "error": "div requires"
+    },
+    {
+      "name": "Fma_valid",
+      "body": "fma.rn.ftz.f32 %f0, %f0, %f1, %f2;"
+    },
+    {
+      "name": "Fma_invalid",
+      "body": "fma.f32 %f0, %f0, %f1, %f2;",
+      "error": "rounding"
+    },
+    {
+      "name": "Convert_valid",
+      "body": "cvt.rzi.sat.s32.f32 %r0, %f0;"
+    },
+    {
+      "name": "Convert_invalid",
+      "body": "cvt.sat.u32.u32 %r0, %r1;",
+      "error": "saturation"
+    },
+    {
+      "name": "Compare_valid",
+      "body": "setp.lt.and.s32 %p0|%p1, %r0, %r1, !%p0;"
+    },
+    {
+      "name": "Compare_invalid",
+      "body": "setp.nan.s32 %p0, %r0, %r1;",
+      "error": "comparison modifiers"
+    },
+    {
+      "name": "Select_valid",
+      "body": "selp.f32 %f0, %f1, %f2, %p0;"
+    },
+    {
+      "name": "Select_invalid",
+      "body": "selp.pred %p0, %p0, %p1, %p1;",
+      "error": "selection type"
+    },
+    {
+      "name": "Load_valid",
+      "body": "ld.global.v4.b32 {%r0, %r1, %r2, %r3}, [data];"
+    },
+    {
+      "name": "Load_invalid",
+      "body": "ld.global.v4.b64 {%rd0, %rd1, %rd0, %rd1}, [data];",
+      "error": "128 bits"
+    },
+    {
+      "name": "Store_valid",
+      "body": "st.release.gpu.global.u32 [data], %r0;"
+    },
+    {
+      "name": "Store_invalid",
+      "body": "st.acquire.gpu.global.u32 [data], %r0;",
+      "error": "instruction type"
+    },
+    {
+      "name": "ConvertAddress_valid",
+      "body": "cvta.global.u64 %rd0, data;"
+    },
+    {
+      "name": "ConvertAddress_invalid",
+      "body": "cvta.to.global.b64 %rd0, %rd1;",
+      "error": "cvta requires"
+    },
+    {
+      "name": "Branch_valid",
+      "body": "bra.uni done; done: ret;"
+    },
+    {
+      "name": "Branch_invalid",
+      "body": "bra missing;",
+      "error": "undefined symbol"
+    },
+    {
+      "name": "Call_valid",
+      "body": "call.uni helper, ();"
+    },
+    {
+      "name": "Call_invalid",
+      "body": "call missing, ();",
+      "error": "undefined symbol"
+    },
+    {
+      "name": "Return_valid",
+      "body": "ret.uni;"
+    },
+    {
+      "name": "Return_invalid",
+      "body": "ret %r0;",
+      "error": "expected 0"
+    },
+    {
+      "name": "Exit_valid",
+      "body": "exit;"
+    },
+    {
+      "name": "Exit_invalid",
+      "body": "exit.uni;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "Trap_valid",
+      "body": "@%p0 trap;"
+    },
+    {
+      "name": "Trap_invalid",
+      "body": "trap %r0;",
+      "error": "expected 0"
+    },
+    {
+      "name": "CtaBarrier_valid",
+      "body": "barrier.cta.sync.aligned 0, 32;"
+    },
+    {
+      "name": "CtaBarrier_invalid",
+      "body": "bar.sync 16;",
+      "error": "less than 16"
+    },
+    {
+      "name": "WarpBarrier_valid",
+      "body": "bar.warp.sync 0xffffffff;"
+    },
+    {
+      "name": "WarpBarrier_invalid",
+      "body": "bar.warp.sync;",
+      "error": "expected 1"
+    },
+    {
+      "name": "Shuffle_valid",
+      "body": "shfl.sync.bfly.b32 %r0|%p0, %r1, 1, 31, 0xffffffff;"
+    },
+    {
+      "name": "Shuffle_invalid",
+      "body": "shfl.sync.idx.b64 %rd0, %rd1, 1, 31, 0xffffffff;",
+      "error": "shuffle requires"
+    },
+    {
+      "name": "Vote_valid",
+      "body": "vote.sync.ballot.b32 %r0, !%p0, 0xffffffff;"
+    },
+    {
+      "name": "Vote_invalid",
+      "body": "vote.sync.all.b32 %r0, %p0, 0xffffffff;",
+      "error": "vote destination"
+    },
+    {
+      "name": "ActiveMask_valid",
+      "body": "activemask.b32 %r0;"
+    },
+    {
+      "name": "ActiveMask_invalid",
+      "body": "activemask.b64 %rd0;",
+      "error": "activemask requires"
+    },
+    {
+      "name": "Atomic_valid",
+      "body": "atom.acq_rel.gpu.global.cas.b32 %r0, [data], %r1, %r2;"
+    },
+    {
+      "name": "Atomic_invalid",
+      "body": "atom.global.add.s64 %rd0, [data], %rd1;",
+      "error": "atomic type"
+    },
+    {
+      "name": "Fence_valid",
+      "body": "fence.sc.gpu;"
+    },
+    {
+      "name": "Fence_invalid",
+      "body": "fence.sc;",
+      "error": "requires a scope"
+    },
+    {
+      "name": "move_u16",
+      "body": "mov.u16 %h, %h;"
+    },
+    {
+      "name": "move_duplicate_u16",
+      "body": "mov.u16.u16 %h, %h;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_u16",
+      "body": "selp.u16 %h, %h, %h, %p0;"
+    },
+    {
+      "name": "move_s16",
+      "body": "mov.s16 %h, %h;"
+    },
+    {
+      "name": "move_duplicate_s16",
+      "body": "mov.s16.s16 %h, %h;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_s16",
+      "body": "selp.s16 %h, %h, %h, %p0;"
+    },
+    {
+      "name": "move_b16",
+      "body": "mov.b16 %h, %h;"
+    },
+    {
+      "name": "move_duplicate_b16",
+      "body": "mov.b16.b16 %h, %h;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_b16",
+      "body": "selp.b16 %h, %h, %h, %p0;"
+    },
+    {
+      "name": "move_u32",
+      "body": "mov.u32 %r0, %r0;"
+    },
+    {
+      "name": "move_duplicate_u32",
+      "body": "mov.u32.u32 %r0, %r0;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_u32",
+      "body": "selp.u32 %r0, %r0, %r0, %p0;"
+    },
+    {
+      "name": "move_s32",
+      "body": "mov.s32 %r0, %r0;"
+    },
+    {
+      "name": "move_duplicate_s32",
+      "body": "mov.s32.s32 %r0, %r0;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_s32",
+      "body": "selp.s32 %r0, %r0, %r0, %p0;"
+    },
+    {
+      "name": "move_b32",
+      "body": "mov.b32 %r0, %r0;"
+    },
+    {
+      "name": "move_duplicate_b32",
+      "body": "mov.b32.b32 %r0, %r0;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_b32",
+      "body": "selp.b32 %r0, %r0, %r0, %p0;"
+    },
+    {
+      "name": "move_u64",
+      "body": "mov.u64 %rd0, %rd0;"
+    },
+    {
+      "name": "move_duplicate_u64",
+      "body": "mov.u64.u64 %rd0, %rd0;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_u64",
+      "body": "selp.u64 %rd0, %rd0, %rd0, %p0;"
+    },
+    {
+      "name": "move_s64",
+      "body": "mov.s64 %rd0, %rd0;"
+    },
+    {
+      "name": "move_duplicate_s64",
+      "body": "mov.s64.s64 %rd0, %rd0;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_s64",
+      "body": "selp.s64 %rd0, %rd0, %rd0, %p0;"
+    },
+    {
+      "name": "move_b64",
+      "body": "mov.b64 %rd0, %rd0;"
+    },
+    {
+      "name": "move_duplicate_b64",
+      "body": "mov.b64.b64 %rd0, %rd0;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_b64",
+      "body": "selp.b64 %rd0, %rd0, %rd0, %p0;"
+    },
+    {
+      "name": "move_f32",
+      "body": "mov.f32 %f0, %f0;"
+    },
+    {
+      "name": "move_duplicate_f32",
+      "body": "mov.f32.f32 %f0, %f0;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_f32",
+      "body": "selp.f32 %f0, %f0, %f0, %p0;"
+    },
+    {
+      "name": "move_f64",
+      "body": "mov.f64 %d, %d;"
+    },
+    {
+      "name": "move_duplicate_f64",
+      "body": "mov.f64.f64 %d, %d;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "select_f64",
+      "body": "selp.f64 %d, %d, %d, %p0;"
+    },
+    {
+      "name": "move_pred",
+      "body": "mov.pred %p0, %p0;"
+    },
+    {
+      "name": "move_duplicate_pred",
+      "body": "mov.pred.pred %p0, %p0;",
+      "error": "qualifiers"
+    },
+    {
+      "name": "add_u16",
+      "body": "add.u16 %h, %h, 1;"
+    },
+    {
+      "name": "sub_u16",
+      "body": "sub.u16 %h, %h, 1;"
+    },
+    {
+      "name": "div_u16",
+      "body": "div.u16 %h, %h, 1;"
+    },
+    {
+      "name": "rem_u16",
+      "body": "rem.u16 %h, %h, 1;"
+    },
+    {
+      "name": "min_u16",
+      "body": "min.u16 %h, %h, 1;"
+    },
+    {
+      "name": "max_u16",
+      "body": "max.u16 %h, %h, 1;"
+    },
+    {
+      "name": "mul_lo_u16",
+      "body": "mul.lo.u16 %h, %h, 2;"
+    },
+    {
+      "name": "mul_hi_u16",
+      "body": "mul.hi.u16 %h, %h, 2;"
+    },
+    {
+      "name": "mul_wide_u16",
+      "body": "mul.wide.u16 %r0, %h, 2;"
+    },
+    {
+      "name": "mad_lo_u16",
+      "body": "mad.lo.u16 %h, %h, 2, %h;"
+    },
+    {
+      "name": "mad_hi_u16",
+      "body": "mad.hi.u16 %h, %h, 2, %h;"
+    },
+    {
+      "name": "mad_wide_u16",
+      "body": "mad.wide.u16 %r0, %h, 2, %r0;"
+    },
+    {
+      "name": "add_s16",
+      "body": "add.s16 %h, %h, 1;"
+    },
+    {
+      "name": "sub_s16",
+      "body": "sub.s16 %h, %h, 1;"
+    },
+    {
+      "name": "div_s16",
+      "body": "div.s16 %h, %h, 1;"
+    },
+    {
+      "name": "rem_s16",
+      "body": "rem.s16 %h, %h, 1;"
+    },
+    {
+      "name": "min_s16",
+      "body": "min.s16 %h, %h, 1;"
+    },
+    {
+      "name": "max_s16",
+      "body": "max.s16 %h, %h, 1;"
+    },
+    {
+      "name": "mul_lo_s16",
+      "body": "mul.lo.s16 %h, %h, 2;"
+    },
+    {
+      "name": "mul_hi_s16",
+      "body": "mul.hi.s16 %h, %h, 2;"
+    },
+    {
+      "name": "mul_wide_s16",
+      "body": "mul.wide.s16 %r0, %h, 2;"
+    },
+    {
+      "name": "mad_lo_s16",
+      "body": "mad.lo.s16 %h, %h, 2, %h;"
+    },
+    {
+      "name": "mad_hi_s16",
+      "body": "mad.hi.s16 %h, %h, 2, %h;"
+    },
+    {
+      "name": "mad_wide_s16",
+      "body": "mad.wide.s16 %r0, %h, 2, %r0;"
+    },
+    {
+      "name": "add_u32",
+      "body": "add.u32 %r0, %r0, 1;"
+    },
+    {
+      "name": "sub_u32",
+      "body": "sub.u32 %r0, %r0, 1;"
+    },
+    {
+      "name": "div_u32",
+      "body": "div.u32 %r0, %r0, 1;"
+    },
+    {
+      "name": "rem_u32",
+      "body": "rem.u32 %r0, %r0, 1;"
+    },
+    {
+      "name": "min_u32",
+      "body": "min.u32 %r0, %r0, 1;"
+    },
+    {
+      "name": "max_u32",
+      "body": "max.u32 %r0, %r0, 1;"
+    },
+    {
+      "name": "mul_lo_u32",
+      "body": "mul.lo.u32 %r0, %r0, 2;"
+    },
+    {
+      "name": "mul_hi_u32",
+      "body": "mul.hi.u32 %r0, %r0, 2;"
+    },
+    {
+      "name": "mul_wide_u32",
+      "body": "mul.wide.u32 %rd0, %r0, 2;"
+    },
+    {
+      "name": "mad_lo_u32",
+      "body": "mad.lo.u32 %r0, %r0, 2, %r0;"
+    },
+    {
+      "name": "mad_hi_u32",
+      "body": "mad.hi.u32 %r0, %r0, 2, %r0;"
+    },
+    {
+      "name": "mad_wide_u32",
+      "body": "mad.wide.u32 %rd0, %r0, 2, %rd0;"
+    },
+    {
+      "name": "add_s32",
+      "body": "add.s32 %r0, %r0, 1;"
+    },
+    {
+      "name": "sub_s32",
+      "body": "sub.s32 %r0, %r0, 1;"
+    },
+    {
+      "name": "div_s32",
+      "body": "div.s32 %r0, %r0, 1;"
+    },
+    {
+      "name": "rem_s32",
+      "body": "rem.s32 %r0, %r0, 1;"
+    },
+    {
+      "name": "min_s32",
+      "body": "min.s32 %r0, %r0, 1;"
+    },
+    {
+      "name": "max_s32",
+      "body": "max.s32 %r0, %r0, 1;"
+    },
+    {
+      "name": "mul_lo_s32",
+      "body": "mul.lo.s32 %r0, %r0, 2;"
+    },
+    {
+      "name": "mul_hi_s32",
+      "body": "mul.hi.s32 %r0, %r0, 2;"
+    },
+    {
+      "name": "mul_wide_s32",
+      "body": "mul.wide.s32 %rd0, %r0, 2;"
+    },
+    {
+      "name": "mad_lo_s32",
+      "body": "mad.lo.s32 %r0, %r0, 2, %r0;"
+    },
+    {
+      "name": "mad_hi_s32",
+      "body": "mad.hi.s32 %r0, %r0, 2, %r0;"
+    },
+    {
+      "name": "mad_wide_s32",
+      "body": "mad.wide.s32 %rd0, %r0, 2, %rd0;"
+    },
+    {
+      "name": "add_u64",
+      "body": "add.u64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "sub_u64",
+      "body": "sub.u64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "div_u64",
+      "body": "div.u64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "rem_u64",
+      "body": "rem.u64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "min_u64",
+      "body": "min.u64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "max_u64",
+      "body": "max.u64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "mul_lo_u64",
+      "body": "mul.lo.u64 %rd0, %rd0, 2;"
+    },
+    {
+      "name": "mul_hi_u64",
+      "body": "mul.hi.u64 %rd0, %rd0, 2;"
+    },
+    {
+      "name": "mad_lo_u64",
+      "body": "mad.lo.u64 %rd0, %rd0, 2, %rd0;"
+    },
+    {
+      "name": "mad_hi_u64",
+      "body": "mad.hi.u64 %rd0, %rd0, 2, %rd0;"
+    },
+    {
+      "name": "add_s64",
+      "body": "add.s64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "sub_s64",
+      "body": "sub.s64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "div_s64",
+      "body": "div.s64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "rem_s64",
+      "body": "rem.s64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "min_s64",
+      "body": "min.s64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "max_s64",
+      "body": "max.s64 %rd0, %rd0, 1;"
+    },
+    {
+      "name": "mul_lo_s64",
+      "body": "mul.lo.s64 %rd0, %rd0, 2;"
+    },
+    {
+      "name": "mul_hi_s64",
+      "body": "mul.hi.s64 %rd0, %rd0, 2;"
+    },
+    {
+      "name": "mad_lo_s64",
+      "body": "mad.lo.s64 %rd0, %rd0, 2, %rd0;"
+    },
+    {
+      "name": "mad_hi_s64",
+      "body": "mad.hi.s64 %rd0, %rd0, 2, %rd0;"
+    },
+    {
+      "name": "and_b16",
+      "body": "and.b16 %h, %h, %h;"
+    },
+    {
+      "name": "or_b16",
+      "body": "or.b16 %h, %h, %h;"
+    },
+    {
+      "name": "xor_b16",
+      "body": "xor.b16 %h, %h, %h;"
+    },
+    {
+      "name": "not_b16",
+      "body": "not.b16 %h, %h;"
+    },
+    {
+      "name": "and_b32",
+      "body": "and.b32 %r0, %r0, %r0;"
+    },
+    {
+      "name": "or_b32",
+      "body": "or.b32 %r0, %r0, %r0;"
+    },
+    {
+      "name": "xor_b32",
+      "body": "xor.b32 %r0, %r0, %r0;"
+    },
+    {
+      "name": "not_b32",
+      "body": "not.b32 %r0, %r0;"
+    },
+    {
+      "name": "and_b64",
+      "body": "and.b64 %rd0, %rd0, %rd0;"
+    },
+    {
+      "name": "or_b64",
+      "body": "or.b64 %rd0, %rd0, %rd0;"
+    },
+    {
+      "name": "xor_b64",
+      "body": "xor.b64 %rd0, %rd0, %rd0;"
+    },
+    {
+      "name": "not_b64",
+      "body": "not.b64 %rd0, %rd0;"
+    },
+    {
+      "name": "and_pred",
+      "body": "and.pred %p0, %p0, %p0;"
+    },
+    {
+      "name": "or_pred",
+      "body": "or.pred %p0, %p0, %p0;"
+    },
+    {
+      "name": "xor_pred",
+      "body": "xor.pred %p0, %p0, %p0;"
+    },
+    {
+      "name": "not_pred",
+      "body": "not.pred %p0, %p0;"
+    },
+    {
+      "name": "add_rn",
+      "body": "add.rn.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "add_rn.ftz",
+      "body": "add.rn.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "add_rz",
+      "body": "add.rz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "add_rz.ftz",
+      "body": "add.rz.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "add_rm",
+      "body": "add.rm.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "add_rm.ftz",
+      "body": "add.rm.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "add_rp",
+      "body": "add.rp.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "add_rp.ftz",
+      "body": "add.rp.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "sub_rn",
+      "body": "sub.rn.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "sub_rn.ftz",
+      "body": "sub.rn.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "sub_rz",
+      "body": "sub.rz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "sub_rz.ftz",
+      "body": "sub.rz.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "sub_rm",
+      "body": "sub.rm.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "sub_rm.ftz",
+      "body": "sub.rm.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "sub_rp",
+      "body": "sub.rp.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "sub_rp.ftz",
+      "body": "sub.rp.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "mul_rn",
+      "body": "mul.rn.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "mul_rn.ftz",
+      "body": "mul.rn.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "mul_rz",
+      "body": "mul.rz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "mul_rz.ftz",
+      "body": "mul.rz.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "mul_rm",
+      "body": "mul.rm.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "mul_rm.ftz",
+      "body": "mul.rm.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "mul_rp",
+      "body": "mul.rp.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "mul_rp.ftz",
+      "body": "mul.rp.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "div_rn",
+      "body": "div.rn.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "div_rn.ftz",
+      "body": "div.rn.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "div_rz",
+      "body": "div.rz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "div_rz.ftz",
+      "body": "div.rz.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "div_rm",
+      "body": "div.rm.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "div_rm.ftz",
+      "body": "div.rm.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "div_rp",
+      "body": "div.rp.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "div_rp.ftz",
+      "body": "div.rp.ftz.f32 %f0, %f1, %f2;"
+    },
+    {
+      "name": "fma_rn",
+      "body": "fma.rn.sat.f32 %f0, %f0, %f1, %f2;"
+    },
+    {
+      "name": "fma_rz",
+      "body": "fma.rz.sat.f32 %f0, %f0, %f1, %f2;"
+    },
+    {
+      "name": "fma_rm",
+      "body": "fma.rm.sat.f32 %f0, %f0, %f1, %f2;"
+    },
+    {
+      "name": "fma_rp",
+      "body": "fma.rp.sat.f32 %f0, %f0, %f1, %f2;"
+    },
+    {
+      "name": "store_u16",
+      "body": "st.global.u16 [data], %h;"
+    },
+    {
+      "name": "store_u16.v2",
+      "body": "st.global.v2.u16 [data], {%h, %h};"
+    },
+    {
+      "name": "store_u16.v4",
+      "body": "st.global.v4.u16 [data], {%h, %h, %h, %h};"
+    },
+    {
+      "name": "store_s16",
+      "body": "st.global.s16 [data], %h;"
+    },
+    {
+      "name": "store_s16.v2",
+      "body": "st.global.v2.s16 [data], {%h, %h};"
+    },
+    {
+      "name": "store_s16.v4",
+      "body": "st.global.v4.s16 [data], {%h, %h, %h, %h};"
+    },
+    {
+      "name": "store_b16",
+      "body": "st.global.b16 [data], %h;"
+    },
+    {
+      "name": "store_b16.v2",
+      "body": "st.global.v2.b16 [data], {%h, %h};"
+    },
+    {
+      "name": "store_b16.v4",
+      "body": "st.global.v4.b16 [data], {%h, %h, %h, %h};"
+    },
+    {
+      "name": "store_u32",
+      "body": "st.global.u32 [data], %r0;"
+    },
+    {
+      "name": "store_u32.v2",
+      "body": "st.global.v2.u32 [data], {%r0, %r0};"
+    },
+    {
+      "name": "store_u32.v4",
+      "body": "st.global.v4.u32 [data], {%r0, %r0, %r0, %r0};"
+    },
+    {
+      "name": "store_s32",
+      "body": "st.global.s32 [data], %r0;"
+    },
+    {
+      "name": "store_s32.v2",
+      "body": "st.global.v2.s32 [data], {%r0, %r0};"
+    },
+    {
+      "name": "store_s32.v4",
+      "body": "st.global.v4.s32 [data], {%r0, %r0, %r0, %r0};"
+    },
+    {
+      "name": "store_b32",
+      "body": "st.global.b32 [data], %r0;"
+    },
+    {
+      "name": "store_b32.v2",
+      "body": "st.global.v2.b32 [data], {%r0, %r0};"
+    },
+    {
+      "name": "store_b32.v4",
+      "body": "st.global.v4.b32 [data], {%r0, %r0, %r0, %r0};"
+    },
+    {
+      "name": "store_u64",
+      "body": "st.global.u64 [data], %rd0;"
+    },
+    {
+      "name": "store_u64.v2",
+      "body": "st.global.v2.u64 [data], {%rd0, %rd0};"
+    },
+    {
+      "name": "store_s64",
+      "body": "st.global.s64 [data], %rd0;"
+    },
+    {
+      "name": "store_s64.v2",
+      "body": "st.global.v2.s64 [data], {%rd0, %rd0};"
+    },
+    {
+      "name": "store_b64",
+      "body": "st.global.b64 [data], %rd0;"
+    },
+    {
+      "name": "store_b64.v2",
+      "body": "st.global.v2.b64 [data], {%rd0, %rd0};"
+    },
+    {
+      "name": "store_f32",
+      "body": "st.global.f32 [data], %f0;"
+    },
+    {
+      "name": "store_f32.v2",
+      "body": "st.global.v2.f32 [data], {%f0, %f0};"
+    },
+    {
+      "name": "store_f32.v4",
+      "body": "st.global.v4.f32 [data], {%f0, %f0, %f0, %f0};"
+    },
+    {
+      "name": "store_f64",
+      "body": "st.global.f64 [data], %d;"
+    },
+    {
+      "name": "store_f64.v2",
+      "body": "st.global.v2.f64 [data], {%d, %d};"
+    },
+    {
+      "name": "cvt_to_float_u8",
+      "body": "cvt.rn.f32.u8 %f0, %r0;"
+    },
+    {
+      "name": "cvt_to_int_u8",
+      "body": "cvt.rzi.u8.f32 %r0, %f0;"
+    },
+    {
+      "name": "cvt_same_sat_u8",
+      "body": "cvt.sat.u8.u8 %r0, %r0;",
+      "error": "saturation"
+    },
+    {
+      "name": "cvt_to_float_s8",
+      "body": "cvt.rn.f32.s8 %f0, %r0;"
+    },
+    {
+      "name": "cvt_to_int_s8",
+      "body": "cvt.rzi.s8.f32 %r0, %f0;"
+    },
+    {
+      "name": "cvt_same_sat_s8",
+      "body": "cvt.sat.s8.s8 %r0, %r0;",
+      "error": "saturation"
+    },
+    {
+      "name": "cvt_to_float_u16",
+      "body": "cvt.rn.f32.u16 %f0, %r0;"
+    },
+    {
+      "name": "cvt_to_int_u16",
+      "body": "cvt.rzi.u16.f32 %r0, %f0;"
+    },
+    {
+      "name": "cvt_same_sat_u16",
+      "body": "cvt.sat.u16.u16 %r0, %r0;",
+      "error": "saturation"
+    },
+    {
+      "name": "cvt_to_float_s16",
+      "body": "cvt.rn.f32.s16 %f0, %r0;"
+    },
+    {
+      "name": "cvt_to_int_s16",
+      "body": "cvt.rzi.s16.f32 %r0, %f0;"
+    },
+    {
+      "name": "cvt_same_sat_s16",
+      "body": "cvt.sat.s16.s16 %r0, %r0;",
+      "error": "saturation"
+    },
+    {
+      "name": "cvt_to_float_u32",
+      "body": "cvt.rn.f32.u32 %f0, %r0;"
+    },
+    {
+      "name": "cvt_to_int_u32",
+      "body": "cvt.rzi.u32.f32 %r0, %f0;"
+    },
+    {
+      "name": "cvt_same_sat_u32",
+      "body": "cvt.sat.u32.u32 %r0, %r0;",
+      "error": "saturation"
+    },
+    {
+      "name": "cvt_to_float_s32",
+      "body": "cvt.rn.f32.s32 %f0, %r0;"
+    },
+    {
+      "name": "cvt_to_int_s32",
+      "body": "cvt.rzi.s32.f32 %r0, %f0;"
+    },
+    {
+      "name": "cvt_same_sat_s32",
+      "body": "cvt.sat.s32.s32 %r0, %r0;",
+      "error": "saturation"
+    },
+    {
+      "name": "cvt_to_float_u64",
+      "body": "cvt.rn.f32.u64 %f0, %rd0;"
+    },
+    {
+      "name": "cvt_to_int_u64",
+      "body": "cvt.rzi.u64.f32 %rd0, %f0;"
+    },
+    {
+      "name": "cvt_same_sat_u64",
+      "body": "cvt.sat.u64.u64 %rd0, %rd0;",
+      "error": "saturation"
+    },
+    {
+      "name": "cvt_to_float_s64",
+      "body": "cvt.rn.f32.s64 %f0, %rd0;"
+    },
+    {
+      "name": "cvt_to_int_s64",
+      "body": "cvt.rzi.s64.f32 %rd0, %f0;"
+    },
+    {
+      "name": "cvt_same_sat_s64",
+      "body": "cvt.sat.s64.s64 %rd0, %rd0;",
+      "error": "saturation"
+    },
+    {
+      "name": "shuffle_up",
+      "body": "shfl.sync.up.b32 %r0, %r1, 1, 31, 0xffffffff;"
+    },
+    {
+      "name": "shuffle_down",
+      "body": "shfl.sync.down.b32 %r0, %r1, 1, 31, 0xffffffff;"
+    },
+    {
+      "name": "shuffle_bfly",
+      "body": "shfl.sync.bfly.b32 %r0, %r1, 1, 31, 0xffffffff;"
+    },
+    {
+      "name": "shuffle_idx",
+      "body": "shfl.sync.idx.b32 %r0, %r1, 1, 31, 0xffffffff;"
+    },
+    {
+      "name": "vote_all",
+      "body": "vote.sync.all.pred %p0, %p1, 0xffffffff;"
+    },
+    {
+      "name": "vote_any",
+      "body": "vote.sync.any.pred %p0, %p1, 0xffffffff;"
+    },
+    {
+      "name": "vote_uni",
+      "body": "vote.sync.uni.pred %p0, %p1, 0xffffffff;"
+    },
+    {
+      "name": "atomic_add_u32",
+      "body": "atom.global.add.u32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_add_s32",
+      "body": "atom.global.add.s32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_add_u64",
+      "body": "atom.global.add.u64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "atomic_min_u32",
+      "body": "atom.global.min.u32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_min_s32",
+      "body": "atom.global.min.s32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_min_u64",
+      "body": "atom.global.min.u64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "atomic_min_s64",
+      "body": "atom.global.min.s64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "atomic_max_u32",
+      "body": "atom.global.max.u32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_max_s32",
+      "body": "atom.global.max.s32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_max_u64",
+      "body": "atom.global.max.u64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "atomic_max_s64",
+      "body": "atom.global.max.s64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "atomic_inc_u32",
+      "body": "atom.global.inc.u32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_dec_u32",
+      "body": "atom.global.dec.u32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_and_b32",
+      "body": "atom.global.and.b32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_and_b64",
+      "body": "atom.global.and.b64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "atomic_or_b32",
+      "body": "atom.global.or.b32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_or_b64",
+      "body": "atom.global.or.b64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "atomic_xor_b32",
+      "body": "atom.global.xor.b32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_xor_b64",
+      "body": "atom.global.xor.b64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "atomic_exch_b32",
+      "body": "atom.global.exch.b32 %r0, [data], %r0;"
+    },
+    {
+      "name": "atomic_exch_b64",
+      "body": "atom.global.exch.b64 %rd0, [data], %rd0;"
+    },
+    {
+      "name": "integer_float",
+      "body": "mov.f32 %f0, 1;",
+      "error": ""
+    },
+    {
+      "name": "float_integer",
+      "body": "mov.u32 %r0, 1.0;",
+      "error": ""
+    },
+    {
+      "name": "relaxed_add",
+      "body": "add.u16 %r0, %r0, 1;",
+      "error": ""
+    },
+    {
+      "name": "cvt_wrong_round",
+      "body": "cvt.rn.f64.f32 %d, %f0;",
+      "error": ""
+    },
+    {
+      "name": "scalar/Carry",
+      "body": "add.cc.u32 %r0,%r1,%r2;"
+    },
+    {
+      "name": "scalar/Unary",
+      "body": "abs.s32 %r0,%r1;"
+    },
+    {
+      "name": "scalar/BitManipulation",
+      "body": "popc.b32 %r0,%r1;"
+    },
+    {
+      "name": "scalar/reject/3",
+      "body": "add.cc.u16 %h,%h,%h;",
+      "error": "carry arithmetic"
+    },
+    {
+      "name": "scalar/reject/4",
+      "body": "abs.u32 %r0,%r1;",
+      "error": "signed type"
+    },
+    {
+      "name": "scalar/reject/5",
+      "body": "popc.u32 %r0,%r1;",
+      "error": "invalid bit operation type"
+    },
+    {
+      "name": "scalar/reject/6",
+      "body": "add.rna.f32 %f0,%f1,%f2;",
+      "error": "invalid floating format"
+    },
+    {
+      "name": "scalar/reject/7",
+      "body": "add.rn.bf16 %h,%h,%h;",
+      "error": "sm_90"
+    },
+    {
+      "name": "scalar/reject/8",
+      "body": "add.rn.ftz.f64 %d,%d,%d;",
+      "error": "ftz"
+    },
+    {
+      "name": "scalar/reject/9",
+      "body": "mul.rz.f16 %h,%h,%h;",
+      "error": "rn rounding"
+    },
+    {
+      "name": "scalar/reject/10",
+      "body": "min.xorsign.abs.f16 %h,%h,%h;",
+      "error": "invalid floating format"
+    },
+    {
+      "name": "scalar/reject/11",
+      "body": "add.f16x2 %r0,0,0;",
+      "error": "register operands"
+    },
+    {
+      "name": "scalar/reject/12",
+      "body": "fma.rn.bf16 %h,0,0,0;",
+      "error": "register operands"
+    },
+    {
+      "name": "scalar/reject/13",
+      "body": "fma.rn.f16x2 %f0,%f0,%f0,%f0;",
+      "error": "register type"
+    },
+    {
+      "name": "scalar/reject/14",
+      "body": "cvt.f32.bf16 %f0,0x3f80;",
+      "error": "register operands"
+    },
+    {
+      "name": "scalar/reject/15",
+      "body": ".reg .f16 hf; fma.rn.bf16 hf,hf,hf,hf;",
+      "error": "register type"
+    },
+    {
+      "name": "scalar/reject/16",
+      "body": "cvt.rn.f16x2.f32 %f0,%f1,%f2;",
+      "error": "register type"
+    },
+    {
+      "name": "scalar/reject/17",
+      "body": "fma.rn.ftz.bf16 %h,%h,%h,%h;",
+      "error": "ftz"
+    },
+    {
+      "name": "scalar/reject/18",
+      "body": "fma.rn.oob.f16 %h,%h,%h,%h;",
+      "error": "invalid floating format"
+    },
+    {
+      "name": "scalar/reject/19",
+      "body": "cvt.rn.bf16.u32 %h,%r0;",
+      "error": "sm_90"
+    },
+    {
+      "name": "scalar/reject/20",
+      "body": "cvt.ftz.f32.bf16 %f0,%h;",
+      "error": "sm_90"
+    },
+    {
+      "name": "scalar/reject/21",
+      "body": "cvt.rp.bf16x2.f32 %r0,%f0,%f1;",
+      "error": "rn or rz"
+    },
+    {
+      "name": "scalar/reject/22",
+      "body": "cvt.rn.f16x2.f32 %r0,%f0;",
+      "error": "expected 3 operands"
+    },
+    {
+      "name": "scalar/reject/23",
+      "body": "cvt.rn.bf16.f32 %r0,%f0;",
+      "error": "type mismatch"
+    },
+    {
+      "name": "scalar/reject/24",
+      "body": "mov.b32 {_,_},%r0;",
+      "error": "discard every"
+    },
+    {
+      "name": "scalar/reject/25",
+      "body": "mov.f16 %h,%h;",
+      "error": "unsupported mov type"
+    },
+    {
+      "name": "scalar/reject/26",
+      "body": "mov.b32 %r0,{%h};",
+      "error": "two half words"
+    },
+    {
+      "name": "scalar/reject/27",
+      "body": "ld.global.bf16 %h,[data];",
+      "error": "bit types"
+    },
+    {
+      "name": "quantized/IntegerTernary",
+      "body": "sad.u32 %r0,%r1,%r2,%r3;"
+    },
+    {
+      "name": "quantized/DotProduct",
+      "body": "dp4a.s32.u32 %r0,%r1,%r2,%r3;"
+    },
+    {
+      "name": "quantized/IntegerPack",
+      "body": "cvt.pack.sat.s8.s32.b32 %r0,%r1,%r2,%r3;"
+    },
+    {
+      "name": "quantized/CompareValue",
+      "body": "set.eq.u32.s32 %r0,%r1,%r2;"
+    },
+    {
+      "name": "quantized/reject/4",
+      "body": "set.eq.bf16.f32 %h,%f0,%f1;",
+      "error": "source or destination format"
+    },
+    {
+      "name": "quantized/reject/5",
+      "body": "setp.eq.f16x2 %r0|%r1,%r2,%r3;",
+      "error": "type mismatch"
+    },
+    {
+      "name": "quantized/reject/6",
+      "body": "setp.eq.f16 %p0,%d,%d;",
+      "error": "type mismatch"
+    },
+    {
+      "name": "quantized/reject/7",
+      "body": "set.eq.ftz.f32.f64 %f0,%d,%d;",
+      "error": "ftz does not apply"
+    },
+    {
+      "name": "quantized/reject/8",
+      "body": "slct.ftz.u32.s32 %r0,%r1,%r2,%r3;",
+      "error": "invalid slct"
+    },
+    {
+      "name": "quantized/reject/9",
+      "body": "copysign.f16 %h,%h,%h;",
+      "error": "f32 or f64"
+    },
+    {
+      "name": "quantized/reject/10",
+      "body": "dp4a.f32.u32 %r0,%r1,%r2,%r3;",
+      "error": "input formats"
+    },
+    {
+      "name": "quantized/reject/11",
+      "body": "cvt.pack.sat.s8.u32.b32 %r0,%r1,%r2,%r3;",
+      "error": "sources require s32"
+    },
+    {
+      "name": "quantized/reject/12",
+      "body": "cvt.pack.s8.s32.b32 %r0,%r1,%r2,%r3;",
+      "error": "requires saturation"
+    },
+    {
+      "name": "quantized/reject/13",
+      "body": "cvt.pack.sat.u1.s32.b32 %r0,%r1,%r2,%r3;",
+      "error": "invalid packed integer format"
+    },
+    {
+      "name": "quantized/reject/14",
+      "body": "sad.f32 %f0,%f0,%f1,%f2;",
+      "error": "scalar integers"
+    },
+    {
+      "name": "quantized/reject/15",
+      "body": "mad.lo.sat.s32 %r0,%r1,%r2,%r3;",
+      "error": "saturation"
+    },
+    {
+      "name": "quantized/reject/16",
+      "body": "mad24.lo.sat.s32 %r0,%r1,%r2,%r3;",
+      "error": "saturation"
+    },
+    {
+      "name": "quantized/reject/17",
+      "body": "bmsk.b32 %r0,%r1,%r2;",
+      "error": "clamp or wrap"
+    },
+    {
+      "name": "quantized/reject/18",
+      "body": "lop3.and.b32 %r0,%r1,%r2,%r3,7,%p0;",
+      "error": "paired"
+    },
+    {
+      "name": "quantized/reject/19",
+      "body": "lop3.xor.b32 %r0|%p0,%r1,%r2,%r3,7,%p1;",
+      "error": "instruction type"
+    },
+    {
+      "name": "math/rcp.approx.f32",
+      "body": ".reg .f32 math; rcp.approx.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.approx.ftz.f32",
+      "body": ".reg .f32 math; rcp.approx.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.approx.ftz.f64",
+      "body": ".reg .f64 math; rcp.approx.ftz.f64 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rm.f32",
+      "body": ".reg .f32 math; rcp.rm.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rm.f64",
+      "body": ".reg .f64 math; rcp.rm.f64 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rm.ftz.f32",
+      "body": ".reg .f32 math; rcp.rm.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rn.f32",
+      "body": ".reg .f32 math; rcp.rn.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rn.f64",
+      "body": ".reg .f64 math; rcp.rn.f64 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rn.ftz.f32",
+      "body": ".reg .f32 math; rcp.rn.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rp.f32",
+      "body": ".reg .f32 math; rcp.rp.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rp.f64",
+      "body": ".reg .f64 math; rcp.rp.f64 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rp.ftz.f32",
+      "body": ".reg .f32 math; rcp.rp.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rz.f32",
+      "body": ".reg .f32 math; rcp.rz.f32 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rz.f64",
+      "body": ".reg .f64 math; rcp.rz.f64 math,4.0;"
+    },
+    {
+      "name": "math/rcp.rz.ftz.f32",
+      "body": ".reg .f32 math; rcp.rz.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/rsqrt.approx.f32",
+      "body": ".reg .f32 math; rsqrt.approx.f32 math,4.0;"
+    },
+    {
+      "name": "math/rsqrt.approx.f64",
+      "body": ".reg .f64 math; rsqrt.approx.f64 math,4.0;"
+    },
+    {
+      "name": "math/rsqrt.approx.ftz.f32",
+      "body": ".reg .f32 math; rsqrt.approx.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/rsqrt.approx.ftz.f64",
+      "body": ".reg .f64 math; rsqrt.approx.ftz.f64 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.approx.f32",
+      "body": ".reg .f32 math; sqrt.approx.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.approx.ftz.f32",
+      "body": ".reg .f32 math; sqrt.approx.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rm.f32",
+      "body": ".reg .f32 math; sqrt.rm.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rm.f64",
+      "body": ".reg .f64 math; sqrt.rm.f64 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rm.ftz.f32",
+      "body": ".reg .f32 math; sqrt.rm.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rn.f32",
+      "body": ".reg .f32 math; sqrt.rn.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rn.f64",
+      "body": ".reg .f64 math; sqrt.rn.f64 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rn.ftz.f32",
+      "body": ".reg .f32 math; sqrt.rn.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rp.f32",
+      "body": ".reg .f32 math; sqrt.rp.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rp.f64",
+      "body": ".reg .f64 math; sqrt.rp.f64 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rp.ftz.f32",
+      "body": ".reg .f32 math; sqrt.rp.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rz.f32",
+      "body": ".reg .f32 math; sqrt.rz.f32 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rz.f64",
+      "body": ".reg .f64 math; sqrt.rz.f64 math,4.0;"
+    },
+    {
+      "name": "math/sqrt.rz.ftz.f32",
+      "body": ".reg .f32 math; sqrt.rz.ftz.f32 math,4.0;"
+    },
+    {
+      "name": "math/reject/rcp.f32",
+      "body": ".reg .f32 math; rcp.f32 math,4.0;",
+      "error": ""
+    },
+    {
+      "name": "math/reject/sqrt.f64",
+      "body": ".reg .f64 math; sqrt.f64 math,4.0;",
+      "error": ""
+    },
+    {
+      "name": "math/reject/rsqrt.rn.f32",
+      "body": ".reg .f32 math; rsqrt.rn.f32 math,4.0;",
+      "error": ""
+    },
+    {
+      "name": "math/reject/sqrt.approx.f64",
+      "body": ".reg .f64 math; sqrt.approx.f64 math,4.0;",
+      "error": ""
+    },
+    {
+      "name": "math/reject/rcp.approx.f64",
+      "body": ".reg .f64 math; rcp.approx.f64 math,4.0;",
+      "error": ""
+    },
+    {
+      "name": "math/reject/sqrt.rn.ftz.f64",
+      "body": ".reg .f64 math; sqrt.rn.ftz.f64 math,4.0;",
+      "error": ""
+    },
+    {
+      "name": "math/reject/rcp.rn.sat.f32",
+      "body": ".reg .f32 math; rcp.rn.sat.f32 math,4.0;",
+      "error": ""
+    },
+    {
+      "name": "brkpt/positive",
+      "body": "brkpt;"
+    },
+    {
+      "name": "brkpt/operand",
+      "body": "brkpt 1;",
+      "error": "expected 0 operands"
+    },
+    {
+      "name": "brkpt/modifier",
+      "body": "brkpt.uni;",
+      "error": "instruction qualifiers"
+    },
+    {
+      "name": "ex2/approx",
+      "body": "ex2.approx.f32 %f0, %f1;"
+    },
+    {
+      "name": "ex2/ftz",
+      "body": "ex2.approx.ftz.f32 %f0, %f1;"
+    },
+    {
+      "name": "ex2/missing_approx",
+      "body": "ex2.f32 %f0, %f1;",
+      "error": "requires approx"
+    },
+    {
+      "name": "ex2/rounding",
+      "body": "ex2.rn.f32 %f0, %f1;",
+      "error": "requires approx"
+    },
+    {
+      "name": "ex2/f64",
+      "body": "ex2.approx.f64 %d, %d;",
+      "error": "requires f32"
+    },
+    {
+      "name": "ex2/saturation",
+      "body": "ex2.approx.sat.f32 %f0, %f1;",
+      "error": "instruction type sat"
+    },
+    {
+      "name": "ex2/arity",
+      "body": "ex2.approx.f32 %f0, %f1, %f2;",
+      "error": "expected 2 operands"
+    },
+    {
+      "name": "ex2/discard",
+      "body": "ex2.approx.f32 _, %f1;",
+      "error": "discarded"
+    },
+    {
+      "name": "redux/add",
+      "body": "redux.sync.add.u32 %r0, %r1, 0xffffffff;"
+    },
+    {
+      "name": "redux/missing_sync",
+      "body": "redux.add.u32 %r0, %r1, 0xffffffff;",
+      "error": "requires sync"
+    },
+    {
+      "name": "redux/type",
+      "body": "redux.sync.add.u64 %rd0, %rd1, 0xffffffff;",
+      "error": "requires u32"
+    },
+    {
+      "name": "redux/arity",
+      "body": "redux.sync.add.u32 %r0, %r1;",
+      "error": "expected 3 operands"
+    },
+    {
+      "name": "red/add",
+      "body": "red.global.add.u32 [data], %r0;"
+    },
+    {
+      "name": "red/acquire",
+      "body": "red.acquire.gpu.global.add.u32 [data], %r0;",
+      "error": "relaxed or release"
+    },
+    {
+      "name": "red/compare_swap",
+      "body": "red.global.cas.b32 [data], %r0, %r1;",
+      "error": "exchange or compare-swap"
+    },
+    {
+      "name": "red/local",
+      "body": "red.local.add.u32 [data], %r0;",
+      "error": "generic, global, or shared"
+    },
+    {
+      "name": "red/arity",
+      "body": "red.global.add.u32 %r0, [data], %r1;",
+      "error": "expected 2 operands"
+    },
+    {
+      "name": "atom/f32_add",
+      "body": "atom.global.add.f32 %f0, [data], %f1;"
+    },
+    {
+      "name": "atom/f32_bitwise",
+      "body": "atom.global.xor.f32 %f0, [data], %f1;",
+      "error": "type does not match"
+    },
+    {
+      "name": "atom/f32_rounding",
+      "body": "atom.global.add.rn.f32 %f0, [data], %f1;",
+      "error": "instruction type rn"
+    },
+    {
+      "name": "atom/f32_discard",
+      "body": "atom.global.add.f32 _, [data], %f1;"
+    },
+    {
+      "name": "cp.async.ca.shared.global_full",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],16;"
+    },
+    {
+      "name": "cp.async.ca.shared.global_size",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],16,%r0;"
+    },
+    {
+      "name": "cp.async.ca.shared.global_ignore",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],16,%p0;"
+    },
+    {
+      "name": "cp.async.ca.shared::cta.global_full",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared::cta.global [async_tile],[data],16;"
+    },
+    {
+      "name": "cp.async.ca.shared::cta.global_size",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared::cta.global [async_tile],[data],16,%r0;"
+    },
+    {
+      "name": "cp.async.ca.shared::cta.global_ignore",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared::cta.global [async_tile],[data],16,%p0;"
+    },
+    {
+      "name": "cp.async.cg.shared.global_full",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.cg.shared.global [async_tile],[data],16;"
+    },
+    {
+      "name": "cp.async.cg.shared.global_size",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.cg.shared.global [async_tile],[data],16,%r0;"
+    },
+    {
+      "name": "cp.async.cg.shared.global_ignore",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.cg.shared.global [async_tile],[data],16,%p0;"
+    },
+    {
+      "name": "cp.async.cg.shared::cta.global_full",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.cg.shared::cta.global [async_tile],[data],16;"
+    },
+    {
+      "name": "cp.async.cg.shared::cta.global_size",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.cg.shared::cta.global [async_tile],[data],16,%r0;"
+    },
+    {
+      "name": "cp.async.cg.shared::cta.global_ignore",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.cg.shared::cta.global [async_tile],[data],16,%p0;"
+    },
+    {
+      "name": "AsyncCopy_ca_4",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],4;"
+    },
+    {
+      "name": "AsyncCopy_ca_8",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],8;"
+    },
+    {
+      "name": "AsyncCopy_source_equal",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],4,4;"
+    },
+    {
+      "name": "AsyncCommit_empty",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.commit_group;"
+    },
+    {
+      "name": "AsyncWait_all",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.wait_all;"
+    },
+    {
+      "name": "AsyncWait_0",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.wait_group 0;"
+    },
+    {
+      "name": "AsyncWait_1",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.wait_group 1;"
+    },
+    {
+      "name": "AsyncWait_7",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.wait_group 7;"
+    },
+    {
+      "name": "MemoryBarrier_init",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.init.b64 [%rd0],1;"
+    },
+    {
+      "name": "MemoryBarrier_inval",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.inval.b64 [%rd0];"
+    },
+    {
+      "name": "MemoryBarrier_arrive",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.arrive.b64 %rd1,[%rd0];"
+    },
+    {
+      "name": "MemoryBarrier_test_wait",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.test_wait.b64 %p0,[%rd0],%rd1;"
+    },
+    {
+      "name": "MemoryBarrier_test_wait.parity",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.test_wait.parity.b64 %p0,[%rd0],0;"
+    },
+    {
+      "name": "MemoryBarrier_discard",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.arrive.b64 _,[%rd0];"
+    },
+    {
+      "name": "AsyncBarrier",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.mbarrier.arrive.b64 [%rd0];"
+    },
+    {
+      "name": "AsyncBarrier.noinc",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.mbarrier.arrive.noinc.b64 [%rd0];"
+    },
+    {
+      "name": "MemoryBarrier_init.shared",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.init.shared.b64 [async_barrier],1;"
+    },
+    {
+      "name": "MemoryBarrier_inval.shared",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.inval.shared.b64 [async_barrier];"
+    },
+    {
+      "name": "MemoryBarrier_arrive.shared",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.arrive.shared.b64 %rd1,[async_barrier];"
+    },
+    {
+      "name": "MemoryBarrier_test_wait.shared",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.test_wait.shared.b64 %p0,[async_barrier],%rd1;"
+    },
+    {
+      "name": "MemoryBarrier_test_wait.parity.shared",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.test_wait.parity.shared.b64 %p0,[async_barrier],0;"
+    },
+    {
+      "name": "MemoryBarrier_discard.shared",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.arrive.shared.b64 _,[async_barrier];"
+    },
+    {
+      "name": "AsyncBarrier.shared",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.mbarrier.arrive.shared.b64 [async_barrier];"
+    },
+    {
+      "name": "AsyncBarrier.noinc.shared",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.mbarrier.arrive.noinc.shared.b64 [async_barrier];"
+    },
+    {
+      "name": "MemoryBarrier_init.shared::cta",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.init.shared::cta.b64 [async_barrier],1;"
+    },
+    {
+      "name": "MemoryBarrier_inval.shared::cta",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.inval.shared::cta.b64 [async_barrier];"
+    },
+    {
+      "name": "MemoryBarrier_arrive.shared::cta",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.arrive.shared::cta.b64 %rd1,[async_barrier];"
+    },
+    {
+      "name": "MemoryBarrier_test_wait.shared::cta",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.test_wait.shared::cta.b64 %p0,[async_barrier],%rd1;"
+    },
+    {
+      "name": "MemoryBarrier_test_wait.parity.shared::cta",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.test_wait.parity.shared::cta.b64 %p0,[async_barrier],0;"
+    },
+    {
+      "name": "MemoryBarrier_discard.shared::cta",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.arrive.shared::cta.b64 _,[async_barrier];"
+    },
+    {
+      "name": "AsyncBarrier.shared::cta",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.mbarrier.arrive.shared::cta.b64 [async_barrier];"
+    },
+    {
+      "name": "AsyncBarrier.noinc.shared::cta",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.mbarrier.arrive.noinc.shared::cta.b64 [async_barrier];"
+    },
+    {
+      "name": "AsyncCopy_size2",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],2;",
+      "error": "copy size"
+    },
+    {
+      "name": "AsyncCopy_variable_size",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],%r0;",
+      "error": "copy size"
+    },
+    {
+      "name": "AsyncCopy_cg8",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.cg.shared.global [async_tile],[data],8;",
+      "error": "cg copy size"
+    },
+    {
+      "name": "AsyncCopy_source5",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.shared.global [async_tile],[data],4,5;",
+      "error": "source size"
+    },
+    {
+      "name": "AsyncCopy_wrong_destination",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.ca.global.global [data],[data],4;",
+      "error": "destination requires shared"
+    },
+    {
+      "name": "AsyncWait_variable",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.wait_group %r0;",
+      "error": "immediate"
+    },
+    {
+      "name": "AsyncWait_8",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.wait_group 8;"
+    },
+    {
+      "name": "AsyncCommit_operand",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; cp.async.commit_group %r0;",
+      "error": "expected 0 operands"
+    },
+    {
+      "name": "MemoryBarrier_init_zero",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.init.shared.b64 [async_barrier],0;",
+      "error": "count"
+    },
+    {
+      "name": "MemoryBarrier_init_large",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.init.shared.b64 [async_barrier],1048576;",
+      "error": "count"
+    },
+    {
+      "name": "MemoryBarrier_wrong_type",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.init.shared.b32 [async_barrier],1;",
+      "error": "requires b64"
+    },
+    {
+      "name": "MemoryBarrier_try_wait_sm80",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.try_wait.shared.b64 %p0,[async_barrier],%rd1;",
+      "error": "unsupported mbarrier operation"
+    },
+    {
+      "name": "MemoryBarrier_count_sm80",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.arrive.shared.b64 %rd1,[async_barrier],2;",
+      "error": "expected 2 operands"
+    },
+    {
+      "name": "MemoryBarrier_wait_discard",
+      "body": ".shared .align 16 .b8 async_tile[64]; .shared .align 8 .b64 async_barrier; mbarrier.test_wait.shared.b64 _,[async_barrier],%rd1;",
+      "error": "predicate destination"
+    },
+    {
+      "name": "MatrixMultiply_valid",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 {mc0,mc1,mc2,mc3},{ma0,ma1,ma2,ma3},{mb0,mb1},{mc0,mc1,mc2,mc3};"
+    },
+    {
+      "name": "MatrixLoad_rows_valid",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; ldmatrix.sync.aligned.m8n8.x4.shared.b16 {ma0,ma1,ma2,ma3},[mtile];"
+    },
+    {
+      "name": "MatrixLoad_columns_valid",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; ldmatrix.sync.aligned.m8n8.x2.trans.shared.b16 {mb0,mb1},[mtile];"
+    },
+    {
+      "name": "MatrixMultiply_short_a",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 {mc0,mc1,mc2,mc3},{ma0,ma1},{mb0,mb1},{mc0,mc1,mc2,mc3};",
+      "error": "wrong length"
+    },
+    {
+      "name": "MatrixMultiply_short_d",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 {mc0,mc1},{ma0,ma1,ma2,ma3},{mb0,mb1},{mc0,mc1,mc2,mc3};",
+      "error": "wrong length"
+    },
+    {
+      "name": "MatrixMultiply_long_b",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 {mc0,mc1,mc2,mc3},{ma0,ma1,ma2,ma3},{ma0,ma1,ma2,ma3},{mc0,mc1,mc2,mc3};",
+      "error": "wrong length"
+    },
+    {
+      "name": "MatrixMultiply_immediate",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 {mc0,mc1,mc2,mc3},{0,ma1,ma2,ma3},{mb0,mb1},{mc0,mc1,mc2,mc3};"
+    },
+    {
+      "name": "MatrixMultiply_wide_register",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 {mc0,mc1,mc2,mc3},{ma0,ma1,ma2,ma3},{%rd0,mb1},{mc0,mc1,mc2,mc3};",
+      "error": "expected .b32"
+    },
+    {
+      "name": "MatrixMultiply_discard",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32 {_,mc1,mc2,mc3},{ma0,ma1,ma2,ma3},{mb0,mb1},{mc0,mc1,mc2,mc3};"
+    },
+    {
+      "name": "MatrixMultiply_shape",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m17n8k16.row.col.f32.f16.f16.f32 {mc0,mc1,mc2,mc3},{ma0,ma1,ma2,ma3},{mb0,mb1},{mc0,mc1,mc2,mc3};",
+      "error": "requires sync.aligned"
+    },
+    {
+      "name": "MatrixMultiply_types",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.aligned.m16n8k16.row.col.f32.f32.f32.f32 {mc0,mc1,mc2,mc3},{ma0,ma1,ma2,ma3},{mb0,mb1},{mc0,mc1,mc2,mc3};",
+      "error": "requires f32.f16"
+    },
+    {
+      "name": "MatrixMultiply_missing_aligned",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; mma.sync.m16n8k16.row.col.f32.f16.f16.f32 {mc0,mc1,mc2,mc3},{ma0,ma1,ma2,ma3},{mb0,mb1},{mc0,mc1,mc2,mc3};",
+      "error": "requires sync.aligned"
+    },
+    {
+      "name": "MatrixLoad_short",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; ldmatrix.sync.aligned.m8n8.x4.shared.b16 {ma0,ma1},[mtile];",
+      "error": "wrong length"
+    },
+    {
+      "name": "MatrixLoad_scalar",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; ldmatrix.sync.aligned.m8n8.x4.shared.b16 ma0,[mtile];",
+      "error": "requires a vector"
+    },
+    {
+      "name": "MatrixLoad_type",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; ldmatrix.sync.aligned.m8n8.x4.shared.b32 {ma0,ma1,ma2,ma3},[mtile];",
+      "error": "shared.b16"
+    },
+    {
+      "name": "MatrixLoad_global",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; ldmatrix.sync.aligned.m8n8.x4.global.b16 {ma0,ma1,ma2,ma3},[data];",
+      "error": "shared.b16"
+    },
+    {
+      "name": "MatrixLoad_discard",
+      "body": ".shared .align 16 .b8 mtile[512]; .reg .b32 ma<4>; .reg .b32 mb<2>; .reg .f32 mc<4>; ldmatrix.sync.aligned.m8n8.x4.shared.b16 {_,ma1,ma2,ma3},[mtile];"
+    }
+  ],
+  "declarations": ".reg .b16 %h;\n.reg .b32 %r<4>;\n.reg .b64 %rd<2>;\n.reg .f32 %f<3>;\n.reg .f64 %d;\n.reg .pred %p<2>;\n"
+}

@@ -1,0 +1,31 @@
+// Handwritten CPU acceptance fixture, equivalent to transpose.cu.
+.version 9.3
+.target sm_80
+.address_size 64
+.visible .entry transpose(.param .u64 input, .param .u64 output, .param .u32 width) {
+    .reg .u32 r<10>;
+    .reg .u64 a<5>;
+    .reg .pred p;
+    ld.param.u64 a0,[input];
+    ld.param.u64 a1,[output];
+    ld.param.u32 r0,[width];
+    mov.u32 r1,%ctaid.x;
+    mov.u32 r2,%ctaid.y;
+    mov.u32 r3,%tid.x;
+    mov.u32 r4,%tid.y;
+    mad.lo.u32 r1,r1,16,r3;
+    mad.lo.u32 r2,r2,16,r4;
+    setp.ge.u32 p,r1,r0;
+    @p ret;
+    setp.ge.u32 p,r2,r0;
+    @p ret;
+    mad.lo.u32 r5,r2,r0,r1;
+    mad.lo.u32 r6,r1,r0,r2;
+    mul.wide.u32 a2,r5,4;
+    mul.wide.u32 a3,r6,4;
+    add.u64 a2,a2,a0;
+    add.u64 a3,a3,a1;
+    ld.global.b32 r7,[a2];
+    st.global.b32 [a3],r7;
+    ret;
+}

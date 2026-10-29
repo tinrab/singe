@@ -1,0 +1,101 @@
+// Handwritten sm_80 matrix path. A and B are row-major FP16; C is row-major FP32.
+// One full warp computes a 16x8 output tile, iterating over 16-wide K tiles.
+// Scalar shared-memory staging pads all problem tails with zero.
+.version 9.4
+.target sm_80
+.address_size 64
+
+.entry matrix(
+    .param .u64 input_a, .param .u64 input_b, .param .u64 output,
+    .param .u32 rows, .param .u32 columns, .param .u32 depth
+)
+.reqntid 32,1,1
+{
+    .shared .align 16 .b16 tile_a[256];
+    .shared .align 16 .b16 tile_b[128];
+    .reg .u64 a; .reg .u64 b; .reg .u64 c; .reg .u64 address;
+    .reg .u64 offset; .reg .u64 base; .reg .u64 shared_address;
+    .reg .u32 m; .reg .u32 n; .reg .u32 k; .reg .u32 lane;
+    .reg .u32 start_m; .reg .u32 start_n; .reg .u32 start_k;
+    .reg .u32 index; .reg .u32 row; .reg .u32 col;
+    .reg .u32 global_row; .reg .u32 global_col; .reg .u32 linear;
+    .reg .u32 group; .reg .u32 pair;
+    .reg .b16 value;
+    .reg .b32 fragment_a<4>; .reg .b32 fragment_b<2>;
+    .reg .f32 accumulator<4>;
+    .reg .pred p; .reg .pred q; .reg .pred more;
+
+    ld.param.u64 a,[input_a]; ld.param.u64 b,[input_b]; ld.param.u64 c,[output];
+    ld.param.u32 m,[rows]; ld.param.u32 n,[columns]; ld.param.u32 k,[depth];
+    mov.u32 lane,%tid.x; mov.u32 start_m,%ctaid.y; mov.u32 start_n,%ctaid.x;
+    mul.lo.u32 start_m,start_m,16; mul.lo.u32 start_n,start_n,8;
+    mov.f32 accumulator0,0f00000000; mov.f32 accumulator1,0f00000000;
+    mov.f32 accumulator2,0f00000000; mov.f32 accumulator3,0f00000000;
+    mov.u32 start_k,0; setp.eq.u32 p,k,0; @p bra store;
+
+tile:
+    mov.u32 index,lane; mov.u64 base,tile_a;
+load_a:
+    shr.u32 row,index,4; and.b32 col,index,15;
+    add.u32 global_row,start_m,row; add.u32 global_col,start_k,col;
+    setp.lt.u32 p,global_row,m; setp.lt.u32 q,global_col,k; and.pred p,p,q;
+    mad.lo.u32 linear,global_row,k,global_col;
+    mul.wide.u32 offset,linear,2; add.u64 address,a,offset;
+    mov.b16 value,0; @p ld.global.b16 value,[address];
+    mul.wide.u32 offset,index,2; add.u64 shared_address,base,offset;
+    st.shared.b16 [shared_address],value;
+    add.u32 index,index,32; setp.lt.u32 more,index,256; @more bra load_a;
+
+    mov.u32 index,lane; mov.u64 base,tile_b;
+load_b:
+    shr.u32 row,index,3; and.b32 col,index,7;
+    add.u32 global_row,start_k,row; add.u32 global_col,start_n,col;
+    setp.lt.u32 p,global_row,k; setp.lt.u32 q,global_col,n; and.pred p,p,q;
+    mad.lo.u32 linear,global_row,n,global_col;
+    mul.wide.u32 offset,linear,2; add.u64 address,b,offset;
+    mov.b16 value,0; @p ld.global.b16 value,[address];
+    mul.wide.u32 offset,index,2; add.u64 shared_address,base,offset;
+    st.shared.b16 [shared_address],value;
+    add.u32 index,index,32; setp.lt.u32 more,index,128; @more bra load_b;
+    bar.sync 0;
+
+    // Four A quadrants: upper-left, lower-left, upper-right, lower-right.
+    and.b32 row,lane,15; shr.u32 col,lane,4; mul.lo.u32 col,col,8;
+    mad.lo.u32 linear,row,16,col; mul.wide.u32 offset,linear,2;
+    mov.u64 base,tile_a; add.u64 shared_address,base,offset;
+    ldmatrix.sync.aligned.m8n8.x4.shared.b16
+        {fragment_a0,fragment_a1,fragment_a2,fragment_a3},[shared_address];
+
+    // Transposing the two B quadrants produces the column-major MMA fragments.
+    and.b32 row,lane,15; mul.wide.u32 offset,row,16;
+    mov.u64 base,tile_b; add.u64 shared_address,base,offset;
+    ldmatrix.sync.aligned.m8n8.x2.trans.shared.b16
+        {fragment_b0,fragment_b1},[shared_address];
+    mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32
+        {accumulator0,accumulator1,accumulator2,accumulator3},
+        {fragment_a0,fragment_a1,fragment_a2,fragment_a3},
+        {fragment_b0,fragment_b1},
+        {accumulator0,accumulator1,accumulator2,accumulator3};
+    bar.sync 0;
+    add.u32 start_k,start_k,16; setp.lt.u32 more,start_k,k; @more bra tile;
+
+store:
+    shr.u32 group,lane,2; and.b32 pair,lane,3; mul.lo.u32 pair,pair,2;
+    add.u32 global_row,start_m,group; add.u32 global_col,start_n,pair;
+    setp.lt.u32 p,global_row,m; setp.lt.u32 q,global_col,n; and.pred p,p,q;
+    mad.lo.u32 linear,global_row,n,global_col;
+    mul.wide.u32 offset,linear,4; add.u64 address,c,offset;
+    @p st.global.f32 [address],accumulator0;
+    add.u32 col,global_col,1; setp.lt.u32 q,col,n;
+    setp.lt.u32 p,global_row,m; and.pred p,p,q;
+    @p st.global.f32 [address+4],accumulator1;
+
+    add.u32 global_row,global_row,8;
+    setp.lt.u32 p,global_row,m; setp.lt.u32 q,global_col,n; and.pred p,p,q;
+    mad.lo.u32 linear,global_row,n,global_col;
+    mul.wide.u32 offset,linear,4; add.u64 address,c,offset;
+    @p st.global.f32 [address],accumulator2;
+    setp.lt.u32 q,col,n; setp.lt.u32 p,global_row,m; and.pred p,p,q;
+    @p st.global.f32 [address+4],accumulator3;
+    ret;
+}

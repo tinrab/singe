@@ -1,0 +1,151 @@
+// One CTA per row, with a one-dimensional block of 1 through 128 lanes.
+.version 9.4
+.target sm_80
+.address_size 64
+
+.visible .entry softmax(
+    .param .u64 input,
+    .param .u64 output,
+    .param .u32 width
+)
+.maxntid 128, 1, 1
+{
+    .shared .align 4 .f32 scratch[128];
+    .reg .u32 lane;
+    .reg .u32 row;
+    .reg .u32 columns;
+    .reg .u32 column;
+    .reg .u32 index;
+    .reg .u32 stride;
+    .reg .u32 peer;
+    .reg .u32 block;
+    .reg .u64 source;
+    .reg .u64 destination;
+    .reg .u64 base;
+    .reg .u64 local;
+    .reg .u64 address;
+    .reg .u64 offset;
+    .reg .f32 value;
+    .reg .f32 maximum;
+    .reg .f32 other;
+    .reg .f32 exponent;
+    .reg .f32 sum;
+    .reg .pred active;
+
+    ld.param.u64 source, [input];
+    ld.param.u64 destination, [output];
+    ld.param.u32 columns, [width];
+    mov.u32 lane, %tid.x;
+    mov.u32 row, %ctaid.x;
+    mov.u32 block, %ntid.x;
+    mov.u64 base, scratch;
+    mul.wide.u32 offset, lane, 4;
+    add.u64 local, base, offset;
+
+    mov.f32 maximum, 0fFF800000;
+    mov.u32 column, lane;
+max_scan:
+    setp.ge.u32 active, column, columns;
+    @active bra max_store;
+    mad.lo.u32 index, row, columns, column;
+    mul.wide.u32 offset, index, 4;
+    add.u64 address, source, offset;
+    ld.global.f32 value, [address];
+    max.f32 maximum, maximum, value;
+    add.u32 column, column, block;
+    bra max_scan;
+max_store:
+    st.shared.f32 [local], maximum;
+    // Initialize reduction slots for lanes absent from a partial block.
+    add.u32 peer, lane, block;
+max_pad:
+    setp.ge.u32 active, peer, 128;
+    @active bra max_ready;
+    mul.wide.u32 offset, peer, 4;
+    add.u64 address, base, offset;
+    st.shared.f32 [address], 0fFF800000;
+    add.u32 peer, peer, block;
+    bra max_pad;
+max_ready:
+    bar.sync 0;
+    mov.u32 stride, 64;
+max_reduce:
+    setp.ge.u32 active, lane, stride;
+    @active bra max_join;
+    add.u32 peer, lane, stride;
+    mul.wide.u32 offset, peer, 4;
+    add.u64 address, base, offset;
+    ld.shared.f32 other, [address];
+    ld.shared.f32 maximum, [local];
+    max.f32 maximum, maximum, other;
+    st.shared.f32 [local], maximum;
+max_join:
+    bar.sync 0;
+    shr.u32 stride, stride, 1;
+    setp.ne.u32 active, stride, 0;
+    @active bra max_reduce;
+    ld.shared.f32 maximum, [base];
+    bar.sync 0;
+
+    mov.f32 sum, 0f00000000;
+    mov.u32 column, lane;
+exp_scan:
+    setp.ge.u32 active, column, columns;
+    @active bra sum_store;
+    mad.lo.u32 index, row, columns, column;
+    mul.wide.u32 offset, index, 4;
+    add.u64 address, source, offset;
+    ld.global.f32 value, [address];
+    sub.rn.f32 value, value, maximum;
+    // log2(e), rounded to binary32.
+    mul.rn.f32 exponent, value, 0f3FB8AA3B;
+    ex2.approx.f32 value, exponent;
+    add.rn.f32 sum, sum, value;
+    add.u64 address, destination, offset;
+    st.global.f32 [address], value;
+    add.u32 column, column, block;
+    bra exp_scan;
+sum_store:
+    st.shared.f32 [local], sum;
+    add.u32 peer, lane, block;
+sum_pad:
+    setp.ge.u32 active, peer, 128;
+    @active bra sum_ready;
+    mul.wide.u32 offset, peer, 4;
+    add.u64 address, base, offset;
+    st.shared.f32 [address], 0f00000000;
+    add.u32 peer, peer, block;
+    bra sum_pad;
+sum_ready:
+    bar.sync 0;
+    mov.u32 stride, 64;
+sum_reduce:
+    setp.ge.u32 active, lane, stride;
+    @active bra sum_join;
+    add.u32 peer, lane, stride;
+    mul.wide.u32 offset, peer, 4;
+    add.u64 address, base, offset;
+    ld.shared.f32 other, [address];
+    ld.shared.f32 sum, [local];
+    add.rn.f32 sum, sum, other;
+    st.shared.f32 [local], sum;
+sum_join:
+    bar.sync 0;
+    shr.u32 stride, stride, 1;
+    setp.ne.u32 active, stride, 0;
+    @active bra sum_reduce;
+    ld.shared.f32 sum, [base];
+
+    mov.u32 column, lane;
+normalize:
+    setp.ge.u32 active, column, columns;
+    @active ret;
+    mad.lo.u32 index, row, columns, column;
+    mul.wide.u32 offset, index, 4;
+    add.u64 address, destination, offset;
+    ld.global.f32 value, [address];
+    div.rn.f32 value, value, sum;
+    st.global.f32 [address], value;
+    add.u32 column, column, block;
+    bra normalize;
+}
